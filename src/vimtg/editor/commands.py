@@ -110,14 +110,17 @@ def parse_command(
     if not rest:
         return ParsedCommand(name="", cmd_range=cmd_range)
 
-    # Split command name from arguments
-    cmd_match = re.match(r"^([a-zA-Z]+)(!?)(?:\s+(.*))?$", rest)
+    # Split command name from arguments.
+    # Handle both whitespace-separated args (:sort name) and
+    # delimiter-attached args (:s/old/new/g, :g/pattern/cmd).
+    cmd_match = re.match(r"^([a-zA-Z]+)(!?)(?:\s+(.*)|([^a-zA-Z\s].*))?$", rest)
     if not cmd_match:
         return ParsedCommand(name=rest, cmd_range=cmd_range)
 
     name = cmd_match.group(1)
     bang = cmd_match.group(2) == "!"
-    args = (cmd_match.group(3) or "").strip()
+    # group(3) = whitespace-separated args, group(4) = delimiter-attached args
+    args = (cmd_match.group(3) or cmd_match.group(4) or "").strip()
 
     return ParsedCommand(name=name, args=args, cmd_range=cmd_range, bang=bang)
 

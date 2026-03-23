@@ -133,3 +133,19 @@ def search(query: str, limit: int) -> None:
             f"{card.name:<32}{card.mana_cost:<12}{card.type_line:<24}"
             f"{card.set_code.upper():<6}{price}"
         )
+
+
+@main.command()
+@click.argument("path", type=click.Path(), required=False)
+def edit(path: str | None = None) -> None:
+    """Open deck in TUI editor."""
+    _launch_editor(path)
+
+
+def _launch_editor(path: str | None) -> None:
+    """Launch the TUI editor for the given deck file path."""
+    from vimtg.tui.app import VimTGApp
+
+    deck_path = Path(path) if path else None
+    app = VimTGApp(deck_path=deck_path)
+    app.run()
