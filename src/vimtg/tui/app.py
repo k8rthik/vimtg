@@ -1,6 +1,8 @@
 """VimTGApp — Textual application entry point.
 
-Creates services, loads a deck file, and pushes the MainScreen.
+Creates services, loads a deck file, and pushes the appropriate screen:
+- Greeter (alpha-nvim style) when launched with no file
+- MainScreen when launched with a deck file path
 """
 
 from __future__ import annotations
@@ -41,39 +43,59 @@ class VimTGApp(App):
     def __init__(self, deck_path: Path | None = None) -> None:
         super().__init__()
         self._deck_path = deck_path
+        self._cmd_registry: CommandRegistry | None = None
+        self._search_svc: SearchService | None = None
+        self._card_repo: CardRepository | None = None
 
     def on_mount(self) -> None:
+        self._init_services()
         if self._deck_path and self._deck_path.exists():
-            text = self._deck_path.read_text(encoding="utf-8")
+            self._launch_editor(self._deck_path)
         else:
-            text = "// New Deck\n\n"
+            self._launch_greeter()
 
-        buffer = Buffer.from_text(text)
+    def _init_services(self) -> None:
+        self._cmd_registry = CommandRegistry()
+        register_buffer_commands(self._cmd_registry)
+        register_sort_commands(self._cmd_registry)
+        register_deck_commands(self._cmd_registry)
+        register_help_commands(self._cmd_registry)
+        register_config_commands(self._cmd_registry)
 
-        registry = CommandRegistry()
-        register_buffer_commands(registry)
-        register_sort_commands(registry)
-        register_deck_commands(registry)
-        register_help_commands(registry)
-        register_config_commands(registry)
-
-        search_svc = None
-        card_repo = None
         db_file = db_path()
         if db_file.exists():
             db = Database(db_file)
             db.initialize()
-            card_repo = CardRepository(db)
-            search_svc = SearchService(card_repo=card_repo)
+            self._card_repo = CardRepository(db)
+            self._search_svc = SearchService(card_repo=self._card_repo)
 
+    def _launch_greeter(self) -> None:
+        from vimtg.tui.screens.greeter import GreeterScreen
+
+        recent = self._find_recent_decks()
+        self.push_screen(GreeterScreen(recent_files=recent))
+
+    def _launch_editor(self, file_path: Path | None = None) -> None:
         from vimtg.tui.screens.main_screen import MainScreen
 
+        if file_path and file_path.exists():
+            text = file_path.read_text(encoding="utf-8")
+        else:
+            text = "// New Deck\n\n"
+
+        buffer = Buffer.from_text(text)
         self.push_screen(
             MainScreen(
                 buffer=buffer,
-                file_path=self._deck_path,
-                registry=registry,
-                search_service=search_svc,
-                card_repo=card_repo,
+                file_path=file_path,
+                registry=self._cmd_registry,
+                search_service=self._search_svc,
+                card_repo=self._card_repo,
             )
         )
+
+    def _find_recent_decks(self) -> list[Path]:
+        """Find .deck files in current directory, sorted by modification time."""
+        cwd = Path.cwd()
+        decks = sorted(cwd.glob("*.deck"), key=lambda p: p.stat().st_mtime, reverse=True)
+        return decks[:5]

@@ -33,7 +33,10 @@ def _make_card_repo() -> CardRepository:
 def main(ctx: click.Context) -> None:
     """vimtg — Vim-powered MTG deck builder."""
     if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())
+        from vimtg.tui.app import VimTGApp
+
+        app = VimTGApp()
+        app.run()
 
 
 @main.command()
