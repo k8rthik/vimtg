@@ -149,6 +149,9 @@ class MainScreen(Screen):
             s.mode_mgr.transition(Mode.INSERT)
             self.keymap.set_mode(Mode.INSERT)
             self.keymap.reset_text()
+            cl = self.query_one("#command-line", CommandLine)
+            cl.show("")
+            cl.message = "Type card name to search..."
         if hr.enter_command:
             s.mode_mgr.transition(Mode.COMMAND)
             self.keymap.set_mode(Mode.COMMAND)
@@ -176,6 +179,8 @@ class MainScreen(Screen):
         elif query == "__prev__":
             sr.select_prev()
         else:
+            cl.message = ""
+            cl.prefix = "search: "
             cl.text = query
             if len(query) >= 2 and self.search_service:
                 self._run_search(query)
@@ -200,7 +205,7 @@ class MainScreen(Screen):
     def _run_search(self, query: str) -> None:
         if self.search_service:
             results = self.search_service.fuzzy_search(query, limit=15)
-            self.call_from_thread(self._update_search_results, results)
+            self.app.call_from_thread(self._update_search_results, results)
 
     def _update_search_results(self, results: list[Card]) -> None:
         sr = self.query_one("#search-results", SearchResults)
