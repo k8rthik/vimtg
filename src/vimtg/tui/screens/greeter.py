@@ -14,14 +14,14 @@ from textual.widgets import Static
 
 from vimtg.tui.theme import COLORS
 
-LOGO = r"""
-         _            _
-  __   _(_)_ __ ___ | |_ __ _
-  \ \ / / | '_ ` _ \| __/ _` |
-   \ V /| | | | | | | || (_| |
-    \_/ |_|_| |_| |_|\__\__, |
-                         |___/
-"""
+LOGO_LINES = [
+    "          _             _          ",
+    "  __   __(_) _ __ ___  | |_   __ _ ",
+    "  \\ \\ / /| || '_ ` _ \\| __| / _` |",
+    "   \\ V / | || | | | | || |_ | (_| |",
+    "    \\_/  |_||_| |_| |_| \\__| \\__, |",
+    "                              |___/ ",
+]
 
 ACTIONS = [
     ("n", "New deck", ":new"),
@@ -43,9 +43,11 @@ class GreeterView(Static):
     def render(self) -> Text:
         t = Text()
 
-        # Logo
-        for line in LOGO.strip().split("\n"):
-            t.append(f"  {line}\n", style=f"bold {COLORS['mana_red']}")
+        # Logo — use Text directly to avoid Rich markup interpretation
+        for line in LOGO_LINES:
+            logo_line = Text(f"  {line}\n")
+            logo_line.stylize(f"bold {COLORS['mana_red']}")
+            t.append_text(logo_line)
         t.append("\n")
 
         # Tagline
