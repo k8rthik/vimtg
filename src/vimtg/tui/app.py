@@ -26,6 +26,8 @@ from vimtg.tui.theme import COLORS
 class VimTGApp(App):
     """Vim-powered MTG deck editor TUI."""
 
+    BINDINGS = [("ctrl+c", "quit", "Force quit")]
+
     CSS = f"""
     Screen {{ layout: vertical; }}
     #deck-view {{ height: 1fr; }}
