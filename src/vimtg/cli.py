@@ -136,6 +136,38 @@ def search(query: str, limit: int) -> None:
 
 
 @main.command()
+@click.argument("input_path", type=click.Path(exists=True))
+@click.option(
+    "--from",
+    "from_fmt",
+    type=click.Choice(["mtgo", "arena", "moxfield", "archidekt"]),
+    help="Source format (auto-detected if omitted)",
+)
+@click.option(
+    "--to",
+    "to_fmt",
+    type=click.Choice(["vimtg", "mtgo", "arena", "moxfield", "archidekt"]),
+    required=True,
+    help="Target format",
+)
+@click.option("--output", "-o", type=click.Path(), help="Output file path")
+def convert(input_path: str, from_fmt: str | None, to_fmt: str, output: str | None) -> None:
+    """Convert deck between formats."""
+    from vimtg.services.import_export_service import DeckFormat, ImportExportService
+
+    service = ImportExportService()
+    text = Path(input_path).read_text(encoding="utf-8")
+    src_fmt = DeckFormat(from_fmt) if from_fmt else None
+    deck = service.import_deck(text, src_fmt)
+    result = service.export_deck(deck, DeckFormat(to_fmt))
+    if output:
+        Path(output).write_text(result, encoding="utf-8")
+        click.echo(f"Converted to {output}")
+    else:
+        click.echo(result)
+
+
+@main.command()
 @click.argument("path", type=click.Path(), required=False)
 def edit(path: str | None = None) -> None:
     """Open deck in TUI editor."""

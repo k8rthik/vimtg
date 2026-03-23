@@ -15,6 +15,7 @@ from vimtg.data.database import Database
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.buffer_cmds import register_buffer_commands
 from vimtg.editor.command_handlers.deck_cmds import register_deck_commands
+from vimtg.editor.command_handlers.help_cmd import register_help_commands
 from vimtg.editor.command_handlers.sort import register_sort_commands
 from vimtg.editor.commands import CommandRegistry
 from vimtg.services.search_service import SearchService
@@ -49,6 +50,7 @@ class VimTGApp(App):
         register_buffer_commands(registry)
         register_sort_commands(registry)
         register_deck_commands(registry)
+        register_help_commands(registry)
 
         search_svc = None
         card_repo = None

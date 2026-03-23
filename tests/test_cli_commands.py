@@ -1,4 +1,4 @@
-"""Tests for CLI commands: new, validate, info."""
+"""Tests for CLI commands: new, validate, info, convert."""
 
 from __future__ import annotations
 
@@ -74,3 +74,35 @@ def test_info_output(runner: CliRunner) -> None:
     assert "Burn" in result.output
     assert "60" in result.output
     assert "15" in result.output
+
+
+# --- convert command ---
+
+
+def test_convert_to_mtgo(runner: CliRunner) -> None:
+    deck_path = FIXTURES_DIR / "sample_burn.deck"
+    result = runner.invoke(main, ["convert", str(deck_path), "--to", "mtgo"])
+    assert result.exit_code == 0
+    assert "4 Lightning Bolt" in result.output
+    assert "Sideboard" in result.output
+
+
+def test_convert_to_file(runner: CliRunner, tmp_path: Path) -> None:
+    deck_path = FIXTURES_DIR / "sample_burn.deck"
+    out = tmp_path / "burn.txt"
+    result = runner.invoke(main, ["convert", str(deck_path), "--to", "mtgo", "-o", str(out)])
+    assert result.exit_code == 0
+    assert out.exists()
+    content = out.read_text(encoding="utf-8")
+    assert "Lightning Bolt" in content
+
+
+def test_convert_roundtrip_vimtg(runner: CliRunner, tmp_path: Path) -> None:
+    """Convert vimtg -> mtgo -> vimtg preserves card names."""
+    deck_path = FIXTURES_DIR / "sample_burn.deck"
+    mtgo_out = tmp_path / "burn.mtgo"
+    runner.invoke(main, ["convert", str(deck_path), "--to", "mtgo", "-o", str(mtgo_out)])
+
+    result = runner.invoke(main, ["convert", str(mtgo_out), "--from", "mtgo", "--to", "vimtg"])
+    assert result.exit_code == 0
+    assert "Lightning Bolt" in result.output
