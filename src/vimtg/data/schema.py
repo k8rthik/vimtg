@@ -46,6 +46,23 @@ CREATE TABLE IF NOT EXISTS sync_metadata (
 )
 """
 
+SNAPSHOTS_TABLE = """
+CREATE TABLE IF NOT EXISTS snapshots (
+    id TEXT PRIMARY KEY,
+    deck_path TEXT NOT NULL,
+    parent_id TEXT,
+    deck_state TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    branch TEXT DEFAULT 'main',
+    tag TEXT
+)
+"""
+
+SNAPSHOT_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_snapshots_deck ON snapshots(deck_path)",
+)
+
 
 def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARDS_TABLE)
@@ -53,4 +70,7 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     for idx in INDEXES:
         conn.execute(idx)
     conn.execute(SYNC_TABLE)
+    conn.execute(SNAPSHOTS_TABLE)
+    for idx in SNAPSHOT_INDEXES:
+        conn.execute(idx)
     conn.commit()
