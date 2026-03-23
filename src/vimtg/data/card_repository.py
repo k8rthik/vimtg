@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from vimtg.data.card_mapper import card_to_row, row_to_card
 from vimtg.data.database import Database
 from vimtg.domain.card import Card
+from vimtg.domain.search import SearchQuery
 
 _INSERT_SQL = """
     INSERT OR REPLACE INTO cards (
@@ -91,6 +92,45 @@ class CardRepository:
                 result[card.name] = card
 
         return result
+
+    def search_advanced(self, query: SearchQuery) -> list[Card]:
+        """Build SQL from SearchQuery filters."""
+        conn = self._db.connect()
+        conditions: list[str] = []
+        params: list[object] = []
+
+        if query.text:
+            conditions.append(
+                "c.rowid IN (SELECT rowid FROM cards_fts WHERE cards_fts MATCH ?)"
+            )
+            words = query.text.strip().split()
+            params.append(" ".join(f"{w}*" for w in words))
+        if query.type_contains:
+            conditions.append("c.type_line LIKE ?")
+            params.append(f"%{query.type_contains}%")
+        if query.cmc_eq is not None:
+            conditions.append("c.cmc = ?")
+            params.append(query.cmc_eq)
+        if query.cmc_lte is not None:
+            conditions.append("c.cmc <= ?")
+            params.append(query.cmc_lte)
+        if query.cmc_gte is not None:
+            conditions.append("c.cmc >= ?")
+            params.append(query.cmc_gte)
+        if query.set_code:
+            conditions.append("c.set_code = ?")
+            params.append(query.set_code)
+        if query.rarity:
+            conditions.append("c.rarity = ?")
+            params.append(query.rarity.value)
+        if query.oracle_contains:
+            conditions.append("c.oracle_text LIKE ?")
+            params.append(f"%{query.oracle_contains}%")
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+        sql = f"SELECT * FROM cards c WHERE {where} LIMIT 50"  # noqa: S608
+        rows = conn.execute(sql, params).fetchall()
+        return [row_to_card(row) for row in rows]
 
     def autocomplete(self, prefix: str, limit: int = 20) -> list[str]:
         """Return distinct card names matching prefix via FTS5."""

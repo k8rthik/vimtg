@@ -8,12 +8,23 @@ from pathlib import Path
 import click
 
 from vimtg import __version__
+from vimtg.config.paths import cache_dir, db_path
+from vimtg.data.card_repository import CardRepository
+from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
+from vimtg.data.scryfall_sync import ScryfallSync
 from vimtg.services.deck_service import DeckService
+from vimtg.services.search_service import SearchService
 
 
 def _make_service() -> DeckService:
     return DeckService(deck_repo=DeckRepository())
+
+
+def _make_card_repo() -> CardRepository:
+    db = Database(db_path())
+    db.initialize()
+    return CardRepository(db)
 
 
 @click.group(invoke_without_command=True)
@@ -83,3 +94,42 @@ def info(path: str) -> None:
     click.echo(f"Format:    {deck.metadata.format or '(none)'}")
     click.echo(f"Mainboard: {main_count} cards ({main_unique} unique)")
     click.echo(f"Sideboard: {side_count} cards ({side_unique} unique)")
+
+
+@main.command(name="sync")
+@click.option("--force", is_flag=True, help="Force re-download")
+def sync_cmd(force: bool) -> None:
+    """Download card data from Scryfall."""
+    repo = _make_card_repo()
+    syncer = ScryfallSync(card_repo=repo, cache_dir=cache_dir())
+
+    def _progress(phase: str, current: int, total: int) -> None:
+        if phase == "download" and total > 0:
+            pct = current * 100 // total
+            click.echo(f"\rDownloading... {pct}%", nl=False)
+        elif phase == "parse" and total > 0:
+            click.echo(f"\rParsing... {current}/{total}", nl=False)
+
+    count = syncer.sync(force=force, progress=_progress)
+    click.echo(f"\nSynced {count} cards")
+
+
+@main.command()
+@click.argument("query")
+@click.option("--limit", "-n", default=20, help="Max results")
+def search(query: str, limit: int) -> None:
+    """Search for cards."""
+    repo = _make_card_repo()
+    service = SearchService(card_repo=repo)
+    results = service.fuzzy_search(query, limit=limit)
+
+    if not results:
+        click.echo("No cards found.")
+        return
+
+    for card in results:
+        price = f"${card.price_usd:.2f}" if card.price_usd is not None else "-"
+        click.echo(
+            f"{card.name:<32}{card.mana_cost:<12}{card.type_line:<24}"
+            f"{card.set_code.upper():<6}{price}"
+        )
