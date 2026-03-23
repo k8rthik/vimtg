@@ -19,7 +19,7 @@ class CommandLine(Static):
             return Text(f" {self.message}", style="dim")
         if self.prefix:
             return Text(f" {self.prefix}{self.text}", style="bold")
-        return Text("")
+        return Text(" Press ? for help  |  : command  |  i insert  |  o add card", style="dim")
 
     def show(self, prefix: str) -> None:
         """Activate command input with the given prefix (: or /)."""

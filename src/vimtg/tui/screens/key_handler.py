@@ -165,6 +165,9 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         state.history.record(state.buffer, "decrement")
     elif key == "x":
         _delete_card_at_cursor(state)
+    elif key == "?":
+        from vimtg.editor.help_text import get_help
+        return HandlerResult(command_message=get_help())
     return HandlerResult()
 
 
