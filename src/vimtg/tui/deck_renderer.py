@@ -30,14 +30,37 @@ _COMMENT_STYLE = f"dim italic {COLORS['comment']}"
 _EXPANSION_STYLE = f"dim {COLORS['expansion']}"
 
 
-def _line_number_gutter(line_idx: int, cursor_row: int, total_lines: int) -> Text:
-    """Render a line number gutter: relative numbers with absolute at cursor."""
-    width = max(3, len(str(total_lines)))
+def _line_number_gutter(
+    line_idx: int, cursor_row: int, buf: Buffer,
+) -> Text:
+    """Render a line number gutter: relative numbers with absolute at cursor.
+
+    Blank lines get an empty gutter. Relative numbers count only non-blank
+    lines between cursor and target — matching how j/k navigate.
+    """
+    width = max(3, len(str(buf.line_count())))
+
+    # Blank lines get no number
+    if buf.get_line(line_idx).line_type == LineType.BLANK:
+        return Text(f"{' ' * width} ")
+
     if line_idx == cursor_row:
         num_str = str(line_idx + 1).rjust(width)
         return Text(f"{num_str} ", style=f"bold {COLORS['quantity']}")
-    relative = abs(line_idx - cursor_row)
-    num_str = str(relative).rjust(width)
+
+    # Count non-blank lines between cursor and this line
+    if line_idx > cursor_row:
+        non_blank = sum(
+            1 for i in range(cursor_row + 1, line_idx + 1)
+            if buf.get_line(i).line_type != LineType.BLANK
+        )
+    else:
+        non_blank = sum(
+            1 for i in range(line_idx, cursor_row)
+            if buf.get_line(i).line_type != LineType.BLANK
+        )
+
+    num_str = str(non_blank).rjust(width)
     return Text(f"{num_str} ", style=f"dim {COLORS['comment']}")
 
 
@@ -56,7 +79,7 @@ def render_line(
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
     if show_line_numbers:
-        gutter = _line_number_gutter(line_idx, cursor_row, buf.line_count())
+        gutter = _line_number_gutter(line_idx, cursor_row, buf)
         gutter_pad = Text(" " * len(gutter.plain))
     else:
         gutter = Text("")
