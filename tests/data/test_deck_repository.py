@@ -22,16 +22,16 @@ class TestParseSampleDeck:
         deck = parse_deck_text(burn_deck_text)
         mainboard = deck.mainboard()
         sideboard = deck.sideboard()
-        assert len(mainboard) == 12
+        assert len(mainboard) == 15
         assert len(sideboard) == 7
 
     def test_parse_total_cards(self, burn_deck_text: str) -> None:
         deck = parse_deck_text(burn_deck_text)
         main_total = sum(e.quantity for e in deck.mainboard())
         side_total = sum(e.quantity for e in deck.sideboard())
-        assert main_total == 50
+        assert main_total == 60
         assert side_total == 15
-        assert deck.total_cards() == 65
+        assert deck.total_cards() == 75
 
     def test_parse_metadata(self, burn_deck_text: str) -> None:
         deck = parse_deck_text(burn_deck_text)

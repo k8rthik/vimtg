@@ -1,6 +1,19 @@
+"""CLI entry point for vimtg."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
 import click
 
 from vimtg import __version__
+from vimtg.data.deck_repository import DeckRepository
+from vimtg.services.deck_service import DeckService
+
+
+def _make_service() -> DeckService:
+    return DeckService(deck_repo=DeckRepository())
 
 
 @click.group(invoke_without_command=True)
@@ -10,3 +23,63 @@ def main(ctx: click.Context) -> None:
     """vimtg — Vim-powered MTG deck builder."""
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
+
+
+@main.command()
+@click.argument("name")
+@click.option("--format", "-f", "fmt", default="", help="MTG format")
+@click.option("--output", "-o", type=click.Path(), help="Output file path")
+def new(name: str, fmt: str, output: str | None) -> None:
+    """Create a new deck file."""
+    service = _make_service()
+    text = service.new_deck(name=name, fmt=fmt)
+
+    out_path = Path(output) if output else Path.cwd() / f"{name}.deck"
+
+    service.save_deck(text, out_path)
+    click.echo(f"Created {out_path}")
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
+def validate(path: str) -> None:
+    """Validate a deck file."""
+    service = _make_service()
+    file_path = Path(path)
+    _text, deck = service.open_deck(file_path)
+    errors = service.validate(deck)
+
+    if not errors:
+        click.echo(f"{file_path.name}: ok")
+        return
+
+    has_errors = False
+    for err in errors:
+        line_part = f"{err.line_number}:" if err.line_number is not None else ""
+        click.echo(f"{file_path.name}:{line_part} {err.level}: {err.message}")
+        if err.level == "error":
+            has_errors = True
+
+    if has_errors:
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
+def info(path: str) -> None:
+    """Show deck summary."""
+    service = _make_service()
+    file_path = Path(path)
+    _text, deck = service.open_deck(file_path)
+
+    main_entries = deck.mainboard()
+    side_entries = deck.sideboard()
+    main_count = sum(e.quantity for e in main_entries)
+    side_count = sum(e.quantity for e in side_entries)
+    main_unique = len({e.card_name for e in main_entries})
+    side_unique = len({e.card_name for e in side_entries})
+
+    click.echo(f"Deck:      {deck.metadata.name or '(unnamed)'}")
+    click.echo(f"Format:    {deck.metadata.format or '(none)'}")
+    click.echo(f"Mainboard: {main_count} cards ({main_unique} unique)")
+    click.echo(f"Sideboard: {side_count} cards ({side_unique} unique)")
