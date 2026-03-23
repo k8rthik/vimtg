@@ -18,6 +18,7 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult
+from vimtg.editor.keymaps import load_remapper
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
 from vimtg.services.history_service import HistoryService
@@ -36,6 +37,7 @@ from vimtg.tui.widgets.command_line import CommandLine
 from vimtg.tui.widgets.deck_view import DeckView
 from vimtg.tui.widgets.search_results import SearchResults
 from vimtg.tui.widgets.status_line import StatusLine
+from vimtg.tui.widgets.which_key import WhichKey
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
@@ -69,10 +71,12 @@ class MainScreen(Screen):
         self.search_service = search_service
         self.card_repo = card_repo
         self.keymap = KeyMap()
+        self.remapper = load_remapper()
 
     def compose(self):  # noqa: ANN201
         yield DeckView(id="deck-view")
         yield SearchResults(id="search-results")
+        yield WhichKey(id="which-key")
         yield StatusLine(id="status-line")
         yield CommandLine(id="command-line")
 
@@ -88,7 +92,20 @@ class MainScreen(Screen):
     def on_key(self, event: Key) -> None:
         event.prevent_default()
         event.stop()
-        result, action = self.keymap.feed(event.key)
+        # Resolve remappings
+        key = self.remapper.resolve(event.key, self._state.mode_mgr.current)
+        result, action = self.keymap.feed(key)
+
+        # Update which-key tooltip
+        wk = self.query_one("#which-key", WhichKey)
+        wk.mode = self._state.mode_mgr.current
+        if result == KeyResult.PENDING:
+            wk.pending_key = key
+            wk.visible = True
+            return
+        wk.pending_key = ""
+        wk.visible = self._state.mode_mgr.is_normal()
+
         if result != KeyResult.COMPLETE or action is None:
             return
 

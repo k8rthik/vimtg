@@ -14,6 +14,7 @@ from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.buffer_cmds import register_buffer_commands
+from vimtg.editor.command_handlers.config_cmds import register_config_commands
 from vimtg.editor.command_handlers.deck_cmds import register_deck_commands
 from vimtg.editor.command_handlers.help_cmd import register_help_commands
 from vimtg.editor.command_handlers.sort import register_sort_commands
@@ -29,6 +30,7 @@ class VimTGApp(App):
     Screen {{ layout: vertical; }}
     #deck-view {{ height: 1fr; }}
     #search-results {{ height: auto; max-height: 20; dock: bottom; }}
+    #which-key {{ height: auto; max-height: 6; dock: bottom; }}
     #status-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}
     #command-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}
     """
@@ -51,6 +53,7 @@ class VimTGApp(App):
         register_sort_commands(registry)
         register_deck_commands(registry)
         register_help_commands(registry)
+        register_config_commands(registry)
 
         search_svc = None
         card_repo = None

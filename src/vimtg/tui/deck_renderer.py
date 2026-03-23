@@ -6,7 +6,9 @@ Handles card lines, comments, sections, and inline card expansion.
 
 from __future__ import annotations
 
+import os
 import re
+import textwrap
 
 from rich.text import Text
 
@@ -28,11 +30,23 @@ _COMMENT_STYLE = f"dim italic {COLORS['comment']}"
 _EXPANSION_STYLE = f"dim {COLORS['expansion']}"
 
 
+def _line_number_gutter(line_idx: int, cursor_row: int, total_lines: int) -> Text:
+    """Render a line number gutter: relative numbers with absolute at cursor."""
+    width = max(3, len(str(total_lines)))
+    if line_idx == cursor_row:
+        num_str = str(line_idx + 1).rjust(width)
+        return Text(f"{num_str} ", style=f"bold {COLORS['quantity']}")
+    relative = abs(line_idx - cursor_row)
+    num_str = str(relative).rjust(width)
+    return Text(f"{num_str} ", style=f"dim {COLORS['comment']}")
+
+
 def render_line(
     line_idx: int,
     buf: Buffer,
     cursor_row: int,
     resolved: dict[str, Card],
+    show_line_numbers: bool = True,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
@@ -41,19 +55,31 @@ def render_line(
     """
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
+    if show_line_numbers:
+        gutter = _line_number_gutter(line_idx, cursor_row, buf.line_count())
+        gutter_pad = Text(" " * len(gutter.plain))
+    else:
+        gutter = Text("")
+        gutter_pad = Text("")
     lines: list[Text] = []
 
     if bl.line_type == LineType.BLANK:
-        lines.append(Text(""))
+        t = Text()
+        t.append(gutter)
+        lines.append(t)
     elif bl.line_type in (LineType.COMMENT, LineType.SECTION_HEADER, LineType.METADATA):
-        t = Text(f"  {bl.text}", style=_COMMENT_STYLE)
+        t = Text()
+        t.append(gutter)
+        t.append(f"{bl.text}", style=_COMMENT_STYLE)
         if is_cursor:
             t.stylize(_CURSOR_STYLE)
         lines.append(t)
     elif bl.line_type in (LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY, LineType.COMMANDER_ENTRY):
-        lines.extend(_render_card_line(line_idx, buf, is_cursor, resolved))
+        lines.extend(_render_card_line(line_idx, buf, is_cursor, resolved, gutter, gutter_pad))
     else:
-        t = Text(f"  {bl.text}")
+        t = Text()
+        t.append(gutter)
+        t.append(f"{bl.text}")
         if is_cursor:
             t.stylize(_CURSOR_STYLE)
         lines.append(t)
@@ -66,6 +92,8 @@ def _render_card_line(
     buf: Buffer,
     is_cursor: bool,
     resolved: dict[str, Card],
+    gutter: Text | None = None,
+    gutter_pad: Text | None = None,
 ) -> list[Text]:
     """Build the formatted card line and optional inline expansion."""
     bl = buf.get_line(line_idx)
@@ -74,8 +102,10 @@ def _render_card_line(
     card = resolved.get(card_name or "") if card_name else None
 
     t = Text()
+    if gutter:
+        t.append(gutter)
     prefix = ">" if is_cursor else " "
-    t.append(f"{prefix} ", style="bold" if is_cursor else "")
+    t.append(f"{prefix}", style="bold" if is_cursor else "")
 
     if bl.line_type == LineType.SIDEBOARD_ENTRY:
         t.append("SB: ", style=COLORS["sideboard"])
@@ -97,23 +127,35 @@ def _render_card_line(
     lines: list[Text] = [t]
 
     if is_cursor and card:
-        lines.extend(_render_expansion(card))
+        lines.extend(_render_expansion(card, gutter_pad))
 
     return lines
 
 
-def _render_expansion(card: Card) -> list[Text]:
-    """Render 2-4 expansion lines showing card details."""
+def _render_expansion(card: Card, gutter_pad: Text | None = None) -> list[Text]:
+    """Render expansion lines with proper word-wrapping to avoid broken indentation."""
     lines: list[Text] = []
+    pad = gutter_pad.plain if gutter_pad else ""
+    prefix = f"{pad} \u2502    "
+    prefix_len = len(prefix)
+
+    # Terminal width — leave margin for safety
+    try:
+        term_width = max(40, os.get_terminal_size().columns - 2)
+    except OSError:
+        term_width = 78
+    wrap_width = term_width - prefix_len
 
     type_str = card.type_line
     if card.power and card.toughness:
         type_str += f"  {card.power}/{card.toughness}"
-    lines.append(Text(f"  \u2502    {type_str}", style=_EXPANSION_STYLE))
+    lines.append(Text(f"{prefix}{type_str}", style=_EXPANSION_STYLE))
 
     if card.oracle_text:
         for text_line in card.oracle_text.split("\n"):
-            lines.append(Text(f"  \u2502    {text_line}", style=_EXPANSION_STYLE))
+            wrapped = textwrap.wrap(text_line, width=max(20, wrap_width))
+            for wl in wrapped or [""]:
+                lines.append(Text(f"{prefix}{wl}", style=_EXPANSION_STYLE))
 
     meta_parts: list[str] = []
     if card.set_code:
@@ -121,7 +163,7 @@ def _render_expansion(card: Card) -> list[Text]:
     meta_parts.append(f"Rarity: {card.rarity.value.title()}")
     if card.price_usd is not None:
         meta_parts.append(f"${card.price_usd:.2f}")
-    lines.append(Text(f"  \u2502    {'  '.join(meta_parts)}", style=_EXPANSION_STYLE))
+    lines.append(Text(f"{prefix}{'  '.join(meta_parts)}", style=_EXPANSION_STYLE))
 
     return lines
 

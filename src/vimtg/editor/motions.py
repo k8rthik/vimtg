@@ -8,18 +8,30 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from vimtg.editor.buffer import Buffer
+from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
 
 
 def motion_down(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
-    new_row = min(cursor.row + count, buffer.line_count() - 1)
-    return cursor.move_to(new_row, cursor.col)
+    """Move down, skipping blank lines."""
+    pos = cursor.row
+    moved = 0
+    while moved < count and pos < buffer.line_count() - 1:
+        pos += 1
+        if buffer.get_line(pos).line_type != LineType.BLANK:
+            moved += 1
+    return cursor.move_to(pos, cursor.col)
 
 
 def motion_up(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
-    new_row = max(cursor.row - count, 0)
-    return cursor.move_to(new_row, cursor.col)
+    """Move up, skipping blank lines."""
+    pos = cursor.row
+    moved = 0
+    while moved < count and pos > 0:
+        pos -= 1
+        if buffer.get_line(pos).line_type != LineType.BLANK:
+            moved += 1
+    return cursor.move_to(pos, cursor.col)
 
 
 def motion_line_start(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
@@ -95,6 +107,36 @@ def motion_prev_section(cursor: Cursor, buffer: Buffer, count: int = 1) -> Curso
     return cursor.move_to(pos, 0)
 
 
+def motion_section_header_next(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
+    """]] — Jump forward to the next section header comment."""
+    pos = cursor.row
+    for _ in range(count):
+        pos += 1
+        while pos < buffer.line_count():
+            if buffer.get_line(pos).line_type == LineType.SECTION_HEADER:
+                break
+            pos += 1
+        if pos >= buffer.line_count():
+            pos = buffer.line_count() - 1
+            break
+    return cursor.move_to(pos, 0)
+
+
+def motion_section_header_prev(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
+    """[[ — Jump backward to the previous section header comment."""
+    pos = cursor.row
+    for _ in range(count):
+        pos -= 1
+        while pos >= 0:
+            if buffer.get_line(pos).line_type == LineType.SECTION_HEADER:
+                break
+            pos -= 1
+        if pos < 0:
+            pos = 0
+            break
+    return cursor.move_to(pos, 0)
+
+
 def motion_half_page_down(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
     new_row = min(cursor.row + 15 * count, buffer.line_count() - 1)
     return cursor.move_to(new_row, cursor.col)
@@ -120,6 +162,10 @@ MOTION_REGISTRY: dict[str, MotionFn] = {
     "b": motion_prev_card,
     "{": motion_prev_section,
     "}": motion_next_section,
+    "left_curly_bracket": motion_prev_section,
+    "right_curly_bracket": motion_next_section,
+    "[[": motion_section_header_prev,
+    "]]": motion_section_header_next,
     "ctrl_d": motion_half_page_down,
     "ctrl_u": motion_half_page_up,
 }

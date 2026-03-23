@@ -53,8 +53,9 @@ class TestBasicMotions:
     def test_down_count(self) -> None:
         buf = _buf()
         c = Cursor(row=0)
+        # count=3 skips blank lines: row 0→1→3(skip 2 blank)→4
         result = motion_down(c, buf, count=3)
-        assert result.row == 3
+        assert result.row == 4
 
     def test_down_at_bottom(self) -> None:
         buf = _buf()
@@ -72,8 +73,9 @@ class TestBasicMotions:
     def test_up_count(self) -> None:
         buf = _buf()
         c = Cursor(row=5)
+        # count=3 skips blank lines: row 5→4→3→1(skip 2 blank)
         result = motion_up(c, buf, count=3)
-        assert result.row == 2
+        assert result.row == 1
 
     def test_up_at_top(self) -> None:
         buf = _buf()
@@ -204,7 +206,8 @@ class TestMotionRegistry:
     def test_registry_has_all_keys(self) -> None:
         expected_keys = {
             "j", "k", "h", "l", "0", "$", "gg", "G",
-            "w", "b", "{", "}", "ctrl_d", "ctrl_u",
+            "w", "b", "{", "}", "left_curly_bracket", "right_curly_bracket",
+            "[[", "]]", "ctrl_d", "ctrl_u",
         }
         assert set(MOTION_REGISTRY.keys()) == expected_keys
 

@@ -37,7 +37,11 @@ class _State(Enum):
 
 # Keys recognized in NORMAL mode
 MOTIONS = frozenset(
-    {"j", "k", "h", "l", "0", "$", "w", "b", "{", "}", "ctrl_d", "ctrl_u"}
+    {
+        "j", "k", "h", "l", "0", "$", "w", "b",
+        "{", "}", "left_curly_bracket", "right_curly_bracket",
+        "ctrl_d", "ctrl_u",
+    }
 )
 OPERATORS = frozenset({"d", "y", "c"})
 MODE_SWITCHES: dict[str, str] = {
@@ -52,7 +56,7 @@ MODE_SWITCHES: dict[str, str] = {
     "/": "SEARCH",
 }
 SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", "."})
-MULTI_KEY_STARTERS = frozenset({"g"})
+MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "left_square_bracket", "right_square_bracket"})
 
 
 class KeyMap:
@@ -127,8 +131,12 @@ class KeyMap:
             return KeyResult.PENDING, None
         if self._state == _State.MULTI_KEY:
             full_key = self._multi_key_prefix + key
-            if full_key == "gg":
-                action = ParsedAction("motion", "gg", count, self._register)
+            # Normalize Textual bracket names to symbols
+            normalized = full_key
+            normalized = normalized.replace("left_square_bracket", "[")
+            normalized = normalized.replace("right_square_bracket", "]")
+            if normalized in ("gg", "[[", "]]"):
+                action = ParsedAction("motion", normalized, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
             self.reset()
