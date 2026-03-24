@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -9,6 +11,24 @@ from vimtg.editor.commands import (
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.slug import generate_unique_path
+
+
+def _resolve_write_path(cmd: ParsedCommand, ctx: EditorContext) -> Path | None:
+    """Determine the target path for a :w command.
+
+    Priority: explicit arg > existing file_path > auto-generated slug.
+    """
+    if cmd.args:
+        name = cmd.args.strip()
+        if not name.endswith(".deck"):
+            name += ".deck"
+        return Path.cwd() / name
+
+    if ctx.file_path is not None:
+        return ctx.file_path
+
+    return generate_unique_path(Path.cwd())
 
 
 def cmd_write(
@@ -17,13 +37,29 @@ def cmd_write(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Save deck to file. Sets ctx.message with result."""
-    if ctx.file_path is None:
-        ctx.message = "No file path set"
+    """Save deck to file via ctx.save_fn."""
+    if ctx.save_fn is None:
+        ctx.message = "Save not available"
         ctx.error = True
         return buffer, cursor
+
+    try:
+        target = _resolve_write_path(cmd, ctx)
+    except RuntimeError as exc:
+        ctx.message = str(exc)
+        ctx.error = True
+        return buffer, cursor
+
+    try:
+        ctx.save_fn(target, buffer.to_text())
+    except OSError as exc:
+        ctx.message = f"Write failed: {exc}"
+        ctx.error = True
+        return buffer, cursor
+
+    ctx.file_path = target
     ctx.modified = False
-    ctx.message = f"Written: {ctx.file_path}"
+    ctx.message = f"Written: {target.name}"
     return buffer, cursor
 
 
@@ -49,14 +85,10 @@ def cmd_write_quit(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Write then quit."""
-    if ctx.file_path is None:
-        ctx.message = "No file path set"
-        ctx.error = True
-        return buffer, cursor
-    ctx.modified = False
-    ctx.quit_requested = True
-    ctx.message = f"Written: {ctx.file_path}"
+    """Write then quit. Delegates to cmd_write first."""
+    buffer, cursor = cmd_write(buffer, cursor, cmd, ctx)
+    if not ctx.error:
+        ctx.quit_requested = True
     return buffer, cursor
 
 

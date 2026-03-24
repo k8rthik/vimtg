@@ -6,7 +6,9 @@ and then syncs the updated state to widgets.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
@@ -55,6 +57,7 @@ class HandlerResult:
     search_query: str | None = None
     insert_card: Card | None = None
     insert_confirm: bool = False
+    file_path: Path | None = None
     open_config_screen: bool = False
 
 
@@ -113,7 +116,8 @@ def handle_command(
     state: EditorState,
     action: ParsedAction,
     registry: CommandRegistry,
-    file_path: object,
+    file_path: Path | None,
+    save_fn: Callable[[Path, str], None] | None = None,
 ) -> HandlerResult:
     """Process ex command submission."""
     if not action.text:
@@ -122,17 +126,19 @@ def handle_command(
         cmd = parse_command(action.text, state.cursor.row, state.buffer.line_count())
         ctx = EditorContext(
             file_path=file_path, modified=state.modified,
-            settings=state.settings,
+            save_fn=save_fn, settings=state.settings,
         )
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
-        if ctx.modified:
-            state.modified = True
+        # Sync modified flag unconditionally (allows :w to clear it)
+        if ctx.modified and ctx.modified != state.modified:
             state.history.record(state.buffer, f":{action.text}")
+        state.modified = ctx.modified
         if ctx.settings_changed and ctx.settings is not None:
             state.settings = ctx.settings
         return HandlerResult(
             command_message=ctx.message,
             quit_requested=ctx.quit_requested,
+            file_path=ctx.file_path,
             open_config_screen=ctx.open_config_screen,
         )
     except Exception as exc:
