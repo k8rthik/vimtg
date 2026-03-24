@@ -201,17 +201,111 @@ class MainScreen(Screen):
 
     def _confirm_insert(self) -> None:
         sr = self.query_one("#search-results", SearchResults)
+        cl = self.query_one("#command-line", CommandLine)
         card = sr.get_selected()
         if card:
             s = self._state
-            s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
+            # Check for duplicate — increment quantity instead of adding new line
+            duplicate_line = self._find_card_line(card.name)
+            if duplicate_line is not None:
+                qty = s.buffer.quantity_at(duplicate_line) or 0
+                s.buffer = s.buffer.set_line(duplicate_line, f"{qty + 1} {card.name}")
+                # Remove the blank line that 'o' inserted
+                if s.buffer.get_line(s.cursor.row).text.strip() == "":
+                    s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
+                s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
+            else:
+                # Find or create the right type section, then insert there
+                insert_row = self._find_type_section_row(card, s.buffer)
+                if insert_row is not None and insert_row != s.cursor.row:
+                    # Remove the blank line 'o' inserted and place card in correct section
+                    if s.buffer.get_line(s.cursor.row).text.strip() == "":
+                        s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
+                        if insert_row > s.cursor.row:
+                            insert_row -= 1
+                    s.buffer = s.buffer.insert_line(insert_row, f"1 {card.name}")
+                    s.cursor = s.cursor.move_to(insert_row, 0)
+                else:
+                    s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
             s.modified = True
             s.history.record(s.buffer, f"added {card.name}")
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
+            cl.set_message(f"Added {card.name}  (+/- to change qty, dd to remove)")
+        else:
+            # No card selected — clean up blank line from 'o'
+            s = self._state
+            if s.buffer.get_line(s.cursor.row).text.strip() == "":
+                s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
+                s.cursor = s.cursor.clamp(s.buffer.line_count() - 1)
+            cl.hide()
         sr.visible = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
+
+    def _find_card_line(self, card_name: str) -> int | None:
+        """Find existing line with this card name (for duplicate detection)."""
+        buf = self._state.buffer
+        for i in range(buf.line_count()):
+            if buf.card_name_at(i) == card_name:
+                return i
+        return None
+
+    def _find_type_section_row(self, card: Card, buf: Buffer) -> int | None:
+        """Find the right row to insert a card based on its type.
+
+        Looks for an existing section header matching the card's primary type.
+        If found, inserts after the last card in that section.
+        If not found and buffer is mostly empty, creates the section header first.
+        """
+        from vimtg.editor.buffer import LineType
+
+        # Determine primary type category
+        type_line = card.type_line
+        if "Creature" in type_line:
+            section_name = "Creatures"
+        elif "Instant" in type_line:
+            section_name = "Instants"
+        elif "Sorcery" in type_line:
+            section_name = "Sorceries"
+        elif "Enchantment" in type_line:
+            section_name = "Enchantments"
+        elif "Artifact" in type_line:
+            section_name = "Artifacts"
+        elif "Planeswalker" in type_line:
+            section_name = "Planeswalkers"
+        elif "Land" in type_line:
+            section_name = "Lands"
+        else:
+            section_name = "Other"
+
+        # Look for existing section header
+        for i in range(buf.line_count()):
+            bl = buf.get_line(i)
+            if bl.line_type == LineType.SECTION_HEADER and section_name in bl.text:
+                # Found the section — find the last card line in it
+                insert_at = i + 1
+                while insert_at < buf.line_count() and buf.is_card_line(insert_at):
+                    insert_at += 1
+                return insert_at
+
+        # No matching section exists — create one
+        # Find the end of existing content (before sideboard or end of buffer)
+        insert_at = buf.line_count()
+        for i in range(buf.line_count()):
+            bl = buf.get_line(i)
+            if bl.line_type == LineType.SIDEBOARD_ENTRY:
+                insert_at = i
+                break
+            if bl.line_type == LineType.BLANK and i > 0:
+                # Use last blank line before sideboard/end as insertion point
+                insert_at = i
+
+        # Insert section header + blank line before it
+        buf_updated = buf.insert_line(insert_at, f"// {section_name}")
+        # Update the state buffer
+        self._state.buffer = buf_updated
+        return insert_at + 1  # insert card after the header
 
     @work(thread=True)
     def _run_search(self, query: str) -> None:
