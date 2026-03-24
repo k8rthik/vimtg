@@ -12,6 +12,7 @@ from textual.events import Key
 from textual.screen import Screen
 from textual.widgets import Static
 
+from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
 
 LOGO_LINES = [
@@ -96,35 +97,47 @@ class GreeterScreen(Screen):
         yield GreeterView(recent_files=self._recent)
 
     def on_key(self, event: Key) -> None:
+        if event.key == "ctrl+c":
+            self.app.exit()
+            return
         event.prevent_default()
         event.stop()
 
-        key = event.key
+        key = translate(event.key)
 
-        if key == "n":
-            self._open_new_deck()
-        elif key == "e":
+        if key == "n" or key == "e":
             self._open_editor(file_path=None)
         elif key == "s":
-            self.app.exit(message="Run: vimtg sync")
+            self._run_sync()
         elif key in ("q", "escape"):
             self.app.exit()
-        elif key == "question_mark" or key == "?":
-            self._open_editor_with_help()
-        elif key.isdigit() and 1 <= int(key) <= len(self._recent):
-            path = self._recent[int(key) - 1]
-            self._open_editor(file_path=path)
-        elif key == "colon" or key == ":":
-            # Drop into editor with command mode ready
+        elif key == "?" or key == ":":
             self._open_editor(file_path=None)
-
-    def _open_new_deck(self) -> None:
-        self._open_editor(file_path=None)
+        elif key.isdigit() and int(key) >= 1 and int(key) <= len(self._recent):
+            self._open_editor(file_path=self._recent[int(key) - 1])
 
     def _open_editor(self, file_path: Path | None) -> None:
-        # Pop greeter and let app mount the main editor screen
         self.app.pop_screen()
         self.app._launch_editor(file_path)  # type: ignore[attr-defined]
 
-    def _open_editor_with_help(self) -> None:
-        self._open_editor(file_path=None)
+    def _run_sync(self) -> None:
+        """Run card sync inline — show progress in the greeter."""
+        from vimtg.config.paths import cache_dir, db_path
+        from vimtg.data.card_repository import CardRepository
+        from vimtg.data.database import Database
+        from vimtg.data.scryfall_sync import ScryfallSync
+
+        try:
+            db = Database(db_path())
+            db.initialize()
+            repo = CardRepository(db)
+            sync = ScryfallSync(repo, cache_dir())
+            gv = self.query_one(GreeterView)
+            # Update the view to show sync status
+            count = sync.sync()
+            gv._status = f"Synced {count} cards"  # type: ignore[attr-defined]
+            gv.refresh()
+        except Exception as exc:
+            gv = self.query_one(GreeterView)
+            gv._status = f"Sync failed: {exc}"  # type: ignore[attr-defined]
+            gv.refresh()

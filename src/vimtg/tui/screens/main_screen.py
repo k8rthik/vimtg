@@ -45,6 +45,14 @@ if TYPE_CHECKING:
     from vimtg.services.search_service import SearchService
 
 
+def _card_type_section(type_line: str) -> str:
+    """Map a card's type_line to its singular section name."""
+    for t in ("Creature", "Instant", "Sorcery", "Enchantment", "Artifact", "Planeswalker", "Land"):
+        if t in type_line:
+            return t
+    return "Other"
+
+
 class MainScreen(Screen):
     """Primary editor screen: deck view, status line, command line."""
 
@@ -252,60 +260,40 @@ class MainScreen(Screen):
         return None
 
     def _find_type_section_row(self, card: Card, buf: Buffer) -> int | None:
-        """Find the right row to insert a card based on its type.
+        """Find the right row to insert a card based on its primary type.
 
-        Looks for an existing section header matching the card's primary type.
-        If found, inserts after the last card in that section.
-        If not found and buffer is mostly empty, creates the section header first.
+        Uses singular type names: "Creature", "Instant", "Sorcery", etc.
+        Creates the section header if it doesn't exist, with blank line separation.
         """
         from vimtg.editor.buffer import LineType
 
-        # Determine primary type category
-        type_line = card.type_line
-        if "Creature" in type_line:
-            section_name = "Creatures"
-        elif "Instant" in type_line:
-            section_name = "Instants"
-        elif "Sorcery" in type_line:
-            section_name = "Sorceries"
-        elif "Enchantment" in type_line:
-            section_name = "Enchantments"
-        elif "Artifact" in type_line:
-            section_name = "Artifacts"
-        elif "Planeswalker" in type_line:
-            section_name = "Planeswalkers"
-        elif "Land" in type_line:
-            section_name = "Lands"
-        else:
-            section_name = "Other"
+        section_name = _card_type_section(card.type_line)
 
         # Look for existing section header
         for i in range(buf.line_count()):
             bl = buf.get_line(i)
             if bl.line_type == LineType.SECTION_HEADER and section_name in bl.text:
-                # Found the section — find the last card line in it
                 insert_at = i + 1
                 while insert_at < buf.line_count() and buf.is_card_line(insert_at):
                     insert_at += 1
                 return insert_at
 
-        # No matching section exists — create one
-        # Find the end of existing content (before sideboard or end of buffer)
+        # No matching section — create one before sideboard or at end
         insert_at = buf.line_count()
         for i in range(buf.line_count()):
             bl = buf.get_line(i)
             if bl.line_type == LineType.SIDEBOARD_ENTRY:
                 insert_at = i
                 break
-            if bl.line_type == LineType.BLANK and i > 0:
-                # Use last blank line before sideboard/end as insertion point
-                insert_at = i
 
-        # Insert section header + blank line before it
-        buf_updated = buf.insert_line(insert_at, f"// {section_name}")
-        # Update the state buffer
-        self._state.buffer = buf_updated
-        return insert_at + 1  # insert card after the header
+        # Add blank line separator if previous line is content
+        if insert_at > 0 and buf.get_line(insert_at - 1).line_type != LineType.BLANK:
+            buf = buf.insert_line(insert_at, "")
+            insert_at += 1
+
+        buf = buf.insert_line(insert_at, f"// {section_name}")
+        self._state.buffer = buf
+        return insert_at + 1
 
     @work(thread=True)
     def _run_search(self, query: str) -> None:
@@ -327,7 +315,61 @@ class MainScreen(Screen):
 
     # ── Widget sync ──────────────────────────────────────────────
 
+    def _cleanup_empty_sections(self) -> None:
+        """Remove section headers that have no card lines below them."""
+        from vimtg.editor.buffer import LineType
+
+        buf = self._state.buffer
+        to_delete: list[int] = []
+        for i in range(buf.line_count()):
+            bl = buf.get_line(i)
+            if bl.line_type != LineType.SECTION_HEADER:
+                continue
+            # Check if next non-blank line is a card
+            has_cards = False
+            for j in range(i + 1, buf.line_count()):
+                next_bl = buf.get_line(j)
+                if next_bl.line_type == LineType.BLANK:
+                    break
+                if next_bl.line_type in (
+                    LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY, LineType.COMMANDER_ENTRY,
+                ):
+                    has_cards = True
+                    break
+                if next_bl.line_type in (
+                    LineType.SECTION_HEADER, LineType.COMMENT, LineType.METADATA,
+                ):
+                    break
+            if not has_cards:
+                to_delete.append(i)
+                # Also mark trailing blank line for deletion
+                if i + 1 < buf.line_count() and buf.get_line(i + 1).line_type == LineType.BLANK:
+                    to_delete.append(i + 1)
+
+        # Delete in reverse to preserve indices
+        for idx in reversed(to_delete):
+            if idx < buf.line_count():
+                buf, _ = buf.delete_lines(idx, idx)
+
+        # Clean up consecutive blank lines
+        cleaned_lines = []
+        prev_blank = False
+        for i in range(buf.line_count()):
+            bl = buf.get_line(i)
+            is_blank = bl.line_type == LineType.BLANK
+            if is_blank and prev_blank:
+                continue
+            cleaned_lines.append(bl.text)
+            prev_blank = is_blank
+
+        from vimtg.editor.buffer import Buffer
+        self._state.buffer = Buffer.from_text("\n".join(cleaned_lines) + "\n")
+        self._state.cursor = self._state.cursor.clamp(self._state.buffer.line_count() - 1)
+
     def _sync_widgets(self) -> None:
+        # Clean up empty sections before rendering
+        self._cleanup_empty_sections()
+
         s = self._state
         dv = self.query_one("#deck-view", DeckView)
         dv.buffer = s.buffer

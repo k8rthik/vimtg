@@ -25,8 +25,10 @@ class LineType(Enum):
 
 
 SECTION_HEADERS = frozenset({
-    "Creatures", "Spells", "Lands", "Sideboard", "Enchantments",
-    "Artifacts", "Planeswalkers", "Instants", "Sorceries", "Mainboard",
+    "Creatures", "Creature", "Spells", "Lands", "Land", "Sideboard",
+    "Enchantments", "Enchantment", "Artifacts", "Artifact",
+    "Planeswalkers", "Planeswalker", "Instants", "Instant",
+    "Sorceries", "Sorcery", "Mainboard",
     "Other", "Commander", "Companion",
 })
 
