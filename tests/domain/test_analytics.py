@@ -11,7 +11,7 @@ from vimtg.domain.analytics import (
     compute_stats,
     count_mana_pips,
 )
-from vimtg.domain.card import Card, Color
+from vimtg.domain.card import Card, Color, Prices
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 
 # --- Fixtures ---
@@ -102,7 +102,7 @@ class TestManaCurve:
             toughness=None,
             set_code="tst",
             rarity=card_map["Goblin Guide"].rarity,
-            price_usd=None,
+            prices=Prices(),
             legalities={},
             image_uri=None,
             layout="normal",
@@ -230,7 +230,7 @@ class TestComputeStats:
             toughness=None,
             set_code="tst",
             rarity=None,  # type: ignore[arg-type]
-            price_usd=None,
+            prices=Prices(),
             legalities={},
             image_uri=None,
             layout="normal",

@@ -21,6 +21,9 @@ class SearchResults(Static):
     results: reactive[list[Card]] = reactive(list)
     selected: reactive[int] = reactive(0)
     visible: reactive[bool] = reactive(False)
+    price_source: reactive[str] = reactive("usd")
+    currency_symbol: reactive[str] = reactive("$")
+    show_prices: reactive[bool] = reactive(True)
 
     def render(self) -> Text:
         if not self.visible or not self.results:
@@ -52,8 +55,10 @@ class SearchResults(Static):
             line.append(f"  {type_short:<18}", style="dim")
 
             # Price
-            if card.price_usd is not None:
-                line.append(f"  ${card.price_usd:.2f}", style="dim")
+            if self.show_prices:
+                price = card.prices.get(self.price_source)
+                if price is not None:
+                    line.append(f"  {self.currency_symbol}{price:.2f}", style="dim")
 
             if is_sel:
                 line.stylize(_SELECTED_STYLE)

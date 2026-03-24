@@ -21,6 +21,9 @@ class DeckView(Static):
     buffer: reactive[Buffer | None] = reactive(None)
     cursor: reactive[Cursor] = reactive(Cursor)
     resolved_cards: reactive[dict[str, Card]] = reactive(dict)
+    price_source: reactive[str] = reactive("usd")
+    currency_symbol: reactive[str] = reactive("$")
+    show_prices: reactive[bool] = reactive(True)
 
     def render(self) -> Text:
         if self.buffer is None:
@@ -28,7 +31,12 @@ class DeckView(Static):
 
         output = Text()
         for i in range(self.buffer.line_count()):
-            lines = render_line(i, self.buffer, self.cursor.row, self.resolved_cards)
+            lines = render_line(
+                i, self.buffer, self.cursor.row, self.resolved_cards,
+                price_source=self.price_source,
+                currency_symbol=self.currency_symbol,
+                show_prices=self.show_prices,
+            )
             for line in lines:
                 output.append(line)
                 output.append("\n")

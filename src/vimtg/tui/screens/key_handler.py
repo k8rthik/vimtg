@@ -6,8 +6,9 @@ and then syncs the updated state to widgets.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.editor.buffer import Buffer
@@ -38,6 +39,7 @@ class EditorState:
     modified: bool
     resolved_cards: dict[str, Card]
     search_query: str = ""
+    settings: Settings = field(default_factory=Settings)
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,7 @@ class HandlerResult:
     search_query: str | None = None
     insert_card: Card | None = None
     insert_confirm: bool = False
+    open_config_screen: bool = False
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -117,14 +120,20 @@ def handle_command(
         return HandlerResult()
     try:
         cmd = parse_command(action.text, state.cursor.row, state.buffer.line_count())
-        ctx = EditorContext(file_path=file_path, modified=state.modified)
+        ctx = EditorContext(
+            file_path=file_path, modified=state.modified,
+            settings=state.settings,
+        )
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
         if ctx.modified:
             state.modified = True
             state.history.record(state.buffer, f":{action.text}")
+        if ctx.settings_changed and ctx.settings is not None:
+            state.settings = ctx.settings
         return HandlerResult(
             command_message=ctx.message,
             quit_requested=ctx.quit_requested,
+            open_config_screen=ctx.open_config_screen,
         )
     except Exception as exc:
         return HandlerResult(command_message=str(exc))

@@ -9,8 +9,9 @@ _INSERT_SQL = """
     INSERT OR REPLACE INTO cards (
         scryfall_id, name, mana_cost, cmc, type_line, oracle_text,
         colors, color_identity, power, toughness, set_code, rarity,
-        price_usd, legalities, image_uri, layout, keywords
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        price_usd, price_usd_foil, price_eur, price_eur_foil, price_tix,
+        legalities, image_uri, layout, keywords
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _BATCH_SIZE = 5000

@@ -134,6 +134,9 @@ class EditorContext:
     quit_requested: bool = False
     message: str = ""
     error: bool = False
+    settings: Any = None
+    settings_changed: bool = False
+    open_config_screen: bool = False
 
 
 CommandHandler = Callable[

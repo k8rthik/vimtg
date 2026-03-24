@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS cards (
     set_code TEXT NOT NULL,
     rarity TEXT NOT NULL,
     price_usd REAL,
+    price_usd_foil REAL,
+    price_eur REAL,
+    price_eur_foil REAL,
+    price_tix REAL,
     legalities TEXT DEFAULT '{}',
     image_uri TEXT,
     layout TEXT DEFAULT 'normal',
@@ -64,6 +68,24 @@ SNAPSHOT_INDEXES = (
 )
 
 
+_PRICE_MIGRATIONS = (
+    ("price_usd_foil", "ALTER TABLE cards ADD COLUMN price_usd_foil REAL"),
+    ("price_eur", "ALTER TABLE cards ADD COLUMN price_eur REAL"),
+    ("price_eur_foil", "ALTER TABLE cards ADD COLUMN price_eur_foil REAL"),
+    ("price_tix", "ALTER TABLE cards ADD COLUMN price_tix REAL"),
+)
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Add missing price columns to existing databases. Idempotent."""
+    rows = conn.execute("PRAGMA table_info(cards)").fetchall()
+    existing_columns = {row[1] for row in rows}
+    for col_name, sql in _PRICE_MIGRATIONS:
+        if col_name not in existing_columns:
+            conn.execute(sql)
+    conn.commit()
+
+
 def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARDS_TABLE)
     conn.execute(CARDS_FTS)
@@ -74,3 +96,4 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     for idx in SNAPSHOT_INDEXES:
         conn.execute(idx)
     conn.commit()
+    _run_migrations(conn)

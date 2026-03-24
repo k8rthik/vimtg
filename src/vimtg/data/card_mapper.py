@@ -3,10 +3,18 @@
 import json
 import sqlite3
 
-from vimtg.domain.card import Card, Color, Rarity
+from vimtg.domain.card import Card, Color, Prices, Rarity
 
 _COLOR_MAP: dict[str, Color] = {c.value: c for c in Color}
 _RARITY_MAP: dict[str, Rarity] = {r.value: r for r in Rarity}
+
+
+def _safe_price(row: sqlite3.Row, key: str) -> float | None:
+    """Safely get a price column, returning None if column doesn't exist."""
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
 
 
 def row_to_card(row: sqlite3.Row) -> Card:
@@ -26,6 +34,14 @@ def row_to_card(row: sqlite3.Row) -> Card:
 
     rarity = _RARITY_MAP.get(row["rarity"], Rarity.SPECIAL)
 
+    prices = Prices(
+        usd=_safe_price(row, "price_usd"),
+        usd_foil=_safe_price(row, "price_usd_foil"),
+        eur=_safe_price(row, "price_eur"),
+        eur_foil=_safe_price(row, "price_eur_foil"),
+        tix=_safe_price(row, "price_tix"),
+    )
+
     return Card(
         scryfall_id=row["scryfall_id"],
         name=row["name"],
@@ -39,7 +55,7 @@ def row_to_card(row: sqlite3.Row) -> Card:
         toughness=row["toughness"],
         set_code=row["set_code"],
         rarity=rarity,
-        price_usd=row["price_usd"],
+        prices=prices,
         legalities=legalities,
         image_uri=row["image_uri"],
         layout=row["layout"],
@@ -62,7 +78,11 @@ def card_to_row(card: Card) -> tuple[object, ...]:
         card.toughness,
         card.set_code,
         card.rarity.value,
-        card.price_usd,
+        card.prices.usd,
+        card.prices.usd_foil,
+        card.prices.eur,
+        card.prices.eur_foil,
+        card.prices.tix,
         json.dumps(card.legalities),
         card.image_uri,
         card.layout,

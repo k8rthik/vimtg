@@ -1,10 +1,25 @@
-"""Config and keybinding commands — :set, :map, :unmap."""
+"""Config and keybinding commands — :set, :config, :map, :unmap."""
 
 from __future__ import annotations
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import CommandRegistry, EditorContext, ParsedCommand
+from vimtg.editor.config_options import (
+    CONFIG_OPTIONS,
+    apply_setting,
+    get_setting_display,
+)
 from vimtg.editor.cursor import Cursor
+
+# Map vim-style shorthand names to Settings field names
+_BOOL_ALIASES: dict[str, str] = {
+    "number": "show_line_numbers",
+    "whichkey": "show_which_key",
+    "autoexpand": "auto_expand",
+    "autosort": "auto_sort",
+    "prices": "show_prices",
+    "confirmquit": "confirm_quit",
+}
 
 
 def cmd_set(
@@ -12,27 +27,59 @@ def cmd_set(
 ) -> tuple[Buffer, Cursor]:
     """:set option=value — View or change settings.
 
-    :set                     Show all current settings
-    :set number              Enable line numbers (default: on)
-    :set nonumber            Disable line numbers
-    :set whichkey            Enable which-key tooltips (default: on)
-    :set nowhichkey          Disable which-key tooltips
-    :set autoexpand          Enable auto card expansion (default: on)
-    :set noautoexpand        Disable auto card expansion
+    :set                         Show all current settings
+    :set number / :set nonumber  Toggle line numbers
+    :set price_source=eur        Set price source
+    :set search_limit=100        Set search limit
     """
-    args = cmd.args.strip()
-    if not args:
-        ctx.message = "number whichkey autoexpand"
+    if ctx.settings is None:
+        ctx.message = "E: Settings not available"
         return buffer, cursor
 
-    if args.startswith("no"):
-        option = args[2:]
-        ctx.message = f"{option} off"
-    else:
-        parts = args.split("=", 1)
-        option = parts[0]
-        ctx.message = f"{option} on" + (f" = {parts[1]}" if len(parts) > 1 else "")
+    args = cmd.args.strip()
+    if not args:
+        parts = [get_setting_display(ctx.settings, o.key) for o in CONFIG_OPTIONS]
+        ctx.message = "  ".join(parts)
+        return buffer, cursor
 
+    # Handle "no" prefix for bool toggles: :set nonumber
+    if args.startswith("no"):
+        alias = args[2:]
+        key = _BOOL_ALIASES.get(alias, alias)
+        try:
+            ctx.settings = apply_setting(ctx.settings, key, "off")
+            ctx.settings_changed = True
+            ctx.message = f"{key} = off"
+        except ValueError as e:
+            ctx.message = f"E: {e}"
+        return buffer, cursor
+
+    # Handle key=value syntax: :set price_source=eur
+    if "=" in args:
+        key, value = args.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+    else:
+        # Bool enable shorthand: :set number
+        alias = args.strip()
+        key = _BOOL_ALIASES.get(alias, alias)
+        value = "on"
+
+    try:
+        ctx.settings = apply_setting(ctx.settings, key, value)
+        ctx.settings_changed = True
+        ctx.message = f"{key} = {value}"
+    except ValueError as e:
+        ctx.message = f"E: {e}"
+
+    return buffer, cursor
+
+
+def cmd_config(
+    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:config — Open the configuration menu."""
+    ctx.open_config_screen = True
     return buffer, cursor
 
 
@@ -56,7 +103,7 @@ def cmd_map(
         return buffer, cursor
 
     from_key, to_key = parts
-    ctx.message = f"Mapped: {from_key} → {to_key} (save to config.toml to persist)"
+    ctx.message = f"Mapped: {from_key} \u2192 {to_key} (save to config.toml to persist)"
     return buffer, cursor
 
 
@@ -75,5 +122,6 @@ def cmd_unmap(
 
 def register_config_commands(registry: CommandRegistry) -> None:
     registry.register("set", cmd_set)
+    registry.register("config", cmd_config, aliases=["settings", "preferences"])
     registry.register("map", cmd_map)
     registry.register("unmap", cmd_unmap)

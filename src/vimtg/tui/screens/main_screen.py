@@ -13,6 +13,7 @@ from textual import work
 from textual.events import Key
 from textual.screen import Screen
 
+from vimtg.config.settings import Settings
 from vimtg.domain.card import Card
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import CommandRegistry
@@ -63,6 +64,7 @@ class MainScreen(Screen):
         registry: CommandRegistry | None = None,
         search_service: SearchService | None = None,
         card_repo: CardRepository | None = None,
+        settings: Settings | None = None,
     ) -> None:
         super().__init__()
         self._state = EditorState(
@@ -73,6 +75,7 @@ class MainScreen(Screen):
             history=HistoryService(),
             modified=False,
             resolved_cards={},
+            settings=settings or Settings(),
         )
         self._state.history.initialize(buffer)
         self.file_path = file_path
@@ -132,7 +135,10 @@ class MainScreen(Screen):
         elif action.action_type == "mode_switch":
             hr = handle_mode_switch(s, action)
         elif action.action_type == "command_submit":
+            prev_settings = s.settings
             hr = handle_command(s, action, self.registry, self.file_path)
+            if s.settings is not prev_settings:
+                self._on_settings_saved(s.settings)
             s.mode_mgr.force_normal()
             self.keymap.set_mode(Mode.NORMAL)
         elif action.action_type == "special":
@@ -178,6 +184,8 @@ class MainScreen(Screen):
             self.query_one("#command-line", CommandLine).set_message(hr.command_message)
         if hr.quit_requested:
             self.app.exit()
+        if hr.open_config_screen:
+            self._open_config()
         if hr.search_query is not None:
             self._handle_search_action(hr.search_query)
         if hr.insert_confirm:
@@ -250,6 +258,22 @@ class MainScreen(Screen):
         sr.visible = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
+
+    def _open_config(self) -> None:
+        from vimtg.tui.screens.config_screen import ConfigScreen
+
+        self.app.push_screen(ConfigScreen(
+            settings=self._state.settings,
+            on_save=self._on_settings_saved,
+        ))
+
+    def _on_settings_saved(self, new_settings: Settings) -> None:
+        self._state.settings = new_settings
+        from vimtg.tui.app import VimTGApp
+        app = self.app
+        if isinstance(app, VimTGApp):
+            app.update_settings(new_settings)
+        self._sync_widgets()
 
     def _find_card_line(self, card_name: str) -> int | None:
         """Find existing line with this card name (for duplicate detection)."""
@@ -371,10 +395,23 @@ class MainScreen(Screen):
         self._cleanup_empty_sections()
 
         s = self._state
+        from vimtg.editor.config_options import currency_symbol_for
+
+        price_src = s.settings.price_source
+        cur_sym = currency_symbol_for(price_src)
+
         dv = self.query_one("#deck-view", DeckView)
         dv.buffer = s.buffer
         dv.cursor = s.cursor
         dv.resolved_cards = s.resolved_cards
+        dv.price_source = price_src
+        dv.currency_symbol = cur_sym
+        dv.show_prices = s.settings.show_prices
+
+        sr = self.query_one("#search-results", SearchResults)
+        sr.price_source = price_src
+        sr.currency_symbol = cur_sym
+        sr.show_prices = s.settings.show_prices
 
         sl = self.query_one("#status-line", StatusLine)
         sl.mode = s.mode_mgr.current

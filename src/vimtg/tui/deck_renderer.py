@@ -70,6 +70,9 @@ def render_line(
     cursor_row: int,
     resolved: dict[str, Card],
     show_line_numbers: bool = True,
+    price_source: str = "usd",
+    currency_symbol: str = "$",
+    show_prices: bool = True,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
@@ -98,7 +101,11 @@ def render_line(
             t.stylize(_CURSOR_STYLE)
         lines.append(t)
     elif bl.line_type in (LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY, LineType.COMMANDER_ENTRY):
-        lines.extend(_render_card_line(line_idx, buf, is_cursor, resolved, gutter, gutter_pad))
+        lines.extend(_render_card_line(
+            line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
+            price_source=price_source, currency_symbol=currency_symbol,
+            show_prices=show_prices,
+        ))
     else:
         t = Text()
         t.append(gutter)
@@ -117,6 +124,9 @@ def _render_card_line(
     resolved: dict[str, Card],
     gutter: Text | None = None,
     gutter_pad: Text | None = None,
+    price_source: str = "usd",
+    currency_symbol: str = "$",
+    show_prices: bool = True,
 ) -> list[Text]:
     """Build the formatted card line and optional inline expansion."""
     bl = buf.get_line(line_idx)
@@ -150,12 +160,22 @@ def _render_card_line(
     lines: list[Text] = [t]
 
     if is_cursor and card:
-        lines.extend(_render_expansion(card, gutter_pad))
+        lines.extend(_render_expansion(
+            card, gutter_pad,
+            price_source=price_source, currency_symbol=currency_symbol,
+            show_prices=show_prices,
+        ))
 
     return lines
 
 
-def _render_expansion(card: Card, gutter_pad: Text | None = None) -> list[Text]:
+def _render_expansion(
+    card: Card,
+    gutter_pad: Text | None = None,
+    price_source: str = "usd",
+    currency_symbol: str = "$",
+    show_prices: bool = True,
+) -> list[Text]:
     """Render expansion lines with proper word-wrapping to avoid broken indentation."""
     lines: list[Text] = []
     pad = gutter_pad.plain if gutter_pad else ""
@@ -184,8 +204,10 @@ def _render_expansion(card: Card, gutter_pad: Text | None = None) -> list[Text]:
     if card.set_code:
         meta_parts.append(f"Set: {card.set_code.upper()}")
     meta_parts.append(f"Rarity: {card.rarity.value.title()}")
-    if card.price_usd is not None:
-        meta_parts.append(f"${card.price_usd:.2f}")
+    if show_prices:
+        price = card.prices.get(price_source)
+        if price is not None:
+            meta_parts.append(f"{currency_symbol}{price:.2f}")
     lines.append(Text(f"{prefix}{'  '.join(meta_parts)}", style=_EXPANSION_STYLE))
 
     return lines

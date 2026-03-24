@@ -12,6 +12,8 @@ from pathlib import Path
 from textual.app import App
 
 from vimtg.config.paths import db_path
+from vimtg.config.settings import Settings, load_settings
+from vimtg.config.settings_writer import save_settings
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.editor.buffer import Buffer
@@ -43,9 +45,19 @@ class VimTGApp(App):
     def __init__(self, deck_path: Path | None = None) -> None:
         super().__init__()
         self._deck_path = deck_path
+        self._settings = load_settings()
         self._cmd_registry: CommandRegistry | None = None
         self._search_svc: SearchService | None = None
         self._card_repo: CardRepository | None = None
+
+    @property
+    def settings(self) -> Settings:
+        return self._settings
+
+    def update_settings(self, new_settings: Settings) -> None:
+        """Persist settings and update runtime state."""
+        save_settings(new_settings)
+        self._settings = new_settings
 
     def on_mount(self) -> None:
         self._init_services()
@@ -91,6 +103,7 @@ class VimTGApp(App):
                 registry=self._cmd_registry,
                 search_service=self._search_svc,
                 card_repo=self._card_repo,
+                settings=self._settings,
             )
         )
 

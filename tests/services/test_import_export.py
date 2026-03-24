@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import io
 
-from vimtg.domain.card import Card, Rarity
+from vimtg.domain.card import Card, Prices, Rarity
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
@@ -31,7 +31,7 @@ def _make_card(name: str, set_code: str = "sta") -> Card:
         toughness=None,
         set_code=set_code,
         rarity=Rarity.COMMON,
-        price_usd=None,
+        prices=Prices(),
         legalities={},
         image_uri=None,
         layout="normal",

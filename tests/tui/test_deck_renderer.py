@@ -1,12 +1,17 @@
 """Tests for deck_renderer — pure rendering logic, no Textual required."""
 
-from vimtg.domain.card import Card, Color, Rarity
+from vimtg.domain.card import Card, Color, Prices, Rarity
 from vimtg.editor.buffer import Buffer
 from vimtg.tui.deck_renderer import format_mana, render_line
 
 
 def _make_card(**overrides: object) -> Card:
     """Create a test Card with sensible defaults."""
+    # Extract price_usd shorthand and convert to Prices
+    price_usd = overrides.pop("price_usd", 1.50)
+    if "prices" not in overrides:
+        overrides["prices"] = Prices(usd=price_usd)
+
     defaults = {
         "scryfall_id": "test-id",
         "name": "Lightning Bolt",
@@ -20,7 +25,6 @@ def _make_card(**overrides: object) -> Card:
         "toughness": None,
         "set_code": "sta",
         "rarity": Rarity.UNCOMMON,
-        "price_usd": 1.50,
         "legalities": {},
         "image_uri": None,
         "layout": "normal",

@@ -109,7 +109,11 @@ def _compute_recommended_lands(
     return max(20, min(28, rec))
 
 
-def compute_stats(deck: Deck, resolved_cards: dict[str, Card]) -> DeckStats:
+def compute_stats(
+    deck: Deck,
+    resolved_cards: dict[str, Card],
+    price_source: str = "usd",
+) -> DeckStats:
     """Compute all deck statistics from mainboard entries."""
     main_entries = [e for e in deck.entries if e.section == DeckSection.MAIN]
     side_entries = [e for e in deck.entries if e.section == DeckSection.SIDEBOARD]
@@ -155,8 +159,9 @@ def compute_stats(deck: Deck, resolved_cards: dict[str, Card]) -> DeckStats:
         else:
             colorless += qty
 
-        if card.price_usd is not None:
-            total_price += card.price_usd * qty
+        card_price = card.prices.get(price_source)
+        if card_price is not None:
+            total_price += card_price * qty
             has_price = True
 
     avg_cmc = sum(cmcs) / len(cmcs) if cmcs else 0.0

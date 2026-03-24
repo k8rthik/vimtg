@@ -210,7 +210,7 @@ class TestCardImmutability:
         with pytest.raises(AttributeError):
             card.name = "Modified Name"  # type: ignore[misc]
 
-    def test_card_is_frozen_price(self, goblin_guide: dict) -> None:
+    def test_card_is_frozen_prices(self, goblin_guide: dict) -> None:
         card = Card.from_scryfall(goblin_guide)
         with pytest.raises(AttributeError):
-            card.price_usd = 999.99  # type: ignore[misc]
+            card.prices = None  # type: ignore[misc]

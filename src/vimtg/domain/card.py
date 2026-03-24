@@ -36,13 +36,40 @@ def _parse_rarity(raw: str) -> Rarity:
     return _RARITY_MAP.get(raw, Rarity.SPECIAL)
 
 
-def _parse_price(prices: dict[str, str | None] | None) -> float | None:
+def _to_float(val: str | None) -> float | None:
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+@dataclass(frozen=True)
+class Prices:
+    """All available price fields from Scryfall."""
+
+    usd: float | None = None
+    usd_foil: float | None = None
+    eur: float | None = None
+    eur_foil: float | None = None
+    tix: float | None = None
+
+    def get(self, source: str) -> float | None:
+        """Get price by source key (usd, usd_foil, eur, eur_foil, tix)."""
+        return getattr(self, source, None)
+
+
+def _parse_prices(prices: dict[str, str | None] | None) -> Prices:
     if prices is None:
-        return None
-    usd = prices.get("usd")
-    if usd is None:
-        return None
-    return float(usd)
+        return Prices()
+    return Prices(
+        usd=_to_float(prices.get("usd")),
+        usd_foil=_to_float(prices.get("usd_foil")),
+        eur=_to_float(prices.get("eur")),
+        eur_foil=_to_float(prices.get("eur_foil")),
+        tix=_to_float(prices.get("tix")),
+    )
 
 
 def _extract_image_uri(data: dict) -> str | None:
@@ -104,7 +131,7 @@ class Card:
     toughness: str | None
     set_code: str
     rarity: Rarity
-    price_usd: float | None
+    prices: Prices
     legalities: dict[str, str]
     image_uri: str | None
     layout: str
@@ -141,12 +168,17 @@ class Card:
             toughness=face_fields["toughness"],
             set_code=data.get("set", ""),
             rarity=_parse_rarity(data.get("rarity", "common")),
-            price_usd=_parse_price(data.get("prices")),
+            prices=_parse_prices(data.get("prices")),
             legalities=dict(data.get("legalities", {})),
             image_uri=_extract_image_uri(data),
             layout=layout,
             keywords=tuple(data.get("keywords", [])),
         )
+
+    @property
+    def price_usd(self) -> float | None:
+        """Backward compatibility — delegates to prices.usd."""
+        return self.prices.usd
 
     @property
     def is_creature(self) -> bool:
