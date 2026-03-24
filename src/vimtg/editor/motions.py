@@ -162,8 +162,6 @@ MOTION_REGISTRY: dict[str, MotionFn] = {
     "b": motion_prev_card,
     "{": motion_prev_section,
     "}": motion_next_section,
-    "left_curly_bracket": motion_prev_section,
-    "right_curly_bracket": motion_next_section,
     "[[": motion_section_header_prev,
     "]]": motion_section_header_next,
     "ctrl_d": motion_half_page_down,

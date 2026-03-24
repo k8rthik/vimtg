@@ -89,11 +89,38 @@ class MainScreen(Screen):
 
     # ── Key dispatch ─────────────────────────────────────────────
 
+    # Textual sends verbose names for symbols — normalize to what keymap expects
+    _KEY_NORMALIZE: dict[str, str] = {
+        "colon": ":",
+        "slash": "/",
+        "plus": "+",
+        "minus": "-",
+        "dollar_sign": "$",
+        "question_mark": "?",
+        "left_curly_bracket": "{",
+        "right_curly_bracket": "}",
+        "left_square_bracket": "[",
+        "right_square_bracket": "]",
+        "quotation_mark": '"',
+        "apostrophe": "'",
+        "full_stop": ".",
+        "greater_than_sign": ">",
+        "less_than_sign": "<",
+        "at": "@",
+        "exclamation_mark": "!",
+        "underscore": "_",
+    }
+
     def on_key(self, event: Key) -> None:
+        # Let Ctrl+C through for emergency quit
+        if event.key == "ctrl+c":
+            return
         event.prevent_default()
         event.stop()
-        # Resolve remappings
-        key = self.remapper.resolve(event.key, self._state.mode_mgr.current)
+        # Normalize Textual's verbose key names to symbols
+        key = self._KEY_NORMALIZE.get(event.key, event.key)
+        # Resolve user remappings
+        key = self.remapper.resolve(key, self._state.mode_mgr.current)
         result, action = self.keymap.feed(key)
 
         # Update which-key tooltip

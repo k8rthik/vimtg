@@ -206,8 +206,7 @@ class TestMotionRegistry:
     def test_registry_has_all_keys(self) -> None:
         expected_keys = {
             "j", "k", "h", "l", "0", "$", "gg", "G",
-            "w", "b", "{", "}", "left_curly_bracket", "right_curly_bracket",
-            "[[", "]]", "ctrl_d", "ctrl_u",
+            "w", "b", "{", "}", "[[", "]]", "ctrl_d", "ctrl_u",
         }
         assert set(MOTION_REGISTRY.keys()) == expected_keys
 
