@@ -6,6 +6,7 @@ then syncs updated EditorState to Textual widgets.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -63,6 +64,7 @@ class MainScreen(Screen):
         registry: CommandRegistry | None = None,
         search_service: SearchService | None = None,
         card_repo: CardRepository | None = None,
+        save_fn: Callable[[Path, str], None] | None = None,
     ) -> None:
         super().__init__()
         self._state = EditorState(
@@ -79,6 +81,7 @@ class MainScreen(Screen):
         self.registry = registry or CommandRegistry()
         self.search_service = search_service
         self.card_repo = card_repo
+        self.save_fn = save_fn
         self.keymap = KeyMap()
         self.remapper = load_remapper()
 
@@ -132,7 +135,7 @@ class MainScreen(Screen):
         elif action.action_type == "mode_switch":
             hr = handle_mode_switch(s, action)
         elif action.action_type == "command_submit":
-            hr = handle_command(s, action, self.registry, self.file_path)
+            hr = handle_command(s, action, self.registry, self.file_path, self.save_fn)
             s.mode_mgr.force_normal()
             self.keymap.set_mode(Mode.NORMAL)
         elif action.action_type == "special":
@@ -176,6 +179,8 @@ class MainScreen(Screen):
             self.keymap.set_mode(hr.enter_visual)
         if hr.command_message:
             self.query_one("#command-line", CommandLine).set_message(hr.command_message)
+        if hr.file_path is not None:
+            self.file_path = hr.file_path
         if hr.quit_requested:
             self.app.exit()
         if hr.search_query is not None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from vimtg.editor.buffer import Buffer
@@ -129,11 +130,12 @@ def parse_command(
 class EditorContext:
     """Mutable context passed to command handlers for side effects."""
 
-    file_path: Any = None
+    file_path: Path | None = None
     modified: bool = False
     quit_requested: bool = False
     message: str = ""
     error: bool = False
+    save_fn: Callable[[Path, str], None] | None = None
 
 
 CommandHandler = Callable[

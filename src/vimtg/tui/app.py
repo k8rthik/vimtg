@@ -14,6 +14,7 @@ from textual.app import App
 from vimtg.config.paths import db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
+from vimtg.data.deck_repository import DeckRepository
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.buffer_cmds import register_buffer_commands
 from vimtg.editor.command_handlers.config_cmds import register_config_commands
@@ -46,6 +47,7 @@ class VimTGApp(App):
         self._cmd_registry: CommandRegistry | None = None
         self._search_svc: SearchService | None = None
         self._card_repo: CardRepository | None = None
+        self._deck_repo: DeckRepository | None = None
 
     def on_mount(self) -> None:
         self._init_services()
@@ -61,6 +63,7 @@ class VimTGApp(App):
         register_deck_commands(self._cmd_registry)
         register_help_commands(self._cmd_registry)
         register_config_commands(self._cmd_registry)
+        self._deck_repo = DeckRepository()
 
         db_file = db_path()
         if db_file.exists():
@@ -84,6 +87,7 @@ class VimTGApp(App):
             text = "// New Deck\n\n"
 
         buffer = Buffer.from_text(text)
+        save_fn = self._deck_repo.save if self._deck_repo else None
         self.push_screen(
             MainScreen(
                 buffer=buffer,
@@ -91,6 +95,7 @@ class VimTGApp(App):
                 registry=self._cmd_registry,
                 search_service=self._search_svc,
                 card_repo=self._card_repo,
+                save_fn=save_fn,
             )
         )
 
