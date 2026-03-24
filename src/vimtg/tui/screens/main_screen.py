@@ -176,8 +176,14 @@ class MainScreen(Screen):
         cl = self.query_one("#command-line", CommandLine)
         if query == "__next__":
             sr.select_next()
+            selected = sr.get_selected()
+            cl.ghost = selected.name if selected else ""
+            return
         elif query == "__prev__":
             sr.select_prev()
+            selected = sr.get_selected()
+            cl.ghost = selected.name if selected else ""
+            return
         else:
             cl.message = ""
             cl.prefix = "search: "
@@ -212,6 +218,12 @@ class MainScreen(Screen):
         sr.results = results
         sr.selected = 0
         sr.visible = bool(results)
+        # Show top match as ghost completion in command line
+        cl = self.query_one("#command-line", CommandLine)
+        if results:
+            cl.ghost = results[0].name
+        else:
+            cl.ghost = ""
 
     # ── Widget sync ──────────────────────────────────────────────
 

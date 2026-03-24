@@ -10,11 +10,13 @@ from vimtg.domain.card import Card
 from vimtg.tui.deck_renderer import format_mana
 from vimtg.tui.theme import COLORS
 
-_MAX_VISIBLE = 15
+_MAX_VISIBLE = 10
+_SELECTED_STYLE = f"on {COLORS['cursor_bg']}"
+_DIM = f"dim {COLORS['comment']}"
 
 
 class SearchResults(Static):
-    """Popup showing fuzzy card search results during insert mode."""
+    """Popup showing fuzzy card search results with inline preview."""
 
     results: reactive[list[Card]] = reactive(list)
     selected: reactive[int] = reactive(0)
@@ -25,46 +27,60 @@ class SearchResults(Static):
             return Text("")
 
         t = Text()
-        t.append(
-            "\u250c\u2500 Search Results "
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
-            "\u2500\u2500\u2500\u2500\u2500\u2510\n",
-            style="dim",
-        )
+        count = len(self.results)
+        header = f" {count} match{'es' if count != 1 else ''}  "
+        nav = "Tab/Ctrl-N next  Ctrl-P prev  Enter confirm  Esc cancel"
+        t.append(f" {header}", style=f"bold {COLORS['mana_blue']}")
+        t.append(f"{nav}\n", style=_DIM)
 
         visible = self.results[:_MAX_VISIBLE]
         for i, card in enumerate(visible):
-            prefix = "\u2502>" if i == self.selected else "\u2502 "
-            style = f"on {COLORS['cursor_bg']}" if i == self.selected else ""
-            line = Text(f"{prefix} {card.name:<26}", style=style)
+            is_sel = i == self.selected
+            line = Text()
+
+            # Selection indicator
+            line.append(" > " if is_sel else "   ")
+
+            # Card name
+            line.append(f"{card.name:<28}", style="bold" if is_sel else "")
+
+            # Mana cost
             line.append(format_mana(card.mana_cost))
-            type_short = card.type_line.split("\u2014")[0].strip()[:16]
-            line.append(f"  {type_short}", style="dim")
+
+            # Type
+            type_short = card.type_line.split("\u2014")[0].strip()[:18]
+            line.append(f"  {type_short:<18}", style="dim")
+
+            # Price
+            if card.price_usd is not None:
+                line.append(f"  ${card.price_usd:.2f}", style="dim")
+
+            if is_sel:
+                line.stylize(_SELECTED_STYLE)
+
             t.append(line)
             t.append("\n")
 
-        t.append(
-            "\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
-            "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
-            "\u2500\u2500\u2500\u2518\n",
-            style="dim",
-        )
+            # Show oracle text for selected card
+            if is_sel and card.oracle_text:
+                oracle_preview = card.oracle_text.replace("\n", " ")
+                if len(oracle_preview) > 72:
+                    oracle_preview = oracle_preview[:69] + "..."
+                t.append(f"     {oracle_preview}\n", style=_DIM)
+
+        if count > _MAX_VISIBLE:
+            t.append(f"   ... and {count - _MAX_VISIBLE} more\n", style=_DIM)
+
         return t
 
     def select_next(self) -> None:
-        """Move selection down, clamped to list bounds."""
         if self.results:
             self.selected = min(self.selected + 1, len(self.results) - 1)
 
     def select_prev(self) -> None:
-        """Move selection up, clamped to 0."""
         self.selected = max(self.selected - 1, 0)
 
     def get_selected(self) -> Card | None:
-        """Return the currently highlighted card, or None."""
         if 0 <= self.selected < len(self.results):
             return self.results[self.selected]
         return None

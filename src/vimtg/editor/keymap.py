@@ -55,7 +55,7 @@ MODE_SWITCHES: dict[str, str] = {
     ":": "COMMAND",
     "/": "SEARCH",
 }
-SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?"})
+SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "question_mark"})
 MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "left_square_bracket", "right_square_bracket"})
 
 
