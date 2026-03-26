@@ -28,6 +28,8 @@ class StatusLine(Static):
     card_count: reactive[int] = reactive(0)
     cursor_line: reactive[int] = reactive(0)
     total_lines: reactive[int] = reactive(0)
+    vcs_branch: reactive[str] = reactive("")
+    vcs_snapshot_count: reactive[int] = reactive(0)
 
     def render(self) -> Text:
         t = Text()
@@ -37,5 +39,9 @@ class StatusLine(Static):
         if self.modified:
             t.append(" [+]", style=f"bold {COLORS['mana_red']}")
         t.append(f"  {self.card_count} cards", style="dim")
+        if self.vcs_branch:
+            t.append(f"  [{self.vcs_branch}]", style=f"bold {COLORS['mana_green']}")
+            if self.vcs_snapshot_count:
+                t.append(f" ({self.vcs_snapshot_count})", style="dim")
         t.append(f"  Ln {self.cursor_line + 1}/{self.total_lines}", style="dim")
         return t

@@ -35,6 +35,12 @@ COMMANDS
   :find pattern Jump to matching card
   :export fmt   Export (arena/mtgo/moxfield)
   :help         This help
+
+VERSION CONTROL
+  :history      Open deck history (lazygit-style)
+  :commit "msg" Snapshot current deck state
+  :branch       Open history to manage branches
+  :checkpoint n Tag current state
 """.strip()
 
 COMMAND_HELP: dict[str, str] = {
@@ -63,6 +69,24 @@ COMMAND_HELP: dict[str, str] = {
     "find": ":find pattern  Jump to next card matching pattern",
     "export": ":export format [file]  Export deck (arena/mtgo/moxfield/archidekt)",
     "help": ":help [command]  Show help",
+    "history": (
+        ":history  Open lazygit-style deck version control\n"
+        "\n"
+        "Keybindings in history screen:\n"
+        "  Tab/Shift-Tab  Cycle panels\n"
+        "  j/k            Navigate\n"
+        "  c              Commit snapshot\n"
+        "  b              Create branch\n"
+        "  B              Switch branch\n"
+        "  t/T            Tag/untag snapshot\n"
+        "  R              Restore snapshot\n"
+        "  p              Cherry-pick\n"
+        "  d              Toggle detail view\n"
+        "  q              Return to editor"
+    ),
+    "commit": ":commit message  Create a named snapshot of current deck state",
+    "branch": ":branch  Open history screen for branch management",
+    "checkpoint": ":checkpoint name  Alias for :commit",
 }
 
 

@@ -83,6 +83,10 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
         "bool", group="Editor",
     ),
     ConfigOption(
+        "auto_snapshot", "Auto Snapshot", "Snapshot on :w save",
+        "bool", group="Editor",
+    ),
+    ConfigOption(
         "theme", "Theme", "Color theme",
         "choice", ("dark",), group="Display",
     ),

@@ -15,6 +15,7 @@ from textual.events import Key
 from textual.screen import Screen
 
 from vimtg.config.settings import Settings
+from vimtg.data.database import Database
 from vimtg.domain.card import Card
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_completer import CommandCompleter
@@ -83,6 +84,7 @@ class MainScreen(Screen):
         card_repo: CardRepository | None = None,
         save_fn: Callable[[Path, str], None] | None = None,
         settings: Settings | None = None,
+        db: Database | None = None,
     ) -> None:
         super().__init__()
         self._state = EditorState(
@@ -104,6 +106,8 @@ class MainScreen(Screen):
         self.save_fn = save_fn
         self.keymap = KeyMap()
         self.remapper = load_remapper()
+        self._db = db
+        self._vcs_service = None  # Lazily initialized
 
     def compose(self):  # noqa: ANN201
         yield DeckView(id="deck-view")
@@ -264,6 +268,7 @@ class MainScreen(Screen):
             self.query_one("#command-line", CommandLine).set_message(hr.command_message)
         if hr.file_path is not None:
             self.file_path = hr.file_path
+            self._vcs_auto_snapshot()
         if hr.help_requested:
             hp = self.query_one("#help-panel", HelpPanel)
             hp.display = not hp.display
@@ -276,6 +281,10 @@ class MainScreen(Screen):
             self.app.exit()
         if hr.open_config_screen:
             self._open_config()
+        if hr.open_history_screen:
+            self._open_history()
+        if hr.vcs_commit_description:
+            self._vcs_commit(hr.vcs_commit_description)
         if hr.search_query is not None:
             self._handle_search_action(hr.search_query)
         if hr.insert_confirm:
@@ -363,6 +372,70 @@ class MainScreen(Screen):
         if isinstance(app, VimTGApp):
             app.update_settings(new_settings)
         self._sync_widgets()
+
+    # ── VCS integration ─────────────────────────────────────
+
+    def _get_vcs_service(self):  # noqa: ANN202
+        """Lazily initialize VCS service on first use."""
+        if self._vcs_service is not None:
+            return self._vcs_service
+        if self._db is None:
+            return None
+        from vimtg.data.snapshot_repository import SnapshotRepository
+        from vimtg.services.vcs_service import VersionControlService
+        deck_path = str(self.file_path.resolve()) if self.file_path else "(unsaved)"
+        repo = SnapshotRepository(self._db)
+        self._vcs_service = VersionControlService(repo, deck_path)
+        return self._vcs_service
+
+    def _open_history(self) -> None:
+        from vimtg.services.deck_diff_service import DeckDiffService
+        from vimtg.tui.screens.history_screen import HistoryScreen
+        vcs = self._get_vcs_service()
+        if vcs is None:
+            cl = self.query_one("#command-line", CommandLine)
+            cl.set_message("VCS unavailable (no database)")
+            return
+        diff_svc = DeckDiffService(card_repo=self.card_repo)
+        self.app.push_screen(HistoryScreen(
+            vcs_service=vcs,
+            diff_service=diff_svc,
+            current_deck_state=self._state.buffer.to_text(),
+            deck_name=self.file_path.name if self.file_path else "(new)",
+            on_restore=self._on_restore,
+        ))
+
+    def _on_restore(self, deck_state: str) -> None:
+        """Callback from HistoryScreen when user restores a snapshot."""
+        self._state.buffer = Buffer.from_text(deck_state)
+        self._state.cursor = Cursor()
+        self._state.modified = True
+        self._state.history.record(self._state.buffer, "restore from VCS")
+        if self.card_repo:
+            self._state.resolved_cards = resolve_cards(
+                self._state.buffer, self.card_repo,
+            )
+        self._sync_widgets()
+
+    def _vcs_commit(self, description: str) -> None:
+        """Create a VCS snapshot with the given description."""
+        vcs = self._get_vcs_service()
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            cl.set_message("VCS unavailable (no database)")
+            return
+        snap = vcs.commit(self._state.buffer.to_text(), description)
+        cl.set_message(f"Snapshot: {snap.description}")
+        self._sync_widgets()
+
+    def _vcs_auto_snapshot(self) -> None:
+        """Auto-create VCS snapshot on :w (if enabled)."""
+        if not self._state.settings.auto_snapshot:
+            return
+        vcs = self._get_vcs_service()
+        if vcs is None:
+            return
+        vcs.commit(self._state.buffer.to_text(), "auto: save")
 
     def _find_card_line(self, card_name: str) -> int | None:
         """Find existing line with this card name (for duplicate detection)."""
@@ -520,6 +593,13 @@ class MainScreen(Screen):
         sl.card_count = count_cards(s.buffer)
         sl.cursor_line = s.cursor.row
         sl.total_lines = s.buffer.line_count()
+
+        # VCS status
+        vcs = self._vcs_service  # Don't lazily init on every sync
+        if vcs is not None:
+            status = vcs.status(s.buffer.to_text())
+            sl.vcs_branch = status.branch
+            sl.vcs_snapshot_count = status.snapshot_count
 
         cl = self.query_one("#command-line", CommandLine)
         if s.mode_mgr.is_normal():

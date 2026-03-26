@@ -65,7 +65,18 @@ CREATE TABLE IF NOT EXISTS snapshots (
 
 SNAPSHOT_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_snapshots_deck ON snapshots(deck_path)",
+    "CREATE INDEX IF NOT EXISTS idx_snapshots_branch ON snapshots(deck_path, branch)",
 )
+
+BRANCHES_TABLE = """
+CREATE TABLE IF NOT EXISTS branches (
+    name TEXT NOT NULL,
+    deck_path TEXT NOT NULL,
+    tip_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (name, deck_path)
+)
+"""
 
 
 _PRICE_MIGRATIONS = (
@@ -76,13 +87,27 @@ _PRICE_MIGRATIONS = (
 )
 
 
+_SNAPSHOT_MIGRATIONS = (
+    ("deck_hash", "ALTER TABLE snapshots ADD COLUMN deck_hash TEXT DEFAULT ''"),
+)
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
-    """Add missing price columns to existing databases. Idempotent."""
-    rows = conn.execute("PRAGMA table_info(cards)").fetchall()
-    existing_columns = {row[1] for row in rows}
+    """Add missing columns to existing databases. Idempotent."""
+    # Cards table migrations
+    card_rows = conn.execute("PRAGMA table_info(cards)").fetchall()
+    card_columns = {row[1] for row in card_rows}
     for col_name, sql in _PRICE_MIGRATIONS:
-        if col_name not in existing_columns:
+        if col_name not in card_columns:
             conn.execute(sql)
+
+    # Snapshots table migrations
+    snap_rows = conn.execute("PRAGMA table_info(snapshots)").fetchall()
+    snap_columns = {row[1] for row in snap_rows}
+    for col_name, sql in _SNAPSHOT_MIGRATIONS:
+        if col_name not in snap_columns:
+            conn.execute(sql)
+
     conn.commit()
 
 
@@ -95,5 +120,6 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(SNAPSHOTS_TABLE)
     for idx in SNAPSHOT_INDEXES:
         conn.execute(idx)
+    conn.execute(BRANCHES_TABLE)
     conn.commit()
     _run_migrations(conn)

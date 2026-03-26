@@ -27,6 +27,8 @@ class Settings:
     # Editor
     auto_sort: bool = True
     confirm_quit: bool = True
+    # VCS
+    auto_snapshot: bool = True
 
 
 def validate_settings(settings: Settings) -> list[str]:
@@ -61,4 +63,5 @@ def load_settings() -> Settings:
         default_format=editor.get("default_format", ""),
         auto_sort=editor.get("auto_sort", True),
         confirm_quit=editor.get("confirm_quit", True),
+        auto_snapshot=editor.get("auto_snapshot", True),
     )
