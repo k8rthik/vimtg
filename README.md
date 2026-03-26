@@ -1,21 +1,15 @@
-<div align="center">
-
 ```
-       _           _
-__   _(_)_ __ ___ | |_ __ _
-\ \ / / | '_ ` _ \| __/ _` |
- \ V /| | | | | | | || (_| |
-  \_/ |_|_| |_| |_|\__\__, |
-                       |___/
+         _           _
+  __   _(_)_ __ ___ | |_ __ _
+  \ \ / / | '_ ` _ \| __/ _` |
+   \ V /| | | | | | | || (_| |
+    \_/ |_|_| |_| |_|\__\__, |
+                         |___/
 ```
 
-</div>
+**Vim-powered Magic: The Gathering deck builder for the terminal.**
 
-<h3 align="center">Vim-powered Magic: The Gathering deck builder for the terminal</h3>
-
-<p align="center">
-<code>hjkl</code> to navigate &middot; <code>dd</code> to delete &middot; <code>/</code> to search &middot; <code>:wq</code> to save &middot; plain text decks that live in git
-</p>
+`hjkl` to navigate · `dd` to delete · `/` to search · `:wq` to save · plain text decks that live in git
 
 ---
 
