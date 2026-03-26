@@ -157,6 +157,8 @@ class EditorContext:
     settings: Any = None
     settings_changed: bool = False
     open_config_screen: bool = False
+    open_history_screen: bool = False
+    vcs_commit_description: str = ""
 
 
 CommandHandler = Callable[

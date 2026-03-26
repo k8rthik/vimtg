@@ -22,6 +22,7 @@ from vimtg.editor.command_handlers.buffer_cmds import register_buffer_commands
 from vimtg.editor.command_handlers.config_cmds import register_config_commands
 from vimtg.editor.command_handlers.deck_cmds import register_deck_commands
 from vimtg.editor.command_handlers.help_cmd import register_help_commands
+from vimtg.editor.command_handlers.history_cmds import register_history_commands
 from vimtg.editor.command_handlers.sort import register_sort_commands
 from vimtg.editor.commands import CommandRegistry
 from vimtg.services.search_service import SearchService
@@ -52,6 +53,7 @@ class VimTGApp(App):
         self._search_svc: SearchService | None = None
         self._card_repo: CardRepository | None = None
         self._deck_repo: DeckRepository | None = None
+        self._db: Database | None = None
 
     @property
     def settings(self) -> Settings:
@@ -76,14 +78,20 @@ class VimTGApp(App):
         register_deck_commands(self._cmd_registry)
         register_help_commands(self._cmd_registry)
         register_config_commands(self._cmd_registry)
+        register_history_commands(self._cmd_registry)
         self._deck_repo = DeckRepository()
 
         db_file = db_path()
         if db_file.exists():
-            db = Database(db_file)
-            db.initialize()
-            self._card_repo = CardRepository(db)
+            self._db = Database(db_file)
+            self._db.initialize()
+            self._card_repo = CardRepository(self._db)
             self._search_svc = SearchService(card_repo=self._card_repo)
+        else:
+            # Create DB for VCS even without card data
+            db_file.parent.mkdir(parents=True, exist_ok=True)
+            self._db = Database(db_file)
+            self._db.initialize()
 
     def _launch_greeter(self) -> None:
         from vimtg.tui.screens.greeter import GreeterScreen
@@ -110,6 +118,7 @@ class VimTGApp(App):
                 card_repo=self._card_repo,
                 save_fn=save_fn,
                 settings=self._settings,
+                db=self._db,
             )
         )
 

@@ -78,6 +78,8 @@ class HandlerResult:
     insert_confirm: bool = False
     file_path: Path | None = None
     open_config_screen: bool = False
+    open_history_screen: bool = False
+    vcs_commit_description: str = ""
     command_ghost: str = ""
     command_accept: str = ""
     enter_line_edit: bool = False
@@ -178,6 +180,8 @@ def handle_command(
             greeter_requested=ctx.greeter_requested,
             file_path=ctx.file_path,
             open_config_screen=ctx.open_config_screen,
+            open_history_screen=ctx.open_history_screen,
+            vcs_commit_description=ctx.vcs_commit_description,
         )
     except Exception as exc:
         return HandlerResult(command_message=str(exc))
