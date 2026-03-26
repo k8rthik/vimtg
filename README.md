@@ -1,13 +1,15 @@
-<p align="center">
-<pre align="center">
+<div align="center">
+
+```
        _           _
 __   _(_)_ __ ___ | |_ __ _
 \ \ / / | '_ ` _ \| __/ _` |
  \ V /| | | | | | | || (_| |
   \_/ |_|_| |_| |_|\__\__, |
                        |___/
-</pre>
-</p>
+```
+
+</div>
 
 <h3 align="center">Vim-powered Magic: The Gathering deck builder for the terminal</h3>
 
