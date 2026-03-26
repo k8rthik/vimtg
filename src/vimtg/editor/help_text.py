@@ -11,7 +11,8 @@ NAVIGATION
   Ctrl-D/U      Half page down/up
 
 EDITING
-  i/o/O         Insert mode (at cursor / new line below / above)
+  i             Edit current line as plain text
+  o/O           Add card (new line below / above)
   dd            Delete card line
   yy            Yank (copy) card line
   p/P           Paste below/above

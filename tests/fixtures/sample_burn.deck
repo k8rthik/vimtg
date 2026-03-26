@@ -2,22 +2,24 @@
 // Format: modern
 // Author: test
 
-// Creatures
+// Creature
 4 Goblin Guide
 4 Monastery Swiftspear
 4 Eidolon of the Great Revel
 
-// Spells
+// Instant
 4 Lightning Bolt
-4 Lava Spike
-4 Rift Bolt
 4 Searing Blaze
 4 Skullcrack
 4 Boros Charm
-4 Light Up the Stage
 2 Shard Volley
 
-// Lands
+// Sorcery
+4 Lava Spike
+4 Rift Bolt
+4 Light Up the Stage
+
+// Land
 4 Inspiring Vantage
 4 Sacred Foundry
 2 Fiery Islet

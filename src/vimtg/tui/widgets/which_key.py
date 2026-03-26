@@ -24,7 +24,8 @@ NORMAL_HINTS = {
         ("Ctrl-D/U", "page down/up"),
     ],
     "Editing": [
-        ("i/o/O", "insert mode"),
+        ("i", "edit line"),
+        ("o/O", "add card"),
         ("dd", "delete card"),
         ("yy", "yank card"),
         ("p/P", "paste below/above"),
@@ -44,10 +45,17 @@ NORMAL_HINTS = {
 INSERT_HINTS = {
     "Insert Mode": [
         ("Esc", "back to normal"),
-        ("Ctrl-N", "next result"),
-        ("Ctrl-P", "prev result"),
+        ("Ctrl-J", "next result"),
+        ("Ctrl-K", "prev result"),
         ("Enter", "confirm card"),
         ("Tab", "next result"),
+    ],
+}
+
+LINE_EDIT_HINTS = {
+    "Line Edit": [
+        ("Esc", "cancel"),
+        ("Enter", "confirm"),
     ],
 }
 
@@ -87,12 +95,9 @@ class WhichKey(Static):
 
     mode: reactive[Mode] = reactive(Mode.NORMAL)
     pending_key: reactive[str] = reactive("")
-    visible: reactive[bool] = reactive(False)
+    line_edit: reactive[bool] = reactive(False)
 
     def render(self) -> Text:
-        if not self.visible:
-            return Text("")
-
         # Show pending key hints if we're mid-sequence
         if self.pending_key and self.pending_key in PENDING_HINTS:
             return self._render_hints({"Next": PENDING_HINTS[self.pending_key]})
@@ -100,7 +105,7 @@ class WhichKey(Static):
         # Show mode-appropriate hints
         hints = NORMAL_HINTS
         if self.mode == Mode.INSERT:
-            hints = INSERT_HINTS
+            hints = LINE_EDIT_HINTS if self.line_edit else INSERT_HINTS
         elif self.mode in (Mode.COMMAND, Mode.SEARCH):
             hints = COMMAND_HINTS
 

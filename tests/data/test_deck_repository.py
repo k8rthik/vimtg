@@ -42,9 +42,10 @@ class TestParseSampleDeck:
     def test_parse_comments_preserved(self, burn_deck_text: str) -> None:
         deck = parse_deck_text(burn_deck_text)
         comment_texts = [c.text for c in deck.comments]
-        assert "// Creatures" in comment_texts
-        assert "// Spells" in comment_texts
-        assert "// Lands" in comment_texts
+        assert "// Creature" in comment_texts
+        assert "// Instant" in comment_texts
+        assert "// Sorcery" in comment_texts
+        assert "// Land" in comment_texts
         assert "// Sideboard" in comment_texts
 
     def test_parse_sideboard(self, burn_deck_text: str) -> None:

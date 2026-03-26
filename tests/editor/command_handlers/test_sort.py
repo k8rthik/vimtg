@@ -48,7 +48,7 @@ class TestSortByName:
 class TestSortPreservesComments:
     def test_sort_preserves_comments(self) -> None:
         text = (
-            "// Creatures\n"
+            "// Creature\n"
             "4 Lightning Bolt\n"
             "2 Counterspell\n"
             "1 Abrade\n"
@@ -62,7 +62,7 @@ class TestSortPreservesComments:
         new_buf, _ = cmd_sort(buffer, cursor, cmd, ctx)
         lines = _line_texts(new_buf)
         # Comment stays anchored at position 0
-        assert lines[0] == "// Creatures"
+        assert lines[0] == "// Creature"
         # Cards sorted after comment
         assert lines[1] == "1 Abrade"
         assert lines[2] == "2 Counterspell"
@@ -72,12 +72,12 @@ class TestSortPreservesComments:
 class TestSortCurrentSection:
     def test_sort_current_section(self) -> None:
         text = (
-            "// Creatures\n"
+            "// Creature\n"
             "4 Lightning Bolt\n"
             "2 Counterspell\n"
             "1 Abrade\n"
             "\n"
-            "// Lands\n"
+            "// Land\n"
             "4 Mountain\n"
         )
         buffer = Buffer.from_text(text)
@@ -89,13 +89,13 @@ class TestSortCurrentSection:
         new_buf, _ = cmd_sort(buffer, cursor, cmd, ctx)
         lines = _line_texts(new_buf)
         # Only the first card block (rows 1-3) should be sorted
-        assert lines[0] == "// Creatures"
+        assert lines[0] == "// Creature"
         assert lines[1] == "1 Abrade"
         assert lines[2] == "2 Counterspell"
         assert lines[3] == "4 Lightning Bolt"
         # Rest unchanged
         assert lines[4] == ""
-        assert lines[5] == "// Lands"
+        assert lines[5] == "// Land"
         assert lines[6] == "4 Mountain"
 
 

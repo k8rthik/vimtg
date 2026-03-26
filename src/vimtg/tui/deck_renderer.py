@@ -137,8 +137,7 @@ def _render_card_line(
     t = Text()
     if gutter:
         t.append(gutter)
-    prefix = ">" if is_cursor else " "
-    t.append(f"{prefix}", style="bold" if is_cursor else "")
+    t.append(" ")
 
     if bl.line_type == LineType.SIDEBOARD_ENTRY:
         t.append("SB: ", style=COLORS["sideboard"])

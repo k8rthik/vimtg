@@ -92,9 +92,25 @@ def cmd_write_quit(
     return buffer, cursor
 
 
+def cmd_home(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """Return to greeter screen. Fails if buffer modified without bang."""
+    if ctx.modified and not cmd.bang:
+        ctx.message = "Unsaved changes (use :home! to force)"
+        ctx.error = True
+        return buffer, cursor
+    ctx.greeter_requested = True
+    return buffer, cursor
+
+
 def register_buffer_commands(registry: CommandRegistry) -> None:
-    """Register :w, :q, :wq, :x commands."""
+    """Register :w, :q, :wq, :x, :home commands."""
     registry.register("w", cmd_write, aliases=["write"])
     registry.register("q", cmd_quit, aliases=["quit"])
     registry.register("wq", cmd_write_quit)
     registry.register("x", cmd_write_quit)
+    registry.register("home", cmd_home, aliases=["greeter"])

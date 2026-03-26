@@ -48,6 +48,7 @@ class TestSymbolTranslation:
             ("backslash", "\\"),
             ("left_parenthesis", "("),
             ("right_parenthesis", ")"),
+            ("space", " "),
         ],
     )
     def test_symbol_translation(self, textual_key: str, expected: str) -> None:
@@ -64,8 +65,11 @@ class TestModifierTranslation:
             ("ctrl+r", "ctrl_r"),
             ("ctrl+d", "ctrl_d"),
             ("ctrl+u", "ctrl_u"),
+            ("ctrl+j", "ctrl_j"),
+            ("ctrl+k", "ctrl_k"),
             ("ctrl+n", "ctrl_n"),
             ("ctrl+p", "ctrl_p"),
+            ("shift+tab", "shift_tab"),
         ],
     )
     def test_modifier_translation(self, textual_key: str, expected: str) -> None:
@@ -80,7 +84,8 @@ class TestPassthrough:
         ["j", "k", "h", "l", "w", "b", "i", "a", "o", "O", "A",
          "v", "V", "d", "y", "c", "p", "P", "x", "u", "G", "g",
          "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-         "escape", "enter", "backspace", "tab", "space"],
+         "escape", "enter", "backspace", "tab",
+         "left", "right", "home", "end", "delete"],
     )
     def test_passthrough(self, key: str) -> None:
         assert translate(key) == key
@@ -160,11 +165,8 @@ class TestEndToEndKeybinds:
     @pytest.mark.parametrize(
         "keys, expected_action",
         [
-            (["i"], "i"),
-            (["a"], "a"),
             (["o"], "o"),
             (["O"], "O"),
-            (["A"], "A"),
             (["colon"], ":"),
             (["slash"], "/"),
             (["v"], "v"),
@@ -246,6 +248,13 @@ class TestEndToEndKeybinds:
         assert result == KeyResult.COMPLETE
         assert action.text == "lig"
 
+    def test_insert_space(self) -> None:
+        from vimtg.editor.keymap import KeyResult
+
+        result, action = self._feed_insert("h", "i", "space", "m", "o", "m")
+        assert result == KeyResult.COMPLETE
+        assert action.text == "hi mom"
+
     def test_insert_escape(self) -> None:
         from vimtg.editor.keymap import KeyResult
 
@@ -261,6 +270,13 @@ class TestEndToEndKeybinds:
         result, action = self._feed_command("w")
         assert result == KeyResult.COMPLETE
         assert action.text == "w"
+
+    def test_command_space(self) -> None:
+        from vimtg.editor.keymap import KeyResult
+
+        result, action = self._feed_command("e", "space", "f")
+        assert result == KeyResult.COMPLETE
+        assert action.text == "e f"
 
     def test_command_enter(self) -> None:
         from vimtg.editor.keymap import KeyResult
@@ -297,3 +313,42 @@ class TestEndToEndKeybinds:
         result, action = self._feed("3", "d", "d")
         assert result == KeyResult.COMPLETE
         assert action.count == 3
+
+    # -- Cursor movement in INSERT mode --
+
+    def test_insert_left_right(self) -> None:
+        from vimtg.editor.keymap import KeyResult
+
+        result, action = self._feed_insert("a", "b", "left")
+        assert result == KeyResult.COMPLETE
+        assert action.action == "cursor_move"
+        assert action.cursor_pos == 1
+
+    def test_insert_home_end(self) -> None:
+        from vimtg.editor.keymap import KeyResult
+
+        _, action = self._feed_insert("a", "b", "home")
+        assert action.cursor_pos == 0
+        # Can't test end directly since we need a fresh km with cursor at 0
+
+    def test_insert_delete_key(self) -> None:
+        from vimtg.editor.keymap import KeyResult
+
+        _, action = self._feed_insert("a", "b", "home", "delete")
+        assert action.action == "delete"
+        assert action.text == "b"
+
+    # -- Cursor movement in COMMAND mode --
+
+    def test_command_left_right(self) -> None:
+        from vimtg.editor.keymap import KeyResult
+
+        _, action = self._feed_command("s", "o", "left")
+        assert action.action == "cursor_move"
+        assert action.cursor_pos == 1
+
+    def test_command_shift_tab(self) -> None:
+        from vimtg.editor.keymap import KeyResult
+
+        _, action = self._feed_command("s", "shift+tab")
+        assert action.action == "shift_tab"

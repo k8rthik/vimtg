@@ -37,6 +37,7 @@ class VimTGApp(App):
     Screen {{ layout: vertical; }}
     #deck-view {{ height: 1fr; }}
     #search-results {{ height: auto; max-height: 20; dock: bottom; }}
+    #help-panel {{ height: auto; max-height: 24; dock: bottom; }}
     #which-key {{ height: auto; max-height: 6; dock: bottom; }}
     #status-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}
     #command-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}

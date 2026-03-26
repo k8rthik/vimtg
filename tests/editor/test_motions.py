@@ -26,15 +26,15 @@ DECK_TEXT = """\
 // Deck: Test
 // Format: standard
 
-// Creatures
+// Creature
 4 Goblin Guide
 4 Monastery Swiftspear
 
-// Spells
+// Instant
 4 Lightning Bolt
 4 Lava Spike
 
-// Lands
+// Land
 4 Mountain
 """
 
@@ -167,21 +167,21 @@ class TestCardMotions:
 class TestSectionMotions:
     def test_next_section(self) -> None:
         buf = _buf()
-        c = Cursor(row=4)  # "4 Goblin Guide" in Creatures
+        c = Cursor(row=4)  # "4 Goblin Guide" in Creature
         result = motion_next_section(c, buf)
-        # Should jump to first card of Spells section: "4 Lightning Bolt" (line 8)
+        # Should jump to first card of Instant section: "4 Lightning Bolt" (line 8)
         assert result.row == 8
 
     def test_prev_section(self) -> None:
         buf = _buf()
-        c = Cursor(row=8)  # "4 Lightning Bolt" in Spells
+        c = Cursor(row=8)  # "4 Lightning Bolt" in Instant
         result = motion_prev_section(c, buf)
-        # Should jump to first card of Creatures section: "4 Goblin Guide" (line 4)
+        # Should jump to first card of Creature section: "4 Goblin Guide" (line 4)
         assert result.row == 4
 
     def test_next_section_at_last_section(self) -> None:
         buf = _buf()
-        c = Cursor(row=12)  # "4 Mountain" in Lands (last section)
+        c = Cursor(row=12)  # "4 Mountain" in Land (last section)
         result = motion_next_section(c, buf)
         # Should stay at end or near end
         assert result.row >= 12

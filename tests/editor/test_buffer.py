@@ -37,9 +37,14 @@ class TestClassifyLine:
         assert classify_line("// just a comment") == LineType.COMMENT
 
     def test_section_header(self) -> None:
+        assert classify_line("// Creature") == LineType.SECTION_HEADER
+        assert classify_line("// Land") == LineType.SECTION_HEADER
+        assert classify_line("// Sideboard") == LineType.SECTION_HEADER
+
+    def test_plural_headers_are_section_headers(self) -> None:
         assert classify_line("// Creatures") == LineType.SECTION_HEADER
         assert classify_line("// Lands") == LineType.SECTION_HEADER
-        assert classify_line("// Sideboard") == LineType.SECTION_HEADER
+        assert classify_line("// Spells") == LineType.SECTION_HEADER
 
     def test_metadata(self) -> None:
         assert classify_line("// Deck: Burn") == LineType.METADATA
@@ -66,8 +71,8 @@ class TestClassifyLine:
 
 class TestBufferFromText:
     def test_from_text_line_count(self, sample_buffer: Buffer) -> None:
-        # sample_burn.deck has 33 lines of content (including blanks)
-        assert sample_buffer.line_count() == 33
+        # sample_burn.deck has 35 lines of content (including blanks)
+        assert sample_buffer.line_count() == 35
 
     def test_to_text_roundtrip(self, sample_text: str) -> None:
         buf = Buffer.from_text(sample_text)
@@ -144,7 +149,7 @@ class TestCardExtraction:
         assert buf.card_name_at(0) == "Kenrith, the Returned King"
 
     def test_card_name_at_non_card(self) -> None:
-        buf = Buffer.from_text("// Creatures\n")
+        buf = Buffer.from_text("// Creature\n")
         assert buf.card_name_at(0) is None
 
     def test_card_name_at_out_of_bounds(self) -> None:

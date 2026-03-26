@@ -147,7 +147,7 @@ class TestGlobalPreservesComments:
     def test_global_preserves_comments(self) -> None:
         """Only card lines are matched; comments are preserved."""
         text = (
-            "// Creatures\n"
+            "// Creature\n"
             "4 Lightning Bolt\n"
             "2 Counterspell\n"
             "// Bolt is great\n"
@@ -161,7 +161,7 @@ class TestGlobalPreservesComments:
         )
         lines = _line_texts(new_buf)
         # Comment lines with "Bolt" are NOT deleted
-        assert "// Creatures" in lines
+        assert "// Creature" in lines
         assert "// Bolt is great" in lines
         assert "2 Counterspell" in lines
         assert "1 lines deleted" in ctx.message

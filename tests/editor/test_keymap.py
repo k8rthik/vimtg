@@ -74,20 +74,13 @@ class TestCountMotion:
 
 
 class TestModeSwitch:
-    def test_mode_switch_i(self) -> None:
+    def test_i_mode_switch(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
         result, action = km.feed("i")
         assert result == KeyResult.COMPLETE
         assert action is not None
         assert action.action_type == "mode_switch"
         assert action.action == "i"
-
-    def test_mode_switch_a(self) -> None:
-        km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("a")
-        assert result == KeyResult.COMPLETE
-        assert action is not None
-        assert action.action_type == "mode_switch"
 
     def test_mode_switch_v(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
@@ -348,6 +341,14 @@ class TestInsertMode:
         assert action.action == "backspace"
         assert action.text == "a"
 
+    def test_insert_space_accumulates(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed(" ")
+        _, action = km.feed("b")
+        assert action is not None
+        assert action.text == "a b"
+
     def test_insert_special_keys(self) -> None:
         km = KeyMap(mode=Mode.INSERT)
         result, action = km.feed("tab")
@@ -391,6 +392,14 @@ class TestCommandMode:
         _, action = km.feed("backspace")
         assert action is not None
         assert action.text == "a"
+
+    def test_command_space_accumulates(self) -> None:
+        km = KeyMap(mode=Mode.COMMAND)
+        km.feed("e")
+        km.feed(" ")
+        _, action = km.feed("f")
+        assert action is not None
+        assert action.text == "e f"
 
     def test_command_tab_completion(self) -> None:
         km = KeyMap(mode=Mode.COMMAND)
@@ -470,3 +479,177 @@ class TestSetMode:
         _, action = km.feed("c")
         assert action is not None
         assert action.text == "c"
+
+
+class TestSetInsertText:
+    def test_set_insert_text_prefills(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.set_insert_text("hello")
+        _, action = km.feed("!")
+        assert action is not None
+        assert action.text == "hello!"
+
+    def test_set_insert_text_backspace(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.set_insert_text("hello")
+        _, action = km.feed("backspace")
+        assert action is not None
+        assert action.text == "hell"
+
+    def test_set_insert_text_escape_returns_text(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.set_insert_text("hello")
+        km.feed("x")
+        _, action = km.feed("escape")
+        assert action is not None
+        assert action.action_type == "mode_switch"
+        assert action.text == "hellox"
+
+
+class TestInsertCursorMovement:
+    def test_cursor_pos_tracks_typing(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        _, a1 = km.feed("a")
+        assert a1 is not None and a1.cursor_pos == 1
+        _, a2 = km.feed("b")
+        assert a2 is not None and a2.cursor_pos == 2
+        _, a3 = km.feed("c")
+        assert a3 is not None and a3.cursor_pos == 3
+
+    def test_left_arrow_moves_cursor(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed("b")
+        km.feed("c")
+        _, action = km.feed("left")
+        assert action is not None
+        assert action.action == "cursor_move"
+        assert action.text == "abc"
+        assert action.cursor_pos == 2
+
+    def test_right_arrow_moves_cursor(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed("b")
+        km.feed("left")
+        _, action = km.feed("right")
+        assert action is not None
+        assert action.action == "cursor_move"
+        assert action.text == "ab"
+        assert action.cursor_pos == 2
+
+    def test_home_moves_to_beginning(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed("b")
+        km.feed("c")
+        _, action = km.feed("home")
+        assert action is not None
+        assert action.cursor_pos == 0
+        assert action.text == "abc"
+
+    def test_end_moves_to_end(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed("b")
+        km.feed("home")
+        _, action = km.feed("end")
+        assert action is not None
+        assert action.cursor_pos == 2
+        assert action.text == "ab"
+
+    def test_insert_at_cursor_middle(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed("c")
+        km.feed("left")  # cursor between a and c
+        _, action = km.feed("b")
+        assert action is not None
+        assert action.text == "abc"
+        assert action.cursor_pos == 2
+
+    def test_backspace_at_cursor_middle(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed("b")
+        km.feed("c")
+        km.feed("left")  # cursor between b and c
+        _, action = km.feed("backspace")
+        assert action is not None
+        assert action.text == "ac"
+        assert action.cursor_pos == 1
+
+    def test_delete_key(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.feed("a")
+        km.feed("b")
+        km.feed("c")
+        km.feed("home")  # cursor before a
+        _, action = km.feed("delete")
+        assert action is not None
+        assert action.action == "delete"
+        assert action.text == "bc"
+        assert action.cursor_pos == 0
+
+    def test_set_insert_text_cursor_at_end(self) -> None:
+        km = KeyMap(mode=Mode.INSERT)
+        km.set_insert_text("hello")
+        _, action = km.feed("left")
+        assert action is not None
+        assert action.cursor_pos == 4
+
+
+class TestCommandCursorMovement:
+    def test_command_cursor_pos_tracks_typing(self) -> None:
+        km = KeyMap(mode=Mode.COMMAND)
+        _, a1 = km.feed("s")
+        assert a1 is not None and a1.cursor_pos == 1
+        _, a2 = km.feed("o")
+        assert a2 is not None and a2.cursor_pos == 2
+
+    def test_command_left_arrow(self) -> None:
+        km = KeyMap(mode=Mode.COMMAND)
+        km.feed("s")
+        km.feed("o")
+        _, action = km.feed("left")
+        assert action is not None
+        assert action.action == "cursor_move"
+        assert action.text == "so"
+        assert action.cursor_pos == 1
+
+    def test_command_insert_at_cursor(self) -> None:
+        km = KeyMap(mode=Mode.COMMAND)
+        km.feed("s")
+        km.feed("t")
+        km.feed("left")  # cursor between s and t
+        _, action = km.feed("o")
+        assert action is not None
+        assert action.text == "sot"
+        assert action.cursor_pos == 2
+
+    def test_command_home_end(self) -> None:
+        km = KeyMap(mode=Mode.COMMAND)
+        km.feed("a")
+        km.feed("b")
+        km.feed("c")
+        _, h = km.feed("home")
+        assert h is not None and h.cursor_pos == 0
+        _, e = km.feed("end")
+        assert e is not None and e.cursor_pos == 3
+
+    def test_command_delete_key(self) -> None:
+        km = KeyMap(mode=Mode.COMMAND)
+        km.feed("a")
+        km.feed("b")
+        km.feed("left")
+        _, action = km.feed("delete")
+        assert action is not None
+        assert action.text == "a"
+        assert action.cursor_pos == 1
+
+    def test_set_command_text_cursor_at_end(self) -> None:
+        km = KeyMap(mode=Mode.COMMAND)
+        km.set_command_text("sort")
+        _, action = km.feed("left")
+        assert action is not None
+        assert action.cursor_pos == 3

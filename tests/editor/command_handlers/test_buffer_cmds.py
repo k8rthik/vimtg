@@ -6,6 +6,7 @@ from pathlib import Path
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.buffer_cmds import (
+    cmd_home,
     cmd_quit,
     cmd_write,
     cmd_write_quit,
@@ -174,3 +175,25 @@ class TestCmdWriteQuit:
         cmd_write_quit(buf, Cursor(), _make_cmd("wq"), ctx)
         assert ctx.quit_requested is False
         assert ctx.error is True
+
+
+class TestCmdHome:
+    def test_home_unmodified(self) -> None:
+        buf = _sample_buffer()
+        ctx = EditorContext(modified=False)
+        cmd_home(buf, Cursor(), _make_cmd("home"), ctx)
+        assert ctx.greeter_requested is True
+
+    def test_home_modified_no_bang(self) -> None:
+        buf = _sample_buffer()
+        ctx = EditorContext(modified=True)
+        cmd_home(buf, Cursor(), _make_cmd("home", bang=False), ctx)
+        assert ctx.greeter_requested is False
+        assert "Unsaved changes" in ctx.message
+        assert ctx.error is True
+
+    def test_home_modified_bang(self) -> None:
+        buf = _sample_buffer()
+        ctx = EditorContext(modified=True)
+        cmd_home(buf, Cursor(), _make_cmd("home", bang=True), ctx)
+        assert ctx.greeter_requested is True

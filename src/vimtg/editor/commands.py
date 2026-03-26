@@ -79,6 +79,23 @@ class ParsedCommand:
     bang: bool = False
 
 
+def extract_command_prefix(text: str) -> tuple[str, str]:
+    """Split *text* into ``(range_part, command_part)``.
+
+    Uses the same range regex as :func:`parse_command` so that range
+    specifiers like ``%``, ``5,10``, ``.``, and ``$`` are recognised.
+
+    >>> extract_command_prefix("%sort")
+    ('%', 'sort')
+    >>> extract_command_prefix("w")
+    ('', 'w')
+    """
+    match = _RANGE_PATTERN.match(text)
+    if not match:
+        return ("", text)
+    return (match.group(1) or "", match.group(2).strip())
+
+
 def parse_command(
     input_str: str, cursor_row: int, line_count: int
 ) -> ParsedCommand:
@@ -133,6 +150,7 @@ class EditorContext:
     file_path: Path | None = None
     modified: bool = False
     quit_requested: bool = False
+    greeter_requested: bool = False
     message: str = ""
     error: bool = False
     save_fn: Callable[[Path, str], None] | None = None

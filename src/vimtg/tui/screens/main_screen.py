@@ -17,6 +17,7 @@ from textual.screen import Screen
 from vimtg.config.settings import Settings
 from vimtg.domain.card import Card
 from vimtg.editor.buffer import Buffer
+from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult
@@ -27,9 +28,12 @@ from vimtg.services.history_service import HistoryService
 from vimtg.tui.key_translator import translate
 from vimtg.tui.screens.key_handler import (
     EditorState,
+    InsertSubmode,
     count_cards,
     handle_command,
+    handle_command_special,
     handle_insert_special,
+    handle_line_edit_special,
     handle_mode_switch,
     handle_motion,
     handle_normal_special,
@@ -38,6 +42,7 @@ from vimtg.tui.screens.key_handler import (
 )
 from vimtg.tui.widgets.command_line import CommandLine
 from vimtg.tui.widgets.deck_view import DeckView
+from vimtg.tui.widgets.help_panel import HelpPanel
 from vimtg.tui.widgets.search_results import SearchResults
 from vimtg.tui.widgets.status_line import StatusLine
 from vimtg.tui.widgets.which_key import WhichKey
@@ -45,6 +50,17 @@ from vimtg.tui.widgets.which_key import WhichKey
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
     from vimtg.services.search_service import SearchService
+
+
+_GENERIC_HINT = "Press ? for help  |  : command  |  o add card  |  i edit line"
+_CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
+
+
+def _hint_for_cursor(buffer: Buffer, row: int) -> str:
+    """Return the appropriate command-line hint for the current cursor position."""
+    if buffer.is_card_line(row):
+        return _CARD_HINT
+    return _GENERIC_HINT
 
 
 def _card_type_section(type_line: str) -> str:
@@ -82,6 +98,7 @@ class MainScreen(Screen):
         self._state.history.initialize(buffer)
         self.file_path = file_path
         self.registry = registry or CommandRegistry()
+        self._state.cmd_completer = CommandCompleter(self.registry)
         self.search_service = search_service
         self.card_repo = card_repo
         self.save_fn = save_fn
@@ -91,11 +108,17 @@ class MainScreen(Screen):
     def compose(self):  # noqa: ANN201
         yield DeckView(id="deck-view")
         yield SearchResults(id="search-results")
+        yield HelpPanel(id="help-panel")
         yield WhichKey(id="which-key")
         yield StatusLine(id="status-line")
         yield CommandLine(id="command-line")
 
     def on_mount(self) -> None:
+        # Start overlay panels hidden (Textual display=False = CSS display:none)
+        self.query_one("#search-results", SearchResults).display = False
+        self.query_one("#help-panel", HelpPanel).display = False
+        self.query_one("#which-key", WhichKey).display = False
+
         if self.card_repo:
             self._state.resolved_cards = resolve_cards(
                 self._state.buffer, self.card_repo,
@@ -110,6 +133,19 @@ class MainScreen(Screen):
             return
         event.prevent_default()
         event.stop()
+
+        # ── Help panel modal: block all keys except ? and Escape ──
+        hp = self.query_one("#help-panel", HelpPanel)
+        if hp.display:
+            key = translate(event.key)
+            if key in ("?", "escape"):
+                hp.display = False
+            return
+
+        # Clear transient messages from the previous keypress
+        cl = self.query_one("#command-line", CommandLine)
+        if cl.message:
+            cl.message = ""
         # Translate Textual key name → canonical vim key name
         key = translate(event.key)
         # Resolve user remappings
@@ -121,10 +157,10 @@ class MainScreen(Screen):
         wk.mode = self._state.mode_mgr.current
         if result == KeyResult.PENDING:
             wk.pending_key = key
-            wk.visible = True
+            wk.display = True
             return
         wk.pending_key = ""
-        wk.visible = self._state.mode_mgr.is_normal()
+        wk.display = False
 
         if result != KeyResult.COMPLETE or action is None:
             return
@@ -154,21 +190,62 @@ class MainScreen(Screen):
     def _dispatch_special(self, action):  # noqa: ANN001, ANN202
         s = self._state
         if s.mode_mgr.is_insert():
+            cl = self.query_one("#command-line", CommandLine)
+            if s.insert_submode == InsertSubmode.LINE_EDIT:
+                cl.text = action.text or ""
+                cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
+                return handle_line_edit_special(s, action)
+            cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(action.text or "")
             return handle_insert_special(s, action)
         if s.mode_mgr.is_command():
             cl = self.query_one("#command-line", CommandLine)
             cl.text = action.text or ""
+            cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
+            hr = handle_command_special(s, action)
+            if hr.command_accept:
+                cl.text = hr.command_accept
+                cl.cursor_pos = len(hr.command_accept)
+                self.keymap.set_command_text(hr.command_accept)
+            cl.ghost = hr.command_ghost
             return None
         return handle_normal_special(s, action)
 
     def _apply_handler_result(self, hr) -> None:  # noqa: ANN001
         s = self._state
         if hr.exit_to_normal:
+            # If cancelling a line edit (Escape), restore original line
+            if (
+                s.insert_submode == InsertSubmode.LINE_EDIT
+                and s.line_edit_original is not None
+                and s.line_edit_row is not None
+                and s.line_edit_row < s.buffer.line_count()
+            ):
+                s.buffer = s.buffer.set_line(s.line_edit_row, s.line_edit_original)
+            s.line_edit_original = None
+            s.line_edit_row = None
+            s.line_edit_prefix = ""
+            s.insert_submode = InsertSubmode.CARD_SEARCH
             s.mode_mgr.force_normal()
             self.keymap.set_mode(Mode.NORMAL)
-            self.query_one("#search-results", SearchResults).visible = False
+            self.query_one("#search-results", SearchResults).display = False
+            self.query_one("#help-panel", HelpPanel).display = False
             self.query_one("#command-line", CommandLine).hide()
+            self.query_one("#which-key", WhichKey).line_edit = False
+        if hr.enter_line_edit:
+            s.mode_mgr.transition(Mode.INSERT)
+            self.keymap.set_mode(Mode.INSERT)
+            prefix = s.line_edit_prefix
+            full_text = s.buffer.get_line(s.line_edit_row or s.cursor.row).text
+            editable = full_text[len(prefix):]
+            self.keymap.set_insert_text(editable)
+            cl = self.query_one("#command-line", CommandLine)
+            cl.show(prefix)
+            cl.text = editable
+            cl.cursor_pos = len(editable)
+            cl.message = ""
+            self.query_one("#which-key", WhichKey).line_edit = True
         if hr.enter_insert:
+            s.insert_submode = InsertSubmode.CARD_SEARCH
             s.mode_mgr.transition(Mode.INSERT)
             self.keymap.set_mode(Mode.INSERT)
             self.keymap.reset_text()
@@ -187,6 +264,14 @@ class MainScreen(Screen):
             self.query_one("#command-line", CommandLine).set_message(hr.command_message)
         if hr.file_path is not None:
             self.file_path = hr.file_path
+        if hr.help_requested:
+            hp = self.query_one("#help-panel", HelpPanel)
+            hp.display = not hp.display
+            self.query_one("#which-key", WhichKey).display = not hp.display
+        if hr.greeter_requested:
+            self.app.pop_screen()
+            self.app._launch_greeter()  # type: ignore[attr-defined]
+            return
         if hr.quit_requested:
             self.app.exit()
         if hr.open_config_screen:
@@ -213,12 +298,11 @@ class MainScreen(Screen):
             return
         else:
             cl.message = ""
-            cl.prefix = "search: "
             cl.text = query
             if len(query) >= 2 and self.search_service:
                 self._run_search(query)
             elif len(query) < 2:
-                sr.visible = False
+                sr.display = False
 
     def _confirm_insert(self) -> None:
         sr = self.query_one("#search-results", SearchResults)
@@ -237,7 +321,7 @@ class MainScreen(Screen):
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
             else:
                 # Find or create the right type section, then insert there
-                insert_row = self._find_type_section_row(card, s.buffer)
+                s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
                 if insert_row is not None and insert_row != s.cursor.row:
                     # Remove the blank line 'o' inserted and place card in correct section
                     if s.buffer.get_line(s.cursor.row).text.strip() == "":
@@ -260,7 +344,7 @@ class MainScreen(Screen):
                 s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
                 s.cursor = s.cursor.clamp(s.buffer.line_count() - 1)
             cl.hide()
-        sr.visible = False
+        sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
 
@@ -288,11 +372,12 @@ class MainScreen(Screen):
                 return i
         return None
 
-    def _find_type_section_row(self, card: Card, buf: Buffer) -> int | None:
+    def _find_type_section_row(self, card: Card, buf: Buffer) -> tuple[Buffer, int | None]:
         """Find the right row to insert a card based on its primary type.
 
         Uses singular type names: "Creature", "Instant", "Sorcery", etc.
         Creates the section header if it doesn't exist, with blank line separation.
+        Returns (buffer, insert_row) — buffer may have new section header lines.
         """
         from vimtg.editor.buffer import LineType
 
@@ -305,7 +390,7 @@ class MainScreen(Screen):
                 insert_at = i + 1
                 while insert_at < buf.line_count() and buf.is_card_line(insert_at):
                     insert_at += 1
-                return insert_at
+                return buf, insert_at
 
         # No matching section — create one before sideboard or at end
         insert_at = buf.line_count()
@@ -321,8 +406,7 @@ class MainScreen(Screen):
             insert_at += 1
 
         buf = buf.insert_line(insert_at, f"// {section_name}")
-        self._state.buffer = buf
-        return insert_at + 1
+        return buf, insert_at + 1
 
     @work(thread=True)
     def _run_search(self, query: str) -> None:
@@ -334,7 +418,7 @@ class MainScreen(Screen):
         sr = self.query_one("#search-results", SearchResults)
         sr.results = results
         sr.selected = 0
-        sr.visible = bool(results)
+        sr.display = bool(results)
         # Show top match as ghost completion in command line
         cl = self.query_one("#command-line", CommandLine)
         if results:
@@ -349,17 +433,17 @@ class MainScreen(Screen):
         from vimtg.editor.buffer import LineType
 
         buf = self._state.buffer
-        to_delete: list[int] = []
+        to_delete: set[int] = set()
         for i in range(buf.line_count()):
             bl = buf.get_line(i)
             if bl.line_type != LineType.SECTION_HEADER:
                 continue
-            # Check if next non-blank line is a card
+            # Check if next non-blank line is a card (skip blanks)
             has_cards = False
             for j in range(i + 1, buf.line_count()):
                 next_bl = buf.get_line(j)
                 if next_bl.line_type == LineType.BLANK:
-                    break
+                    continue
                 if next_bl.line_type in (
                     LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY, LineType.COMMANDER_ENTRY,
                 ):
@@ -370,18 +454,18 @@ class MainScreen(Screen):
                 ):
                     break
             if not has_cards:
-                to_delete.append(i)
+                to_delete.add(i)
                 # Also mark trailing blank line for deletion
                 if i + 1 < buf.line_count() and buf.get_line(i + 1).line_type == LineType.BLANK:
-                    to_delete.append(i + 1)
+                    to_delete.add(i + 1)
 
         # Delete in reverse to preserve indices
-        for idx in reversed(to_delete):
+        for idx in sorted(to_delete, reverse=True):
             if idx < buf.line_count():
                 buf, _ = buf.delete_lines(idx, idx)
 
         # Clean up consecutive blank lines
-        cleaned_lines = []
+        cleaned_lines: list[str] = []
         prev_blank = False
         for i in range(buf.line_count()):
             bl = buf.get_line(i)
@@ -391,13 +475,24 @@ class MainScreen(Screen):
             cleaned_lines.append(bl.text)
             prev_blank = is_blank
 
-        from vimtg.editor.buffer import Buffer
-        self._state.buffer = Buffer.from_text("\n".join(cleaned_lines) + "\n")
+        # Ensure exactly one blank line before each section header
+        from vimtg.editor.buffer import Buffer, classify_line
+        padded: list[str] = []
+        for line_text in cleaned_lines:
+            lt = classify_line(line_text)
+            if lt == LineType.SECTION_HEADER and padded:
+                prev_lt = classify_line(padded[-1])
+                if prev_lt != LineType.BLANK and prev_lt != LineType.METADATA:
+                    padded.append("")
+            padded.append(line_text)
+
+        self._state.buffer = Buffer.from_text("\n".join(padded) + "\n")
         self._state.cursor = self._state.cursor.clamp(self._state.buffer.line_count() - 1)
 
     def _sync_widgets(self) -> None:
-        # Clean up empty sections before rendering
-        self._cleanup_empty_sections()
+        # Only clean up sections in NORMAL mode — INSERT/VISUAL have transient blanks
+        if self._state.mode_mgr.is_normal():
+            self._cleanup_empty_sections()
 
         s = self._state
         from vimtg.editor.config_options import currency_symbol_for
@@ -425,3 +520,9 @@ class MainScreen(Screen):
         sl.card_count = count_cards(s.buffer)
         sl.cursor_line = s.cursor.row
         sl.total_lines = s.buffer.line_count()
+
+        cl = self.query_one("#command-line", CommandLine)
+        if s.mode_mgr.is_normal():
+            cl.hint = _hint_for_cursor(s.buffer, s.cursor.row)
+        else:
+            cl.hint = ""

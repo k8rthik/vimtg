@@ -11,22 +11,22 @@ from vimtg.editor.text_objects import (
 )
 
 # Line indices:
-# 0: // Creatures        (SECTION_HEADER)
+# 0: // Creature        (SECTION_HEADER)
 # 1: 4 Ragavan...        (CARD_ENTRY)
 # 2: 2 Dragon's Rage...  (CARD_ENTRY)
 # 3:                      (BLANK)
-# 4: // Spells            (SECTION_HEADER)
+# 4: // Instant            (SECTION_HEADER)
 # 5: 4 Lightning Bolt    (CARD_ENTRY)
 # 6: 3 Unholy Heat       (CARD_ENTRY)
 # 7:                      (BLANK)
 # 8: // Sideboard         (COMMENT)
 # 9: SB: 2 Engineered... (SIDEBOARD_ENTRY)
 SAMPLE_DECK = """\
-// Creatures
+// Creature
 4 Ragavan, Nimble Pilferer
 2 Dragon's Rage Channeler
 
-// Spells
+// Instant
 4 Lightning Bolt
 3 Unholy Heat
 

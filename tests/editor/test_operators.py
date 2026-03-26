@@ -11,10 +11,10 @@ from vimtg.editor.operators import (
 from vimtg.editor.registers import RegisterStore
 
 SAMPLE_DECK = """\
-// Creatures
+// Creature
 4 Ragavan, Nimble Pilferer
 2 Dragon's Rage Channeler
-// Spells
+// Instant
 4 Lightning Bolt
 3 Unholy Heat
 SB: 2 Engineered Explosives"""
@@ -174,7 +174,7 @@ class TestIncrementQuantity:
 
     def test_increment_on_comment_noop(self) -> None:
         buf = _make_buffer()
-        cursor = _make_cursor(row=0)  # "// Creatures"
+        cursor = _make_cursor(row=0)  # "// Creature"
         new_buf = increment_quantity(buf, cursor)
         assert new_buf.get_line(0).text == buf.get_line(0).text
 

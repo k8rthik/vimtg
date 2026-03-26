@@ -8,12 +8,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.editor.buffer import Buffer
+from vimtg.editor.command_completer import CommandCompleter, CompletionState
 from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import ParsedAction
@@ -27,6 +30,14 @@ from vimtg.editor.operators import (
 )
 from vimtg.editor.registers import RegisterStore
 from vimtg.services.history_service import HistoryService
+
+if TYPE_CHECKING:
+    from vimtg.data.card_repository import CardRepository
+
+
+class InsertSubmode(Enum):
+    CARD_SEARCH = "card_search"
+    LINE_EDIT = "line_edit"
 
 
 @dataclass
@@ -42,6 +53,12 @@ class EditorState:
     resolved_cards: dict[str, Card]
     search_query: str = ""
     settings: Settings = field(default_factory=Settings)
+    cmd_completer: CommandCompleter | None = None
+    cmd_completion: CompletionState | None = None
+    insert_submode: InsertSubmode = InsertSubmode.CARD_SEARCH
+    line_edit_original: str | None = None
+    line_edit_row: int | None = None
+    line_edit_prefix: str = ""
 
 
 @dataclass(frozen=True)
@@ -54,11 +71,16 @@ class HandlerResult:
     enter_visual: Mode | None = None
     command_message: str = ""
     quit_requested: bool = False
+    greeter_requested: bool = False
+    help_requested: bool = False
     search_query: str | None = None
     insert_card: Card | None = None
     insert_confirm: bool = False
     file_path: Path | None = None
     open_config_screen: bool = False
+    command_ghost: str = ""
+    command_accept: str = ""
+    enter_line_edit: bool = False
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -97,11 +119,26 @@ def handle_operator(state: EditorState, action: ParsedAction) -> HandlerResult:
 
 
 def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResult:
-    """Process mode switch actions (i, :, v, escape)."""
+    """Process mode switch actions (i, o, :, v, escape)."""
     key = action.action
     if key == "escape":
         return HandlerResult(exit_to_normal=True)
-    if key in ("i", "a", "o", "O", "A"):
+    if key == "i":
+        line_text = state.buffer.get_line(state.cursor.row).text
+        state.insert_submode = InsertSubmode.LINE_EDIT
+        state.line_edit_original = line_text
+        state.line_edit_row = state.cursor.row
+        # Protect the // comment marker — user edits only the content after it
+        if line_text.lstrip().startswith("//"):
+            idx = line_text.index("//") + 2
+            # Include trailing space after // if present
+            if idx < len(line_text) and line_text[idx] == " ":
+                idx += 1
+            state.line_edit_prefix = line_text[:idx]
+        else:
+            state.line_edit_prefix = ""
+        return HandlerResult(enter_line_edit=True)
+    if key in ("o", "O"):
         _apply_insert_variant(state, key)
         return HandlerResult(enter_insert=True)
     if key == ":":
@@ -138,6 +175,7 @@ def handle_command(
         return HandlerResult(
             command_message=ctx.message,
             quit_requested=ctx.quit_requested,
+            greeter_requested=ctx.greeter_requested,
             file_path=ctx.file_path,
             open_config_screen=ctx.open_config_screen,
         )
@@ -181,23 +219,80 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
     elif key == "x":
         _delete_card_at_cursor(state)
     elif key == "?":
-        from vimtg.editor.help_text import get_help
-        return HandlerResult(command_message=get_help())
+        return HandlerResult(help_requested=True)
     return HandlerResult()
 
 
 def handle_insert_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     """Process insert-mode special keys (typing, tab, enter)."""
     key = action.action
-    if key in ("char", "backspace"):
+    if key in ("char", "backspace", "delete"):
         state.search_query = action.text or ""
         return HandlerResult(search_query=state.search_query)
-    if key in ("ctrl_n", "tab"):
+    if key == "cursor_move":
+        return HandlerResult()
+    if key in ("ctrl_j", "ctrl_n", "tab"):
         return HandlerResult(search_query="__next__")
-    if key in ("ctrl_p", "shift_tab"):
+    if key in ("ctrl_k", "ctrl_p", "shift_tab"):
         return HandlerResult(search_query="__prev__")
     if key == "enter":
         return HandlerResult(insert_confirm=True)
+    return HandlerResult()
+
+
+def handle_line_edit_special(state: EditorState, action: ParsedAction) -> HandlerResult:
+    """Process line-edit insert-mode keys (typing updates buffer line in real-time)."""
+    key = action.action
+    text = action.text or ""
+    row = state.line_edit_row
+    prefix = state.line_edit_prefix
+    if key in ("char", "backspace", "delete"):
+        if row is not None and row < state.buffer.line_count():
+            state.buffer = state.buffer.set_line(row, prefix + text)
+        return HandlerResult()
+    if key == "cursor_move":
+        return HandlerResult()
+    if key == "enter":
+        # Confirm: record history, clear original (signals "confirmed, don't restore")
+        if row is not None:
+            state.history.record(state.buffer, "edit line")
+            state.modified = True
+        state.line_edit_original = None
+        state.line_edit_row = None
+        state.insert_submode = InsertSubmode.CARD_SEARCH
+        return HandlerResult(exit_to_normal=True)
+    return HandlerResult()
+
+
+def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerResult:
+    """Process command-mode special keys for fuzzy completion."""
+    key = action.action
+    text = action.text or ""
+    completer = state.cmd_completer
+
+    if completer is None:
+        return HandlerResult()
+
+    if key in ("char", "backspace", "delete"):
+        state.cmd_completion = completer.complete(text)
+        ghost = completer.current_ghost(state.cmd_completion)
+        return HandlerResult(command_ghost=ghost)
+
+    if key == "cursor_move":
+        return HandlerResult()
+
+    if key == "tab" and state.cmd_completion and state.cmd_completion.matches:
+        accepted = completer.accept(state.cmd_completion)
+        state.cmd_completion = completer.cycle_next(state.cmd_completion)
+        ghost = completer.current_ghost(state.cmd_completion)
+        return HandlerResult(command_accept=accepted, command_ghost=ghost)
+
+    if key == "shift_tab" and state.cmd_completion and state.cmd_completion.matches:
+        state.cmd_completion = completer.cycle_prev(state.cmd_completion)
+        accepted = completer.accept(state.cmd_completion)
+        ghost = completer.current_ghost(state.cmd_completion)
+        return HandlerResult(command_accept=accepted, command_ghost=ghost)
+
     return HandlerResult()
 
 
@@ -210,12 +305,12 @@ def count_cards(buffer: Buffer) -> int:
         return 0
 
 
-def resolve_cards(buffer: Buffer, card_repo: object) -> dict[str, Card]:
+def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
     """Resolve card names in the buffer to Card objects."""
     try:
         deck = parse_deck_text(buffer.to_text())
         names = list(deck.unique_card_names())
-        return card_repo.get_by_names(names)  # type: ignore[union-attr]
+        return card_repo.get_by_names(names)
     except Exception:
         return {}
 

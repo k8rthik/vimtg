@@ -7,6 +7,7 @@ ParsedAction describing what should happen.
 from dataclasses import dataclass
 from enum import Enum
 
+from vimtg.editor.line_buffer import LineBuffer
 from vimtg.editor.modes import Mode
 
 
@@ -24,6 +25,7 @@ class ParsedAction:
     register: str | None = None
     motion: str | None = None
     text: str | None = None
+    cursor_pos: int | None = None
 
 
 class _State(Enum):
@@ -42,10 +44,8 @@ MOTIONS = frozenset(
 OPERATORS = frozenset({"d", "y", "c"})
 MODE_SWITCHES: dict[str, str] = {
     "i": "INSERT",
-    "a": "INSERT",
     "o": "INSERT",
     "O": "INSERT",
-    "A": "INSERT",
     "v": "VISUAL",
     "V": "VISUAL_LINE",
     ":": "COMMAND",
@@ -53,6 +53,37 @@ MODE_SWITCHES: dict[str, str] = {
 }
 SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "@"})
 MULTI_KEY_STARTERS = frozenset({"g", "[", "]"})
+
+
+def _apply_text_edit(
+    buf: LineBuffer, key: str,
+) -> tuple[LineBuffer, ParsedAction] | None:
+    """Handle cursor movement and text editing keys shared by insert/command modes.
+
+    Returns (new_buffer, action) for handled keys, or None for mode-specific keys.
+    """
+    if key == "backspace":
+        buf = buf.delete_backward()
+        return buf, ParsedAction("special", "backspace", text=buf.text, cursor_pos=buf.cursor)
+    if key == "delete":
+        buf = buf.delete_forward()
+        return buf, ParsedAction("special", "delete", text=buf.text, cursor_pos=buf.cursor)
+    if key == "left":
+        buf = buf.move_left()
+        return buf, ParsedAction("special", "cursor_move", text=buf.text, cursor_pos=buf.cursor)
+    if key == "right":
+        buf = buf.move_right()
+        return buf, ParsedAction("special", "cursor_move", text=buf.text, cursor_pos=buf.cursor)
+    if key == "home":
+        buf = buf.move_home()
+        return buf, ParsedAction("special", "cursor_move", text=buf.text, cursor_pos=buf.cursor)
+    if key == "end":
+        buf = buf.move_end()
+        return buf, ParsedAction("special", "cursor_move", text=buf.text, cursor_pos=buf.cursor)
+    if len(key) == 1:
+        buf = buf.insert(key)
+        return buf, ParsedAction("special", "char", text=buf.text, cursor_pos=buf.cursor)
+    return None
 
 
 class KeyMap:
@@ -66,8 +97,8 @@ class KeyMap:
         self._operator: str | None = None
         self._operator_count_str = ""
         self._multi_key_prefix = ""
-        self._insert_text = ""
-        self._command_text = ""
+        self._insert_buf = LineBuffer()
+        self._command_buf = LineBuffer()
 
     def set_mode(self, mode: Mode) -> None:
         self._mode = mode
@@ -82,8 +113,16 @@ class KeyMap:
         self._multi_key_prefix = ""
 
     def reset_text(self) -> None:
-        self._insert_text = ""
-        self._command_text = ""
+        self._insert_buf = LineBuffer()
+        self._command_buf = LineBuffer()
+
+    def set_command_text(self, text: str) -> None:
+        """Replace the accumulated command text (used by Tab-accept)."""
+        self._command_buf = LineBuffer.from_text(text)
+
+    def set_insert_text(self, text: str) -> None:
+        """Pre-fill the accumulated insert text (used by line-edit mode)."""
+        self._insert_buf = LineBuffer.from_text(text)
 
     def feed(self, key: str) -> tuple[KeyResult, ParsedAction | None]:
         if self._mode == Mode.INSERT:
@@ -186,35 +225,37 @@ class KeyMap:
 
     def _feed_insert(self, key: str) -> tuple[KeyResult, ParsedAction | None]:
         if key == "escape":
-            text = self._insert_text
-            self._insert_text = ""
+            text = self._insert_buf.text
+            self._insert_buf = LineBuffer()
             return KeyResult.COMPLETE, ParsedAction("mode_switch", "escape", text=text)
-        if key == "backspace":
-            self._insert_text = self._insert_text[:-1]
-            return KeyResult.COMPLETE, ParsedAction("special", "backspace", text=self._insert_text)
-        if key in ("ctrl_n", "ctrl_p", "tab", "shift_tab", "enter", "up", "down"):
-            return KeyResult.COMPLETE, ParsedAction("special", key, text=self._insert_text)
-        if len(key) == 1:
-            self._insert_text += key
-            return KeyResult.COMPLETE, ParsedAction("special", "char", text=self._insert_text)
+        if key in ("ctrl_j", "ctrl_k", "tab", "shift_tab", "enter", "up", "down"):
+            return KeyResult.COMPLETE, ParsedAction(
+                "special", key,
+                text=self._insert_buf.text, cursor_pos=self._insert_buf.cursor,
+            )
+        result = _apply_text_edit(self._insert_buf, key)
+        if result is not None:
+            self._insert_buf, action = result
+            return KeyResult.COMPLETE, action
         return KeyResult.NO_MATCH, None
 
     def _feed_command(self, key: str) -> tuple[KeyResult, ParsedAction | None]:
         if key == "escape":
-            self._command_text = ""
+            self._command_buf = LineBuffer()
             return KeyResult.COMPLETE, ParsedAction("mode_switch", "escape")
         if key == "enter":
-            text = self._command_text
-            self._command_text = ""
+            text = self._command_buf.text
+            self._command_buf = LineBuffer()
             return KeyResult.COMPLETE, ParsedAction("command_submit", "enter", text=text)
-        if key == "backspace":
-            self._command_text = self._command_text[:-1]
-            return KeyResult.COMPLETE, ParsedAction("special", "backspace", text=self._command_text)
-        if key == "tab":
-            return KeyResult.COMPLETE, ParsedAction("special", "tab", text=self._command_text)
-        if len(key) == 1:
-            self._command_text += key
-            return KeyResult.COMPLETE, ParsedAction("special", "char", text=self._command_text)
+        if key in ("tab", "shift_tab"):
+            return KeyResult.COMPLETE, ParsedAction(
+                "special", key,
+                text=self._command_buf.text, cursor_pos=self._command_buf.cursor,
+            )
+        result = _apply_text_edit(self._command_buf, key)
+        if result is not None:
+            self._command_buf, action = result
+            return KeyResult.COMPLETE, action
         return KeyResult.NO_MATCH, None
 
     def _feed_visual(self, key: str) -> tuple[KeyResult, ParsedAction | None]:

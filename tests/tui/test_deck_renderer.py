@@ -61,10 +61,10 @@ def test_render_no_expansion_when_not_cursor() -> None:
 
 
 def test_render_comment() -> None:
-    buf = Buffer.from_text("// Creatures\n")
+    buf = Buffer.from_text("// Creature\n")
     lines = render_line(0, buf, cursor_row=1, resolved={})
     assert len(lines) == 1
-    assert "Creatures" in lines[0].plain
+    assert "Creature" in lines[0].plain
 
 
 def test_render_blank_line() -> None:
@@ -76,11 +76,12 @@ def test_render_blank_line() -> None:
     assert text == "" or text.isdigit()  # just gutter number or empty
 
 
-def test_render_cursor_indicator() -> None:
+def test_render_cursor_no_indicator() -> None:
+    """Cursor line should NOT have a '>' prefix — background highlight is enough."""
     buf = Buffer.from_text("4 Lightning Bolt\n4 Lava Spike\n")
     cursor_lines = render_line(0, buf, cursor_row=0, resolved={})
     non_cursor_lines = render_line(1, buf, cursor_row=0, resolved={})
-    assert ">" in cursor_lines[0].plain
+    assert ">" not in cursor_lines[0].plain
     assert ">" not in non_cursor_lines[0].plain
 
 

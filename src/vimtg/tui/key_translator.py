@@ -44,6 +44,7 @@ _TEXTUAL_TO_SYMBOL: dict[str, str] = {
     "tilde": "~",
     "grave_accent": "`",
     "vertical_line": "|",
+    "space": " ",
 }
 
 # Textual modifier key normalization (ctrl+x → ctrl_x for our keymap)
@@ -54,10 +55,13 @@ _MODIFIER_NORMALIZE: dict[str, str] = {
     "ctrl+u": "ctrl_u",
     "ctrl+a": "ctrl_a",
     "ctrl+x": "ctrl_x",
+    "ctrl+j": "ctrl_j",
+    "ctrl+k": "ctrl_k",
     "ctrl+n": "ctrl_n",
     "ctrl+p": "ctrl_p",
     "ctrl+s": "ctrl_s",
     "ctrl+w": "ctrl_w",
+    "shift+tab": "shift_tab",
 }
 
 
