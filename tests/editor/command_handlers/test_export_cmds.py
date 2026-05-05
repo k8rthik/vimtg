@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.export_cmds import cmd_export, cmd_import
+from vimtg.editor.command_handlers.export_cmds import cmd_clipboard, cmd_export, cmd_import
 from vimtg.editor.commands import EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
 
@@ -137,3 +137,37 @@ class TestImport:
         cmd_import(buffer, cursor, cmd, ctx)
         assert ctx.error is True
         assert "Usage" in ctx.message
+
+
+class TestClipboard:
+    def test_clipboard_default_format_is_arena(self, capsys) -> None:
+        buffer = Buffer.from_text(_deck_text())
+        cursor = Cursor(row=0)
+        ctx = EditorContext()
+        cmd = ParsedCommand(name="clipboard", args="")
+
+        cmd_clipboard(buffer, cursor, cmd, ctx)
+        captured = capsys.readouterr()
+        assert captured.out.startswith("\033]52;c;")
+        assert "Copied arena to clipboard" in ctx.message
+
+    def test_clipboard_explicit_format(self, capsys) -> None:
+        buffer = Buffer.from_text(_deck_text())
+        cursor = Cursor(row=0)
+        ctx = EditorContext()
+        cmd = ParsedCommand(name="clipboard", args="mtgo")
+
+        cmd_clipboard(buffer, cursor, cmd, ctx)
+        captured = capsys.readouterr()
+        assert captured.out.startswith("\033]52;c;")
+        assert "Copied mtgo to clipboard" in ctx.message
+
+    def test_clipboard_unknown_format(self) -> None:
+        buffer = Buffer.from_text(_deck_text())
+        cursor = Cursor(row=0)
+        ctx = EditorContext()
+        cmd = ParsedCommand(name="clipboard", args="bogus")
+
+        cmd_clipboard(buffer, cursor, cmd, ctx)
+        assert ctx.error is True
+        assert "Unknown format" in ctx.message

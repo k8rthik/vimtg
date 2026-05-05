@@ -15,6 +15,7 @@ from vimtg.editor.commands import (
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
+from vimtg.services.clipboard import copy_to_clipboard
 from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
 _FORMAT_MAP: dict[str, DeckFormat] = {
@@ -103,7 +104,35 @@ def cmd_import(
     return new_buffer, cursor.clamp(new_buffer.line_count() - 1)
 
 
+def cmd_clipboard(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:clipboard [format] — Copy deck to system clipboard via OSC52."""
+    fmt_name = (cmd.args.strip() or "arena").lower()
+    fmt = _FORMAT_MAP.get(fmt_name)
+    if fmt is None:
+        ctx.message = f"E: Unknown format: {fmt_name}. Use arena, mtgo, moxfield, archidekt, or vimtg"
+        ctx.error = True
+        return buffer, cursor
+
+    deck = parse_deck_text(buffer.to_text())
+    resolved = ctx.resolved_cards or {}
+    service = ImportExportService(card_repo=ctx.card_repo)
+    text = service.export_deck(deck, fmt, resolved=resolved)
+
+    if copy_to_clipboard(text):
+        ctx.message = f"Copied {fmt_name} to clipboard ({len(text.splitlines())} lines)"
+    else:
+        ctx.message = "E: Clipboard write failed"
+        ctx.error = True
+    return buffer, cursor
+
+
 def register_export_commands(registry: CommandRegistry) -> None:
-    """Register :export, :exp, :import, :imp commands."""
+    """Register :export, :exp, :import, :imp, :clipboard, :clip commands."""
     registry.register("export", cmd_export, aliases=["exp"])
     registry.register("import", cmd_import, aliases=["imp"])
+    registry.register("clipboard", cmd_clipboard, aliases=["clip"])
