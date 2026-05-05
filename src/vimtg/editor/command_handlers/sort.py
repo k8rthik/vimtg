@@ -6,6 +6,9 @@ Non-card lines (comments, section headers, blanks) stay anchored in place.
 
 from __future__ import annotations
 
+from typing import Any
+
+from vimtg.domain.tags import parse_inline_tags, strip_inline_tags
 from vimtg.editor.buffer import Buffer, BufferLine, LineType, classify_line
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -21,40 +24,98 @@ _CARD_LINE_TYPES = frozenset({
 })
 
 
-def _extract_sort_key(line: BufferLine, sort_field: str) -> str | int:
-    """Extract a sort key from a card line based on the requested field."""
+_TYPE_ORDER: dict[str, int] = {
+    "Creature": 0,
+    "Planeswalker": 1,
+    "Instant": 2,
+    "Sorcery": 3,
+    "Enchantment": 4,
+    "Artifact": 5,
+    "Land": 6,
+}
+
+_COLOR_ORDER: dict[str, int] = {"W": 0, "U": 1, "B": 2, "R": 3, "G": 4}
+
+
+def _extract_sort_key(
+    line: BufferLine,
+    sort_field: str,
+    resolved_cards: dict[str, Any] | None = None,
+) -> tuple[float, str]:
+    """Extract a sort key from a card line based on the requested field.
+
+    Always returns a consistent 2-tuple (numeric_key, name_fallback) so
+    sorted() never compares mismatched shapes.
+    """
     text = line.text.strip()
+    card_name = _extract_card_name(text)
+    card = resolved_cards.get(card_name) if resolved_cards else None
+    fallback = card_name.lower()
 
     if sort_field == "qty":
-        # Extract numeric quantity prefix
         parts = text.split(None, 1)
         if parts and parts[0].isdigit():
-            return int(parts[0])
-        # Handle SB:/CMD: prefix
+            return (int(parts[0]), fallback)
         if text.startswith(("SB:", "CMD:")):
             rest = text.split(":", 1)[1].strip()
             qty_parts = rest.split(None, 1)
             if qty_parts and qty_parts[0].isdigit():
-                return int(qty_parts[0])
-        return 0
+                return (int(qty_parts[0]), fallback)
+        return (0, fallback)
 
-    # Default: sort by card name (alphabetical)
-    return _extract_card_name(text).lower()
+    if sort_field == "cmc":
+        return (card.cmc if card is not None else 9999.0, fallback)
+
+    if sort_field == "type":
+        if card is None:
+            return (99, fallback)
+        front = card.type_line.split("—")[0].split("//")[0].strip()
+        order = 99
+        for tname, tord in _TYPE_ORDER.items():
+            if tname in front:
+                order = tord
+                break
+        return (order, fallback)
+
+    if sort_field == "color":
+        if card is None:
+            return (99, fallback)
+        colors = card.colors or []
+        if not colors:
+            return (99, fallback)
+        if len(colors) > 1:
+            return (10 + len(colors), fallback)
+        color_val = (
+            colors[0].value if hasattr(colors[0], "value")
+            else str(colors[0])
+        )
+        return (_COLOR_ORDER.get(color_val, 98), fallback)
+
+    if sort_field == "tag":
+        tags = parse_inline_tags(text)
+        if not tags:
+            return (1, fallback)  # untagged cards sort after tagged
+        first_tag = sorted(tags)[0]
+        return (0, first_tag + "|" + fallback)
+
+    # "name" — sort alphabetically, all at same numeric priority
+    return (0, fallback)
 
 
 def _extract_card_name(text: str) -> str:
-    """Extract card name from a line, stripping quantity and prefix."""
+    """Extract card name from a line, stripping quantity, prefix, and inline tags."""
     # SB: N CardName or CMD: N CardName
     if text.startswith(("SB:", "CMD:")):
         rest = text.split(":", 1)[1].strip()
         parts = rest.split(None, 1)
-        return parts[1] if len(parts) > 1 else rest
+        raw = parts[1] if len(parts) > 1 else rest
+        return strip_inline_tags(raw).strip()
 
     # N CardName
     parts = text.split(None, 1)
     if len(parts) > 1 and parts[0].isdigit():
-        return parts[1]
-    return text
+        return strip_inline_tags(parts[1]).strip()
+    return strip_inline_tags(text).strip()
 
 
 def _resolve_range(
@@ -81,15 +142,16 @@ def cmd_sort(
     Only sorts card entry lines; comments and blanks stay anchored.
     """
     sort_field = cmd.args.strip().lower() if cmd.args else "name"
-    valid_fields = {"name", "qty", "cmc", "type", "color"}
+    valid_fields = {"name", "qty", "cmc", "type", "color", "tag"}
 
     if sort_field and sort_field not in valid_fields:
         ctx.message = f"Unknown sort field: {sort_field}"
         ctx.error = True
         return buffer, cursor
 
-    # cmc, type, color fall back to name until card resolution is available
-    if sort_field in {"cmc", "type", "color"}:
+    # cmc, type, color fall back to name when card data unavailable
+    if sort_field in {"cmc", "type", "color"} and not ctx.resolved_cards:
+        ctx.message = "Card data not available; sorting by name"
         sort_field = "name"
 
     resolved = _resolve_range(buffer, cmd, cursor.row)
@@ -117,9 +179,10 @@ def cmd_sort(
         return buffer, cursor
 
     # Sort the card entries
+    card_data = ctx.resolved_cards or {}
     sorted_cards = sorted(
         [bl for _, bl in card_entries],
-        key=lambda bl: _extract_sort_key(bl, sort_field),
+        key=lambda bl: _extract_sort_key(bl, sort_field, card_data),
         reverse=cmd.bang,
     )
 

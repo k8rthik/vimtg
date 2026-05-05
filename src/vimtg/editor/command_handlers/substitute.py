@@ -113,7 +113,7 @@ def cmd_filter_view(
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
     """:filter pattern — Placeholder for view filtering."""
-    ctx.message = f"Filter: {cmd.args} (view filter not yet implemented)"
+    ctx.message = "Use :g/pattern/d to delete non-matching lines, or :find to jump"
     return buffer, cursor
 
 

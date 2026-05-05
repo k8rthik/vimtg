@@ -18,6 +18,7 @@ class DeckEntry:
     quantity: int
     card_name: str
     section: DeckSection
+    tags: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class DeckMetadata:
     format: str = ""
     author: str = ""
     description: str = ""
+    tags: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)

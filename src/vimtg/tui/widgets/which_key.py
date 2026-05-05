@@ -66,8 +66,18 @@ COMMAND_HINTS = {
         (":sort", "sort cards"),
         (":s/a/b/g", "substitute"),
         (":g/pat/d", "global delete"),
-        (":help", "show help"),
         (":export", "export deck"),
+        (":import", "import deck"),
+        (":stats", "deck stats"),
+        (":validate", "check deck"),
+        (":help", "show help"),
+    ],
+    "Tags": [
+        (":tag", "add tag"),
+        (":untag", "remove tag"),
+        (":tags", "list tags"),
+        (":filter", "filter by tag"),
+        (":retag", "rename tag"),
     ],
 }
 
@@ -87,6 +97,11 @@ PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
     "\"": [("\"a-z", "named register"), ("\"0", "yank register"), ("\"1-9", "delete history")],
     "q": [("qa-z", "record macro"), ("q (stop)", "stop recording")],
     "@": [("@a-z", "play macro"), ("@@", "replay last")],
+    "t": [
+        ("ta", "add tag"), ("tr", "remove tag"), ("tt", "toggle tag"),
+        ("tf", "filter by tag"), ("tl", "list tags"), ("tc", "clear tags"),
+        ("tn", "next tagged"), ("tp", "prev tagged"),
+    ],
 }
 
 

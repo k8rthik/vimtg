@@ -12,8 +12,9 @@ from vimtg.domain.deck import (
     DeckMetadata,
     DeckSection,
 )
+from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
 
-_METADATA_PATTERN = re.compile(r"^//\s*(Deck|Format|Author|Description):\s*(.+)$")
+_METADATA_PATTERN = re.compile(r"^//\s*(Deck|Format|Author|Description|Tags):\s*(.+)$")
 _SIDEBOARD_PATTERN = re.compile(r"^SB:\s*(\d+)\s+(.+)$")
 _COMMANDER_PATTERN = re.compile(r"^CMD:\s*(\d+)\s+(.+)$")
 _MAINBOARD_PATTERN = re.compile(r"^(\d+)\s+(.+)$")
@@ -25,6 +26,7 @@ def _parse_metadata_block(lines: tuple[str, ...]) -> DeckMetadata:
     fmt = ""
     author = ""
     description = ""
+    tags: frozenset[str] = frozenset()
     for line in lines:
         match = _METADATA_PATTERN.match(line)
         if match:
@@ -38,8 +40,13 @@ def _parse_metadata_block(lines: tuple[str, ...]) -> DeckMetadata:
                 author = value
             elif key == "description":
                 description = value
+            elif key == "tags":
+                tags = frozenset(
+                    t.strip().lower() for t in value.split(",") if t.strip()
+                )
     return DeckMetadata(
-        name=name, format=fmt, author=author, description=description
+        name=name, format=fmt, author=author, description=description,
+        tags=tags,
     )
 
 
@@ -79,11 +86,14 @@ def parse_deck_text(text: str) -> Deck:
         # Sideboard entry
         sb_match = _SIDEBOARD_PATTERN.match(line)
         if sb_match:
+            raw_name = sb_match.group(2).strip()
+            card_tags = parse_inline_tags(raw_name)
             entries.append(
                 DeckEntry(
                     quantity=int(sb_match.group(1)),
-                    card_name=sb_match.group(2).strip(),
+                    card_name=strip_inline_tags(raw_name).strip(),
                     section=DeckSection.SIDEBOARD,
+                    tags=card_tags,
                 )
             )
             continue
@@ -91,11 +101,14 @@ def parse_deck_text(text: str) -> Deck:
         # Commander entry
         cmd_match = _COMMANDER_PATTERN.match(line)
         if cmd_match:
+            raw_name = cmd_match.group(2).strip()
+            card_tags = parse_inline_tags(raw_name)
             entries.append(
                 DeckEntry(
                     quantity=int(cmd_match.group(1)),
-                    card_name=cmd_match.group(2).strip(),
+                    card_name=strip_inline_tags(raw_name).strip(),
                     section=DeckSection.COMMANDER,
+                    tags=card_tags,
                 )
             )
             continue
@@ -103,11 +116,14 @@ def parse_deck_text(text: str) -> Deck:
         # Mainboard entry
         main_match = _MAINBOARD_PATTERN.match(line)
         if main_match:
+            raw_name = main_match.group(2).strip()
+            card_tags = parse_inline_tags(raw_name)
             entries.append(
                 DeckEntry(
                     quantity=int(main_match.group(1)),
-                    card_name=main_match.group(2).strip(),
+                    card_name=strip_inline_tags(raw_name).strip(),
                     section=DeckSection.MAIN,
+                    tags=card_tags,
                 )
             )
             continue
@@ -142,6 +158,8 @@ def serialize_deck(deck: Deck) -> str:
         lines.append(f"// Author: {deck.metadata.author}")
     if deck.metadata.description:
         lines.append(f"// Description: {deck.metadata.description}")
+    if deck.metadata.tags:
+        lines.append(f"// Tags: {', '.join(sorted(deck.metadata.tags))}")
 
     # Group entries by section
     sections_order = (
@@ -162,12 +180,13 @@ def serialize_deck(deck: Deck) -> str:
             lines.append("")
 
         for entry in section_entries:
+            tag_suffix = format_inline_tags(entry.tags)
             if section == DeckSection.SIDEBOARD:
-                lines.append(f"SB: {entry.quantity} {entry.card_name}")
+                lines.append(f"SB: {entry.quantity} {entry.card_name}{tag_suffix}")
             elif section == DeckSection.COMMANDER:
-                lines.append(f"CMD: {entry.quantity} {entry.card_name}")
+                lines.append(f"CMD: {entry.quantity} {entry.card_name}{tag_suffix}")
             else:
-                lines.append(f"{entry.quantity} {entry.card_name}")
+                lines.append(f"{entry.quantity} {entry.card_name}{tag_suffix}")
 
     if lines:
         lines.append("")

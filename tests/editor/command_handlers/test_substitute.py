@@ -228,5 +228,5 @@ class TestFilterView:
         cmd = ParsedCommand(name="filter", args="red")
 
         new_buf, _ = cmd_filter_view(buffer, cursor, cmd, ctx)
-        assert "Filter: red" in ctx.message
-        assert "not yet implemented" in ctx.message
+        assert ":g/pattern/d" in ctx.message
+        assert ":find" in ctx.message

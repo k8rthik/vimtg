@@ -39,6 +39,7 @@ from vimtg.tui.screens.key_handler import (
     handle_motion,
     handle_normal_special,
     handle_operator,
+    handle_tag_input_special,
     resolve_cards,
 )
 from vimtg.tui.widgets.command_line import CommandLine
@@ -96,6 +97,7 @@ class MainScreen(Screen):
             modified=False,
             resolved_cards={},
             settings=settings or Settings(),
+            card_repo=card_repo,
         )
         self._state.history.initialize(buffer)
         self.file_path = file_path
@@ -195,6 +197,10 @@ class MainScreen(Screen):
         s = self._state
         if s.mode_mgr.is_insert():
             cl = self.query_one("#command-line", CommandLine)
+            if s.insert_submode == InsertSubmode.TAG_INPUT:
+                cl.text = action.text or ""
+                cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
+                return handle_tag_input_special(s, action)
             if s.insert_submode == InsertSubmode.LINE_EDIT:
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
@@ -228,6 +234,7 @@ class MainScreen(Screen):
             s.line_edit_original = None
             s.line_edit_row = None
             s.line_edit_prefix = ""
+            s.tag_input_action = ""
             s.insert_submode = InsertSubmode.CARD_SEARCH
             s.mode_mgr.force_normal()
             self.keymap.set_mode(Mode.NORMAL)
@@ -248,6 +255,14 @@ class MainScreen(Screen):
             cl.cursor_pos = len(editable)
             cl.message = ""
             self.query_one("#which-key", WhichKey).line_edit = True
+        if hr.enter_tag_input:
+            s.insert_submode = InsertSubmode.TAG_INPUT
+            s.mode_mgr.transition(Mode.INSERT)
+            self.keymap.set_mode(Mode.INSERT)
+            self.keymap.reset_text()
+            cl = self.query_one("#command-line", CommandLine)
+            cl.show(hr.tag_prompt)
+            cl.message = ""
         if hr.enter_insert:
             s.insert_submode = InsertSubmode.CARD_SEARCH
             s.mode_mgr.transition(Mode.INSERT)
@@ -261,6 +276,11 @@ class MainScreen(Screen):
             self.keymap.set_mode(Mode.COMMAND)
             self.keymap.reset_text()
             self.query_one("#command-line", CommandLine).show(":")
+        if hr.enter_search:
+            s.mode_mgr.transition(Mode.SEARCH)
+            self.keymap.set_mode(Mode.SEARCH)
+            self.keymap.reset_text()
+            self.query_one("#command-line", CommandLine).show("/")
         if hr.enter_visual:
             s.mode_mgr.transition(hr.enter_visual)
             self.keymap.set_mode(hr.enter_visual)

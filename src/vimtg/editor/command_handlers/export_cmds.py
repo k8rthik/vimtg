@@ -1,0 +1,109 @@
+"""Export/import commands: :export, :import — TUI-agnostic, zero Textual imports.
+
+Wires to ImportExportService for deck format conversion.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from vimtg.data.deck_repository import parse_deck_text
+from vimtg.editor.buffer import Buffer
+from vimtg.editor.commands import (
+    CommandRegistry,
+    EditorContext,
+    ParsedCommand,
+)
+from vimtg.editor.cursor import Cursor
+from vimtg.services.import_export_service import DeckFormat, ImportExportService
+
+_FORMAT_MAP: dict[str, DeckFormat] = {
+    "arena": DeckFormat.ARENA,
+    "mtgo": DeckFormat.MTGO,
+    "moxfield": DeckFormat.MOXFIELD,
+    "archidekt": DeckFormat.ARCHIDEKT,
+    "vimtg": DeckFormat.VIMTG,
+}
+
+
+def cmd_export(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:export <format> [file] — Export deck to another format."""
+    parts = cmd.args.strip().split(maxsplit=1)
+    if not parts:
+        ctx.message = "E: Usage: :export <arena|mtgo|moxfield|archidekt> [file]"
+        ctx.error = True
+        return buffer, cursor
+
+    fmt_name = parts[0].lower()
+    fmt = _FORMAT_MAP.get(fmt_name)
+    if fmt is None:
+        ctx.message = f"E: Unknown format: {fmt_name}. Use arena, mtgo, moxfield, or archidekt"
+        ctx.error = True
+        return buffer, cursor
+
+    deck = parse_deck_text(buffer.to_text())
+    resolved = ctx.resolved_cards or {}
+    service = ImportExportService(card_repo=ctx.card_repo)
+    result = service.export_deck(deck, fmt, resolved=resolved)
+
+    if len(parts) > 1:
+        out_path = Path(parts[1])
+        try:
+            out_path.write_text(result, encoding="utf-8")
+            ctx.message = f"Exported {fmt_name} to {out_path}"
+        except OSError as exc:
+            ctx.message = f"E: Write failed: {exc}"
+            ctx.error = True
+    else:
+        # Show first line as preview + total line count
+        lines = result.strip().split("\n")
+        preview = lines[0][:60] if lines else ""
+        ctx.message = f"Exported {fmt_name} ({len(lines)} lines): {preview}..."
+
+    return buffer, cursor
+
+
+def cmd_import(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:import <file> — Import deck from file (auto-detects format)."""
+    file_arg = cmd.args.strip()
+    if not file_arg:
+        ctx.message = "E: Usage: :import <file>"
+        ctx.error = True
+        return buffer, cursor
+
+    in_path = Path(file_arg)
+    if not in_path.exists():
+        ctx.message = f"E: File not found: {file_arg}"
+        ctx.error = True
+        return buffer, cursor
+
+    try:
+        text = in_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        ctx.message = f"E: Read failed: {exc}"
+        ctx.error = True
+        return buffer, cursor
+
+    service = ImportExportService(card_repo=ctx.card_repo)
+    deck = service.import_deck(text)
+    vimtg_text = service.export_deck(deck, DeckFormat.VIMTG)
+    new_buffer = Buffer.from_text(vimtg_text)
+    ctx.modified = True
+    ctx.message = f"Imported {deck.total_cards()} cards from {in_path.name}"
+    return new_buffer, cursor.clamp(new_buffer.line_count() - 1)
+
+
+def register_export_commands(registry: CommandRegistry) -> None:
+    """Register :export, :exp, :import, :imp commands."""
+    registry.register("export", cmd_export, aliases=["exp"])
+    registry.register("import", cmd_import, aliases=["imp"])

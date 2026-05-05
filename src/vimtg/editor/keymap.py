@@ -51,8 +51,9 @@ MODE_SWITCHES: dict[str, str] = {
     ":": "COMMAND",
     "/": "SEARCH",
 }
-SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "@"})
-MULTI_KEY_STARTERS = frozenset({"g", "[", "]"})
+SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "@", "q"})
+MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t"})
+_TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 
 
 def _apply_text_edit(
@@ -168,6 +169,16 @@ class KeyMap:
             full_key = self._multi_key_prefix + key
             if full_key in ("gg", "[[", "]]"):
                 action = ParsedAction("motion", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # m{a-z} — set mark, '{a-z} — jump to mark
+            if self._multi_key_prefix in ("m", "'") and key.isalpha() and len(key) == 1:
+                action = ParsedAction("special", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # t{a,r,t,f,l,c,n,p} — tag operations
+            if self._multi_key_prefix == "t" and key in _TAG_SUB_KEYS:
+                action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
             self.reset()

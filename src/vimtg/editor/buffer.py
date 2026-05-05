@@ -13,6 +13,8 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
+
 
 class LineType(Enum):
     COMMENT = "comment"
@@ -32,7 +34,7 @@ SECTION_HEADERS = frozenset({
     "Other", "Commander", "Companion",
 })
 
-METADATA_KEYS = frozenset({"Deck", "Format", "Author", "Description"})
+METADATA_KEYS = frozenset({"Deck", "Format", "Author", "Description", "Tags"})
 
 _CARD_PATTERN = re.compile(r"^\s*(\d+)\s+(.+)$")
 _SB_PATTERN = re.compile(r"^SB:\s*(\d+)\s+(.+)$")
@@ -136,19 +138,22 @@ class Buffer:
         return self.insert_line(self.line_count(), text)
 
     def card_name_at(self, line: int) -> str | None:
-        """Extract card name from a card/sideboard/commander line."""
+        """Extract card name from a card/sideboard/commander line.
+
+        Strips trailing inline tags (e.g. '  #core #burn') before returning.
+        """
         if line < 0 or line >= self.line_count():
             return None
         bl = self._lines[line]
         if bl.line_type == LineType.CARD_ENTRY:
             m = _CARD_PATTERN.match(bl.text.strip())
-            return m.group(2) if m else None
+            return strip_inline_tags(m.group(2)).strip() if m else None
         if bl.line_type == LineType.SIDEBOARD_ENTRY:
             m = _SB_PATTERN.match(bl.text.strip())
-            return m.group(2) if m else None
+            return strip_inline_tags(m.group(2)).strip() if m else None
         if bl.line_type == LineType.COMMANDER_ENTRY:
             m = _CMD_PATTERN.match(bl.text.strip())
-            return m.group(2) if m else None
+            return strip_inline_tags(m.group(2)).strip() if m else None
         return None
 
     def quantity_at(self, line: int) -> int | None:
@@ -195,3 +200,41 @@ class Buffer:
         while end < self.line_count() - 1 and self.is_card_line(end + 1):
             end += 1
         return (start, end)
+
+    # ── Tag operations ───────────────────────────────────────────────
+
+    def tags_at(self, line: int) -> frozenset[str]:
+        """Extract the tag set from a card line. Returns empty set for non-card lines."""
+        if not self.is_card_line(line):
+            return frozenset()
+        text = self._lines[line].text
+        # Only parse tags after the two-space delimiter
+        idx = text.find("  #")
+        if idx == -1:
+            return frozenset()
+        return parse_inline_tags(text[idx:])
+
+    def set_tags(self, line: int, tags: frozenset[str]) -> Buffer:
+        """Return new Buffer with the tag suffix on line replaced."""
+        if not self.is_card_line(line):
+            return self
+        text = self._lines[line].text
+        base = strip_inline_tags(text)
+        return self.set_line(line, base + format_inline_tags(tags))
+
+    def add_tag(self, line: int, tag: str) -> Buffer:
+        """Return new Buffer with tag added to the card at line."""
+        existing = self.tags_at(line)
+        return self.set_tags(line, existing | {tag.lower()})
+
+    def remove_tag(self, line: int, tag: str) -> Buffer:
+        """Return new Buffer with tag removed from the card at line."""
+        existing = self.tags_at(line)
+        return self.set_tags(line, existing - {tag.lower()})
+
+    def all_tags(self) -> frozenset[str]:
+        """Collect all unique tags across every card line in the buffer."""
+        tags: set[str] = set()
+        for i in range(self.line_count()):
+            tags.update(self.tags_at(i))
+        return frozenset(tags)

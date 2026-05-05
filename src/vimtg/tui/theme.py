@@ -19,4 +19,5 @@ COLORS: dict[str, str] = {
     "mode_insert": "#89b4fa",
     "mode_visual": "#fab387",
     "mode_command": "#f9e2af",
+    "tag": "#cba6f7",
 }

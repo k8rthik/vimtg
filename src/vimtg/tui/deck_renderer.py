@@ -153,6 +153,12 @@ def _render_card_line(
         type_short = card.type_line.split("\u2014")[0].strip()[:20]
         t.append(f"  {type_short}", style="dim")
 
+    # Render inline tags
+    tags = buf.tags_at(line_idx)
+    if tags:
+        tag_str = " ".join(f"#{tag}" for tag in sorted(tags))
+        t.append(f"  {tag_str}", style=f"dim {COLORS['tag']}")
+
     if is_cursor:
         t.stylize(_CURSOR_STYLE)
 
@@ -210,6 +216,15 @@ def _render_expansion(
     lines.append(Text(f"{prefix}{'  '.join(meta_parts)}", style=_EXPANSION_STYLE))
 
     return lines
+
+
+def render_filter_collapse(hidden_count: int, gutter_pad: str = "") -> Text:
+    """Render a collapse indicator for hidden-by-filter cards."""
+    t = Text()
+    t.append(f"{gutter_pad}")
+    t.append(f"     ··· {hidden_count} card{'s' if hidden_count != 1 else ''} hidden by filter ···",
+             style=f"dim italic {COLORS['comment']}")
+    return t
 
 
 def format_mana(mana_cost: str) -> Text:

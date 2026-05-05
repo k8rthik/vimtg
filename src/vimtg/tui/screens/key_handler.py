@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
@@ -19,7 +19,10 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
 from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.dot_repeat import DotRepeat, RepeatableAction
 from vimtg.editor.keymap import ParsedAction
+from vimtg.editor.macros import MacroRecorder
+from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.motions import MOTION_REGISTRY, motion_goto_line, motion_last_line
 from vimtg.editor.operators import (
@@ -38,6 +41,7 @@ if TYPE_CHECKING:
 class InsertSubmode(Enum):
     CARD_SEARCH = "card_search"
     LINE_EDIT = "line_edit"
+    TAG_INPUT = "tag_input"
 
 
 @dataclass
@@ -55,10 +59,17 @@ class EditorState:
     settings: Settings = field(default_factory=Settings)
     cmd_completer: CommandCompleter | None = None
     cmd_completion: CompletionState | None = None
+    card_repo: CardRepository | None = None
+    macros: MacroRecorder = field(default_factory=MacroRecorder)
+    dot_repeat: DotRepeat = field(default_factory=DotRepeat)
+    marks: MarkStore = field(default_factory=MarkStore)
+    visual_anchor: int | None = None
     insert_submode: InsertSubmode = InsertSubmode.CARD_SEARCH
     line_edit_original: str | None = None
     line_edit_row: int | None = None
     line_edit_prefix: str = ""
+    tag_input_action: str = ""
+    tag_filter: Any = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +78,7 @@ class HandlerResult:
 
     enter_insert: bool = False
     enter_command: bool = False
+    enter_search: bool = False
     exit_to_normal: bool = False
     enter_visual: Mode | None = None
     command_message: str = ""
@@ -83,6 +95,8 @@ class HandlerResult:
     command_ghost: str = ""
     command_accept: str = ""
     enter_line_edit: bool = False
+    enter_tag_input: bool = False
+    tag_prompt: str = ""
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -100,23 +114,41 @@ def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
 
 
 def handle_operator(state: EditorState, action: ParsedAction) -> HandlerResult:
-    """Process operator actions (dd, yy, cc, dj, etc.)."""
-    result = execute_operator(
-        action.action,
-        action.motion,
-        state.cursor,
-        state.buffer,
-        action.count or 1,
-        state.registers,
-        action.register,
-    )
+    """Process operator actions (dd, yy, cc, dj, etc.).
+
+    In visual mode, operates on the selected range (anchor → cursor).
+    """
+    # Visual mode: override to line-range operation
+    if state.visual_anchor is not None:
+        start = min(state.visual_anchor, state.cursor.row)
+        end = max(state.visual_anchor, state.cursor.row)
+        count = end - start + 1
+        op = action.action[0] if len(action.action) > 1 else action.action
+        result = execute_operator(
+            op + op, None, state.cursor.move_to(start, 0),
+            state.buffer, count, state.registers, action.register,
+        )
+        state.visual_anchor = None
+    else:
+        result = execute_operator(
+            action.action, action.motion, state.cursor, state.buffer,
+            action.count or 1, state.registers, action.register,
+        )
     state.buffer = result.buffer
     state.cursor = result.cursor
     state.registers = result.registers
     state.modified = True
     state.history.record(state.buffer, f"{action.action} operation")
+    state.dot_repeat.record(RepeatableAction(
+        "operator", operator=action.action,
+        motion=action.motion, count=action.count or 1,
+        register=action.register,
+    ))
     if result.enter_insert:
         return HandlerResult(enter_insert=True)
+    # Exit visual mode after operation
+    if state.mode_mgr.current in (Mode.VISUAL, Mode.VISUAL_LINE):
+        return HandlerResult(exit_to_normal=True)
     return HandlerResult()
 
 
@@ -124,6 +156,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
     """Process mode switch actions (i, o, :, v, escape)."""
     key = action.action
     if key == "escape":
+        state.visual_anchor = None
         return HandlerResult(exit_to_normal=True)
     if key == "i":
         line_text = state.buffer.get_line(state.cursor.row).text
@@ -145,8 +178,11 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         return HandlerResult(enter_insert=True)
     if key == ":":
         return HandlerResult(enter_command=True)
+    if key == "/":
+        return HandlerResult(enter_search=True)
     if key in ("v", "V"):
         target = Mode.VISUAL if key == "v" else Mode.VISUAL_LINE
+        state.visual_anchor = state.cursor.row
         return HandlerResult(enter_visual=target)
     return HandlerResult()
 
@@ -158,14 +194,23 @@ def handle_command(
     file_path: Path | None,
     save_fn: Callable[[Path, str], None] | None = None,
 ) -> HandlerResult:
-    """Process ex command submission."""
+    """Process ex command or search submission."""
     if not action.text:
         return HandlerResult()
+
+    # If in SEARCH mode, convert to :find command
+    raw_text = action.text
+    if state.mode_mgr.current == Mode.SEARCH:
+        raw_text = f"find {action.text}"
+
     try:
-        cmd = parse_command(action.text, state.cursor.row, state.buffer.line_count())
+        cmd = parse_command(raw_text, state.cursor.row, state.buffer.line_count())
         ctx = EditorContext(
             file_path=file_path, modified=state.modified,
             save_fn=save_fn, settings=state.settings,
+            resolved_cards=state.resolved_cards,
+            history=state.history,
+            card_repo=state.card_repo,
         )
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
         # Sync modified flag unconditionally (allows :w to clear it)
@@ -188,7 +233,7 @@ def handle_command(
 
 
 def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
-    """Process normal-mode special keys (u, p, +, -, x)."""
+    """Process normal-mode special keys (u, p, +, -, x, ., q, @, m, ')."""
     key = action.action
     if key == "u":
         restored = state.history.undo()
@@ -208,7 +253,8 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         state.history.record(state.buffer, "put")
     elif key == "P":
         state.buffer, state.cursor = put_lines(
-            state.buffer, state.cursor, state.registers, action.register, above=True,
+            state.buffer, state.cursor, state.registers, action.register,
+            above=True,
         )
         state.modified = True
         state.history.record(state.buffer, "put above")
@@ -216,15 +262,256 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         state.buffer = increment_quantity(state.buffer, state.cursor)
         state.modified = True
         state.history.record(state.buffer, "increment")
+        state.dot_repeat.record(RepeatableAction("quantity", operator="+"))
     elif key == "-":
-        state.buffer, state.cursor = decrement_quantity(state.buffer, state.cursor)
+        state.buffer, state.cursor = decrement_quantity(
+            state.buffer, state.cursor,
+        )
         state.modified = True
         state.history.record(state.buffer, "decrement")
+        state.dot_repeat.record(RepeatableAction("quantity", operator="-"))
     elif key == "x":
         _delete_card_at_cursor(state)
+        state.dot_repeat.record(RepeatableAction("operator", operator="x"))
     elif key == "?":
         return HandlerResult(help_requested=True)
+    elif key == ".":
+        _replay_dot(state)
+    elif key == "q":
+        _toggle_macro_recording(state)
+    elif key == "@":
+        reg = action.register or "@"
+        _play_macro(state, reg)
+    elif key.startswith("m") and len(key) == 2:
+        mark_name = key[1]
+        state.marks = state.marks.set(mark_name, state.cursor.row)
+        return HandlerResult(
+            command_message=f"Mark '{mark_name}' set",
+        )
+    elif key.startswith("'") and len(key) == 2:
+        mark_name = key[1]
+        mark = state.marks.get(mark_name)
+        if mark is not None:
+            row = min(mark.row, state.buffer.line_count() - 1)
+            state.cursor = state.cursor.move_to(row, 0)
+        else:
+            return HandlerResult(
+                command_message=f"Mark '{mark_name}' not set",
+            )
+    elif key.startswith("t") and len(key) == 2:
+        return _handle_tag_action(state, key[1])
     return HandlerResult()
+
+
+def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
+    """Dispatch tag sub-key: a(dd), r(emove), t(oggle), f(ilter), l(ist), c(lear), n(ext), p(rev)."""
+    _TAG_PROMPTS = {
+        "a": "tag add: ",
+        "r": "tag remove: ",
+        "t": "tag toggle: ",
+        "f": "filter: ",
+    }
+    if sub_key in _TAG_PROMPTS:
+        state.tag_input_action = sub_key
+        state.insert_submode = InsertSubmode.TAG_INPUT
+        return HandlerResult(
+            enter_tag_input=True,
+            tag_prompt=_TAG_PROMPTS[sub_key],
+        )
+    if sub_key == "l":
+        # List all tags inline
+        tag_counts: dict[str, int] = {}
+        for i in range(state.buffer.line_count()):
+            for tag in state.buffer.tags_at(i):
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        if tag_counts:
+            parts = [f"#{t}({c})" for t, c in sorted(tag_counts.items())]
+            return HandlerResult(command_message=f"Tags: {' '.join(parts)}")
+        return HandlerResult(command_message="No tags in deck")
+    if sub_key == "c":
+        # Clear all tags from cursor card
+        if state.buffer.is_card_line(state.cursor.row) and state.buffer.tags_at(state.cursor.row):
+            state.buffer = state.buffer.set_tags(state.cursor.row, frozenset())
+            state.modified = True
+            state.history.record(state.buffer, "clear tags")
+            return HandlerResult(command_message="Tags cleared")
+        return HandlerResult(command_message="No tags to clear")
+    if sub_key == "n":
+        return _jump_to_tagged(state, forward=True)
+    if sub_key == "p":
+        return _jump_to_tagged(state, forward=False)
+    return HandlerResult()
+
+
+def _jump_to_tagged(state: EditorState, forward: bool) -> HandlerResult:
+    """Jump to next/prev card sharing a tag with the current card."""
+    current_tags = state.buffer.tags_at(state.cursor.row)
+    if not current_tags:
+        return HandlerResult(command_message="No tags on current card")
+
+    line_count = state.buffer.line_count()
+    if forward:
+        rng = range(state.cursor.row + 1, line_count)
+    else:
+        rng = range(state.cursor.row - 1, -1, -1)
+
+    for i in rng:
+        if state.buffer.is_card_line(i) and (state.buffer.tags_at(i) & current_tags):
+            state.cursor = state.cursor.move_to(i, 0)
+            return HandlerResult()
+    return HandlerResult(command_message="No more tagged matches")
+
+
+def handle_tag_input_special(state: EditorState, action: ParsedAction) -> HandlerResult:
+    """Process tag-input mode keys (typing tag name, enter to confirm)."""
+    key = action.action
+    text = action.text or ""
+
+    if key in ("char", "backspace", "delete", "cursor_move"):
+        return HandlerResult()
+
+    if key == "enter" and text.strip():
+        result = _apply_tag_input(state, text.strip())
+        state.tag_input_action = ""
+        state.insert_submode = InsertSubmode.CARD_SEARCH
+        return HandlerResult(
+            exit_to_normal=True,
+            command_message=result,
+        )
+
+    if key == "enter":
+        state.tag_input_action = ""
+        state.insert_submode = InsertSubmode.CARD_SEARCH
+        return HandlerResult(exit_to_normal=True)
+
+    return HandlerResult()
+
+
+def _apply_tag_input(state: EditorState, text: str) -> str:
+    """Apply the tag action from tag-input mode."""
+    action = state.tag_input_action
+    tag = text.lstrip("#").lower()
+
+    if not tag:
+        return ""
+
+    row = state.cursor.row
+
+    # Handle visual selection range
+    if state.visual_anchor is not None:
+        start = min(state.visual_anchor, row)
+        end = max(state.visual_anchor, row)
+        state.visual_anchor = None
+    else:
+        start = end = row
+
+    if action == "a":
+        count = 0
+        for line in range(start, end + 1):
+            if state.buffer.is_card_line(line):
+                state.buffer = state.buffer.add_tag(line, tag)
+                count += 1
+        if count:
+            state.modified = True
+            state.history.record(state.buffer, f"tag add #{tag}")
+        return f"Tagged {count} card(s) with #{tag}" if count else "No card lines"
+
+    if action == "r":
+        count = 0
+        for line in range(start, end + 1):
+            if state.buffer.is_card_line(line) and tag in state.buffer.tags_at(line):
+                state.buffer = state.buffer.remove_tag(line, tag)
+                count += 1
+        if count:
+            state.modified = True
+            state.history.record(state.buffer, f"tag remove #{tag}")
+        return f"Removed #{tag} from {count} card(s)" if count else f"No cards with #{tag}"
+
+    if action == "t":
+        added = 0
+        removed = 0
+        for line in range(start, end + 1):
+            if state.buffer.is_card_line(line):
+                if tag in state.buffer.tags_at(line):
+                    state.buffer = state.buffer.remove_tag(line, tag)
+                    removed += 1
+                else:
+                    state.buffer = state.buffer.add_tag(line, tag)
+                    added += 1
+        if added or removed:
+            state.modified = True
+            state.history.record(state.buffer, f"tag toggle #{tag}")
+        return f"#{tag}: +{added} -{removed}"
+
+    if action == "f":
+        from vimtg.domain.tags import matches_filter, parse_tag_filter
+        state.tag_filter = parse_tag_filter(text)
+        visible = sum(
+            1 for i in range(state.buffer.line_count())
+            if state.buffer.is_card_line(i)
+            and matches_filter(state.buffer.tags_at(i), state.tag_filter)
+        )
+        total = sum(1 for i in range(state.buffer.line_count()) if state.buffer.is_card_line(i))
+        return f"Filter active: {visible}/{total} cards visible"
+
+    return ""
+
+
+def _replay_dot(state: EditorState) -> None:
+    """Replay the last repeatable action."""
+    last = state.dot_repeat.last_action
+    if last is None:
+        return
+    if last.action_type == "operator" and last.operator:
+        if last.operator == "x":
+            _delete_card_at_cursor(state)
+        else:
+            result = execute_operator(
+                last.operator, last.motion, state.cursor, state.buffer,
+                last.count, state.registers, last.register,
+            )
+            state.buffer = result.buffer
+            state.cursor = result.cursor
+            state.registers = result.registers
+            state.modified = True
+            state.history.record(state.buffer, "dot repeat")
+    elif last.action_type == "quantity":
+        if last.operator == "+":
+            state.buffer = increment_quantity(state.buffer, state.cursor)
+        elif last.operator == "-":
+            state.buffer, state.cursor = decrement_quantity(
+                state.buffer, state.cursor,
+            )
+        state.modified = True
+        state.history.record(state.buffer, "dot repeat")
+
+
+def _toggle_macro_recording(state: EditorState) -> None:
+    """Start or stop macro recording."""
+    if state.macros.is_recording:
+        state.macros.stop_recording()
+    else:
+        # Next key press after 'q' should be the register name
+        # For simplicity, use the register from the action if set
+        # The keymap sends 'q' as a special key; we need a follow-up
+        # We'll use a simple convention: q is handled as a toggle
+        # The register selection happens via "@" register prefix
+        state.macros.start_recording("q")
+
+
+def _play_macro(state: EditorState, register: str) -> None:
+    """Play a macro from the given register."""
+    keys = state.macros.play(register)
+    if keys is None:
+        return
+    for key in keys:
+        if key in MOTION_REGISTRY:
+            motion_fn = MOTION_REGISTRY[key]
+            state.cursor = motion_fn(state.cursor, state.buffer, 1)
+        elif key in ("+", "-", "x"):
+            handle_normal_special(
+                state, ParsedAction("special", key),
+            )
 
 
 def handle_insert_special(state: EditorState, action: ParsedAction) -> HandlerResult:
