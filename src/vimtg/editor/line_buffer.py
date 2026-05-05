@@ -54,8 +54,17 @@ class LineBuffer:
 
     def move_home(self) -> LineBuffer:
         """Move cursor to start of line."""
+        if self.cursor == 0:
+            return self
         return LineBuffer(text=self.text, cursor=0)
 
     def move_end(self) -> LineBuffer:
         """Move cursor to end of line."""
+        if self.cursor == len(self.text):
+            return self
         return LineBuffer(text=self.text, cursor=len(self.text))
+
+    @property
+    def cursor_at_end(self) -> bool:
+        """True when the cursor is past the last character (or buffer is empty)."""
+        return self.cursor >= len(self.text)

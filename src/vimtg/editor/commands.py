@@ -11,10 +11,15 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.cursor import Cursor
+
+if TYPE_CHECKING:
+    from vimtg.data.card_repository import CardRepository
+    from vimtg.domain.card import Card
+    from vimtg.services.history_service import HistoryService
 
 _RANGE_PATTERN = re.compile(
     r"^(%|(?:[.\d$]+(?:,[.\d$]+)?))?(.*)$"
@@ -159,6 +164,9 @@ class EditorContext:
     open_config_screen: bool = False
     open_history_screen: bool = False
     vcs_commit_description: str = ""
+    resolved_cards: dict[str, Card] | None = None
+    card_repo: CardRepository | None = None
+    history: HistoryService | None = None
 
 
 CommandHandler = Callable[

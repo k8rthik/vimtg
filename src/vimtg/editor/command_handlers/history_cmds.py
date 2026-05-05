@@ -48,14 +48,19 @@ def cmd_checkpoint(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:checkpoint "name" — Tag current history state (alias for :commit)."""
+    """:checkpoint name — Tag the current history state with a name."""
     name = cmd.args.strip().strip('"').strip("'")
     if not name:
         ctx.message = "E: Usage: :checkpoint name"
         ctx.error = True
         return buffer, cursor
+    if ctx.history is None:
+        ctx.message = "E: History not available"
+        ctx.error = True
+        return buffer, cursor
 
-    ctx.vcs_commit_description = name
+    ctx.history.checkpoint(name)
+    ctx.message = f"Checkpoint: {name}"
     return buffer, cursor
 
 
@@ -65,8 +70,34 @@ def cmd_branch(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:branch — Open history screen to manage branches."""
-    ctx.open_history_screen = True
+    """:branch — list branches; :branch name — create; :branch! name — switch."""
+    if ctx.history is None:
+        ctx.message = "E: History not available"
+        ctx.error = True
+        return buffer, cursor
+
+    name = cmd.args.strip()
+
+    if not name:
+        branches = ctx.history.list_branches()
+        if not branches:
+            ctx.message = "Branches: (none)"
+        else:
+            ctx.message = "Branches: " + ", ".join(branches)
+        return buffer, cursor
+
+    if cmd.bang:
+        restored = ctx.history.switch_branch(name)
+        if restored is None:
+            ctx.message = f"E: Branch not found: {name}"
+            ctx.error = True
+            return buffer, cursor
+        ctx.modified = True
+        ctx.message = f"Switched to branch: {name}"
+        return restored, cursor
+
+    ctx.history.create_branch(name)
+    ctx.message = f"Branch created: {name}"
     return buffer, cursor
 
 
