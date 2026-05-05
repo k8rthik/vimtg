@@ -25,6 +25,15 @@ VISUAL MODE
   d/y           Delete/yank selection
   Escape        Exit visual
 
+TAGS
+  ta            Add tag to current card
+  tr            Remove tag
+  tt            Toggle tag
+  tf            Filter view by tag expression
+  tl            List tags with counts
+  tc            Clear tags from current card
+  tn / tp       Next / prev card sharing a tag
+
 COMMANDS
   :w            Save deck
   :q            Quit (:q! force)
@@ -33,14 +42,21 @@ COMMANDS
   :s/old/new/g  Substitute across deck
   :g/pat/d      Delete matching cards
   :find pattern Jump to matching card
-  :export fmt   Export (arena/mtgo/moxfield)
+  :tag name     Add tag (range supported)
+  :untag name   Remove tag (:untag! clears all)
+  :tags         List tags with counts
+  :filter expr  Filter view by tag (+ AND, | OR, - NOT)
+  :retag /a/b/  Rename tag across deck
+  :export fmt   Export (arena/mtgo/moxfield/archidekt)
+  :import file  Import deck (auto-detects format)
+  :clipboard    Copy deck to system clipboard (default arena)
   :help         This help
 
 VERSION CONTROL
   :history      Open deck history (lazygit-style)
   :commit "msg" Snapshot current deck state
-  :branch       Open history to manage branches
-  :checkpoint n Tag current state
+  :branch       List branches; :branch name creates; :branch! switches
+  :checkpoint n Tag current undo-tree state
 """.strip()
 
 COMMAND_HELP: dict[str, str] = {
@@ -68,6 +84,38 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "find": ":find pattern  Jump to next card matching pattern",
     "export": ":export format [file]  Export deck (arena/mtgo/moxfield/archidekt)",
+    "import": ":import file  Import deck (auto-detects format, replaces buffer)",
+    "clipboard": (
+        ":clipboard [format]  Copy deck to system clipboard via OSC52\n"
+        "\n"
+        "Default format is arena. Use mtgo/moxfield/archidekt/vimtg for others.\n"
+        "Best-effort: terminal must support OSC52 (iTerm2, kitty, Alacritty,\n"
+        "Wezterm, Windows Terminal)."
+    ),
+    "tag": (
+        ":tag name  Add tag to cards in range (default: current line)\n"
+        "\n"
+        ":tag flex          tag current card #flex\n"
+        ":5,10tag budget    tag lines 5-10 #budget\n"
+        ":%tag staple       tag every card #staple"
+    ),
+    "untag": (
+        ":untag name  Remove tag (use :untag! to clear all tags)\n"
+        "\n"
+        ":untag flex        remove #flex from current card\n"
+        ":%untag!           clear all tags from every card"
+    ),
+    "tags": ":tags  List tags with counts",
+    "filter": (
+        ":filter expr  Show only cards matching tag expression\n"
+        "\n"
+        ":filter core              cards tagged #core\n"
+        ":filter core+staple       AND (both tags)\n"
+        ":filter flex|budget       OR (either tag)\n"
+        ":filter core-removal      AND NOT\n"
+        ":filter                   clear filter"
+    ),
+    "retag": ":retag /old/new/  Rename a tag across the entire deck",
     "help": ":help [command]  Show help",
     "history": (
         ":history  Open lazygit-style deck version control\n"
