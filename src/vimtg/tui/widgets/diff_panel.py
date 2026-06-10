@@ -109,7 +109,7 @@ class DiffPanel(Static):
             c for c in cmd_changes
             if c.change_type != ChangeType.UNCHANGED
         ]
-        if active_cmd:
+        if active_cmd or (self.show_unchanged and cmd_changes):
             t.append(" Commander:\n", style=f"bold {COLORS['fg']}")
             for change in cmd_changes:
                 if change.change_type == ChangeType.UNCHANGED and not self.show_unchanged:
