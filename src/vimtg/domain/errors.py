@@ -45,3 +45,10 @@ class UnsavedChangesError(VimTGError):
 
     def __init__(self) -> None:
         super().__init__("E37", "No write since last change (add ! to override)")
+
+
+class CardsNotFoundWarning(VimTGError):  # noqa: N818 — vim-style W-code, a warning not an error
+    """Some imported cards could not be resolved against the database."""
+
+    def __init__(self, count: int) -> None:
+        super().__init__("W100", f"{count} cards not found in database")

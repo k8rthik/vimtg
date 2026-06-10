@@ -292,3 +292,115 @@ class TestCrossFormat:
         deck = _svc().import_deck(text)  # no format specified
         assert len(deck.mainboard()) == 2
         assert deck.mainboard()[0].card_name == "Lightning Bolt"
+
+
+# ==================================================================
+# Card resolution
+# ==================================================================
+
+class _StubRepo:
+    """Minimal CardRepository stand-in: exact/case-insensitive + FTS stub."""
+
+    def __init__(
+        self,
+        cards: dict[str, Card] | None = None,
+        fts_results: dict[str, list[Card]] | None = None,
+    ) -> None:
+        self._cards = {name.lower(): card for name, card in (cards or {}).items()}
+        self._fts = fts_results or {}
+
+    def get_by_name(self, name: str) -> Card | None:
+        return self._cards.get(name.lower())
+
+    def search(self, query: str, limit: int = 50) -> list[Card]:
+        return self._fts.get(query, [])[:limit]
+
+
+class TestResolveCards:
+    def test_exact_name_resolves(self) -> None:
+        bolt = _make_card("Lightning Bolt")
+        repo = _StubRepo(cards={"Lightning Bolt": bolt})
+        svc = ImportExportService(card_repo=repo)
+        deck = _make_deck(main=[(4, "Lightning Bolt")])
+
+        res = svc.resolve_cards(deck)
+
+        assert res.resolved == {"Lightning Bolt": bolt}
+        assert res.unresolved == ()
+        assert res.suggestions == {}
+
+    def test_case_insensitive_name_resolves(self) -> None:
+        bolt = _make_card("Lightning Bolt")
+        repo = _StubRepo(cards={"Lightning Bolt": bolt})
+        svc = ImportExportService(card_repo=repo)
+        deck = _make_deck(main=[(4, "lightning bolt")])
+
+        res = svc.resolve_cards(deck)
+
+        assert res.resolved == {"lightning bolt": bolt}
+        assert res.unresolved == ()
+
+    def test_misspelled_name_gets_fuzzy_suggestion(self) -> None:
+        bolt = _make_card("Lightning Bolt")
+        repo = _StubRepo(
+            cards={"Lightning Bolt": bolt},
+            fts_results={"Lightening Bolt": [bolt]},
+        )
+        svc = ImportExportService(card_repo=repo)
+        deck = _make_deck(main=[(4, "Lightening Bolt")])
+
+        res = svc.resolve_cards(deck)
+
+        assert res.resolved == {}
+        assert res.unresolved == ("Lightening Bolt",)
+        assert res.suggestions == {"Lightening Bolt": "Lightning Bolt"}
+
+    def test_no_fts_match_means_no_suggestion(self) -> None:
+        repo = _StubRepo()
+        svc = ImportExportService(card_repo=repo)
+        deck = _make_deck(main=[(1, "Totally Made Up Card")])
+
+        res = svc.resolve_cards(deck)
+
+        assert res.unresolved == ("Totally Made Up Card",)
+        assert res.suggestions == {}
+
+    def test_no_repo_returns_empty_resolution(self) -> None:
+        svc = ImportExportService()
+        deck = _make_deck(main=[(4, "Lightning Bolt")])
+
+        res = svc.resolve_cards(deck)
+
+        assert res.resolved == {}
+        assert res.unresolved == ()
+        assert res.suggestions == {}
+
+    def test_fts_error_is_swallowed(self) -> None:
+        class _ExplodingRepo(_StubRepo):
+            def search(self, query: str, limit: int = 50) -> list[Card]:
+                raise RuntimeError("malformed FTS query")
+
+        svc = ImportExportService(card_repo=_ExplodingRepo())
+        deck = _make_deck(main=[(1, "Bad)Name(")])
+
+        res = svc.resolve_cards(deck)
+
+        assert res.unresolved == ("Bad)Name(",)
+        assert res.suggestions == {}
+
+    def test_resolution_is_immutable_and_deck_untouched(self) -> None:
+        bolt = _make_card("Lightning Bolt")
+        repo = _StubRepo(cards={"Lightning Bolt": bolt})
+        svc = ImportExportService(card_repo=repo)
+        deck = _make_deck(main=[(4, "Lightning Bolt"), (2, "Nope")])
+        entries_before = deck.entries
+
+        res = svc.resolve_cards(deck)
+
+        assert deck.entries == entries_before
+        try:
+            res.unresolved = ()  # type: ignore[misc]
+            raised = False
+        except AttributeError:
+            raised = True
+        assert raised, "CardResolution must be frozen"

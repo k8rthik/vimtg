@@ -171,3 +171,90 @@ class TestClipboard:
         cmd_clipboard(buffer, cursor, cmd, ctx)
         assert ctx.error is True
         assert "Unknown format" in ctx.message
+
+
+class _ResolvingRepo:
+    """Stub CardRepository for import resolution tests."""
+
+    def __init__(self, known: dict[str, object], fts: dict[str, list] | None = None) -> None:
+        self._known = {n.lower(): c for n, c in known.items()}
+        self._fts = fts or {}
+
+    def get_by_name(self, name: str):  # noqa: ANN201
+        return self._known.get(name.lower())
+
+    def search(self, query: str, limit: int = 50) -> list:
+        return self._fts.get(query, [])[:limit]
+
+
+def _write_temp_deck(text: str) -> Path:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".txt", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(text)
+        return Path(f.name)
+
+
+class TestImportResolution:
+    def test_import_all_resolved_has_clean_message(self) -> None:
+        from vimtg.domain.card import Card, Prices, Rarity
+
+        bolt = Card(
+            scryfall_id="x", name="Lightning Bolt", mana_cost="{R}", cmc=1.0,
+            type_line="Instant", oracle_text="", colors=(), color_identity=(),
+            power=None, toughness=None, set_code="sta", rarity=Rarity.COMMON,
+            prices=Prices(), legalities={}, image_uri=None, layout="normal",
+            keywords=(),
+        )
+        path = _write_temp_deck("4 Lightning Bolt\n")
+        buffer = Buffer.from_text("")
+        ctx = EditorContext(card_repo=_ResolvingRepo({"Lightning Bolt": bolt}))
+        cmd = ParsedCommand(name="import", args=str(path))
+
+        cmd_import(buffer, Cursor(row=0), cmd, ctx)
+
+        assert ctx.error is False
+        assert "Imported 4 cards" in ctx.message
+        assert "W100" not in ctx.message
+        assert ctx.resolved_cards == {"Lightning Bolt": bolt}
+        path.unlink()
+
+    def test_import_unresolved_cards_warns_with_suggestion(self) -> None:
+        from vimtg.domain.card import Card, Prices, Rarity
+
+        bolt = Card(
+            scryfall_id="x", name="Lightning Bolt", mana_cost="{R}", cmc=1.0,
+            type_line="Instant", oracle_text="", colors=(), color_identity=(),
+            power=None, toughness=None, set_code="sta", rarity=Rarity.COMMON,
+            prices=Prices(), legalities={}, image_uri=None, layout="normal",
+            keywords=(),
+        )
+        path = _write_temp_deck(
+            "4 Lightening Bolt\n2 Fake Card One\n1 Fake Card Two\n"
+        )
+        repo = _ResolvingRepo({}, fts={"Lightening Bolt": [bolt]})
+        buffer = Buffer.from_text("")
+        ctx = EditorContext(card_repo=repo)
+        cmd = ParsedCommand(name="import", args=str(path))
+
+        result_buf, _ = cmd_import(buffer, Cursor(row=0), cmd, ctx)
+
+        # Import is not blocked — buffer replaced, no error flag
+        assert ctx.error is False
+        assert "Lightening Bolt" in result_buf.to_text()
+        assert "W100: 3 cards not found in database" in ctx.message
+        assert "did you mean 'Lightning Bolt'" in ctx.message
+        path.unlink()
+
+    def test_import_without_repo_skips_resolution(self) -> None:
+        path = _write_temp_deck("4 Lightning Bolt\n")
+        buffer = Buffer.from_text("")
+        ctx = EditorContext()
+        cmd = ParsedCommand(name="import", args=str(path))
+
+        cmd_import(buffer, Cursor(row=0), cmd, ctx)
+
+        assert ctx.error is False
+        assert "W100" not in ctx.message
+        assert "Imported 4 cards" in ctx.message
+        path.unlink()

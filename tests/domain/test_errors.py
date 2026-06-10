@@ -53,3 +53,12 @@ def test_vimtg_error_is_exception() -> None:
     err = DatabaseNotInitializedError()
     assert isinstance(err, Exception)
     assert isinstance(err, VimTGError)
+
+
+def test_cards_not_found_warning() -> None:
+    from vimtg.domain.errors import CardsNotFoundWarning
+
+    warn = CardsNotFoundWarning(3)
+    assert warn.code == "W100"
+    assert warn.message == "3 cards not found in database"
+    assert str(warn) == "W100: 3 cards not found in database"

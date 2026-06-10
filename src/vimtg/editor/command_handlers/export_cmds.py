@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from vimtg.data.deck_repository import parse_deck_text
+from vimtg.domain.errors import CardsNotFoundWarning
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -101,6 +102,19 @@ def cmd_import(
     new_buffer = Buffer.from_text(vimtg_text)
     ctx.modified = True
     ctx.message = f"Imported {deck.total_cards()} cards from {in_path.name}"
+
+    resolution = service.resolve_cards(deck)
+    if resolution.resolved:
+        ctx.resolved_cards = dict(resolution.resolved)
+    if resolution.unresolved:
+        warning = str(CardsNotFoundWarning(len(resolution.unresolved)))
+        first_missing = next(
+            (n for n in resolution.unresolved if n in resolution.suggestions), None,
+        )
+        if first_missing is not None:
+            suggestion = resolution.suggestions[first_missing]
+            warning += f" (did you mean '{suggestion}' for '{first_missing}'?)"
+        ctx.message += f" | {warning}"
     return new_buffer, cursor.clamp(new_buffer.line_count() - 1)
 
 
@@ -114,7 +128,9 @@ def cmd_clipboard(
     fmt_name = (cmd.args.strip() or "arena").lower()
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
-        ctx.message = f"E: Unknown format: {fmt_name}. Use arena, mtgo, moxfield, archidekt, or vimtg"
+        ctx.message = (
+            f"E: Unknown format: {fmt_name}. Use arena, mtgo, moxfield, archidekt, or vimtg"
+        )
         ctx.error = True
         return buffer, cursor
 

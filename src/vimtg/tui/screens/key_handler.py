@@ -221,6 +221,8 @@ def handle_command(
         state.modified = ctx.modified
         if ctx.settings_changed and ctx.settings is not None:
             state.settings = ctx.settings
+        if ctx.resolved_cards is not None and ctx.resolved_cards is not state.resolved_cards:
+            state.resolved_cards = dict(ctx.resolved_cards)
         return HandlerResult(
             command_message=ctx.message,
             quit_requested=ctx.quit_requested,

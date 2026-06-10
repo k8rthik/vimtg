@@ -5,13 +5,17 @@ from __future__ import annotations
 import csv
 import io
 import re
+from dataclasses import dataclass, field
 from enum import Enum
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from vimtg.domain.card import Card
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from vimtg.data.card_repository import CardRepository
 
 
@@ -21,6 +25,20 @@ class DeckFormat(Enum):
     ARENA = "arena"
     MOXFIELD = "moxfield"
     ARCHIDEKT = "archidekt"
+
+
+@dataclass(frozen=True)
+class CardResolution:
+    """Outcome of resolving imported card names against the database.
+
+    `resolved` maps the *input* name (as written in the imported deck) to its
+    Card. `suggestions` maps each unresolved name to the closest fuzzy match —
+    a hint only; the user's deck text is never rewritten automatically.
+    """
+
+    resolved: Mapping[str, Card] = field(default_factory=lambda: MappingProxyType({}))
+    unresolved: tuple[str, ...] = ()
+    suggestions: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
 
 class ImportExportService:
@@ -98,6 +116,42 @@ class ImportExportService:
                 return self._export_moxfield(deck, resolved or {})
             case DeckFormat.ARCHIDEKT:
                 return self._export_archidekt(deck)
+
+    # ------------------------------------------------------------------
+    # Card resolution
+    # ------------------------------------------------------------------
+
+    def resolve_cards(self, deck: Deck) -> CardResolution:
+        """Resolve each unique card name in *deck* against the database.
+
+        Exact and case-insensitive matches resolve directly (get_by_name is
+        COLLATE NOCASE). Names with no match are reported as unresolved, with
+        the top FTS5 hit recorded as a "did you mean?" suggestion when one
+        exists. Returns an empty resolution when no repository is configured.
+        """
+        if self._card_repo is None:
+            return CardResolution()
+
+        resolved: dict[str, Card] = {}
+        unresolved: list[str] = []
+        suggestions: dict[str, str] = {}
+        for name in sorted(deck.unique_card_names()):
+            card = self._card_repo.get_by_name(name)
+            if card is not None:
+                resolved[name] = card
+                continue
+            unresolved.append(name)
+            try:
+                hits = self._card_repo.search(name, limit=1)
+            except Exception:
+                hits = []
+            if hits:
+                suggestions[name] = hits[0].name
+        return CardResolution(
+            resolved=MappingProxyType(resolved),
+            unresolved=tuple(unresolved),
+            suggestions=MappingProxyType(suggestions),
+        )
 
     # ------------------------------------------------------------------
     # MTGO
