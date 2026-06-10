@@ -148,6 +148,11 @@ class MainScreen(Screen):
                 hp.display = False
             return
 
+        # F1 opens the full help screen from normal mode
+        if event.key == "f1" and self._state.mode_mgr.is_normal():
+            self._open_help(None)
+            return
+
         # Clear transient messages from the previous keypress
         cl = self.query_one("#command-line", CommandLine)
         if cl.message:
@@ -303,6 +308,8 @@ class MainScreen(Screen):
             self._open_config()
         if hr.open_history_screen:
             self._open_history()
+        if hr.open_help_screen:
+            self._open_help(hr.help_topic)
         if hr.vcs_commit_description:
             self._vcs_commit(hr.vcs_commit_description)
         if hr.search_query is not None:
@@ -376,6 +383,11 @@ class MainScreen(Screen):
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
+
+    def _open_help(self, topic: str | None) -> None:
+        from vimtg.tui.screens.help_screen import HelpScreen
+
+        self.app.push_screen(HelpScreen(topic=topic))
 
     def _open_config(self) -> None:
         from vimtg.tui.screens.config_screen import ConfigScreen

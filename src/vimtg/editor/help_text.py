@@ -138,6 +138,11 @@ COMMAND_HELP: dict[str, str] = {
 }
 
 
+def has_help(command: str) -> bool:
+    """Return True if per-command help exists for the given command."""
+    return command in COMMAND_HELP
+
+
 def get_help(command: str | None = None) -> str:
     """Return help text for a specific command, or the full overview."""
     if command is None:

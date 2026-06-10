@@ -163,6 +163,8 @@ class EditorContext:
     settings_changed: bool = False
     open_config_screen: bool = False
     open_history_screen: bool = False
+    open_help_screen: bool = False
+    help_topic: str | None = None
     vcs_commit_description: str = ""
     resolved_cards: dict[str, Card] | None = None
     card_repo: CardRepository | None = None

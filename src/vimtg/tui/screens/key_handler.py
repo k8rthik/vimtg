@@ -91,6 +91,8 @@ class HandlerResult:
     file_path: Path | None = None
     open_config_screen: bool = False
     open_history_screen: bool = False
+    open_help_screen: bool = False
+    help_topic: str | None = None
     vcs_commit_description: str = ""
     command_ghost: str = ""
     command_accept: str = ""
@@ -226,6 +228,8 @@ def handle_command(
             file_path=ctx.file_path,
             open_config_screen=ctx.open_config_screen,
             open_history_screen=ctx.open_history_screen,
+            open_help_screen=ctx.open_help_screen,
+            help_topic=ctx.help_topic,
             vcs_commit_description=ctx.vcs_commit_description,
         )
     except Exception as exc:

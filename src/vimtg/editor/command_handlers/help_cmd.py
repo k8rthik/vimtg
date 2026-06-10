@@ -9,7 +9,7 @@ from vimtg.editor.commands import (
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
-from vimtg.editor.help_text import get_help
+from vimtg.editor.help_text import has_help
 
 
 def cmd_help(
@@ -18,9 +18,14 @@ def cmd_help(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Display help overview or help for a specific command."""
+    """Open the full-screen help overlay, optionally focused on one command."""
     topic = cmd.args.strip() if cmd.args else None
-    ctx.message = get_help(topic)
+    if topic is not None and not has_help(topic):
+        ctx.message = f"E: No help for: {topic}"
+        ctx.error = True
+        return buffer, cursor
+    ctx.open_help_screen = True
+    ctx.help_topic = topic
     return buffer, cursor
 
 
