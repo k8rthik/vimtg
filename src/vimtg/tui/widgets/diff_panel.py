@@ -123,7 +123,10 @@ class DiffPanel(Static):
         if added or removed:
             t.append(f" {'+' if added else ''}{added} added", style=f"dim {COLORS['mana_green']}")
             t.append("  ", style="dim")
-            t.append(f"{'-' if removed else ''}{removed} removed", style=f"dim {COLORS['mana_red']}")
+            t.append(
+                f"{'-' if removed else ''}{removed} removed",
+                style=f"dim {COLORS['mana_red']}",
+            )
             t.append("\n")
 
         return t

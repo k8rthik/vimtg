@@ -165,7 +165,8 @@ class CardRepository:
         ).fetchone()
         if row is None:
             return None
-        return row["value"]
+        value: str | None = row["value"]
+        return value
 
     def set_last_sync(self, timestamp: str) -> None:
         conn = self._db.connect()

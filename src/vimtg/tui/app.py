@@ -31,7 +31,7 @@ from vimtg.services.search_service import SearchService
 from vimtg.tui.theme import COLORS
 
 
-class VimTGApp(App):
+class VimTGApp(App[None]):
     """Vim-powered MTG deck editor TUI."""
 
     BINDINGS = [("ctrl+c", "quit", "Force quit")]

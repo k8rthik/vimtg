@@ -10,6 +10,7 @@ from collections.abc import Callable
 from enum import Enum
 
 from rich.text import Text
+from textual.app import ComposeResult
 from textual.containers import Container
 from textual.events import Key
 from textual.reactive import reactive
@@ -123,7 +124,7 @@ class HistoryStatusLine(Static):
         return t
 
 
-class HistoryScreen(Screen):
+class HistoryScreen(Screen[None]):
     """Lazygit-style version control screen for deck history."""
 
     CSS = f"""
@@ -183,7 +184,7 @@ class HistoryScreen(Screen):
         self._input_mode = InputMode.NORMAL
         self._input_text = ""
 
-    def compose(self):  # noqa: ANN201
+    def compose(self) -> ComposeResult:
         yield Container(
             Container(
                 BranchesPanel(id="branches-panel"),
@@ -388,9 +389,9 @@ class HistoryScreen(Screen):
         elif self._input_mode == InputMode.TAG:
             if text:
                 sp = self.query_one("#snapshots-panel", SnapshotsPanel)
-                snap = sp.get_selected_snapshot()
-                if snap:
-                    self._vcs.tag(snap.id, text)
+                selected = sp.get_selected_snapshot()
+                if selected:
+                    self._vcs.tag(selected.id, text)
                     cl.show_message(f"Tagged: {text}")
                     self._refresh_data()
                     self._update_diff_for_selected()
@@ -400,9 +401,9 @@ class HistoryScreen(Screen):
         elif self._input_mode == InputMode.CONFIRM_RESTORE:
             if text.lower() in ("y", "yes"):
                 sp = self.query_one("#snapshots-panel", SnapshotsPanel)
-                snap = sp.get_selected_snapshot()
-                if snap and self._on_restore:
-                    self._on_restore(snap.deck_state)
+                selected = sp.get_selected_snapshot()
+                if selected and self._on_restore:
+                    self._on_restore(selected.deck_state)
                     self.app.pop_screen()
                     return
             else:
@@ -458,7 +459,7 @@ class HistoryScreen(Screen):
             self._refresh_data()
             sp = self.query_one("#snapshots-panel", SnapshotsPanel)
             sp.selected = 0
-            sp.scroll_offset = 0
+            sp.scroll_pos = 0
             self._update_diff_for_selected()
 
     def _untag(self) -> None:

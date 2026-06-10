@@ -6,13 +6,9 @@ TUI-agnostic: zero Textual imports.
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from vimtg.domain.tags import (
-    TagFilter,
-    format_inline_tags,
     matches_filter,
-    parse_inline_tags,
     parse_tag_filter,
 )
 from vimtg.editor.buffer import Buffer, LineType

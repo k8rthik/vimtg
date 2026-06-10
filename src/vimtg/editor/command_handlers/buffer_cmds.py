@@ -14,7 +14,7 @@ from vimtg.editor.cursor import Cursor
 from vimtg.editor.slug import generate_unique_path
 
 
-def _resolve_write_path(cmd: ParsedCommand, ctx: EditorContext) -> Path | None:
+def _resolve_write_path(cmd: ParsedCommand, ctx: EditorContext) -> Path:
     """Determine the target path for a :w command.
 
     Priority: explicit arg > existing file_path > auto-generated slug.

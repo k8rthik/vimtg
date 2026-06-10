@@ -12,7 +12,8 @@ _RARITY_MAP: dict[str, Rarity] = {r.value: r for r in Rarity}
 def _safe_price(row: sqlite3.Row, key: str) -> float | None:
     """Safely get a price column, returning None if column doesn't exist."""
     try:
-        return row[key]
+        value: float | None = row[key]
+        return value
     except (IndexError, KeyError):
         return None
 

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
+from typing import Any
 
 from vimtg.data.database import Database
 from vimtg.domain.vcs import VCSBranch, VCSSnapshot
 
 
-def _row_to_snapshot(row: dict) -> VCSSnapshot:
+def _row_to_snapshot(row: dict[str, Any]) -> VCSSnapshot:
     """Convert a SQLite Row to a VCSSnapshot."""
     return VCSSnapshot(
         id=row["id"],
@@ -23,7 +24,7 @@ def _row_to_snapshot(row: dict) -> VCSSnapshot:
     )
 
 
-def _row_to_branch(row: dict) -> VCSBranch:
+def _row_to_branch(row: dict[str, Any]) -> VCSBranch:
     """Convert a SQLite Row to a VCSBranch."""
     return VCSBranch(
         name=row["name"],

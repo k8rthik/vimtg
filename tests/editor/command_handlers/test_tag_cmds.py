@@ -22,7 +22,9 @@ def _ctx() -> EditorContext:
     return EditorContext()
 
 
-def _cmd(name: str, args: str = "", bang: bool = False, cmd_range: CommandRange | None = None) -> ParsedCommand:
+def _cmd(
+    name: str, args: str = "", bang: bool = False, cmd_range: CommandRange | None = None,
+) -> ParsedCommand:
     return ParsedCommand(name=name, args=args, bang=bang, cmd_range=cmd_range)
 
 

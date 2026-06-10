@@ -310,19 +310,19 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
 
 
 def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
-    """Dispatch tag sub-key: a(dd), r(emove), t(oggle), f(ilter), l(ist), c(lear), n(ext), p(rev)."""
-    _TAG_PROMPTS = {
+    """Dispatch tag sub-key: a(dd), r(emove), t(oggle), f(ilter), l(ist), c(lear), n/p (jump)."""
+    tag_prompts = {
         "a": "tag add: ",
         "r": "tag remove: ",
         "t": "tag toggle: ",
         "f": "filter: ",
     }
-    if sub_key in _TAG_PROMPTS:
+    if sub_key in tag_prompts:
         state.tag_input_action = sub_key
         state.insert_submode = InsertSubmode.TAG_INPUT
         return HandlerResult(
             enter_tag_input=True,
-            tag_prompt=_TAG_PROMPTS[sub_key],
+            tag_prompt=tag_prompts[sub_key],
         )
     if sub_key == "l":
         # List all tags inline

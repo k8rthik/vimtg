@@ -24,6 +24,11 @@ def currency_symbol_for(price_source: str) -> str:
     return _CURRENCY_SYMBOLS.get(price_source, "$")
 
 
+def _replace_field(settings: Settings, key: str, value: object) -> Settings:
+    """Dynamic dataclasses.replace — field types are validated by the option registry."""
+    return replace(settings, **{key: value})  # type: ignore[arg-type]
+
+
 @dataclass(frozen=True)
 class ConfigOption:
     """Metadata for a single config setting."""
@@ -128,16 +133,16 @@ def apply_setting(settings: Settings, key: str, value: str) -> Settings:
 
     if opt.option_type == "bool":
         if value.lower() in ("on", "true", "yes", "1"):
-            return replace(settings, **{key: True})
+            return _replace_field(settings, key, True)
         if value.lower() in ("off", "false", "no", "0"):
-            return replace(settings, **{key: False})
+            return _replace_field(settings, key, False)
         raise ValueError(f"{key} must be on/off, got: {value}")
 
     if opt.option_type == "choice":
         if value not in opt.choices:
             valid = ", ".join(opt.choices)
             raise ValueError(f"{key} must be one of: {valid}")
-        return replace(settings, **{key: value})
+        return _replace_field(settings, key, value)
 
     if opt.option_type == "int":
         try:
@@ -148,7 +153,7 @@ def apply_setting(settings: Settings, key: str, value: str) -> Settings:
             raise ValueError(f"{key} minimum is {opt.min_val}")
         if opt.max_val is not None and int_val > opt.max_val:
             raise ValueError(f"{key} maximum is {opt.max_val}")
-        return replace(settings, **{key: int_val})
+        return _replace_field(settings, key, int_val)
 
     raise ValueError(f"Unknown option type: {opt.option_type}")
 
@@ -161,7 +166,7 @@ def cycle_setting(settings: Settings, key: str, direction: int = 1) -> Settings:
 
     if opt.option_type == "bool":
         current = getattr(settings, key)
-        return replace(settings, **{key: not current})
+        return _replace_field(settings, key, not current)
 
     if opt.option_type == "choice" and opt.choices:
         current = str(getattr(settings, key))
@@ -170,7 +175,7 @@ def cycle_setting(settings: Settings, key: str, direction: int = 1) -> Settings:
         except ValueError:
             idx = 0
         new_idx = (idx + direction) % len(opt.choices)
-        return replace(settings, **{key: opt.choices[new_idx]})
+        return _replace_field(settings, key, opt.choices[new_idx])
 
     if opt.option_type == "int":
         current = getattr(settings, key)
@@ -180,7 +185,7 @@ def cycle_setting(settings: Settings, key: str, direction: int = 1) -> Settings:
             new_val = max(opt.min_val, new_val)
         if opt.max_val is not None:
             new_val = min(opt.max_val, new_val)
-        return replace(settings, **{key: new_val})
+        return _replace_field(settings, key, new_val)
 
     return settings
 

@@ -7,9 +7,9 @@ h/l/Space cycling, and s to save. Follows the GreeterScreen pattern.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 
 from rich.text import Text
+from textual.app import ComposeResult
 from textual.events import Key
 from textual.reactive import reactive
 from textual.screen import Screen
@@ -17,6 +17,7 @@ from textual.widgets import Static
 
 from vimtg.config.settings import Settings
 from vimtg.editor.config_options import (
+    ConfigOption,
     cycle_setting,
     get_setting_value,
     groups,
@@ -36,7 +37,6 @@ class ConfigView(Static):
 
     def render(self) -> Text:
         t = Text()
-        all_options = navigable_options()
 
         # Title
         t.append("\n")
@@ -115,7 +115,7 @@ class ConfigView(Static):
         return t
 
 
-class ConfigScreen(Screen):
+class ConfigScreen(Screen[None]):
     """Modal config screen, pushed via :config command."""
 
     CSS = f"""
@@ -136,7 +136,7 @@ class ConfigScreen(Screen):
         self._settings = settings
         self._on_save = on_save
 
-    def compose(self):  # noqa: ANN201
+    def compose(self) -> ComposeResult:
         yield ConfigView(id="config-view")
 
     def on_mount(self) -> None:
@@ -168,7 +168,9 @@ class ConfigScreen(Screen):
         elif key in ("escape", "q"):
             self._close()
 
-    def _cycle_current(self, view: ConfigView, all_options: list, direction: int) -> None:
+    def _cycle_current(
+        self, view: ConfigView, all_options: list[ConfigOption], direction: int
+    ) -> None:
         if view.selected_index >= len(all_options):
             return
         opt = all_options[view.selected_index]

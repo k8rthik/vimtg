@@ -9,7 +9,6 @@ from vimtg.data.database import Database
 from vimtg.data.snapshot_repository import SnapshotRepository
 from vimtg.domain.vcs import VCSBranch, VCSSnapshot
 
-
 DECK_PATH = "/tmp/test.deck"
 
 

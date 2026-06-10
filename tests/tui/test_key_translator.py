@@ -325,14 +325,12 @@ class TestEndToEndKeybinds:
         assert action.cursor_pos == 1
 
     def test_insert_home_end(self) -> None:
-        from vimtg.editor.keymap import KeyResult
 
         _, action = self._feed_insert("a", "b", "home")
         assert action.cursor_pos == 0
         # Can't test end directly since we need a fresh km with cursor at 0
 
     def test_insert_delete_key(self) -> None:
-        from vimtg.editor.keymap import KeyResult
 
         _, action = self._feed_insert("a", "b", "home", "delete")
         assert action.action == "delete"
@@ -341,14 +339,12 @@ class TestEndToEndKeybinds:
     # -- Cursor movement in COMMAND mode --
 
     def test_command_left_right(self) -> None:
-        from vimtg.editor.keymap import KeyResult
 
         _, action = self._feed_command("s", "o", "left")
         assert action.action == "cursor_move"
         assert action.cursor_pos == 1
 
     def test_command_shift_tab(self) -> None:
-        from vimtg.editor.keymap import KeyResult
 
         _, action = self._feed_command("s", "shift+tab")
         assert action.action == "shift_tab"

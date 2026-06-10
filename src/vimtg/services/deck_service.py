@@ -10,6 +10,7 @@ from vimtg.data.deck_repository import DeckRepository, parse_deck_text
 from vimtg.domain.deck import Deck
 
 if TYPE_CHECKING:
+    from vimtg.data.card_repository import CardRepository
     from vimtg.domain.card import Card
 
 
@@ -45,7 +46,7 @@ class DeckService:
     def __init__(
         self,
         deck_repo: DeckRepository,
-        card_repo: object | None = None,
+        card_repo: CardRepository | None = None,
     ) -> None:
         self._deck_repo = deck_repo
         self._card_repo = card_repo
@@ -83,7 +84,7 @@ class DeckService:
         if self._card_repo is None:
             return {}, list(deck.unique_card_names())
         names = list(deck.unique_card_names())
-        found: dict[str, Card] = self._card_repo.get_by_names(names)  # type: ignore[union-attr]
+        found: dict[str, Card] = self._card_repo.get_by_names(names)
         unresolved = [n for n in names if n not in found]
         return found, unresolved
 

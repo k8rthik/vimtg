@@ -4,11 +4,9 @@ from vimtg.domain.deck import DeckSection
 from vimtg.domain.deck_diff import (
     CardChange,
     ChangeType,
-    DeckDiff,
     StatsDelta,
     compute_deck_diff,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────
 

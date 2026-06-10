@@ -4,7 +4,6 @@ from vimtg.editor.buffer import Buffer
 from vimtg.tui.screens.main_screen import _CARD_HINT, _GENERIC_HINT, _hint_for_cursor
 from vimtg.tui.widgets.command_line import CommandLine
 
-
 # ── _hint_for_cursor tests ────────────────────────────────────────
 
 

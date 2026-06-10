@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.snapshot_repository import SnapshotRepository
-from vimtg.domain.deck import DeckEntry, DeckSection
+from vimtg.domain.deck import DeckEntry
 from vimtg.domain.deck_diff import DeckDiff, compute_deck_diff
 from vimtg.domain.vcs import VCSBranch, VCSSnapshot, VCSStatus
 

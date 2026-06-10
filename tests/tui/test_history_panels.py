@@ -172,10 +172,10 @@ class TestSnapshotsPanel:
         assert "> " in plain  # selection indicator prefix
 
     def test_scroll_offset_window(self) -> None:
-        """Snapshots before scroll_offset should be hidden."""
+        """Snapshots before scroll_pos should be hidden."""
         p = SnapshotsPanel()
         p.snapshots = [_snapshot("a" * 40, f"snap{i}") for i in range(25)]
-        p.scroll_offset = 5
+        p.scroll_pos = 5
         plain = p.render().plain
         # snap0..snap4 hidden, snap5 visible
         assert "snap0\n" not in plain

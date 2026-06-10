@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual import work
+from textual.app import ComposeResult
 from textual.events import Key
 from textual.screen import Screen
 
@@ -21,7 +22,7 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
-from vimtg.editor.keymap import KeyMap, KeyResult
+from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import load_remapper
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
@@ -29,6 +30,7 @@ from vimtg.services.history_service import HistoryService
 from vimtg.tui.key_translator import translate
 from vimtg.tui.screens.key_handler import (
     EditorState,
+    HandlerResult,
     InsertSubmode,
     count_cards,
     handle_command,
@@ -52,6 +54,7 @@ from vimtg.tui.widgets.which_key import WhichKey
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
     from vimtg.services.search_service import SearchService
+    from vimtg.services.vcs_service import VersionControlService
 
 
 _GENERIC_HINT = "Press ? for help  |  : command  |  o add card  |  i edit line"
@@ -73,7 +76,7 @@ def _card_type_section(type_line: str) -> str:
     return "Other"
 
 
-class MainScreen(Screen):
+class MainScreen(Screen[None]):
     """Primary editor screen: deck view, status line, command line."""
 
     def __init__(
@@ -109,9 +112,9 @@ class MainScreen(Screen):
         self.keymap = KeyMap()
         self.remapper = load_remapper()
         self._db = db
-        self._vcs_service = None  # Lazily initialized
+        self._vcs_service: VersionControlService | None = None  # Lazily initialized
 
-    def compose(self):  # noqa: ANN201
+    def compose(self) -> ComposeResult:
         yield DeckView(id="deck-view")
         yield SearchResults(id="search-results")
         yield HelpPanel(id="help-panel")
@@ -198,7 +201,7 @@ class MainScreen(Screen):
             self._apply_handler_result(hr)
         self._sync_widgets()
 
-    def _dispatch_special(self, action):  # noqa: ANN001, ANN202
+    def _dispatch_special(self, action: ParsedAction) -> HandlerResult | None:
         s = self._state
         if s.mode_mgr.is_insert():
             cl = self.query_one("#command-line", CommandLine)
@@ -210,7 +213,9 @@ class MainScreen(Screen):
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
                 return handle_line_edit_special(s, action)
-            cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(action.text or "")
+            cl.cursor_pos = (
+                action.cursor_pos if action.cursor_pos is not None else len(action.text or "")
+            )
             return handle_insert_special(s, action)
         if s.mode_mgr.is_command():
             cl = self.query_one("#command-line", CommandLine)
@@ -225,7 +230,7 @@ class MainScreen(Screen):
             return None
         return handle_normal_special(s, action)
 
-    def _apply_handler_result(self, hr) -> None:  # noqa: ANN001
+    def _apply_handler_result(self, hr: HandlerResult) -> None:
         s = self._state
         if hr.exit_to_normal:
             # If cancelling a line edit (Escape), restore original line
@@ -407,7 +412,7 @@ class MainScreen(Screen):
 
     # ── VCS integration ─────────────────────────────────────
 
-    def _get_vcs_service(self):  # noqa: ANN202
+    def _get_vcs_service(self) -> VersionControlService | None:
         """Lazily initialize VCS service on first use."""
         if self._vcs_service is not None:
             return self._vcs_service

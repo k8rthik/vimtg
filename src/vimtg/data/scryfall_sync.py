@@ -38,7 +38,8 @@ class ScryfallSync:
         data = resp.json()
         for item in data.get("data", []):
             if item.get("type") == "oracle_cards":
-                return item["download_uri"]
+                uri: str = item["download_uri"]
+                return uri
         raise RuntimeError("oracle_cards bulk data not found")
 
     def download(

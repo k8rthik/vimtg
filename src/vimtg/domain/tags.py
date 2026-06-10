@@ -73,9 +73,7 @@ def matches_filter(tags: frozenset[str], filt: TagFilter) -> bool:
         return False
     if filt.exclude and filt.exclude & tags:
         return False
-    if filt.any_of and not (filt.any_of & tags):
-        return False
-    return True
+    return not (filt.any_of and not filt.any_of & tags)
 
 
 def parse_inline_tags(text: str) -> frozenset[str]:

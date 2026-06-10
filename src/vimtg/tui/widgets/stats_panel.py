@@ -93,7 +93,7 @@ class StatsPanel(Static):
             t.append("  Curve \u0394:\n", style=f"dim {COLORS['comment']}")
             for bucket in sorted(sd.curve_delta.keys()):
                 delta = sd.curve_delta[bucket]
-                label = f"7+" if bucket >= 7 else str(bucket)
+                label = "7+" if bucket >= 7 else str(bucket)
                 color = COLORS["mana_green"] if delta > 0 else COLORS["mana_red"]
                 sign = "+" if delta > 0 else ""
                 t.append(f"  {label}: ", style="dim")

@@ -106,3 +106,19 @@ def test_convert_roundtrip_vimtg(runner: CliRunner, tmp_path: Path) -> None:
     result = runner.invoke(main, ["convert", str(mtgo_out), "--from", "mtgo", "--to", "vimtg"])
     assert result.exit_code == 0
     assert "Lightning Bolt" in result.output
+
+
+# --- version / entry point ---
+
+
+def test_version_flag(runner: CliRunner) -> None:
+    result = runner.invoke(main, ["--version"])
+    assert result.exit_code == 0
+    assert "vimtg, version 0.1.0" in result.output
+
+
+def test_help_lists_subcommands(runner: CliRunner) -> None:
+    result = runner.invoke(main, ["--help"])
+    assert result.exit_code == 0
+    for sub in ("sync", "edit", "search", "new", "validate", "convert"):
+        assert sub in result.output

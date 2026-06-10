@@ -11,6 +11,7 @@ import tempfile
 import tomllib
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from vimtg.config.paths import config_dir
 from vimtg.config.settings import Settings
@@ -44,7 +45,7 @@ def save_settings(settings: Settings) -> Path:
     config_path = config_dir() / "config.toml"
 
     # Preserve existing non-editor sections (e.g. [keybindings])
-    other_sections: dict[str, dict] = {}
+    other_sections: dict[str, dict[str, Any]] = {}
     if config_path.exists():
         with open(config_path, "rb") as f:
             existing = tomllib.load(f)

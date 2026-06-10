@@ -1,9 +1,7 @@
 """Tests for the deck diff service."""
 
-from vimtg.domain.deck import DeckSection
 from vimtg.domain.deck_diff import ChangeType
 from vimtg.services.deck_diff_service import DeckDiffService
-
 
 OLD_STATE = "4 Lightning Bolt\n4 Goblin Guide\n"
 NEW_STATE = "4 Lightning Bolt\n4 Monastery Swiftspear\n"

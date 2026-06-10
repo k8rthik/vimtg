@@ -10,7 +10,6 @@ from vimtg.editor.registers import RegisterStore
 from vimtg.services.history_service import HistoryService
 from vimtg.tui.screens.key_handler import (
     EditorState,
-    HandlerResult,
     handle_mode_switch,
     handle_normal_special,
     handle_operator,

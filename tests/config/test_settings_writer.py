@@ -2,8 +2,6 @@
 
 import os
 
-import pytest
-
 from vimtg.config.settings import Settings
 from vimtg.config.settings_writer import save_settings, settings_to_toml
 

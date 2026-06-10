@@ -8,7 +8,6 @@ from vimtg.data.database import Database
 from vimtg.data.snapshot_repository import SnapshotRepository
 from vimtg.services.vcs_service import VersionControlService
 
-
 DECK_PATH = "/tmp/test.deck"
 STATE_V1 = "4 Lightning Bolt\n4 Goblin Guide\n"
 STATE_V2 = "4 Lightning Bolt\n4 Goblin Guide\n4 Monastery Swiftspear\n"

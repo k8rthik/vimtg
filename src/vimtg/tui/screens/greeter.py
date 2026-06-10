@@ -11,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 
 from rich.text import Text
+from textual.app import ComposeResult
 from textual.events import Key
 from textual.screen import Screen
 from textual.widgets import Static
@@ -185,7 +186,7 @@ class GreeterView(Static):
         return None
 
 
-class GreeterScreen(Screen):
+class GreeterScreen(Screen[None]):
     """Startup screen with logo, actions, and recent files."""
 
     CSS = f"""
@@ -201,7 +202,7 @@ class GreeterScreen(Screen):
         self._recent = recent_files or []
         self._all_files = _find_all_decks()
 
-    def compose(self):  # noqa: ANN201
+    def compose(self) -> ComposeResult:
         yield GreeterView(recent_files=self._recent, all_files=self._all_files)
 
     def on_key(self, event: Key) -> None:
@@ -239,10 +240,7 @@ class GreeterScreen(Screen):
             gv.refresh()
         elif key in ("q", "escape"):
             self.app.exit()
-        elif key == "?":
-            gv.set_mode(GreeterMode.HELP)
-            gv.refresh()
-        elif key == ":":
+        elif key == "?" or key == ":":
             gv.set_mode(GreeterMode.HELP)
             gv.refresh()
         elif key.isdigit() and int(key) >= 1 and int(key) <= len(self._recent):

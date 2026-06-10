@@ -16,7 +16,7 @@ class SnapshotsPanel(Static):
     snapshots: reactive[list[VCSSnapshot]] = reactive(list, recompose=False)
     selected: reactive[int] = reactive(0)
     focused_panel: reactive[bool] = reactive(False)
-    scroll_offset: reactive[int] = reactive(0)
+    scroll_pos: reactive[int] = reactive(0)
 
     def render(self) -> Text:
         t = Text()
@@ -32,7 +32,7 @@ class SnapshotsPanel(Static):
 
         # Visible window (simple scroll)
         max_visible = 20
-        start = self.scroll_offset
+        start = self.scroll_pos
         end = min(start + max_visible, len(self.snapshots))
 
         for i in range(start, end):
@@ -49,7 +49,7 @@ class SnapshotsPanel(Static):
                 tag_str = f" ({snap.tag})"
 
             if is_selected:
-                t.append(f" > ", style=f"bold {COLORS['quantity']}")
+                t.append(" > ", style=f"bold {COLORS['quantity']}")
                 t.append(short_hash, style=f"bold {COLORS['mana_blue']} on {COLORS['cursor_bg']}")
             else:
                 t.append("   ", style="")
@@ -81,10 +81,10 @@ class SnapshotsPanel(Static):
 
     def _adjust_scroll(self) -> None:
         max_visible = 20
-        if self.selected < self.scroll_offset:
-            self.scroll_offset = self.selected
-        elif self.selected >= self.scroll_offset + max_visible:
-            self.scroll_offset = self.selected - max_visible + 1
+        if self.selected < self.scroll_pos:
+            self.scroll_pos = self.selected
+        elif self.selected >= self.scroll_pos + max_visible:
+            self.scroll_pos = self.selected - max_visible + 1
 
     def get_selected_snapshot(self) -> VCSSnapshot | None:
         if 0 <= self.selected < len(self.snapshots):

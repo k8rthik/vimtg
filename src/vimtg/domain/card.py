@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class Color(Enum):
@@ -72,19 +73,21 @@ def _parse_prices(prices: dict[str, str | None] | None) -> Prices:
     )
 
 
-def _extract_image_uri(data: dict) -> str | None:
+def _extract_image_uri(data: dict[str, Any]) -> str | None:
     image_uris = data.get("image_uris")
     if image_uris and isinstance(image_uris, dict):
-        return image_uris.get("normal")
+        uri: str | None = image_uris.get("normal")
+        return uri
     faces = data.get("card_faces")
     if faces and isinstance(faces, list):
         face_uris = faces[0].get("image_uris")
         if face_uris and isinstance(face_uris, dict):
-            return face_uris.get("normal")
+            face_uri: str | None = face_uris.get("normal")
+            return face_uri
     return None
 
 
-def _build_from_face_layout(data: dict) -> dict:
+def _build_from_face_layout(data: dict[str, Any]) -> dict[str, Any]:
     face = data["card_faces"][0]
     return {
         "mana_cost": face.get("mana_cost", ""),
@@ -94,7 +97,7 @@ def _build_from_face_layout(data: dict) -> dict:
     }
 
 
-def _build_from_split_layout(data: dict) -> dict:
+def _build_from_split_layout(data: dict[str, Any]) -> dict[str, Any]:
     faces = data["card_faces"]
     combined_text = "\n//\n".join(f.get("oracle_text", "") for f in faces)
     return {
@@ -105,7 +108,7 @@ def _build_from_split_layout(data: dict) -> dict:
     }
 
 
-def _build_from_adventure_layout(data: dict) -> dict:
+def _build_from_adventure_layout(data: dict[str, Any]) -> dict[str, Any]:
     faces = data["card_faces"]
     creature_face = faces[0]
     combined_text = "\n//\n".join(f.get("oracle_text", "") for f in faces)
@@ -138,7 +141,7 @@ class Card:
     keywords: tuple[str, ...]
 
     @classmethod
-    def from_scryfall(cls, data: dict) -> "Card":
+    def from_scryfall(cls, data: dict[str, Any]) -> "Card":
         layout = data.get("layout", "normal")
 
         if layout in _FACE_LAYOUTS:

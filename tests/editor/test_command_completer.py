@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-
 from vimtg.editor.command_completer import (
     CommandCompleter,
     CompletionState,
     fuzzy_score,
 )
 from vimtg.editor.commands import CommandRegistry
-
 
 # ── fuzzy_score ──────────────────────────────────────────────────
 
