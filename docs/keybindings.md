@@ -106,6 +106,13 @@ holds a frozen set of them.
 | `@{reg}` | Replay macro from `{reg}` |
 | `@@` | Replay last macro |
 
+## Help
+
+| Key | Action |
+|-----|--------|
+| `F1` | Open full-screen help (j/k scroll, `q` to close) |
+| `?` | Toggle quick-reference panel |
+
 ## Command-mode keys
 
 While typing a `:` command:

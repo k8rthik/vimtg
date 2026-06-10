@@ -116,7 +116,7 @@ COMMAND_HELP: dict[str, str] = {
         ":filter                   clear filter"
     ),
     "retag": ":retag /old/new/  Rename a tag across the entire deck",
-    "help": ":help [command]  Show help",
+    "help": ":help [command]  Open full-screen help (also F1; q closes)",
     "history": (
         ":history  Open lazygit-style deck version control\n"
         "\n"

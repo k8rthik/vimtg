@@ -101,5 +101,5 @@ vimtg keeps a snapshot tree per deck (lazygit-style).
 
 | Command | Description |
 |---------|-------------|
-| `:help` | Show overview help |
-| `:help cmd` | Show help for a specific command |
+| `:help` | Open full-screen help overview (also `F1`) |
+| `:help cmd` | Open help for a specific command |
