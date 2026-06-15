@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from textual.app import App
 
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
@@ -279,3 +280,136 @@ async def test_open_help_via_question_mark(tmp_path: Path) -> None:
         await pilot.pause()
         hp = scr.query_one("#help-panel", HelpPanel)
         assert hp.display is True
+
+
+# ── Search / insert / confirm flow (wired card repo) ───────────────
+
+
+class _Host(App[None]):
+    """Hosts a fully-wired MainScreen for search/insert flow tests."""
+
+    def __init__(self, screen: MainScreen) -> None:
+        super().__init__()
+        self._target = screen
+
+    def on_mount(self) -> None:
+        self.push_screen(self._target)
+
+    def _launch_editor(self, file_path: Path | None = None) -> None:  # pragma: no cover
+        pass
+
+
+@pytest.fixture
+def wired_repo(db_factory):  # type: ignore[no-untyped-def]
+    import json
+
+    from vimtg.data.card_repository import CardRepository
+    from vimtg.domain.card import Card
+
+    fixtures = Path(__file__).parent.parent / "fixtures" / "scryfall_sample.json"
+    repo = CardRepository(db_factory())
+    repo.bulk_insert([Card.from_scryfall(d) for d in json.loads(fixtures.read_text())])
+    return repo
+
+
+def _wired_screen(repo) -> MainScreen:  # type: ignore[no-untyped-def]
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+
+    return MainScreen(
+        buffer=Buffer.from_text("// Creatures\n4 Goblin Guide\n"),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=repo),
+        card_repo=repo,
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_search_results_shows_panel(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bolt = wired_repo.get_by_name("Lightning Bolt")
+        scr._update_search_results([bolt])
+        from vimtg.tui.widgets.search_results import SearchResults
+
+        sr = scr.query_one("#search-results", SearchResults)
+        assert sr.display is True
+        assert sr.results == [bolt]
+
+
+@pytest.mark.asyncio
+async def test_confirm_insert_adds_card_to_section(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Open a blank line (simulate 'o') then confirm an Instant insert.
+        scr._state.buffer = scr._state.buffer.insert_line(2, "")
+        scr._state.cursor = Cursor(row=2)
+        bolt = wired_repo.get_by_name("Lightning Bolt")
+        scr._update_search_results([bolt])
+        scr._confirm_insert()
+        assert scr._find_card_line("Lightning Bolt") is not None
+
+
+@pytest.mark.asyncio
+async def test_confirm_insert_duplicate_increments(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.buffer = scr._state.buffer.insert_line(2, "")
+        scr._state.cursor = Cursor(row=2)
+        guide = wired_repo.get_by_name("Goblin Guide")
+        scr._update_search_results([guide])
+        scr._confirm_insert()
+        line = scr._find_card_line("Goblin Guide")
+        assert line is not None
+        assert scr._state.buffer.quantity_at(line) == 5  # 4 -> 5
+
+
+@pytest.mark.asyncio
+async def test_confirm_insert_no_selection_cleans_blank(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.buffer = scr._state.buffer.insert_line(2, "")
+        scr._state.cursor = Cursor(row=2)
+        scr._update_search_results([])  # nothing selected
+        before = scr._state.buffer.line_count()
+        scr._confirm_insert()
+        assert scr._state.buffer.line_count() == before - 1
+
+
+@pytest.mark.asyncio
+async def test_handle_search_next_prev(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        cards = [wired_repo.get_by_name("Lightning Bolt"), wired_repo.get_by_name("Lava Spike")]
+        scr._update_search_results(cards)
+        from vimtg.tui.widgets.search_results import SearchResults
+
+        sr = scr.query_one("#search-results", SearchResults)
+        scr._handle_search_action("__next__")
+        assert sr.selected == 1
+        scr._handle_search_action("__prev__")
+        assert sr.selected == 0
+
+
+@pytest.mark.asyncio
+async def test_handle_search_short_query_hides(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        from vimtg.tui.widgets.search_results import SearchResults
+
+        sr = scr.query_one("#search-results", SearchResults)
+        sr.display = True
+        scr._handle_search_action("b")  # < 2 chars
+        assert sr.display is False
