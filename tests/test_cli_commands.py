@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Callable
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
 
+from vimtg import cli
 from vimtg.cli import main
+from vimtg.data.card_repository import CardRepository
+from vimtg.data.database import Database
+from vimtg.domain.card import Card
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -15,6 +22,14 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()
+
+
+@pytest.fixture
+def loaded_repo(db_factory: Callable[..., Database]) -> CardRepository:
+    repo = CardRepository(db_factory())
+    with open(FIXTURES_DIR / "scryfall_sample.json") as f:
+        repo.bulk_insert([Card.from_scryfall(d) for d in json.load(f)])
+    return repo
 
 
 # --- new command ---
@@ -122,3 +137,108 @@ def test_help_lists_subcommands(runner: CliRunner) -> None:
     assert result.exit_code == 0
     for sub in ("sync", "edit", "search", "new", "validate", "convert"):
         assert sub in result.output
+
+
+def test_make_card_repo_initializes_db() -> None:
+    # XDG dirs are isolated per-test, so this builds a fresh throwaway db.
+    repo = cli._make_card_repo()
+    try:
+        assert repo.count() == 0
+    finally:
+        repo._db.close()
+
+
+# --- validate error exit path ---
+
+
+def test_validate_with_error_exits_nonzero(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    deck_file = tmp_path / "bad.deck"
+    deck_file.write_text("// Deck: Bad\n\n0 Lightning Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", str(deck_file)])
+    assert result.exit_code == 1
+    assert "error:" in result.output
+
+
+# --- search command ---
+
+
+def test_search_outputs_results(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "bolt"])
+    assert result.exit_code == 0
+    assert "Lightning Bolt" in result.output
+
+
+def test_search_no_results(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "zzzznotacard"])
+    assert result.exit_code == 0
+    assert "No cards found." in result.output
+
+
+# --- sync command ---
+
+
+def test_sync_command_reports_count(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+
+    fake_sync = MagicMock(return_value=42)
+    monkeypatch.setattr(cli.ScryfallSync, "sync", fake_sync)
+    result = runner.invoke(main, ["sync"])
+    assert result.exit_code == 0
+    assert "Synced 42 cards" in result.output
+
+
+def test_sync_progress_output(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+
+    def fake_sync(self, force=False, progress=None):  # type: ignore[no-untyped-def]
+        if progress:
+            progress("download", 50, 100)
+            progress("parse", 5, 10)
+        return 7
+
+    monkeypatch.setattr(cli.ScryfallSync, "sync", fake_sync)
+    result = runner.invoke(main, ["sync", "--force"])
+    assert result.exit_code == 0
+    assert "Downloading... 50%" in result.output
+    assert "Parsing... 5/10" in result.output
+
+
+# --- editor launch paths (app is mocked to avoid a real TUI) ---
+
+
+def test_edit_launches_app(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_app = MagicMock()
+    fake_app_cls = MagicMock(return_value=fake_app)
+    import vimtg.tui.app as app_mod
+
+    monkeypatch.setattr(app_mod, "VimTGApp", fake_app_cls)
+    result = runner.invoke(main, ["edit", "deck.deck"])
+    assert result.exit_code == 0
+    fake_app.run.assert_called_once()
+
+
+def test_no_subcommand_launches_app(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_app = MagicMock()
+    fake_app_cls = MagicMock(return_value=fake_app)
+    import vimtg.tui.app as app_mod
+
+    monkeypatch.setattr(app_mod, "VimTGApp", fake_app_cls)
+    result = runner.invoke(main, [])
+    assert result.exit_code == 0
+    fake_app.run.assert_called_once()
