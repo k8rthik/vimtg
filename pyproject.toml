@@ -42,6 +42,10 @@ warn_unused_configs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # Surface leaked sqlite connections as test failures rather than noise.
+    "error::ResourceWarning",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vimtg"]

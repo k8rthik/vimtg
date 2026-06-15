@@ -1,7 +1,7 @@
 """Tests for the persistent snapshot repository."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
 
@@ -13,10 +13,8 @@ DECK_PATH = "/tmp/test.deck"
 
 
 @pytest.fixture
-def repo(tmp_db: Path) -> SnapshotRepository:
-    db = Database(tmp_db)
-    db.initialize()
-    return SnapshotRepository(db)
+def repo(db_factory: Callable[..., Database]) -> SnapshotRepository:
+    return SnapshotRepository(db_factory())
 
 
 def _snap(

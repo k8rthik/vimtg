@@ -3,11 +3,24 @@
 from vimtg.domain.tags import (
     TagFilter,
     format_inline_tags,
+    format_tag_summary,
     matches_filter,
     parse_inline_tags,
     parse_tag_filter,
     strip_inline_tags,
 )
+
+
+class TestFormatTagSummary:
+    def test_empty_map(self):
+        assert format_tag_summary({}) == "No tags in deck"
+
+    def test_single_tag(self):
+        assert format_tag_summary({"core": 3}) == "Tags: #core(3)"
+
+    def test_sorted_by_name(self):
+        result = format_tag_summary({"zap": 1, "core": 2, "burn": 1})
+        assert result == "Tags: #burn(1) #core(2) #zap(1)"
 
 
 class TestParseInlineTags:

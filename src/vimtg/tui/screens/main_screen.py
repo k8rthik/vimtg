@@ -345,6 +345,17 @@ class MainScreen(Screen[None]):
             elif len(query) < 2:
                 sr.display = False
 
+    def _delete_blank_cursor_line(self) -> bool:
+        """Delete the cursor line if blank (the leftover from an 'o' insert).
+
+        Returns True when a line was removed so callers can adjust offsets.
+        """
+        s = self._state
+        if s.buffer.get_line(s.cursor.row).text.strip() == "":
+            s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
+            return True
+        return False
+
     def _confirm_insert(self) -> None:
         sr = self.query_one("#search-results", SearchResults)
         cl = self.query_one("#command-line", CommandLine)
@@ -356,19 +367,15 @@ class MainScreen(Screen[None]):
             if duplicate_line is not None:
                 qty = s.buffer.quantity_at(duplicate_line) or 0
                 s.buffer = s.buffer.set_line(duplicate_line, f"{qty + 1} {card.name}")
-                # Remove the blank line that 'o' inserted
-                if s.buffer.get_line(s.cursor.row).text.strip() == "":
-                    s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
+                self._delete_blank_cursor_line()
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
             else:
                 # Find or create the right type section, then insert there
                 s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
                 if insert_row is not None and insert_row != s.cursor.row:
                     # Remove the blank line 'o' inserted and place card in correct section
-                    if s.buffer.get_line(s.cursor.row).text.strip() == "":
-                        s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
-                        if insert_row > s.cursor.row:
-                            insert_row -= 1
+                    if self._delete_blank_cursor_line() and insert_row > s.cursor.row:
+                        insert_row -= 1
                     s.buffer = s.buffer.insert_line(insert_row, f"1 {card.name}")
                     s.cursor = s.cursor.move_to(insert_row, 0)
                 else:
@@ -381,8 +388,7 @@ class MainScreen(Screen[None]):
         else:
             # No card selected — clean up blank line from 'o'
             s = self._state
-            if s.buffer.get_line(s.cursor.row).text.strip() == "":
-                s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
+            if self._delete_blank_cursor_line():
                 s.cursor = s.cursor.clamp(s.buffer.line_count() - 1)
             cl.hide()
         sr.display = False

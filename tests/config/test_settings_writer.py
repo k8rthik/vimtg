@@ -1,6 +1,6 @@
 """Tests for TOML settings writer."""
 
-import os
+import pytest
 
 from vimtg.config.settings import Settings
 from vimtg.config.settings_writer import save_settings, settings_to_toml
@@ -34,18 +34,19 @@ class TestSettingsToToml:
 
 
 class TestSaveSettings:
-    def test_creates_config_file(self, tmp_path) -> None:
-        os.environ["XDG_CONFIG_HOME"] = str(tmp_path)
-        try:
-            path = save_settings(Settings())
-            assert path.exists()
-            content = path.read_text()
-            assert "[editor]" in content
-            assert 'price_source = "usd"' in content
-        finally:
-            del os.environ["XDG_CONFIG_HOME"]
+    def test_creates_config_file(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        path = save_settings(Settings())
+        assert path.exists()
+        content = path.read_text()
+        assert "[editor]" in content
+        assert 'price_source = "usd"' in content
 
-    def test_preserves_keybindings_section(self, tmp_path) -> None:
+    def test_preserves_keybindings_section(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         config_dir = tmp_path / "vimtg"
         config_dir.mkdir()
         config_file = config_dir / "config.toml"
@@ -54,30 +55,26 @@ class TestSaveSettings:
             '[keybindings]\ns = ":w"\nQ = ":q!"\n'
         )
 
-        os.environ["XDG_CONFIG_HOME"] = str(tmp_path)
-        try:
-            save_settings(Settings(price_source="eur"))
-            content = config_file.read_text()
-            assert 'price_source = "eur"' in content
-            assert "[keybindings]" in content
-            assert 's = ":w"' in content
-        finally:
-            del os.environ["XDG_CONFIG_HOME"]
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        save_settings(Settings(price_source="eur"))
+        content = config_file.read_text()
+        assert 'price_source = "eur"' in content
+        assert "[keybindings]" in content
+        assert 's = ":w"' in content
 
-    def test_roundtrip_load_save(self, tmp_path) -> None:
-        os.environ["XDG_CONFIG_HOME"] = str(tmp_path)
-        try:
-            original = Settings(
-                price_source="tix", show_prices=False,
-                search_limit=100, default_format="modern",
-            )
-            save_settings(original)
+    def test_roundtrip_load_save(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        original = Settings(
+            price_source="tix", show_prices=False,
+            search_limit=100, default_format="modern",
+        )
+        save_settings(original)
 
-            from vimtg.config.settings import load_settings
-            loaded = load_settings()
-            assert loaded.price_source == "tix"
-            assert loaded.show_prices is False
-            assert loaded.search_limit == 100
-            assert loaded.default_format == "modern"
-        finally:
-            del os.environ["XDG_CONFIG_HOME"]
+        from vimtg.config.settings import load_settings
+        loaded = load_settings()
+        assert loaded.price_source == "tix"
+        assert loaded.show_prices is False
+        assert loaded.search_limit == 100
+        assert loaded.default_format == "modern"

@@ -1,6 +1,7 @@
 """Tests for ScryfallSync bulk data download and import."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,10 +15,8 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 @pytest.fixture
-def card_repo(tmp_db: Path) -> CardRepository:
-    db = Database(tmp_db)
-    db.initialize()
-    return CardRepository(db)
+def card_repo(db_factory: Callable[..., Database]) -> CardRepository:
+    return CardRepository(db_factory())
 
 
 @pytest.fixture

@@ -1,6 +1,7 @@
 """Tests for SearchService with Scryfall syntax parsing."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -14,10 +15,8 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 @pytest.fixture
-def card_repo(tmp_db: Path) -> CardRepository:
-    db = Database(tmp_db)
-    db.initialize()
-    repo = CardRepository(db)
+def card_repo(db_factory: Callable[..., Database]) -> CardRepository:
+    repo = CardRepository(db_factory())
     with open(FIXTURES_DIR / "scryfall_sample.json") as f:
         cards_data = json.load(f)
     cards = [Card.from_scryfall(d) for d in cards_data]

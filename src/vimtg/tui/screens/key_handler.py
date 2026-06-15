@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
+from vimtg.domain.tags import format_tag_summary
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
 from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
@@ -326,14 +327,7 @@ def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
         )
     if sub_key == "l":
         # List all tags inline
-        tag_counts: dict[str, int] = {}
-        for i in range(state.buffer.line_count()):
-            for tag in state.buffer.tags_at(i):
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-        if tag_counts:
-            parts = [f"#{t}({c})" for t, c in sorted(tag_counts.items())]
-            return HandlerResult(command_message=f"Tags: {' '.join(parts)}")
-        return HandlerResult(command_message="No tags in deck")
+        return HandlerResult(command_message=format_tag_summary(state.buffer.tag_counts()))
     if sub_key == "c":
         # Clear all tags from cursor card
         if state.buffer.is_card_line(state.cursor.row) and state.buffer.tags_at(state.cursor.row):

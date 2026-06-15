@@ -66,34 +66,30 @@ class TestValidation:
 
 
 class TestLoadSettings:
-    def test_load_with_no_file_returns_defaults(self, tmp_path) -> None:
+    def test_load_with_no_file_returns_defaults(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """load_settings with no config file returns defaults."""
-        import os
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        from vimtg.config.settings import load_settings
 
-        os.environ["XDG_CONFIG_HOME"] = str(tmp_path)
-        try:
-            from vimtg.config.settings import load_settings
-            s = load_settings()
-            assert s.price_source == "usd"
-            assert s.show_prices is True
-        finally:
-            del os.environ["XDG_CONFIG_HOME"]
+        s = load_settings()
+        assert s.price_source == "usd"
+        assert s.show_prices is True
 
-    def test_load_with_partial_config(self, tmp_path) -> None:
+    def test_load_with_partial_config(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Missing fields fall back to defaults."""
         config_dir = tmp_path / "vimtg"
         config_dir.mkdir()
         config_file = config_dir / "config.toml"
         config_file.write_text('[editor]\nprice_source = "eur"\n')
 
-        import os
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        from vimtg.config.settings import load_settings
 
-        os.environ["XDG_CONFIG_HOME"] = str(tmp_path)
-        try:
-            from vimtg.config.settings import load_settings
-            s = load_settings()
-            assert s.price_source == "eur"
-            assert s.show_prices is True  # default
-            assert s.search_limit == 50  # default
-        finally:
-            del os.environ["XDG_CONFIG_HOME"]
+        s = load_settings()
+        assert s.price_source == "eur"
+        assert s.show_prices is True  # default
+        assert s.search_limit == 50  # default

@@ -64,6 +64,26 @@ class TestCmdTag:
         assert buf.tags_at(4) == frozenset({"flex"})
         assert buf.tags_at(5) == frozenset({"flex"})
 
+    def test_tag_reversed_range_normalized(self):
+        # :5,3tag should behave the same as :3,5tag (vim normalizes).
+        buf = _buf(SAMPLE_DECK)
+        cursor = Cursor(row=3, col=0)
+        ctx = _ctx()
+        rng = CommandRange(start=5, end=3)
+        buf, _ = cmd_tag(buf, cursor, _cmd("tag", "flex", cmd_range=rng), ctx)
+        assert buf.tags_at(3) == frozenset({"flex"})
+        assert buf.tags_at(4) == frozenset({"flex"})
+        assert buf.tags_at(5) == frozenset({"flex"})
+        assert "Tagged 3" in ctx.message
+
+    def test_tag_range_start_zero(self):
+        # end=0 must be preserved (line 0), not coerced to start via falsy `or`.
+        buf = _buf("4 Goblin Guide\n4 Lightning Bolt\n")
+        ctx = _ctx()
+        rng = CommandRange(start=0, end=0)
+        buf, _ = cmd_tag(buf, Cursor(0, 0), _cmd("tag", "core", cmd_range=rng), ctx)
+        assert buf.tags_at(0) == frozenset({"core"})
+
     def test_tag_non_card_line_skipped(self):
         buf = _buf(SAMPLE_DECK)
         cursor = Cursor(row=0, col=0)  # metadata line

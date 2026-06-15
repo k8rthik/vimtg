@@ -1,6 +1,6 @@
 """Tests for the persistent version control service."""
 
-from pathlib import Path
+from collections.abc import Callable
 
 import pytest
 
@@ -16,10 +16,8 @@ STATE_BUDGET = "4 Shock\n4 Lava Spike\n"
 
 
 @pytest.fixture
-def vcs(tmp_db: Path) -> VersionControlService:
-    db = Database(tmp_db)
-    db.initialize()
-    repo = SnapshotRepository(db)
+def vcs(db_factory: Callable[..., Database]) -> VersionControlService:
+    repo = SnapshotRepository(db_factory())
     return VersionControlService(repo, DECK_PATH)
 
 

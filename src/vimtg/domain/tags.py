@@ -102,3 +102,15 @@ def format_inline_tags(tags: frozenset[str]) -> str:
         return ""
     sorted_tags = sorted(tags)
     return "  " + " ".join(f"#{t}" for t in sorted_tags)
+
+
+def format_tag_summary(counts: dict[str, int]) -> str:
+    """Render a tag-count map as a status message, sorted by tag name.
+
+    Returns ``"No tags in deck"`` when the map is empty, otherwise
+    ``"Tags: #tag1(2) #tag2(1)"``.
+    """
+    if not counts:
+        return "No tags in deck"
+    parts = [f"#{t}({c})" for t, c in sorted(counts.items())]
+    return f"Tags: {' '.join(parts)}"

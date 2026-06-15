@@ -232,6 +232,36 @@ class TestMoxfield:
         assert reimported.sideboard() == deck.sideboard()
 
 
+class TestCsvQuantityEdgeCases:
+    """A single malformed quantity cell must not abort a CSV import."""
+
+    def test_empty_count_cell_defaults_to_one(self) -> None:
+        text = (
+            "Count,Name,Edition,Collector Number,Section\n"
+            ",Lightning Bolt,STA,,mainboard\n"
+        )
+        deck = _svc().import_deck(text, DeckFormat.MOXFIELD)
+        assert deck.mainboard()[0].quantity == 1
+
+    def test_non_integer_count_defaults_to_one(self) -> None:
+        text = (
+            "Count,Name,Edition,Collector Number,Section\n"
+            "abc,Lightning Bolt,STA,,mainboard\n"
+        )
+        deck = _svc().import_deck(text, DeckFormat.MOXFIELD)
+        assert deck.mainboard()[0].quantity == 1
+
+    def test_zero_count_clamped_to_one(self) -> None:
+        text = "Quantity,Name\n0,Lightning Bolt\n"
+        deck = _svc().import_deck(text, DeckFormat.ARCHIDEKT)
+        assert deck.entries[0].quantity == 1
+
+    def test_whitespace_count_trimmed(self) -> None:
+        text = "Quantity,Name\n  3  ,Lightning Bolt\n"
+        deck = _svc().import_deck(text, DeckFormat.ARCHIDEKT)
+        assert deck.entries[0].quantity == 3
+
+
 # ==================================================================
 # Archidekt
 # ==================================================================

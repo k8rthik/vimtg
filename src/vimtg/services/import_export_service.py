@@ -27,6 +27,22 @@ class DeckFormat(Enum):
     ARCHIDEKT = "archidekt"
 
 
+def _row_quantity(row: Mapping[str, str | None]) -> int:
+    """Read a card quantity from a CSV row, trying 'Count' then 'Quantity'.
+
+    Falls back to 1 for missing, empty, or non-integer cells so a single
+    malformed value never aborts the whole import.
+    """
+    raw = row.get("Count") or row.get("Quantity")
+    if raw is None:
+        return 1
+    try:
+        qty = int(str(raw).strip())
+    except ValueError:
+        return 1
+    return qty if qty > 0 else 1
+
+
 @dataclass(frozen=True)
 class CardResolution:
     """Outcome of resolving imported card names against the database.
@@ -214,27 +230,21 @@ class ImportExportService:
                 )
         return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
 
+    @staticmethod
+    def _arena_entry(e: DeckEntry, resolved: dict[str, Card]) -> str:
+        """Format one Arena line, appending '(SET) 0' when the card resolves."""
+        card = resolved.get(e.card_name)
+        if card:
+            return f"{e.quantity} {e.card_name} ({card.set_code.upper()}) 0"
+        return f"{e.quantity} {e.card_name}"
+
     def _export_arena(self, deck: Deck, resolved: dict[str, Card]) -> str:
         lines: list[str] = ["Deck"]
-        for e in deck.mainboard():
-            card = resolved.get(e.card_name)
-            if card:
-                lines.append(
-                    f"{e.quantity} {e.card_name} ({card.set_code.upper()}) 0"
-                )
-            else:
-                lines.append(f"{e.quantity} {e.card_name}")
+        lines.extend(self._arena_entry(e, resolved) for e in deck.mainboard())
         if deck.sideboard():
             lines.append("")
             lines.append("Sideboard")
-            for e in deck.sideboard():
-                card = resolved.get(e.card_name)
-                if card:
-                    lines.append(
-                        f"{e.quantity} {e.card_name} ({card.set_code.upper()}) 0"
-                    )
-                else:
-                    lines.append(f"{e.quantity} {e.card_name}")
+            lines.extend(self._arena_entry(e, resolved) for e in deck.sideboard())
         return "\n".join(lines) + "\n"
 
     # ------------------------------------------------------------------
@@ -245,7 +255,7 @@ class ImportExportService:
         reader = csv.DictReader(io.StringIO(text))
         entries: list[DeckEntry] = []
         for row in reader:
-            qty = int(row.get("Count", row.get("Quantity", "1")))
+            qty = _row_quantity(row)
             name = row.get("Name", "")
             section_str = row.get("Section", "mainboard").lower()
             section = (
@@ -255,18 +265,23 @@ class ImportExportService:
                 entries.append(DeckEntry(qty, name, section))
         return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
 
+    @staticmethod
+    def _moxfield_row(
+        e: DeckEntry, resolved: dict[str, Card], section: str
+    ) -> list[object]:
+        """Build one Moxfield CSV row for a deck entry."""
+        card = resolved.get(e.card_name)
+        edition = card.set_code.upper() if card else ""
+        return [e.quantity, e.card_name, edition, "", section]
+
     def _export_moxfield(self, deck: Deck, resolved: dict[str, Card]) -> str:
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["Count", "Name", "Edition", "Collector Number", "Section"])
         for e in deck.mainboard():
-            card = resolved.get(e.card_name)
-            edition = card.set_code.upper() if card else ""
-            writer.writerow([e.quantity, e.card_name, edition, "", "mainboard"])
+            writer.writerow(self._moxfield_row(e, resolved, "mainboard"))
         for e in deck.sideboard():
-            card = resolved.get(e.card_name)
-            edition = card.set_code.upper() if card else ""
-            writer.writerow([e.quantity, e.card_name, edition, "", "sideboard"])
+            writer.writerow(self._moxfield_row(e, resolved, "sideboard"))
         return output.getvalue()
 
     # ------------------------------------------------------------------
@@ -277,7 +292,7 @@ class ImportExportService:
         reader = csv.DictReader(io.StringIO(text))
         entries: list[DeckEntry] = []
         for row in reader:
-            qty = int(row.get("Quantity", row.get("Count", "1")))
+            qty = _row_quantity(row)
             name = row.get("Name", "")
             if name:
                 entries.append(DeckEntry(qty, name, DeckSection.MAIN))

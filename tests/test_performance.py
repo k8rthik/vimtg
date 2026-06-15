@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -22,10 +23,8 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture
-def card_repo_loaded(tmp_path: Path) -> CardRepository:
-    db = Database(tmp_path / "perf.db")
-    db.initialize()
-    repo = CardRepository(db)
+def card_repo_loaded(db_factory: Callable[..., Database]) -> CardRepository:
+    repo = CardRepository(db_factory())
     with open(FIXTURES_DIR / "scryfall_sample.json") as f:
         cards_data = json.load(f)
     cards = [Card.from_scryfall(d) for d in cards_data]

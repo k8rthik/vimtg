@@ -73,6 +73,12 @@ class VimTGApp(App[None]):
         else:
             self._launch_greeter()
 
+    def on_unmount(self) -> None:
+        """Release the database connection when the app shuts down."""
+        if self._db is not None:
+            self._db.close()
+            self._db = None
+
     def _init_services(self) -> None:
         self._cmd_registry = CommandRegistry()
         register_buffer_commands(self._cmd_registry)

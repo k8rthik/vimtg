@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 
 from vimtg.domain.tags import (
+    format_tag_summary,
     matches_filter,
     parse_tag_filter,
 )
@@ -44,10 +45,13 @@ def _card_range(
 ) -> tuple[int, int]:
     """Resolve the line range for a tag command.
 
-    No range → cursor line only. Range → start..end inclusive.
+    No range → cursor line only. Range → start..end inclusive. A reversed
+    range (e.g. ``:5,2``) is normalized so start <= end, matching vim.
     """
     if cmd.cmd_range is not None and cmd.cmd_range.start is not None:
-        return cmd.cmd_range.start, cmd.cmd_range.end or cmd.cmd_range.start
+        start = cmd.cmd_range.start
+        end = cmd.cmd_range.end if cmd.cmd_range.end is not None else start
+        return min(start, end), max(start, end)
     return cursor.row, cursor.row
 
 
@@ -137,17 +141,7 @@ def cmd_tags(
         return buf, cursor
 
     # List all tags with counts
-    tag_counts: dict[str, int] = {}
-    for line in range(buf.line_count()):
-        for tag in buf.tags_at(line):
-            tag_counts[tag] = tag_counts.get(tag, 0) + 1
-
-    if not tag_counts:
-        ctx.message = "No tags in deck"
-        return buf, cursor
-
-    parts = [f"#{t}({c})" for t, c in sorted(tag_counts.items())]
-    ctx.message = f"Tags: {' '.join(parts)}"
+    ctx.message = format_tag_summary(buf.tag_counts())
     return buf, cursor
 
 

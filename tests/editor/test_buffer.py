@@ -216,3 +216,18 @@ class TestNavigation:
     def test_section_range_non_card(self) -> None:
         buf = Buffer.from_text("// comment\n4 Bolt\n")
         assert buf.section_range(0) is None
+
+
+class TestTagCounts:
+    def test_empty_buffer(self) -> None:
+        assert Buffer.from_text("4 Goblin Guide\n").tag_counts() == {}
+
+    def test_counts_across_lines(self) -> None:
+        buf = Buffer.from_text(
+            "4 Goblin Guide  #core\n4 Lightning Bolt  #core #burn\n2 Skullcrack  #burn\n"
+        )
+        assert buf.tag_counts() == {"core": 2, "burn": 2}
+
+    def test_ignores_non_card_lines(self) -> None:
+        buf = Buffer.from_text("// Comment  #core\n4 Goblin Guide  #flex\n")
+        assert buf.tag_counts() == {"flex": 1}

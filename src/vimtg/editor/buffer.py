@@ -238,3 +238,11 @@ class Buffer:
         for i in range(self.line_count()):
             tags.update(self.tags_at(i))
         return frozenset(tags)
+
+    def tag_counts(self) -> dict[str, int]:
+        """Count how many card lines carry each tag across the buffer."""
+        counts: dict[str, int] = {}
+        for i in range(self.line_count()):
+            for tag in self.tags_at(i):
+                counts[tag] = counts.get(tag, 0) + 1
+        return counts
