@@ -230,57 +230,73 @@ class MainScreen(Screen[None]):
             return None
         return handle_normal_special(s, action)
 
+    def _apply_exit_to_normal(self) -> None:
+        s = self._state
+        # If cancelling a line edit (Escape), restore the original line.
+        if (
+            s.insert_submode == InsertSubmode.LINE_EDIT
+            and s.line_edit_original is not None
+            and s.line_edit_row is not None
+            and s.line_edit_row < s.buffer.line_count()
+        ):
+            s.buffer = s.buffer.set_line(s.line_edit_row, s.line_edit_original)
+        s.line_edit_original = None
+        s.line_edit_row = None
+        s.line_edit_prefix = ""
+        s.tag_input_action = ""
+        s.insert_submode = InsertSubmode.CARD_SEARCH
+        s.mode_mgr.force_normal()
+        self.keymap.set_mode(Mode.NORMAL)
+        self.query_one("#search-results", SearchResults).display = False
+        self.query_one("#help-panel", HelpPanel).display = False
+        self.query_one("#command-line", CommandLine).hide()
+        self.query_one("#which-key", WhichKey).line_edit = False
+
+    def _apply_enter_line_edit(self) -> None:
+        s = self._state
+        s.mode_mgr.transition(Mode.INSERT)
+        self.keymap.set_mode(Mode.INSERT)
+        prefix = s.line_edit_prefix
+        full_text = s.buffer.get_line(s.line_edit_row or s.cursor.row).text
+        editable = full_text[len(prefix):]
+        self.keymap.set_insert_text(editable)
+        cl = self.query_one("#command-line", CommandLine)
+        cl.show(prefix)
+        cl.text = editable
+        cl.cursor_pos = len(editable)
+        cl.message = ""
+        self.query_one("#which-key", WhichKey).line_edit = True
+
+    def _apply_enter_tag_input(self, tag_prompt: str) -> None:
+        s = self._state
+        s.insert_submode = InsertSubmode.TAG_INPUT
+        s.mode_mgr.transition(Mode.INSERT)
+        self.keymap.set_mode(Mode.INSERT)
+        self.keymap.reset_text()
+        cl = self.query_one("#command-line", CommandLine)
+        cl.show(tag_prompt)
+        cl.message = ""
+
+    def _apply_enter_card_search(self) -> None:
+        s = self._state
+        s.insert_submode = InsertSubmode.CARD_SEARCH
+        s.mode_mgr.transition(Mode.INSERT)
+        self.keymap.set_mode(Mode.INSERT)
+        self.keymap.reset_text()
+        cl = self.query_one("#command-line", CommandLine)
+        cl.show("")
+        cl.message = "Type card name to search..."
+
     def _apply_handler_result(self, hr: HandlerResult) -> None:
         s = self._state
         if hr.exit_to_normal:
-            # If cancelling a line edit (Escape), restore original line
-            if (
-                s.insert_submode == InsertSubmode.LINE_EDIT
-                and s.line_edit_original is not None
-                and s.line_edit_row is not None
-                and s.line_edit_row < s.buffer.line_count()
-            ):
-                s.buffer = s.buffer.set_line(s.line_edit_row, s.line_edit_original)
-            s.line_edit_original = None
-            s.line_edit_row = None
-            s.line_edit_prefix = ""
-            s.tag_input_action = ""
-            s.insert_submode = InsertSubmode.CARD_SEARCH
-            s.mode_mgr.force_normal()
-            self.keymap.set_mode(Mode.NORMAL)
-            self.query_one("#search-results", SearchResults).display = False
-            self.query_one("#help-panel", HelpPanel).display = False
-            self.query_one("#command-line", CommandLine).hide()
-            self.query_one("#which-key", WhichKey).line_edit = False
+            self._apply_exit_to_normal()
         if hr.enter_line_edit:
-            s.mode_mgr.transition(Mode.INSERT)
-            self.keymap.set_mode(Mode.INSERT)
-            prefix = s.line_edit_prefix
-            full_text = s.buffer.get_line(s.line_edit_row or s.cursor.row).text
-            editable = full_text[len(prefix):]
-            self.keymap.set_insert_text(editable)
-            cl = self.query_one("#command-line", CommandLine)
-            cl.show(prefix)
-            cl.text = editable
-            cl.cursor_pos = len(editable)
-            cl.message = ""
-            self.query_one("#which-key", WhichKey).line_edit = True
+            self._apply_enter_line_edit()
         if hr.enter_tag_input:
-            s.insert_submode = InsertSubmode.TAG_INPUT
-            s.mode_mgr.transition(Mode.INSERT)
-            self.keymap.set_mode(Mode.INSERT)
-            self.keymap.reset_text()
-            cl = self.query_one("#command-line", CommandLine)
-            cl.show(hr.tag_prompt)
-            cl.message = ""
+            self._apply_enter_tag_input(hr.tag_prompt)
         if hr.enter_insert:
-            s.insert_submode = InsertSubmode.CARD_SEARCH
-            s.mode_mgr.transition(Mode.INSERT)
-            self.keymap.set_mode(Mode.INSERT)
-            self.keymap.reset_text()
-            cl = self.query_one("#command-line", CommandLine)
-            cl.show("")
-            cl.message = "Type card name to search..."
+            self._apply_enter_card_search()
         if hr.enter_command:
             s.mode_mgr.transition(Mode.COMMAND)
             self.keymap.set_mode(Mode.COMMAND)
