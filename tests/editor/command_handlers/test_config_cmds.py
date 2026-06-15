@@ -2,9 +2,17 @@
 
 from vimtg.config.settings import Settings
 from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.config_cmds import cmd_config, cmd_set
-from vimtg.editor.commands import EditorContext, ParsedCommand
+from vimtg.editor.command_handlers.config_cmds import (
+    cmd_config,
+    cmd_map,
+    cmd_set,
+    cmd_unmap,
+    register_config_commands,
+)
+from vimtg.editor.commands import CommandRegistry, EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
+
+_BUF = Buffer.from_text("test\n")
 
 
 def _make_ctx(settings: Settings | None = None) -> EditorContext:
@@ -82,3 +90,50 @@ class TestCmdConfig:
             ParsedCommand(name="config"), ctx,
         )
         assert ctx.open_config_screen is True
+
+
+class TestCmdSetNoPrefixInvalid:
+    def test_no_prefix_unknown_key_reports_error(self) -> None:
+        ctx = _make_ctx()
+        cmd_set(_BUF, Cursor(), ParsedCommand(name="set", args="nobogus"), ctx)
+        assert ctx.message.startswith("E:")
+
+
+class TestCmdMap:
+    def test_no_args_shows_hint(self) -> None:
+        ctx = _make_ctx()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map"), ctx)
+        assert "No mappings" in ctx.message
+
+    def test_missing_action_reports_usage(self) -> None:
+        ctx = _make_ctx()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="s"), ctx)
+        assert "Usage" in ctx.message
+
+    def test_valid_mapping(self) -> None:
+        ctx = _make_ctx()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="s :w"), ctx)
+        assert "Mapped" in ctx.message
+        assert "s" in ctx.message
+
+
+class TestCmdUnmap:
+    def test_no_args_reports_usage(self) -> None:
+        ctx = _make_ctx()
+        cmd_unmap(_BUF, Cursor(), ParsedCommand(name="unmap"), ctx)
+        assert "Usage" in ctx.message
+
+    def test_valid_unmap(self) -> None:
+        ctx = _make_ctx()
+        cmd_unmap(_BUF, Cursor(), ParsedCommand(name="unmap", args="Q"), ctx)
+        assert "Unmapped: Q" in ctx.message
+
+
+class TestRegisterConfigCommands:
+    def test_registers_all_commands(self) -> None:
+        registry = CommandRegistry()
+        register_config_commands(registry)
+        for name in ("set", "config", "map", "unmap", "settings", "preferences"):
+            ctx = _make_ctx()
+            registry.execute(ParsedCommand(name=name), _BUF, Cursor(), ctx)
+            assert not ctx.error, f"{name} should be registered"

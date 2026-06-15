@@ -159,6 +159,51 @@ class TestGetBulkDataUrl:
             syncer.get_bulk_data_url()
 
 
+def _mock_stream(chunks: list[bytes], content_length: int | None = None):
+    """Build a MagicMock standing in for httpx.stream(...) as a context manager."""
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    total = content_length if content_length is not None else sum(len(c) for c in chunks)
+    resp.headers = {"content-length": str(total)}
+    resp.iter_bytes = MagicMock(return_value=iter(chunks))
+    cm = MagicMock()
+    cm.__enter__ = MagicMock(return_value=resp)
+    cm.__exit__ = MagicMock(return_value=False)
+    return cm
+
+
+class TestDownload:
+    def test_streams_to_file_with_atomic_rename(
+        self, syncer: ScryfallSync, tmp_path: Path
+    ) -> None:
+        dest = tmp_path / "out.json"
+        chunks = [b'[{"id":', b'"x"}]']
+        with patch(
+            "vimtg.data.scryfall_sync.httpx.stream",
+            return_value=_mock_stream(chunks),
+        ):
+            result = syncer.download("https://example.com/x.json", dest)
+        assert result == dest
+        assert dest.exists()
+        assert dest.read_bytes() == b'[{"id":"x"}]'
+        # The temp file should have been renamed away.
+        assert not dest.with_suffix(".tmp").exists()
+
+    def test_progress_callback_invoked(
+        self, syncer: ScryfallSync, tmp_path: Path
+    ) -> None:
+        dest = tmp_path / "out.json"
+        calls: list[tuple[int, int]] = []
+        with patch(
+            "vimtg.data.scryfall_sync.httpx.stream",
+            return_value=_mock_stream([b"ab", b"cd"], content_length=4),
+        ):
+            syncer.download(
+                "https://example.com/x.json", dest, progress=lambda c, t: calls.append((c, t))
+            )
+        assert calls == [(2, 4), (4, 4)]
+
+
 class TestSync:
     def test_sync_uses_cache(
         self, card_repo: CardRepository, tmp_path: Path, sample_json_path: Path
@@ -172,3 +217,76 @@ class TestSync:
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
         count = syncer.sync(force=False)
         assert count == 10
+
+    def test_sync_force_downloads(
+        self, card_repo: CardRepository, tmp_path: Path
+    ) -> None:
+        """force=True downloads even when a fresh cache exists."""
+        cache = tmp_path / "sync_cache"
+        cache.mkdir()
+        sample = (FIXTURES_DIR / "scryfall_sample.json").read_text()
+        # Stale-looking pre-existing cache; force should ignore it.
+        (cache / "oracle_cards.json").write_text("[]")
+
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+
+        def fake_download(url: str, dest: Path, progress=None) -> Path:
+            dest.write_text(sample)
+            return dest
+
+        phases: list[str] = []
+        with (
+            patch.object(syncer, "get_bulk_data_url", return_value="https://x/oracle.json"),
+            patch.object(syncer, "download", side_effect=fake_download),
+        ):
+            count = syncer.sync(force=True, progress=lambda p, c, t: phases.append(p))
+        assert count == 10
+        assert card_repo.get_last_sync() is not None
+        assert "download" in phases
+        assert "parse" in phases
+
+    def test_sync_stale_cache_redownloads(
+        self, card_repo: CardRepository, tmp_path: Path
+    ) -> None:
+        """A cache older than MAX_AGE_DAYS triggers a fresh download."""
+        import os
+        import time as _time
+
+        from vimtg.data.scryfall_sync import MAX_AGE_DAYS
+
+        cache = tmp_path / "sync_cache"
+        cache.mkdir()
+        sample = (FIXTURES_DIR / "scryfall_sample.json").read_text()
+        stale = cache / "oracle_cards.json"
+        stale.write_text("[]")
+        old = _time.time() - (MAX_AGE_DAYS + 1) * 86400
+        os.utime(stale, (old, old))
+
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+        downloaded: list[str] = []
+
+        def fake_download(url: str, dest: Path, progress=None) -> Path:
+            downloaded.append(url)
+            dest.write_text(sample)
+            return dest
+
+        with (
+            patch.object(syncer, "get_bulk_data_url", return_value="https://x/oracle.json"),
+            patch.object(syncer, "download", side_effect=fake_download),
+        ):
+            count = syncer.sync(force=False)
+        assert downloaded == ["https://x/oracle.json"]
+        assert count == 10
+
+    def test_sync_progress_phases_reported(
+        self, card_repo: CardRepository, tmp_path: Path
+    ) -> None:
+        cache = tmp_path / "sync_cache"
+        cache.mkdir()
+        (cache / "oracle_cards.json").write_text(
+            (FIXTURES_DIR / "scryfall_sample.json").read_text()
+        )
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+        phases: list[str] = []
+        syncer.sync(force=False, progress=lambda phase, c, t: phases.append(phase))
+        assert "parse" in phases
