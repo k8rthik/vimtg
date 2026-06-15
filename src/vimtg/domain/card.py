@@ -143,12 +143,16 @@ class Card:
     @classmethod
     def from_scryfall(cls, data: dict[str, Any]) -> "Card":
         layout = data.get("layout", "normal")
+        # Multi-face layouts require card_faces; if it's missing or empty
+        # (malformed/partial Scryfall data), fall back to the top-level fields
+        # instead of raising KeyError.
+        has_faces = bool(data.get("card_faces"))
 
-        if layout in _FACE_LAYOUTS:
+        if has_faces and layout in _FACE_LAYOUTS:
             face_fields = _build_from_face_layout(data)
-        elif layout in _SPLIT_LAYOUTS:
+        elif has_faces and layout in _SPLIT_LAYOUTS:
             face_fields = _build_from_split_layout(data)
-        elif layout in _ADVENTURE_LAYOUTS:
+        elif has_faces and layout in _ADVENTURE_LAYOUTS:
             face_fields = _build_from_adventure_layout(data)
         else:
             face_fields = {

@@ -129,7 +129,16 @@ class Buffer:
         return Buffer(tuple(new_lines))
 
     def delete_lines(self, start: int, end: int) -> tuple[Buffer, tuple[str, ...]]:
-        """Delete lines [start, end] inclusive. Returns (new_buffer, deleted_texts)."""
+        """Delete lines [start, end] inclusive. Returns (new_buffer, deleted_texts).
+
+        Indices are clamped to the buffer bounds, so an out-of-range start/end
+        (e.g. a stale cursor or an over-wide ``:N,Md`` range) never raises.
+        """
+        count = len(self._lines)
+        start = max(0, min(start, count - 1))
+        end = max(0, min(end, count - 1))
+        if start > end:
+            return self, ()
         deleted = tuple(self._lines[i].text for i in range(start, end + 1))
         remaining = list(self._lines[:start]) + list(self._lines[end + 1:])
         if not remaining:

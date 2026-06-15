@@ -173,6 +173,37 @@ class TestFromScryfallEdgeCases:
             assert card.name
             assert card.scryfall_id
 
+    def test_multiface_layout_missing_card_faces_falls_back(self) -> None:
+        # Malformed Scryfall data: layout claims transform but has no
+        # card_faces. Must not raise KeyError — fall back to top-level fields.
+        data = {
+            "id": "bad-1",
+            "name": "Broken Card",
+            "layout": "transform",
+            "mana_cost": "{1}{U}",
+            "oracle_text": "Top-level text.",
+            "type_line": "Creature",
+            "set": "tst",
+            "rarity": "common",
+        }
+        card = Card.from_scryfall(data)
+        assert card.name == "Broken Card"
+        assert card.mana_cost == "{1}{U}"
+        assert card.oracle_text == "Top-level text."
+
+    def test_empty_card_faces_falls_back(self) -> None:
+        data = {
+            "id": "bad-2",
+            "name": "Empty Faces",
+            "layout": "split",
+            "card_faces": [],
+            "oracle_text": "Fallback.",
+            "set": "tst",
+            "rarity": "common",
+        }
+        card = Card.from_scryfall(data)
+        assert card.oracle_text == "Fallback."
+
 
 class TestCardProperties:
     def test_is_creature_true(self, goblin_guide: dict) -> None:

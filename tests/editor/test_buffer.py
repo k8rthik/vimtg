@@ -125,6 +125,26 @@ class TestBufferMutations:
         assert new_buf.get_line(0).line_type == LineType.BLANK
         assert deleted == ("4 Lightning Bolt",)
 
+    def test_delete_lines_end_out_of_bounds_clamped(self) -> None:
+        buf = Buffer.from_text("1 Bolt\n2 Guide\n3 Spike\n")
+        new_buf, deleted = buf.delete_lines(1, 99)
+        assert new_buf.line_count() == 1
+        assert new_buf.get_line(0).text == "1 Bolt"
+        assert deleted == ("2 Guide", "3 Spike")
+
+    def test_delete_lines_start_out_of_bounds_noop(self) -> None:
+        buf = Buffer.from_text("1 Bolt\n2 Guide\n")
+        new_buf, deleted = buf.delete_lines(5, 9)
+        # Start clamps to last line; deletes just that line rather than crashing.
+        assert deleted == ("2 Guide",)
+        assert new_buf.line_count() == 1
+
+    def test_delete_lines_reversed_range_noop(self) -> None:
+        buf = Buffer.from_text("1 Bolt\n2 Guide\n")
+        new_buf, deleted = buf.delete_lines(1, 0)
+        assert deleted == ()
+        assert new_buf.line_count() == 2
+
     def test_append_line(self, sample_buffer: Buffer) -> None:
         original_count = sample_buffer.line_count()
         new_buf = sample_buffer.append_line("1 New Card")
