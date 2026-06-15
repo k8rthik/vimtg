@@ -100,6 +100,36 @@ class TestComputeDeckDiff:
         assert moved[0].old_section == DeckSection.MAIN
         assert moved[0].new_section == DeckSection.SIDEBOARD
 
+    def test_same_card_in_main_and_sideboard_diffed_independently(self) -> None:
+        # Regression: a card present in both main and sideboard must not
+        # collapse to one entry — each section's quantity change is reported.
+        old = "4 Lightning Bolt\nSB: 2 Lightning Bolt\n"
+        new = "3 Lightning Bolt\nSB: 1 Lightning Bolt\n"
+        diff = compute_deck_diff(old, new)
+        changed = [
+            c for c in diff.changes if c.change_type == ChangeType.QUANTITY_CHANGED
+        ]
+        by_section = {c.section: (c.old_quantity, c.new_quantity) for c in changed}
+        assert by_section[DeckSection.MAIN] == (4, 3)
+        assert by_section[DeckSection.SIDEBOARD] == (2, 1)
+
+    def test_dual_section_not_reported_as_move(self) -> None:
+        # A card in both sections in both states is NOT a section move.
+        old = "4 Lightning Bolt\nSB: 2 Lightning Bolt\n"
+        new = "4 Lightning Bolt\nSB: 3 Lightning Bolt\n"
+        diff = compute_deck_diff(old, new)
+        assert not any(
+            c.change_type == ChangeType.SECTION_MOVED for c in diff.changes
+        )
+
+    def test_duplicate_lines_same_section_summed(self) -> None:
+        # Two lines of the same card in one section sum rather than overwrite.
+        old = "2 Forest\n2 Forest\n"
+        new = "4 Forest\n"
+        diff = compute_deck_diff(old, new)
+        # old main = 4, new main = 4 -> unchanged
+        assert not diff.has_changes
+
     def test_empty_to_deck(self) -> None:
         diff = compute_deck_diff(EMPTY_DECK, "4 Lightning Bolt\n")
         assert diff.added_count == 1
