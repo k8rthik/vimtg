@@ -8,6 +8,14 @@ from dataclasses import dataclass
 from vimtg.domain.card import Card, Color
 from vimtg.domain.deck import Deck, DeckSection
 
+# Land-count heuristic (a simplified Frank Karsten model).
+_DEFAULT_LAND_COUNT = 24  # fallback when curve data is unavailable
+_KARSTEN_BASE_LANDS = 17.5  # baseline land count before curve adjustment
+_KARSTEN_CMC_WEIGHT = 0.5  # how strongly average CMC raises the land count
+_KARSTEN_DENSITY_SCALE = 2.5  # scales the nonland-density term
+_MIN_LANDS = 20
+_MAX_LANDS = 28
+
 
 @dataclass(frozen=True)
 class ManaCurve:
@@ -103,10 +111,14 @@ def _compute_recommended_lands(
 ) -> int:
     """Simplified Frank Karsten land recommendation."""
     if nonland_count == 0 or avg_cmc == 0:
-        return 24
+        return _DEFAULT_LAND_COUNT
     denominator = max(mainboard_count, 1)
-    rec = round(17.5 + 0.5 * avg_cmc * nonland_count / denominator * 2.5)
-    return max(20, min(28, rec))
+    density = nonland_count / denominator
+    rec = round(
+        _KARSTEN_BASE_LANDS
+        + _KARSTEN_CMC_WEIGHT * avg_cmc * density * _KARSTEN_DENSITY_SCALE
+    )
+    return max(_MIN_LANDS, min(_MAX_LANDS, rec))
 
 
 def compute_stats(
