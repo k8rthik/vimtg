@@ -3,7 +3,26 @@
 import pytest
 
 from vimtg.config.settings import Settings
-from vimtg.config.settings_writer import save_settings, settings_to_toml
+from vimtg.config.settings_writer import (
+    _format_value,
+    save_settings,
+    settings_to_toml,
+)
+
+
+class TestFormatValue:
+    def test_bool(self) -> None:
+        assert _format_value(True) == "true"
+        assert _format_value(False) == "false"
+
+    def test_int(self) -> None:
+        assert _format_value(42) == "42"
+
+    def test_str_escapes_quotes_and_backslash(self) -> None:
+        assert _format_value('a"b\\c') == '"a\\"b\\\\c"'
+
+    def test_other_falls_back_to_str(self) -> None:
+        assert _format_value(1.5) == "1.5"
 
 
 class TestSettingsToToml:
@@ -78,3 +97,38 @@ class TestSaveSettings:
         assert loaded.show_prices is False
         assert loaded.search_limit == 100
         assert loaded.default_format == "modern"
+
+    def test_preserves_nested_subtable(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        config_dir = tmp_path / "vimtg"
+        config_dir.mkdir()
+        config_file = config_dir / "config.toml"
+        config_file.write_text(
+            '[editor]\nprice_source = "usd"\n\n'
+            '[keybindings.normal]\ns = ":w"\n'
+        )
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        save_settings(Settings())
+        content = config_file.read_text()
+        assert "[keybindings.normal]" in content
+        assert 's = ":w"' in content
+
+    def test_failed_replace_cleans_up_temp(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import os
+
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+        def boom(src, dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", boom)
+        with pytest.raises(OSError, match="disk full"):
+            save_settings(Settings())
+
+        # No leftover temp files in the config dir.
+        cfg_dir = tmp_path / "vimtg"
+        leftover = list(cfg_dir.glob("config_*.tmp")) if cfg_dir.exists() else []
+        assert leftover == []

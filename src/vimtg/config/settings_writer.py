@@ -69,16 +69,17 @@ def save_settings(settings: Settings) -> Path:
 
     content = "\n".join(parts)
 
-    # Atomic write
+    # Atomic write: stage to a temp file, then replace. os.fdopen takes
+    # ownership of the fd so the context manager closes it exactly once,
+    # even when the write raises.
     fd, tmp_path = tempfile.mkstemp(
         dir=config_path.parent, suffix=".tmp", prefix="config_",
     )
     try:
-        os.write(fd, content.encode("utf-8"))
-        os.close(fd)
+        with os.fdopen(fd, "wb") as f:
+            f.write(content.encode("utf-8"))
         os.replace(tmp_path, config_path)
     except Exception:
-        os.close(fd) if not os.get_inheritable(fd) else None
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
         raise
