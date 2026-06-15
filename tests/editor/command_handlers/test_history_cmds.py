@@ -5,13 +5,43 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.history_cmds import cmd_branch, cmd_checkpoint
+from vimtg.editor.command_handlers.history_cmds import (
+    cmd_branch,
+    cmd_checkpoint,
+    cmd_commit,
+    cmd_history,
+)
 from vimtg.editor.commands import EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
 
 
 def _make_ctx(history: object | None = None) -> EditorContext:
     return EditorContext(history=history)
+
+
+class TestHistory:
+    def test_history_sets_open_flag(self) -> None:
+        ctx = _make_ctx()
+        cmd_history(
+            Buffer.from_text("x\n"), Cursor(), ParsedCommand(name="history"), ctx
+        )
+        assert ctx.open_history_screen is True
+
+
+class TestCommit:
+    def test_commit_sets_description(self) -> None:
+        ctx = _make_ctx()
+        cmd_commit(
+            Buffer.from_text("x\n"), Cursor(),
+            ParsedCommand(name="commit", args='"new build"'), ctx,
+        )
+        assert ctx.vcs_commit_description == "new build"
+
+    def test_commit_no_description_errors(self) -> None:
+        ctx = _make_ctx()
+        cmd_commit(Buffer.from_text("x\n"), Cursor(), ParsedCommand(name="commit"), ctx)
+        assert ctx.error is True
+        assert "Usage" in ctx.message
 
 
 class TestCheckpoint:

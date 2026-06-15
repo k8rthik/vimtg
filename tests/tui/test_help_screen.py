@@ -99,6 +99,39 @@ async def test_j_k_scroll_help_screen(sample_deck_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_g_jumps_top_and_bottom(sample_deck_path: Path) -> None:
+    app = VimTGApp(deck_path=sample_deck_path)
+    async with app.run_test(size=(80, 12)) as pilot:
+        await pilot.pause()
+        await pilot.press("f1")
+        await pilot.pause()
+        scroll = app.screen.query_one("#help-scroll")
+        await pilot.press("G")  # jump to bottom
+        await pilot.pause()
+        assert scroll.scroll_offset.y > 0
+        await pilot.press("g")  # jump to top
+        await pilot.pause()
+        assert scroll.scroll_offset.y == 0
+
+
+@pytest.mark.asyncio
+async def test_ctrl_d_u_half_page(sample_deck_path: Path) -> None:
+    app = VimTGApp(deck_path=sample_deck_path)
+    async with app.run_test(size=(80, 12)) as pilot:
+        await pilot.pause()
+        await pilot.press("f1")
+        await pilot.pause()
+        scroll = app.screen.query_one("#help-scroll")
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        assert scroll.scroll_offset.y > 0
+        down = scroll.scroll_offset.y
+        await pilot.press("ctrl+u")
+        await pilot.pause()
+        assert scroll.scroll_offset.y < down
+
+
+@pytest.mark.asyncio
 async def test_help_topic_shows_command_help(sample_deck_path: Path) -> None:
     app = VimTGApp(deck_path=sample_deck_path)
     async with app.run_test() as pilot:
