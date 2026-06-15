@@ -236,8 +236,7 @@ class HistoryScreen(Screen[None]):
         # Get parent state
         parent_state: str | None = None
         if snap.parent_id:
-            parent_deck_state = self._vcs.checkout(snap.parent_id)
-            parent_state = parent_deck_state
+            parent_state = self._vcs.checkout(snap.parent_id)
 
         diff = self._diff_svc.diff_snapshot_parent(
             snap.deck_state, parent_state,
