@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vimtg.tui.screens.greeter import GreeterMode, GreeterView
+import pytest
+from textual.app import App
+
+from vimtg.tui.screens.greeter import (
+    GreeterMode,
+    GreeterScreen,
+    GreeterView,
+)
 
 # ---------------------------------------------------------------------------
 # GreeterView unit tests (no Textual app required)
@@ -187,3 +194,177 @@ class TestCursorNavigation:
         gv = GreeterView()
         gv.set_mode(GreeterMode.FILES)
         assert gv._mode == GreeterMode.FILES
+
+
+class TestRenderStatus:
+    def test_status_rendered_in_menu(self) -> None:
+        gv = GreeterView()
+        gv._status = "Synced 100 cards"
+        assert "Synced 100 cards" in gv.render().plain
+
+    def test_no_status_when_empty(self) -> None:
+        gv = GreeterView()
+        assert "Synced" not in gv.render().plain
+
+
+# ---------------------------------------------------------------------------
+# GreeterScreen pilot integration tests
+# ---------------------------------------------------------------------------
+
+
+class _HostApp(App[None]):
+    """Hosts a GreeterScreen and records editor launches instead of running one."""
+
+    def __init__(self, screen: GreeterScreen) -> None:
+        super().__init__()
+        self._target = screen
+        self.launched: list[Path | None] = []
+
+    def on_mount(self) -> None:
+        self.push_screen(self._target)
+
+    def _launch_editor(self, file_path: Path | None = None) -> None:
+        self.launched.append(file_path)
+
+
+def _make_decks(directory: Path, names: list[str]) -> list[Path]:
+    paths = []
+    for n in names:
+        p = directory / n
+        p.write_text("// Deck: x\n\n4 Lightning Bolt\n", encoding="utf-8")
+        paths.append(p)
+    return paths
+
+
+@pytest.mark.asyncio
+async def test_help_mode_toggle(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("?")
+        assert gv._mode == GreeterMode.HELP
+        await pilot.press("escape")
+        assert gv._mode == GreeterMode.MENU
+
+
+@pytest.mark.asyncio
+async def test_files_mode_navigation_and_open(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _make_decks(tmp_path, ["a.deck", "b.deck", "c.deck"])
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("e")
+        assert gv._mode == GreeterMode.FILES
+        await pilot.press("j")
+        assert gv._cursor == 1
+        await pilot.press("k")
+        assert gv._cursor == 0
+        await pilot.press("G")
+        assert gv._cursor == 2
+        await pilot.press("g")
+        assert gv._cursor == 0
+        await pilot.press("enter")
+        assert app.launched and app.launched[0] is not None
+
+
+@pytest.mark.asyncio
+async def test_files_mode_escape_returns_to_menu(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _make_decks(tmp_path, ["a.deck"])
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("e")
+        await pilot.press("escape")
+        assert gv._mode == GreeterMode.MENU
+
+
+@pytest.mark.asyncio
+async def test_new_opens_editor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("n")
+        assert app.launched == [None]
+
+
+@pytest.mark.asyncio
+async def test_recent_digit_opens_recent_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    recent = _make_decks(tmp_path, ["fresh.deck"])
+    screen = GreeterScreen(recent_files=recent)
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("1")
+        assert app.launched == [recent[0]]
+
+
+@pytest.mark.asyncio
+async def test_recent_mode_via_r(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    recent = _make_decks(tmp_path, ["fresh.deck"])
+    screen = GreeterScreen(recent_files=recent)
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("r")
+        assert gv._mode == GreeterMode.RECENT
+
+
+@pytest.mark.asyncio
+async def test_run_sync_shows_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    from vimtg.data import scryfall_sync
+
+    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", lambda self, *a, **k: 123)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("s")
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        assert gv._status == "Synced 123 cards"
+
+
+@pytest.mark.asyncio
+async def test_run_sync_handles_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    from vimtg.data import scryfall_sync
+
+    def boom(self, *a, **k):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", boom)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("s")
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        assert "Sync failed" in gv._status

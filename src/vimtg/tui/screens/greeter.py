@@ -63,6 +63,7 @@ class GreeterView(Static):
         self._all_files = all_files or []
         self._mode = GreeterMode.MENU
         self._cursor = 0
+        self._status = ""
 
     def render(self) -> Text:
         if self._mode == GreeterMode.HELP:
@@ -100,6 +101,9 @@ class GreeterView(Static):
                 t.append(f"  [{num}]", style=f"bold {COLORS['quantity']}")
                 t.append(f"  {path.name}\n", style="dim")
             t.append("\n")
+
+        if self._status:
+            t.append(f"  {self._status}\n", style=f"bold {COLORS['mana_green']}")
 
         t.append("  Press a key or type :command\n", style=_DIM)
         return t
@@ -291,19 +295,19 @@ class GreeterScreen(Screen[None]):
         from vimtg.data.database import Database
         from vimtg.data.scryfall_sync import ScryfallSync
 
+        gv = self.query_one(GreeterView)
+        db = Database(db_path())
         try:
-            db = Database(db_path())
             db.initialize()
             repo = CardRepository(db)
             sync = ScryfallSync(repo, cache_dir())
-            gv = self.query_one(GreeterView)
             count = sync.sync()
-            gv._status = f"Synced {count} cards"  # type: ignore[attr-defined]
-            gv.refresh()
+            gv._status = f"Synced {count} cards"
         except Exception as exc:
-            gv = self.query_one(GreeterView)
-            gv._status = f"Sync failed: {exc}"  # type: ignore[attr-defined]
-            gv.refresh()
+            gv._status = f"Sync failed: {exc}"
+        finally:
+            db.close()
+        gv.refresh()
 
 
 def _find_all_decks() -> list[Path]:
