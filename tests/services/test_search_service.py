@@ -122,6 +122,25 @@ class TestParseQuery:
         sq = search_svc.parse_query("cmc<=abc")
         assert sq.cmc_lte is None
 
+    def test_cmc_no_operator_ignored(self, search_svc: SearchService) -> None:
+        # 'cmc5' has no recognized operator -> no filter set, no crash.
+        sq = search_svc.parse_query("cmc5")
+        assert sq.cmc_eq is None
+        assert sq.cmc_lte is None
+        assert sq.cmc_gte is None
+
+    def test_empty_value_tokens_dont_crash(self, search_svc: SearchService) -> None:
+        sq = search_svc.parse_query("t: c: set: r: cmc= o:")
+        assert sq.is_empty()
+
+    def test_unclosed_quote_oracle(self, search_svc: SearchService) -> None:
+        sq = search_svc.parse_query('o:"draw a card')
+        assert sq.oracle_contains == "draw a card"
+
+    def test_invalid_color_chars_ignored(self, search_svc: SearchService) -> None:
+        sq = search_svc.parse_query("c:xyz")
+        assert sq.colors_include == ()
+
 
 class TestAdvancedSearch:
     def test_type_filter(self, search_svc: SearchService) -> None:
