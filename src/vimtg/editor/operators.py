@@ -131,32 +131,30 @@ def put_lines(
 
 
 def increment_quantity(buffer: Buffer, cursor: Cursor) -> Buffer:
-    """+ key: increment quantity of card at cursor line."""
+    """+ key: increment quantity of card at cursor line.
+
+    Preserves the SB:/CMD: prefix and any inline tags.
+    """
     if not buffer.is_card_line(cursor.row):
         return buffer
     qty = buffer.quantity_at(cursor.row)
-    name = buffer.card_name_at(cursor.row)
-    if qty is None or name is None:
+    if qty is None:
         return buffer
-    text = buffer.get_line(cursor.row).text.strip()
-    if text.startswith("SB:"):
-        return buffer.set_line(cursor.row, f"SB: {qty + 1} {name}")
-    return buffer.set_line(cursor.row, f"{qty + 1} {name}")
+    return buffer.set_quantity(cursor.row, qty + 1)
 
 
 def decrement_quantity(buffer: Buffer, cursor: Cursor) -> tuple[Buffer, Cursor]:
-    """- key: decrement. Delete line if qty reaches 0."""
+    """- key: decrement. Delete line if qty reaches 0.
+
+    Preserves the SB:/CMD: prefix and any inline tags.
+    """
     if not buffer.is_card_line(cursor.row):
         return buffer, cursor
     qty = buffer.quantity_at(cursor.row)
-    name = buffer.card_name_at(cursor.row)
-    if qty is None or name is None:
+    if qty is None:
         return buffer, cursor
     if qty <= 1:
         new_buf, _ = buffer.delete_lines(cursor.row, cursor.row)
         new_row = min(cursor.row, new_buf.line_count() - 1)
         return new_buf, cursor.move_to(max(0, new_row), 0)
-    text = buffer.get_line(cursor.row).text.strip()
-    if text.startswith("SB:"):
-        return buffer.set_line(cursor.row, f"SB: {qty - 1} {name}"), cursor
-    return buffer.set_line(cursor.row, f"{qty - 1} {name}"), cursor
+    return buffer.set_quantity(cursor.row, qty - 1), cursor

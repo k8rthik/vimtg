@@ -218,6 +218,32 @@ class TestNavigation:
         assert buf.section_range(0) is None
 
 
+class TestSetQuantity:
+    def test_plain_card(self) -> None:
+        buf = Buffer.from_text("4 Goblin Guide\n")
+        assert buf.set_quantity(0, 2).get_line(0).text == "2 Goblin Guide"
+
+    def test_preserves_tags(self) -> None:
+        buf = Buffer.from_text("4 Goblin Guide  #core #aggro\n")
+        assert buf.set_quantity(0, 1).get_line(0).text == "1 Goblin Guide  #core #aggro"
+
+    def test_preserves_sideboard_prefix(self) -> None:
+        buf = Buffer.from_text("SB: 2 Rest in Peace\n")
+        assert buf.set_quantity(0, 3).get_line(0).text == "SB: 3 Rest in Peace"
+
+    def test_preserves_commander_prefix(self) -> None:
+        buf = Buffer.from_text("CMD: 1 Atraxa\n")
+        assert buf.set_quantity(0, 1).get_line(0).text == "CMD: 1 Atraxa"
+
+    def test_name_starting_with_digit(self) -> None:
+        buf = Buffer.from_text("4 7 Wonders\n")
+        assert buf.set_quantity(0, 2).get_line(0).text == "2 7 Wonders"
+
+    def test_non_card_line_unchanged(self) -> None:
+        buf = Buffer.from_text("// comment\n")
+        assert buf.set_quantity(0, 5).get_line(0).text == "// comment"
+
+
 class TestTagCounts:
     def test_empty_buffer(self) -> None:
         assert Buffer.from_text("4 Goblin Guide\n").tag_counts() == {}

@@ -178,6 +178,16 @@ class TestIncrementQuantity:
         new_buf = increment_quantity(buf, cursor)
         assert new_buf.get_line(0).text == buf.get_line(0).text
 
+    def test_increment_preserves_inline_tags(self) -> None:
+        buf = Buffer.from_text("2 Lightning Bolt  #core #burn\n")
+        new_buf = increment_quantity(buf, _make_cursor(row=0))
+        assert new_buf.get_line(0).text == "3 Lightning Bolt  #core #burn"
+
+    def test_increment_preserves_commander_prefix(self) -> None:
+        buf = Buffer.from_text("CMD: 1 Atraxa, Praetors' Voice\n")
+        new_buf = increment_quantity(buf, _make_cursor(row=0))
+        assert new_buf.get_line(0).text == "CMD: 2 Atraxa, Praetors' Voice"
+
 
 class TestDecrementQuantity:
     def test_decrement_card(self) -> None:
@@ -206,3 +216,13 @@ class TestDecrementQuantity:
         cursor = _make_cursor(row=6)  # "SB: 2 Engineered Explosives"
         new_buf, _ = decrement_quantity(buf, cursor)
         assert new_buf.get_line(6).text == "SB: 1 Engineered Explosives"
+
+    def test_decrement_preserves_inline_tags(self) -> None:
+        buf = Buffer.from_text("3 Lightning Bolt  #core #burn\n")
+        new_buf, _ = decrement_quantity(buf, _make_cursor(row=0))
+        assert new_buf.get_line(0).text == "2 Lightning Bolt  #core #burn"
+
+    def test_decrement_preserves_commander_prefix(self) -> None:
+        buf = Buffer.from_text("2 Atraxa\nCMD: 2 Najeela\n")
+        new_buf, _ = decrement_quantity(buf, _make_cursor(row=1))
+        assert new_buf.get_line(1).text == "CMD: 1 Najeela"

@@ -39,6 +39,9 @@ METADATA_KEYS = frozenset({"Deck", "Format", "Author", "Description", "Tags"})
 _CARD_PATTERN = re.compile(r"^\s*(\d+)\s+(.+)$")
 _SB_PATTERN = re.compile(r"^SB:\s*(\d+)\s+(.+)$")
 _CMD_PATTERN = re.compile(r"^CMD:\s*(\d+)\s+(.+)$")
+# Splits a card line into (prefix+leading-ws, quantity, rest) so the quantity
+# can be replaced in place without disturbing the prefix, name, or tags.
+_QUANTITY_SUB = re.compile(r"^(\s*(?:SB:|CMD:)?\s*)(\d+)(\s.*)$", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -168,6 +171,20 @@ class Buffer:
             if m:
                 return int(m.group(1))
         return None
+
+    def set_quantity(self, line: int, quantity: int) -> Buffer:
+        """Return a new Buffer with the card quantity on `line` replaced.
+
+        Preserves the SB:/CMD: prefix, the exact card name, and any inline
+        tags — only the leading quantity number changes.
+        """
+        if not self.is_card_line(line):
+            return self
+        text = self._lines[line].text
+        m = _QUANTITY_SUB.match(text)
+        if m is None:
+            return self
+        return self.set_line(line, f"{m.group(1)}{quantity}{m.group(3)}")
 
     def is_card_line(self, line: int) -> bool:
         """Check whether the given line index holds a card entry."""
