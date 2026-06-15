@@ -25,7 +25,7 @@ from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.macros import MacroRecorder
 from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
-from vimtg.editor.motions import MOTION_REGISTRY, motion_goto_line, motion_last_line
+from vimtg.editor.motions import MOTION_REGISTRY, motion_goto_line
 from vimtg.editor.operators import (
     decrement_quantity,
     execute_operator,
@@ -103,16 +103,19 @@ class HandlerResult:
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
-    """Process motion actions (j, k, G, gg, etc.)."""
+    """Process motion actions (j, k, G, gg, etc.).
+
+    A counted ``G`` (e.g. ``5G``) jumps to that line number; bare ``G`` falls
+    through to the registry handler (last line). The registry's ``G`` ignores
+    its count, so the counted case must be intercepted here.
+    """
+    count = action.count if action.count > 0 else 1
+    if action.action == "G" and count > 1:
+        state.cursor = motion_goto_line(state.cursor, state.buffer, count)
+        return HandlerResult()
     motion_fn = MOTION_REGISTRY.get(action.action)
     if motion_fn:
-        count = action.count if action.count > 0 else 1
         state.cursor = motion_fn(state.cursor, state.buffer, count)
-    elif action.action == "G":
-        if action.count == 0:
-            state.cursor = motion_last_line(state.cursor, state.buffer)
-        else:
-            state.cursor = motion_goto_line(state.cursor, state.buffer, action.count)
     return HandlerResult()
 
 
