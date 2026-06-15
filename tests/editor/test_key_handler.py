@@ -74,18 +74,18 @@ class TestHandleMotion:
         handle_motion(st, _act("j", action_type="motion"))
         assert st.cursor.row == 1
 
-    def test_G_bare_goes_last(self) -> None:
+    def test_g_bare_goes_last(self) -> None:
         st = _state(row=0)
         handle_motion(st, _act("G", action_type="motion", count=1))
         assert st.cursor.row == st.buffer.line_count() - 1
 
-    def test_G_with_count_goes_to_line(self) -> None:
+    def test_g_with_count_goes_to_line(self) -> None:
         # Regression: 5G must jump to line 5, not the last line.
         st = _state("a\nb\nc\nd\ne\nf\n", row=0)
         handle_motion(st, _act("G", action_type="motion", count=3))
         assert st.cursor.row == 2  # 1-indexed line 3 -> row 2
 
-    def test_G_count_clamped_to_last(self) -> None:
+    def test_g_count_clamped_to_last(self) -> None:
         st = _state("a\nb\nc\n", row=0)
         handle_motion(st, _act("G", action_type="motion", count=99))
         assert st.cursor.row == 2
@@ -133,7 +133,7 @@ class TestHandleModeSwitch:
         assert hr.enter_insert is True
         assert st.cursor.row == 2
 
-    def test_O_opens_line_above(self) -> None:
+    def test_o_upper_opens_line_above(self) -> None:
         st = _state(row=1)
         hr = handle_mode_switch(st, _act("O", action_type="mode_switch"))
         assert hr.enter_insert is True
@@ -152,7 +152,7 @@ class TestHandleModeSwitch:
         assert hr.enter_visual == Mode.VISUAL
         assert st.visual_anchor == 1
 
-    def test_V_enters_visual_line(self) -> None:
+    def test_v_upper_enters_visual_line(self) -> None:
         st = _state(row=1)
         hr = handle_mode_switch(st, _act("V", action_type="mode_switch"))
         assert hr.enter_visual == Mode.VISUAL_LINE
@@ -306,7 +306,8 @@ def _registry() -> CommandRegistry:
 class TestHandleCommand:
     def test_empty_command_noop(self) -> None:
         st = _state()
-        hr = handle_command(st, _act("enter", text="", action_type="command_submit"), _registry(), None)
+        action = _act("enter", text="", action_type="command_submit")
+        hr = handle_command(st, action, _registry(), None)
         assert hr == hr.__class__()
 
     def test_unknown_command_message(self) -> None:
