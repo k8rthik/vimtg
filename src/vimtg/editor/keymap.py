@@ -197,6 +197,20 @@ class KeyMap:
             return KeyResult.COMPLETE, action
 
         if self._state in (_State.OPERATOR, _State.OPERATOR_COUNT):
+            if self._multi_key_prefix:
+                full_key = self._multi_key_prefix + key
+                if full_key in ("gg", "[[", "]]"):
+                    op_count = (
+                        int(self._operator_count_str) if self._operator_count_str else 1
+                    )
+                    action = ParsedAction(
+                        "operator", self._operator or "", count * op_count,
+                        self._register, motion=full_key,
+                    )
+                    self.reset()
+                    return KeyResult.COMPLETE, action
+                self.reset()
+                return KeyResult.NO_MATCH, None
             if key in MULTI_KEY_STARTERS:
                 self._multi_key_prefix = key
                 return KeyResult.PENDING, None
@@ -239,7 +253,10 @@ class KeyMap:
             text = self._insert_buf.text
             self._insert_buf = LineBuffer()
             return KeyResult.COMPLETE, ParsedAction("mode_switch", "escape", text=text)
-        if key in ("ctrl_j", "ctrl_k", "tab", "shift_tab", "enter", "up", "down"):
+        if key in (
+            "ctrl_j", "ctrl_k", "ctrl_n", "ctrl_p",
+            "tab", "shift_tab", "enter", "up", "down",
+        ):
             return KeyResult.COMPLETE, ParsedAction(
                 "special", key,
                 text=self._insert_buf.text, cursor_pos=self._insert_buf.cursor,

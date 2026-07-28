@@ -9,6 +9,16 @@ from vimtg.data.database import Database
 from vimtg.domain.vcs import VCSBranch, VCSSnapshot
 
 
+def _parse_timestamp(value: object) -> datetime:
+    """Parse a stored ISO timestamp, tolerating malformed rows."""
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            pass
+    return datetime.min
+
+
 def _row_to_snapshot(row: dict[str, Any]) -> VCSSnapshot:
     """Convert a SQLite Row to a VCSSnapshot."""
     return VCSSnapshot(
@@ -16,7 +26,7 @@ def _row_to_snapshot(row: dict[str, Any]) -> VCSSnapshot:
         deck_path=row["deck_path"],
         parent_id=row["parent_id"],
         deck_state=row["deck_state"],
-        timestamp=datetime.fromisoformat(row["timestamp"]),
+        timestamp=_parse_timestamp(row["timestamp"]),
         description=row["description"] or "",
         branch=row["branch"] or "main",
         tag=row["tag"],
@@ -30,7 +40,7 @@ def _row_to_branch(row: dict[str, Any]) -> VCSBranch:
         name=row["name"],
         deck_path=row["deck_path"],
         tip_id=row["tip_id"],
-        created_at=datetime.fromisoformat(row["created_at"]),
+        created_at=_parse_timestamp(row["created_at"]),
     )
 
 
@@ -145,6 +155,60 @@ class SnapshotRepository:
             snapshot_ids,
         )
         conn.commit()
+
+    def replace_snapshots(
+        self,
+        snapshot_ids: list[str],
+        replacement: VCSSnapshot,
+        update_tip: bool,
+    ) -> None:
+        """Atomically replace a run of snapshots with a single one.
+
+        Inserts the replacement, re-parents any surviving children of the
+        replaced snapshots, optionally moves the branch tip, and deletes
+        the originals — all in one transaction so a failure can't leave
+        dangling parent references.
+        """
+        if not snapshot_ids:
+            return
+        conn = self._db.connect()
+        placeholders = ",".join("?" for _ in snapshot_ids)
+        try:
+            conn.execute(
+                """INSERT INTO snapshots
+                   (id, deck_path, parent_id, deck_state, timestamp,
+                    description, branch, tag, deck_hash)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    replacement.id,
+                    replacement.deck_path,
+                    replacement.parent_id,
+                    replacement.deck_state,
+                    replacement.timestamp.isoformat(),
+                    replacement.description,
+                    replacement.branch,
+                    replacement.tag,
+                    replacement.deck_hash,
+                ),
+            )
+            conn.execute(
+                f"UPDATE snapshots SET parent_id = ? "  # noqa: S608
+                f"WHERE parent_id IN ({placeholders}) AND id != ?",
+                [replacement.id, *snapshot_ids, replacement.id],
+            )
+            if update_tip:
+                conn.execute(
+                    "UPDATE branches SET tip_id = ? WHERE deck_path = ? AND name = ?",
+                    (replacement.id, replacement.deck_path, replacement.branch),
+                )
+            conn.execute(
+                f"DELETE FROM snapshots WHERE id IN ({placeholders})",  # noqa: S608
+                snapshot_ids,
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     # ── Branch operations ─────────────────────────────────
 

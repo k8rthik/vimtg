@@ -256,8 +256,9 @@ class ImportExportService:
         entries: list[DeckEntry] = []
         for row in reader:
             qty = _row_quantity(row)
-            name = row.get("Name", "")
-            section_str = row.get("Section", "mainboard").lower()
+            # DictReader yields None (not the default) for short rows
+            name = row.get("Name") or ""
+            section_str = (row.get("Section") or "mainboard").lower()
             section = (
                 DeckSection.SIDEBOARD if "side" in section_str else DeckSection.MAIN
             )

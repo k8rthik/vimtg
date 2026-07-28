@@ -44,13 +44,18 @@ def save_settings(settings: Settings) -> Path:
     """
     config_path = config_dir() / "config.toml"
 
-    # Preserve existing non-editor sections (e.g. [keybindings])
+    # Preserve existing non-editor sections (e.g. [keybindings]).
+    # A corrupt existing file shouldn't block saving — we just can't
+    # preserve what we can't parse.
     other_sections: dict[str, dict[str, Any]] = {}
     if config_path.exists():
-        with open(config_path, "rb") as f:
-            existing = tomllib.load(f)
+        try:
+            with open(config_path, "rb") as f:
+                existing = tomllib.load(f)
+        except (tomllib.TOMLDecodeError, OSError):
+            existing = {}
         for section, data in existing.items():
-            if section != "editor":
+            if section != "editor" and isinstance(data, dict):
                 other_sections[section] = data
 
     # Build full TOML content

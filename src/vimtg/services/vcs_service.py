@@ -330,17 +330,9 @@ class VersionControlService:
             branch=self._current_branch,
             deck_hash=_deck_hash(final_state),
         )
-        self._repo.save_snapshot(replacement)
-
-        # Update branch tip if it was pointing at one of the squashed
         branch = self._repo.get_branch(self._deck_path, self._current_branch)
-        if branch and branch.tip_id in snapshot_ids:
-            self._repo.update_branch_tip(
-                self._deck_path, self._current_branch, replacement.id,
-            )
-
-        # Delete old snapshots
-        self._repo.delete_snapshots_by_ids(snapshot_ids)
+        update_tip = branch is not None and branch.tip_id in snapshot_ids
+        self._repo.replace_snapshots(snapshot_ids, replacement, update_tip)
 
         return replacement
 

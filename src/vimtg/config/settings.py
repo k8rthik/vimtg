@@ -1,5 +1,5 @@
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from vimtg.config.paths import config_dir
 
@@ -44,24 +44,58 @@ def validate_settings(settings: Settings) -> list[str]:
 
 
 def load_settings() -> Settings:
+    """Load settings from config.toml, falling back to defaults.
+
+    A malformed or invalid config must never prevent the app from
+    starting — bad files fall back to defaults, invalid values are
+    replaced per-field.
+    """
     config_path = config_dir() / "config.toml"
     if not config_path.exists():
         return Settings()
 
-    with open(config_path, "rb") as f:
-        data = tomllib.load(f)
+    try:
+        with open(config_path, "rb") as f:
+            data = tomllib.load(f)
+    except (tomllib.TOMLDecodeError, OSError):
+        return Settings()
 
     editor = data.get("editor", {})
-    return Settings(
-        theme=editor.get("theme", "dark"),
-        show_line_numbers=editor.get("show_line_numbers", True),
-        show_which_key=editor.get("show_which_key", True),
-        auto_expand=editor.get("auto_expand", True),
-        price_source=editor.get("price_source", "usd"),
-        show_prices=editor.get("show_prices", True),
-        search_limit=editor.get("search_limit", 50),
-        default_format=editor.get("default_format", ""),
-        auto_sort=editor.get("auto_sort", True),
-        confirm_quit=editor.get("confirm_quit", True),
-        auto_snapshot=editor.get("auto_snapshot", True),
+    if not isinstance(editor, dict):
+        return Settings()
+
+    defaults = Settings()
+
+    def _get(key: str, expected: type) -> object:
+        value = editor.get(key, getattr(defaults, key))
+        if expected is bool:
+            return value if isinstance(value, bool) else getattr(defaults, key)
+        if isinstance(value, expected) and not isinstance(value, bool):
+            return value
+        return getattr(defaults, key)
+
+    settings = Settings(
+        theme=_get("theme", str),  # type: ignore[arg-type]
+        show_line_numbers=_get("show_line_numbers", bool),  # type: ignore[arg-type]
+        show_which_key=_get("show_which_key", bool),  # type: ignore[arg-type]
+        auto_expand=_get("auto_expand", bool),  # type: ignore[arg-type]
+        price_source=_get("price_source", str),  # type: ignore[arg-type]
+        show_prices=_get("show_prices", bool),  # type: ignore[arg-type]
+        search_limit=_get("search_limit", int),  # type: ignore[arg-type]
+        default_format=_get("default_format", str),  # type: ignore[arg-type]
+        auto_sort=_get("auto_sort", bool),  # type: ignore[arg-type]
+        confirm_quit=_get("confirm_quit", bool),  # type: ignore[arg-type]
+        auto_snapshot=_get("auto_snapshot", bool),  # type: ignore[arg-type]
     )
+
+    # Replace out-of-range values with defaults, field by field
+    replacements: dict[str, object] = {}
+    if settings.price_source not in VALID_PRICE_SOURCES:
+        replacements["price_source"] = defaults.price_source
+    if settings.search_limit < 1 or settings.search_limit > 500:
+        replacements["search_limit"] = defaults.search_limit
+    if settings.default_format not in VALID_FORMATS:
+        replacements["default_format"] = defaults.default_format
+    if replacements:
+        settings = replace(settings, **replacements)  # type: ignore[arg-type]
+    return settings

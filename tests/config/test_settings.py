@@ -1,11 +1,14 @@
 """Tests for Settings dataclass, validation, and loading."""
 
+from pathlib import Path
+
 import pytest
 
 from vimtg.config.settings import (
     VALID_FORMATS,
     VALID_PRICE_SOURCES,
     Settings,
+    load_settings,
     validate_settings,
 )
 
@@ -93,3 +96,45 @@ class TestLoadSettings:
         assert s.price_source == "eur"
         assert s.show_prices is True  # default
         assert s.search_limit == 50  # default
+
+
+class TestMalformedConfig:
+    """A broken config.toml must never prevent the app from starting."""
+
+    def test_corrupt_toml_falls_back_to_defaults(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        cfg = tmp_path / "vimtg"
+        cfg.mkdir()
+        (cfg / "config.toml").write_text("[editor\nbroken = ", encoding="utf-8")
+        settings = load_settings()
+        assert settings == Settings()
+
+    def test_wrong_types_fall_back_per_field(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        cfg = tmp_path / "vimtg"
+        cfg.mkdir()
+        (cfg / "config.toml").write_text(
+            '[editor]\nsearch_limit = "many"\nshow_prices = false\n',
+            encoding="utf-8",
+        )
+        settings = load_settings()
+        assert settings.search_limit == Settings().search_limit
+        assert settings.show_prices is False
+
+    def test_out_of_range_values_fall_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        cfg = tmp_path / "vimtg"
+        cfg.mkdir()
+        (cfg / "config.toml").write_text(
+            '[editor]\nprice_source = "gbp"\nsearch_limit = 9999\n',
+            encoding="utf-8",
+        )
+        settings = load_settings()
+        assert settings.price_source == "usd"
+        assert settings.search_limit == Settings().search_limit

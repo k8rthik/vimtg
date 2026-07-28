@@ -178,6 +178,41 @@ class TestOperatorMotion:
         assert action is not None
         assert action.count == 6  # 2 * 3
 
+    def test_operator_multikey_motion_dgg(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed("d")
+        r2, a2 = km.feed("g")
+        assert r2 == KeyResult.PENDING and a2 is None
+        result, action = km.feed("g")
+        assert result == KeyResult.COMPLETE
+        assert action is not None
+        assert action.action_type == "operator"
+        assert action.action == "d"
+        assert action.motion == "gg"
+
+    def test_operator_bad_multikey_does_not_leave_stale_operator(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed("d")
+        km.feed("g")
+        result, action = km.feed("z")  # gz is not a motion
+        assert result == KeyResult.NO_MATCH
+        # The pending d must be gone: next j is a plain motion, not dj
+        result, action = km.feed("j")
+        assert result == KeyResult.COMPLETE
+        assert action is not None
+        assert action.action_type == "motion"
+        assert action.action == "j"
+
+    def test_operator_section_motion_dbracket(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed("y")
+        km.feed("]")
+        result, action = km.feed("]")
+        assert result == KeyResult.COMPLETE
+        assert action is not None
+        assert action.action == "y"
+        assert action.motion == "]]"
+
 
 class TestRegister:
     def test_register_yank(self) -> None:

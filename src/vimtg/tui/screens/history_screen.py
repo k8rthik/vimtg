@@ -6,6 +6,7 @@ branches, tagging tournament versions, and restoring previous states.
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Callable
 from enum import Enum
 
@@ -268,6 +269,16 @@ class HistoryScreen(Screen[None]):
 
         key = translate(event.key)
 
+        try:
+            self._dispatch_key(key, event)
+        except sqlite3.Error as exc:
+            # A locked/failed database must not take down the screen
+            cl = self.query_one("#history-command", HistoryCommandLine)
+            cl.show_message(f"E: Database error: {exc}")
+            self._input_mode = InputMode.NORMAL
+            self._input_text = ""
+
+    def _dispatch_key(self, key: str, event: Key) -> None:
         # Handle input modes (commit, branch, tag prompts)
         if self._input_mode != InputMode.NORMAL:
             self._handle_input_key(key, event)
@@ -428,9 +439,10 @@ class HistoryScreen(Screen[None]):
     def _start_tag(self) -> None:
         sp = self.query_one("#snapshots-panel", SnapshotsPanel)
         snap = sp.get_selected_snapshot()
-        if snap is None:
-            return
         cl = self.query_one("#history-command", HistoryCommandLine)
+        if snap is None:
+            cl.show_message("No snapshot selected")
+            return
         cl.show_prompt(f"Tag for {snap.id[:7]}: ")
         self._input_mode = InputMode.TAG
         self._input_text = ""
@@ -438,9 +450,10 @@ class HistoryScreen(Screen[None]):
     def _start_restore(self) -> None:
         sp = self.query_one("#snapshots-panel", SnapshotsPanel)
         snap = sp.get_selected_snapshot()
-        if snap is None:
-            return
         cl = self.query_one("#history-command", HistoryCommandLine)
+        if snap is None:
+            cl.show_message("No snapshot selected")
+            return
         cl.show_prompt(f"Restore {snap.id[:7]}? (y/N): ")
         self._input_mode = InputMode.CONFIRM_RESTORE
         self._input_text = ""
@@ -448,36 +461,42 @@ class HistoryScreen(Screen[None]):
     def _switch_branch(self) -> None:
         bp = self.query_one("#branches-panel", BranchesPanel)
         branch = bp.get_selected_branch()
+        cl = self.query_one("#history-command", HistoryCommandLine)
         if branch is None:
+            cl.show_message("No branch selected")
             return
         state = self._vcs.switch_branch(branch.name)
-        if state is not None:
-            self._current_state = state
-            cl = self.query_one("#history-command", HistoryCommandLine)
-            cl.show_message(f"Switched to: {branch.name}")
-            self._refresh_data()
-            sp = self.query_one("#snapshots-panel", SnapshotsPanel)
-            sp.selected = 0
-            sp.scroll_pos = 0
-            self._update_diff_for_selected()
+        if state is None:
+            cl.show_message(f"Cannot switch to: {branch.name}")
+            return
+        self._current_state = state
+        cl.show_message(f"Switched to: {branch.name}")
+        self._refresh_data()
+        sp = self.query_one("#snapshots-panel", SnapshotsPanel)
+        sp.selected = 0
+        sp.scroll_pos = 0
+        self._update_diff_for_selected()
 
     def _untag(self) -> None:
         sp = self.query_one("#snapshots-panel", SnapshotsPanel)
         snap = sp.get_selected_snapshot()
-        if snap and snap.tag:
-            self._vcs.untag(snap.id)
-            cl = self.query_one("#history-command", HistoryCommandLine)
-            cl.show_message(f"Removed tag: {snap.tag}")
-            self._refresh_data()
-            self._update_diff_for_selected()
+        cl = self.query_one("#history-command", HistoryCommandLine)
+        if snap is None or not snap.tag:
+            cl.show_message("No tag on selected snapshot")
+            return
+        self._vcs.untag(snap.id)
+        cl.show_message(f"Removed tag: {snap.tag}")
+        self._refresh_data()
+        self._update_diff_for_selected()
 
     def _cherry_pick(self) -> None:
         sp = self.query_one("#snapshots-panel", SnapshotsPanel)
         snap = sp.get_selected_snapshot()
+        cl = self.query_one("#history-command", HistoryCommandLine)
         if snap is None:
+            cl.show_message("No snapshot selected")
             return
         diff = self._vcs.cherry_pick(snap.id)
-        cl = self.query_one("#history-command", HistoryCommandLine)
         if diff:
             cl.show_message(f"Cherry-picked: {snap.description}")
             self._refresh_data()
@@ -488,6 +507,12 @@ class HistoryScreen(Screen[None]):
     def _toggle_detail(self) -> None:
         dp = self.query_one("#diff-panel", DiffPanel)
         dp.show_unchanged = not dp.show_unchanged
+        cl = self.query_one("#history-command", HistoryCommandLine)
+        cl.show_message(
+            "Detail: showing unchanged cards"
+            if dp.show_unchanged
+            else "Detail: hiding unchanged cards"
+        )
 
     def _handle_enter(self) -> None:
         if self._active_panel == Panel.BRANCHES:

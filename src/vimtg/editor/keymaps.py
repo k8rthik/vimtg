@@ -75,10 +75,15 @@ class KeyRemapper:
         if not config_path.exists():
             return 0
 
-        with open(config_path, "rb") as f:
-            data = tomllib.load(f)
+        try:
+            with open(config_path, "rb") as f:
+                data = tomllib.load(f)
+        except (tomllib.TOMLDecodeError, OSError):
+            return 0  # a broken config must not prevent startup
 
         bindings = data.get("keybindings", {})
+        if not isinstance(bindings, dict):
+            return 0
         count = 0
 
         mode_map = {

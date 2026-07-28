@@ -13,6 +13,13 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from vimtg.domain.deck_lines import (
+    CARD_PATTERN,
+    CMD_PATTERN,
+    METADATA_KEYS,
+    SB_PATTERN,
+    clamp_quantity,
+)
 from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
 
 
@@ -34,11 +41,9 @@ SECTION_HEADERS = frozenset({
     "Other", "Commander", "Companion",
 })
 
-METADATA_KEYS = frozenset({"Deck", "Format", "Author", "Description", "Tags"})
-
-_CARD_PATTERN = re.compile(r"^\s*(\d+)\s+(.+)$")
-_SB_PATTERN = re.compile(r"^SB:\s*(\d+)\s+(.+)$")
-_CMD_PATTERN = re.compile(r"^CMD:\s*(\d+)\s+(.+)$")
+_CARD_PATTERN = CARD_PATTERN
+_SB_PATTERN = SB_PATTERN
+_CMD_PATTERN = CMD_PATTERN
 # Splits a card line into (prefix+leading-ws, quantity, rest) so the quantity
 # can be replaced in place without disturbing the prefix, name, or tags.
 _QUANTITY_SUB = re.compile(r"^(\s*(?:SB:|CMD:)?\s*)(\d+)(\s.*)$", re.DOTALL)
@@ -111,7 +116,15 @@ class Buffer:
         return len(self._lines)
 
     def get_line(self, n: int) -> BufferLine:
-        return self._lines[n]
+        """Return line n, clamped to the valid range.
+
+        Callers pass cursor rows that can briefly trail a shrinking
+        buffer; clamping (like every other accessor's bounds check)
+        beats an IndexError mid-render.
+        """
+        if not self._lines:
+            return BufferLine(text="", line_type=LineType.BLANK)
+        return self._lines[max(0, min(n, len(self._lines) - 1))]
 
     def get_lines(self) -> tuple[BufferLine, ...]:
         return self._lines
@@ -178,7 +191,7 @@ class Buffer:
         for pattern in _CARD_PATTERNS:
             m = pattern.match(bl.text.strip())
             if m:
-                return int(m.group(1))
+                return clamp_quantity(int(m.group(1)))
         return None
 
     def set_quantity(self, line: int, quantity: int) -> Buffer:

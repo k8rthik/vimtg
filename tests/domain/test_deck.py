@@ -159,3 +159,18 @@ class TestUpdateQuantity:
             "Lightning Bolt", DeckSection.MAIN, -1
         )
         assert len(updated.entries) == 0
+
+
+class TestQuantityCap:
+    def test_absurd_quantity_is_capped_at_parse(self) -> None:
+        from vimtg.data.deck_repository import parse_deck_text
+        from vimtg.domain.deck_lines import MAX_QUANTITY
+
+        deck = parse_deck_text("999999999 Lightning Bolt\n")
+        assert deck.entries[0].quantity == MAX_QUANTITY
+
+    def test_zero_quantity_survives_for_validation(self) -> None:
+        from vimtg.data.deck_repository import parse_deck_text
+
+        deck = parse_deck_text("0 Lightning Bolt\n")
+        assert deck.entries[0].quantity == 0

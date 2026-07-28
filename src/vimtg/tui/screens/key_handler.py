@@ -31,6 +31,7 @@ from vimtg.editor.operators import (
     execute_operator,
     increment_quantity,
     put_lines,
+    resolve_line_range,
 )
 from vimtg.editor.registers import RegisterStore
 from vimtg.services.history_service import HistoryService
@@ -135,12 +136,19 @@ def handle_operator(state: EditorState, action: ParsedAction) -> HandlerResult:
             op + op, None, state.cursor.move_to(start, 0),
             state.buffer, count, state.registers, action.register,
         )
+        affected = (start, end)
         state.visual_anchor = None
     else:
+        affected = resolve_line_range(
+            action.action, action.motion, state.cursor, state.buffer,
+            action.count or 1,
+        )
         result = execute_operator(
             action.action, action.motion, state.cursor, state.buffer,
             action.count or 1, state.registers, action.register,
         )
+    if result.buffer.line_count() < state.buffer.line_count():
+        state.marks = state.marks.update_for_delete(*affected)
     state.buffer = result.buffer
     state.cursor = result.cursor
     state.registers = result.registers
@@ -258,16 +266,24 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             state.buffer = restored
             state.modified = True
     elif key == "p":
+        before = state.buffer.line_count()
         state.buffer, state.cursor = put_lines(
             state.buffer, state.cursor, state.registers, action.register,
         )
+        inserted = state.buffer.line_count() - before
+        if inserted > 0:
+            state.marks = state.marks.update_for_insert(state.cursor.row, inserted)
         state.modified = True
         state.history.record(state.buffer, "put")
     elif key == "P":
+        before = state.buffer.line_count()
         state.buffer, state.cursor = put_lines(
             state.buffer, state.cursor, state.registers, action.register,
             above=True,
         )
+        inserted = state.buffer.line_count() - before
+        if inserted > 0:
+            state.marks = state.marks.update_for_insert(state.cursor.row, inserted)
         state.modified = True
         state.history.record(state.buffer, "put above")
     elif key == "+":
@@ -527,9 +543,9 @@ def handle_insert_special(state: EditorState, action: ParsedAction) -> HandlerRe
         return HandlerResult(search_query=state.search_query)
     if key == "cursor_move":
         return HandlerResult()
-    if key in ("ctrl_j", "ctrl_n", "tab"):
+    if key in ("ctrl_j", "ctrl_n", "tab", "down"):
         return HandlerResult(search_query="__next__")
-    if key in ("ctrl_k", "ctrl_p", "shift_tab"):
+    if key in ("ctrl_k", "ctrl_p", "shift_tab", "up"):
         return HandlerResult(search_query="__prev__")
     if key == "enter":
         return HandlerResult(insert_confirm=True)
@@ -625,6 +641,7 @@ def _delete_card_at_cursor(state: EditorState) -> None:
     if not state.buffer.is_card_line(state.cursor.row):
         return
     new_buf, deleted = state.buffer.delete_lines(state.cursor.row, state.cursor.row)
+    state.marks = state.marks.update_for_delete(state.cursor.row, state.cursor.row)
     state.registers = state.registers.set_unnamed(deleted, is_delete=True)
     state.buffer = new_buf
     state.cursor = state.cursor.clamp(max(0, state.buffer.line_count() - 1))

@@ -383,3 +383,47 @@ class TestCardHelpers:
         )
         assert "Lightning Bolt" in resolved
         assert "Goblin Guide" in resolved
+
+
+class TestMarkAdjustment:
+    """Marks must track their lines across inserts and deletes."""
+
+    def test_marks_shift_up_after_dd_above(self) -> None:
+        st = _state(row=1)  # deck has cards on rows 1-3
+        st.marks = st.marks.set("a", 3)
+        handle_operator(st, ParsedAction("operator", "dd"))
+        mark = st.marks.get("a")
+        assert mark is not None
+        assert mark.row == 2
+
+    def test_mark_on_deleted_line_is_cleared(self) -> None:
+        st = _state(row=2)
+        st.marks = st.marks.set("a", 2)
+        handle_operator(st, ParsedAction("operator", "dd"))
+        assert st.marks.get("a") is None
+
+    def test_marks_shift_down_after_put(self) -> None:
+        st = _state(row=1)
+        st.marks = st.marks.set("a", 3)
+        # Yank current line then put below cursor
+        handle_operator(st, ParsedAction("operator", "yy"))
+        handle_normal_special(st, ParsedAction("special", "p"))
+        mark = st.marks.get("a")
+        assert mark is not None
+        assert mark.row == 4
+
+    def test_marks_shift_after_x_delete(self) -> None:
+        st = _state(row=1)
+        st.marks = st.marks.set("b", 3)
+        handle_normal_special(st, ParsedAction("special", "x"))
+        mark = st.marks.get("b")
+        assert mark is not None
+        assert mark.row == 2
+
+    def test_marks_unchanged_by_yank(self) -> None:
+        st = _state(row=1)
+        st.marks = st.marks.set("a", 3)
+        handle_operator(st, ParsedAction("operator", "yy"))
+        mark = st.marks.get("a")
+        assert mark is not None
+        assert mark.row == 3

@@ -99,7 +99,13 @@ class VimTGApp(App[None]):
         from vimtg.tui.screens.main_screen import MainScreen
 
         if file_path and file_path.exists():
-            text = file_path.read_text(encoding="utf-8")
+            try:
+                text = file_path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                # Unreadable/binary file: fail loudly instead of silently
+                # presenting an empty "New Deck" over a real file.
+                self.exit(message=f"vimtg: cannot open {file_path}: {exc}")
+                return
         else:
             text = "// New Deck\n\n"
 
@@ -120,6 +126,12 @@ class VimTGApp(App[None]):
 
     def _find_recent_decks(self) -> list[Path]:
         """Find .deck files in current directory, sorted by modification time."""
-        cwd = Path.cwd()
-        decks = sorted(cwd.glob("*.deck"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+        def _mtime(p: Path) -> float:
+            try:
+                return p.stat().st_mtime
+            except OSError:  # deleted between glob and stat
+                return 0.0
+
+        decks = sorted(Path.cwd().glob("*.deck"), key=_mtime, reverse=True)
         return decks[:5]

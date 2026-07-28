@@ -6,6 +6,7 @@ then syncs updated EditorState to Textual widgets.
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -258,7 +259,8 @@ class MainScreen(Screen[None]):
         s.mode_mgr.transition(Mode.INSERT)
         self.keymap.set_mode(Mode.INSERT)
         prefix = s.line_edit_prefix
-        full_text = s.buffer.get_line(s.line_edit_row or s.cursor.row).text
+        row = s.line_edit_row if s.line_edit_row is not None else s.cursor.row
+        full_text = s.buffer.get_line(row).text
         editable = full_text[len(prefix):]
         self.keymap.set_insert_text(editable)
         cl = self.query_one("#command-line", CommandLine)
@@ -316,6 +318,10 @@ class MainScreen(Screen[None]):
                 hr.command_message, error=hr.error
             )
         if hr.file_path is not None:
+            if self.file_path != hr.file_path:
+                # Rebind VCS history to the new path (e.g. first :w of an
+                # unsaved deck) instead of the stale "(unsaved)" bucket.
+                self._vcs_service = None
             self.file_path = hr.file_path
             self._vcs_auto_snapshot()
         if hr.help_requested:
@@ -486,18 +492,30 @@ class MainScreen(Screen[None]):
         if vcs is None:
             cl.set_message("VCS unavailable (no database)")
             return
-        snap = vcs.commit(self._state.buffer.to_text(), description)
+        try:
+            snap = vcs.commit(self._state.buffer.to_text(), description)
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Snapshot failed: {exc}", error=True)
+            return
         cl.set_message(f"Snapshot: {snap.description}")
         self._sync_widgets()
 
     def _vcs_auto_snapshot(self) -> None:
-        """Auto-create VCS snapshot on :w (if enabled)."""
+        """Auto-create VCS snapshot on :w (if enabled).
+
+        A snapshot failure must never take down the app on :w — the
+        file write already succeeded; report the error instead.
+        """
         if not self._state.settings.auto_snapshot:
             return
         vcs = self._get_vcs_service()
         if vcs is None:
             return
-        vcs.commit(self._state.buffer.to_text(), "auto: save")
+        try:
+            vcs.commit(self._state.buffer.to_text(), "auto: save")
+        except sqlite3.Error as exc:
+            cl = self.query_one("#command-line", CommandLine)
+            cl.set_message(f"E: Auto-snapshot failed: {exc}", error=True)
 
     def _find_card_line(self, card_name: str) -> int | None:
         """Find existing line with this card name (for duplicate detection)."""
@@ -610,12 +628,16 @@ class MainScreen(Screen[None]):
         sl.cursor_line = s.cursor.row
         sl.total_lines = s.buffer.line_count()
 
-        # VCS status
+        # VCS status — a DB hiccup here must not crash the render path
         vcs = self._vcs_service  # Don't lazily init on every sync
         if vcs is not None:
-            status = vcs.status(s.buffer.to_text())
-            sl.vcs_branch = status.branch
-            sl.vcs_snapshot_count = status.snapshot_count
+            try:
+                status = vcs.status(s.buffer.to_text())
+            except sqlite3.Error:
+                pass
+            else:
+                sl.vcs_branch = status.branch
+                sl.vcs_snapshot_count = status.snapshot_count
 
         cl = self.query_one("#command-line", CommandLine)
         if s.mode_mgr.is_normal():

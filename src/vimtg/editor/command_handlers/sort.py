@@ -123,7 +123,8 @@ def _resolve_range(
 ) -> tuple[int, int] | None:
     """Determine the line range to sort."""
     if cmd.cmd_range is not None and cmd.cmd_range.start is not None:
-        return (cmd.cmd_range.start, cmd.cmd_range.end or cmd.cmd_range.start)
+        end = cmd.cmd_range.end if cmd.cmd_range.end is not None else cmd.cmd_range.start
+        return (cmd.cmd_range.start, end)
 
     # No explicit range: sort current section
     return buffer.section_range(cursor_row)

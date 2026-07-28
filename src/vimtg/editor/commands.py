@@ -62,7 +62,12 @@ class CommandRange:
                 return cursor_row
             if token == "$":
                 return last_line
-            return max(0, int(token) - 1)
+            try:
+                return max(0, int(token) - 1)
+            except ValueError:
+                # Tokens like "1.5" or "$5" pass the range regex but
+                # aren't valid line numbers — treat as current line.
+                return cursor_row
 
         if "," in stripped:
             parts = stripped.split(",", maxsplit=1)

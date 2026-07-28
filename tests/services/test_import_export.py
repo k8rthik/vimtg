@@ -434,3 +434,15 @@ class TestResolveCards:
         except AttributeError:
             raised = True
         assert raised, "CardResolution must be frozen"
+
+
+class TestMalformedCsvRows:
+    def test_short_row_does_not_abort_import(self) -> None:
+        from vimtg.services.import_export_service import ImportExportService
+
+        svc = ImportExportService()
+        text = "Count,Name,Section\n4,Lightning Bolt\n2,Goblin Guide,sideboard\n"
+        deck = svc.import_deck(text)
+        names = [e.card_name for e in deck.entries]
+        assert "Lightning Bolt" in names
+        assert "Goblin Guide" in names

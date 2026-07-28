@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import re
+import os
+import tempfile
 from pathlib import Path
 
 from vimtg.domain.deck import (
@@ -12,12 +13,14 @@ from vimtg.domain.deck import (
     DeckMetadata,
     DeckSection,
 )
+from vimtg.domain.deck_lines import (
+    CARD_PATTERN as _MAINBOARD_PATTERN,
+    CMD_PATTERN as _COMMANDER_PATTERN,
+    METADATA_PATTERN as _METADATA_PATTERN,
+    SB_PATTERN as _SIDEBOARD_PATTERN,
+    clamp_quantity,
+)
 from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
-
-_METADATA_PATTERN = re.compile(r"^//\s*(Deck|Format|Author|Description|Tags):\s*(.+)$")
-_SIDEBOARD_PATTERN = re.compile(r"^SB:\s*(\d+)\s+(.+)$")
-_COMMANDER_PATTERN = re.compile(r"^CMD:\s*(\d+)\s+(.+)$")
-_MAINBOARD_PATTERN = re.compile(r"^(\d+)\s+(.+)$")
 
 
 def _parse_metadata_block(lines: tuple[str, ...]) -> DeckMetadata:
@@ -90,7 +93,7 @@ def parse_deck_text(text: str) -> Deck:
             card_tags = parse_inline_tags(raw_name)
             entries.append(
                 DeckEntry(
-                    quantity=int(sb_match.group(1)),
+                    quantity=clamp_quantity(int(sb_match.group(1))),
                     card_name=strip_inline_tags(raw_name).strip(),
                     section=DeckSection.SIDEBOARD,
                     tags=card_tags,
@@ -105,7 +108,7 @@ def parse_deck_text(text: str) -> Deck:
             card_tags = parse_inline_tags(raw_name)
             entries.append(
                 DeckEntry(
-                    quantity=int(cmd_match.group(1)),
+                    quantity=clamp_quantity(int(cmd_match.group(1))),
                     card_name=strip_inline_tags(raw_name).strip(),
                     section=DeckSection.COMMANDER,
                     tags=card_tags,
@@ -120,7 +123,7 @@ def parse_deck_text(text: str) -> Deck:
             card_tags = parse_inline_tags(raw_name)
             entries.append(
                 DeckEntry(
-                    quantity=int(main_match.group(1)),
+                    quantity=clamp_quantity(int(main_match.group(1))),
                     card_name=strip_inline_tags(raw_name).strip(),
                     section=DeckSection.MAIN,
                     tags=card_tags,
@@ -201,10 +204,22 @@ class DeckRepository:
         return path.read_text(encoding="utf-8")
 
     def save(self, path: Path, text: str) -> None:
-        """Atomic write: write to temp file, then rename."""
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(text, encoding="utf-8")
-        tmp.rename(path)
+        """Atomic write: stage to a unique temp file, then replace.
+
+        mkstemp avoids two instances racing on the same predictable
+        temp name (burn.deck and burn.tmp colliding, etc.).
+        """
+        fd, tmp_path = tempfile.mkstemp(
+            dir=path.parent, prefix=f".{path.name}.", suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(text)
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def list_decks(self, directory: Path) -> list[Path]:
         return sorted(directory.glob("*.deck"))
