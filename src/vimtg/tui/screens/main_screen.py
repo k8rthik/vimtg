@@ -629,6 +629,7 @@ class MainScreen(Screen[None]):
         dv.show_prices = s.settings.show_prices
         dv.show_line_numbers = s.settings.show_line_numbers
         dv.auto_expand = s.settings.auto_expand
+        dv.tag_filter = s.tag_filter
 
         sr = self.query_one("#search-results", SearchResults)
         sr.price_source = price_src

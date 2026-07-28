@@ -212,34 +212,37 @@ def cmd_duntag(
 def cmd_filter(
     buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:filter expr — set tag filter. :filter! — clear filter."""
-    if cmd.bang:
-        ctx.message = "Filter cleared"
-        # Store filter state on context for the TUI to pick up
-        if not hasattr(ctx, "_tag_filter"):
-            object.__setattr__(ctx, "_tag_filter", None)
-        ctx._tag_filter = None  # type: ignore[attr-defined]
-        return buf, cursor
-
+    """:filter expr — set tag filter. :filter! or bare :filter — clear."""
     expr = cmd.args.strip()
-    if not expr:
-        ctx.fail("Usage: :filter <tag-expression>")
+    if cmd.bang or not expr:
+        ctx.message = "Filter cleared"
+        ctx.tag_filter = None
+        ctx.tag_filter_set = True
         return buf, cursor
 
     tag_filter = parse_tag_filter(expr)
-    # Count how many cards match
+    visible, total = count_filter_matches(buf, tag_filter)
+    ctx.message = filter_status_message(visible, total)
+    ctx.tag_filter = tag_filter
+    ctx.tag_filter_set = True
+    return buf, cursor
+
+
+def count_filter_matches(buf: Buffer, tag_filter: object) -> tuple[int, int]:
+    """Return (matching, total) card-line counts for a tag filter."""
     visible = 0
     total = 0
     for line in range(buf.line_count()):
         if buf.is_card_line(line):
             total += 1
-            tags = buf.tags_at(line)
-            if matches_filter(tags, tag_filter):
+            if matches_filter(buf.tags_at(line), tag_filter):  # type: ignore[arg-type]
                 visible += 1
+    return visible, total
 
-    ctx.message = f"Filter active: {visible}/{total} cards visible"
-    ctx._tag_filter = tag_filter  # type: ignore[attr-defined]
-    return buf, cursor
+
+def filter_status_message(visible: int, total: int) -> str:
+    """One consistent wording for the tf / :filter status message."""
+    return f"Filter: {visible}/{total} cards match (:filter! clears)"
 
 
 def cmd_retag(

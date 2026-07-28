@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
-from vimtg.domain.tags import format_tag_summary
+from vimtg.domain.tags import TagFilter, format_tag_summary
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
 from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
@@ -71,7 +71,7 @@ class EditorState:
     line_edit_row: int | None = None
     line_edit_prefix: str = ""
     tag_input_action: str = ""
-    tag_filter: Any = None
+    tag_filter: TagFilter | None = None
 
 
 @dataclass(frozen=True)
@@ -236,6 +236,8 @@ def handle_command(
             state.settings = ctx.settings
         if ctx.resolved_cards is not None and ctx.resolved_cards is not state.resolved_cards:
             state.resolved_cards = dict(ctx.resolved_cards)
+        if ctx.tag_filter_set:
+            state.tag_filter = ctx.tag_filter
         return HandlerResult(
             command_message=ctx.message,
             error=ctx.error,
@@ -465,15 +467,18 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
         return f"#{tag}: +{added} -{removed}"
 
     if action == "f":
-        from vimtg.domain.tags import matches_filter, parse_tag_filter
-        state.tag_filter = parse_tag_filter(text)
-        visible = sum(
-            1 for i in range(state.buffer.line_count())
-            if state.buffer.is_card_line(i)
-            and matches_filter(state.buffer.tags_at(i), state.tag_filter)
+        from vimtg.domain.tags import parse_tag_filter
+        from vimtg.editor.command_handlers.tag_cmds import (
+            count_filter_matches,
+            filter_status_message,
         )
-        total = sum(1 for i in range(state.buffer.line_count()) if state.buffer.is_card_line(i))
-        return f"Filter active: {visible}/{total} cards visible"
+
+        if not text.strip():
+            state.tag_filter = None
+            return "Filter cleared"
+        state.tag_filter = parse_tag_filter(text)
+        visible, total = count_filter_matches(state.buffer, state.tag_filter)
+        return filter_status_message(visible, total)
 
     return ""
 

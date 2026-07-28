@@ -74,11 +74,14 @@ def render_line(
     currency_symbol: str = "$",
     show_prices: bool = True,
     auto_expand: bool = True,
+    dimmed: bool = False,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
     Returns 1 line normally, or 1+expansion lines if the cursor
     is on this card, the card is resolved, and auto_expand is on.
+    `dimmed` renders the line de-emphasized (tag filter mismatch)
+    and suppresses expansion.
     """
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
@@ -105,8 +108,11 @@ def render_line(
         lines.extend(_render_card_line(
             line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
-            show_prices=show_prices, auto_expand=auto_expand,
+            show_prices=show_prices, auto_expand=auto_expand and not dimmed,
         ))
+        if dimmed:
+            for line in lines:
+                line.stylize("dim")
     else:
         t = Text()
         t.append(gutter)

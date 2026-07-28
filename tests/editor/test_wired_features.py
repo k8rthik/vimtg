@@ -156,3 +156,41 @@ class TestMacroRecording:
         assert state.macros.is_recording
         handle_normal_special(state, ParsedAction("special", "q"))
         assert not state.macros.is_recording
+
+
+class TestTagFilterWiring:
+    """:filter and tf must actually drive the deck view's filter state."""
+
+    def test_cmd_filter_sets_context_filter(self) -> None:
+        from vimtg.editor.command_handlers.tag_cmds import cmd_filter
+        from vimtg.editor.commands import EditorContext, ParsedCommand
+        from vimtg.editor.buffer import Buffer
+        from vimtg.editor.cursor import Cursor
+
+        buf = Buffer.from_text("4 Lightning Bolt  #burn\n4 Goblin Guide\n")
+        ctx = EditorContext()
+        cmd_filter(buf, Cursor(), ParsedCommand(name="filter", args="burn"), ctx)
+        assert ctx.tag_filter_set
+        assert ctx.tag_filter is not None
+        assert "1/2" in ctx.message
+
+    def test_cmd_filter_bang_clears(self) -> None:
+        from vimtg.editor.command_handlers.tag_cmds import cmd_filter
+        from vimtg.editor.commands import EditorContext, ParsedCommand
+        from vimtg.editor.buffer import Buffer
+        from vimtg.editor.cursor import Cursor
+
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        ctx = EditorContext()
+        cmd_filter(buf, Cursor(), ParsedCommand(name="filter", bang=True), ctx)
+        assert ctx.tag_filter_set
+        assert ctx.tag_filter is None
+
+    def test_filter_dims_nonmatching_lines_in_renderer(self) -> None:
+        from vimtg.editor.buffer import Buffer
+        from vimtg.tui.deck_renderer import render_line
+
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        normal = render_line(0, buf, 99, {})
+        dimmed = render_line(0, buf, 99, {}, dimmed=True)
+        assert normal[0].markup != dimmed[0].markup

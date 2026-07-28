@@ -174,6 +174,10 @@ class EditorContext:
     resolved_cards: dict[str, Card] | None = None
     card_repo: CardRepository | None = None
     history: HistoryService | None = None
+    # Tag-filter request: tag_filter_set marks that the handler changed
+    # the filter (to a TagFilter, or to None to clear it)
+    tag_filter: Any = None
+    tag_filter_set: bool = False
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""

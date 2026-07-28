@@ -221,11 +221,14 @@ class TestCmdFilter:
         buf, _ = cmd_filter(buf, Cursor(0, 0), _cmd("filter", bang=True), ctx)
         assert "cleared" in ctx.message.lower()
 
-    def test_filter_no_args(self):
+    def test_filter_no_args_clears(self):
+        """Bare :filter clears the filter — as documented in :help filter."""
         ctx = _ctx()
         buf = _buf("4 Goblin Guide\n")
         buf, _ = cmd_filter(buf, Cursor(0, 0), _cmd("filter"), ctx)
-        assert ctx.error
+        assert ctx.tag_filter_set
+        assert ctx.tag_filter is None
+        assert "cleared" in ctx.message.lower()
 
 
 class TestCmdRetag:
