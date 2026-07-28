@@ -76,6 +76,27 @@ class TestSearch:
         results = card_repo.search("   ")
         assert results == []
 
+    def test_apostrophe_does_not_crash(self, card_repo: CardRepository) -> None:
+        results = card_repo.search("Urza's Tower")
+        assert results == []
+
+    def test_comma_does_not_crash(self, card_repo: CardRepository) -> None:
+        results = card_repo.search("Jace, the Mind Sculptor")
+        assert results == []
+
+    def test_hyphen_treated_as_phrase(self, card_repo: CardRepository) -> None:
+        results = card_repo.search("Snow-Covered Forest")
+        assert results == []
+
+    def test_fts_operators_are_literal(self, card_repo: CardRepository) -> None:
+        for query in ('rest "in', "fire (", "NOT", "bolt OR", "^light", "co*l"):
+            card_repo.search(query)
+
+    def test_hyphenated_name_still_matches(self, card_repo: CardRepository) -> None:
+        results = card_repo.search("Fire // Ice")
+        names = [c.name for c in results]
+        assert "Fire // Ice" in names
+
 
 class TestGetByName:
     def test_exact_match(self, card_repo: CardRepository) -> None:

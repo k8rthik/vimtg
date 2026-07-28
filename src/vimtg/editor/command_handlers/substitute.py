@@ -1,7 +1,6 @@
 """Substitute command: :s/old/new/[flags] — TUI-agnostic, zero Textual imports.
 
 Supports per-line, range, and whole-file substitution with optional flags.
-Also provides a placeholder :filter command for future view filtering.
 """
 
 from __future__ import annotations
@@ -91,7 +90,11 @@ def cmd_substitute(
     for i in range(start, end + 1):
         line = new_buffer.get_line(i)
         max_count = 0 if flag_global else 1
-        new_text, n = regex.subn(replacement, line.text, count=max_count)
+        # Pattern is escaped (literal), so treat the replacement literally
+        # too — a raw "\1" here would raise "invalid group reference".
+        new_text, n = regex.subn(
+            replacement.replace("\\", "\\\\"), line.text, count=max_count
+        )
         if n > 0:
             new_buffer = new_buffer.set_line(i, new_text)
             count += n
@@ -106,18 +109,6 @@ def cmd_substitute(
     return new_buffer, cursor
 
 
-def cmd_filter_view(
-    buffer: Buffer,
-    cursor: Cursor,
-    cmd: ParsedCommand,
-    ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:filter pattern — Placeholder for view filtering."""
-    ctx.message = "Use :g/pattern/d to delete non-matching lines, or :find to jump"
-    return buffer, cursor
-
-
 def register_substitute_commands(registry: CommandRegistry) -> None:
-    """Register :s, :substitute, and :filter commands."""
+    """Register :s and :substitute commands."""
     registry.register("s", cmd_substitute, aliases=["substitute"])
-    registry.register("filter", cmd_filter_view)

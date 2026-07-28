@@ -100,12 +100,12 @@ class CardRepository:
         conditions: list[str] = []
         params: list[object] = []
 
-        if query.text:
+        fts_query = _prepare_fts_query(query.text) if query.text else ""
+        if fts_query:
             conditions.append(
                 "c.rowid IN (SELECT rowid FROM cards_fts WHERE cards_fts MATCH ?)"
             )
-            words = query.text.strip().split()
-            params.append(" ".join(f"{w}*" for w in words))
+            params.append(fts_query)
         if query.type_contains:
             conditions.append("c.type_line LIKE ?")
             params.append(f"%{query.type_contains}%")
@@ -178,6 +178,8 @@ class CardRepository:
 
 
 def _prepare_fts_query(query: str) -> str:
-    """Append * to each word for prefix matching."""
+    """Build an FTS5 prefix query, quoting each word so punctuation
+    in card names (apostrophes, commas, hyphens) is matched literally
+    instead of being parsed as FTS5 syntax."""
     words = query.strip().split()
-    return " ".join(f"{w}*" for w in words if w)
+    return " ".join(f'"{w.replace(chr(34), chr(34) * 2)}"*' for w in words if w)

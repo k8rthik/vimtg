@@ -189,9 +189,17 @@ class CommandRegistry:
         handler: CommandHandler,
         aliases: list[str] | None = None,
     ) -> None:
-        """Register a command handler with optional aliases."""
+        """Register a command handler with optional aliases.
+
+        Raises ValueError on a duplicate name or alias — silently
+        overwriting would let one module shadow another's command.
+        """
+        if name in self._commands or name in self._aliases:
+            raise ValueError(f"Command already registered: {name}")
         self._commands[name] = handler
         for alias in aliases or []:
+            if alias in self._commands or alias in self._aliases:
+                raise ValueError(f"Command alias already registered: {alias}")
             self._aliases[alias] = name
 
     def execute(

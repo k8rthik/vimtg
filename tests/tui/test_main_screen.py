@@ -371,6 +371,32 @@ async def test_confirm_insert_duplicate_increments(wired_repo) -> None:  # type:
 
 
 @pytest.mark.asyncio
+async def test_confirm_insert_duplicate_preserves_prefix_and_tags(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+
+    scr = MainScreen(
+        buffer=Buffer.from_text("// Sideboard\nSB: 2 Goblin Guide  #aggro\n"),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=wired_repo),
+        card_repo=wired_repo,
+    )
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.buffer = scr._state.buffer.insert_line(2, "")
+        scr._state.cursor = Cursor(row=2)
+        guide = wired_repo.get_by_name("Goblin Guide")
+        scr._update_search_results([guide])
+        scr._confirm_insert()
+        line = scr._find_card_line("Goblin Guide")
+        assert line is not None
+        text = scr._state.buffer.get_line(line).text
+        assert text.startswith("SB: 3 Goblin Guide")
+        assert "#aggro" in text
+
+
+@pytest.mark.asyncio
 async def test_confirm_insert_no_selection_cleans_blank(wired_repo) -> None:  # type: ignore[no-untyped-def]
     scr = _wired_screen(wired_repo)
     app = _Host(scr)

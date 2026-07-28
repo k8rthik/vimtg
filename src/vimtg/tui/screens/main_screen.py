@@ -382,7 +382,7 @@ class MainScreen(Screen[None]):
             duplicate_line = self._find_card_line(card.name)
             if duplicate_line is not None:
                 qty = s.buffer.quantity_at(duplicate_line) or 0
-                s.buffer = s.buffer.set_line(duplicate_line, f"{qty + 1} {card.name}")
+                s.buffer = s.buffer.set_quantity(duplicate_line, qty + 1)
                 self._delete_blank_cursor_line()
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
             else:

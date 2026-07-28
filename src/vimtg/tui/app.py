@@ -18,14 +18,7 @@ from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
 from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.buffer_cmds import register_buffer_commands
-from vimtg.editor.command_handlers.config_cmds import register_config_commands
-from vimtg.editor.command_handlers.deck_cmds import register_deck_commands
-from vimtg.editor.command_handlers.export_cmds import register_export_commands
-from vimtg.editor.command_handlers.help_cmd import register_help_commands
-from vimtg.editor.command_handlers.history_cmds import register_history_commands
-from vimtg.editor.command_handlers.sort import register_sort_commands
-from vimtg.editor.command_handlers.tag_cmds import register_tag_commands
+from vimtg.editor.command_handlers import register_all_commands
 from vimtg.editor.commands import CommandRegistry
 from vimtg.services.search_service import SearchService
 from vimtg.tui.theme import COLORS
@@ -81,14 +74,7 @@ class VimTGApp(App[None]):
 
     def _init_services(self) -> None:
         self._cmd_registry = CommandRegistry()
-        register_buffer_commands(self._cmd_registry)
-        register_sort_commands(self._cmd_registry)
-        register_deck_commands(self._cmd_registry)
-        register_help_commands(self._cmd_registry)
-        register_config_commands(self._cmd_registry)
-        register_history_commands(self._cmd_registry)
-        register_export_commands(self._cmd_registry)
-        register_tag_commands(self._cmd_registry)
+        register_all_commands(self._cmd_registry)
         self._deck_repo = DeckRepository()
 
         db_file = db_path()

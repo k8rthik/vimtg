@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.substitute import cmd_filter_view, cmd_substitute
+from vimtg.editor.command_handlers.substitute import cmd_substitute
 from vimtg.editor.commands import CommandRange, EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
 
@@ -218,15 +218,12 @@ class TestSubErrors:
         assert "E: " in ctx.message
 
 
-class TestFilterView:
-    def test_filter_placeholder(self) -> None:
-        """:filter is a placeholder that returns informational message."""
-        text = "4 Lightning Bolt\n"
-        buffer = Buffer.from_text(text)
+class TestLiteralReplacement:
+    def test_backslash_replacement_is_literal(self) -> None:
+        r""":s/x/\1/ must not raise 'invalid group reference'."""
+        buffer = Buffer.from_text("4 Lightning Bolt\n")
         cursor = Cursor(row=0)
         ctx = EditorContext()
-        cmd = ParsedCommand(name="filter", args="red")
 
-        new_buf, _ = cmd_filter_view(buffer, cursor, cmd, ctx)
-        assert ":g/pattern/d" in ctx.message
-        assert ":find" in ctx.message
+        new_buf, _ = cmd_substitute(buffer, cursor, _make_cmd(args=r"/Bolt/\1/"), ctx)
+        assert new_buf.get_line(0).text == r"4 Lightning \1"
