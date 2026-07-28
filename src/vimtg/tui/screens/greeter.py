@@ -11,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 
 from rich.text import Text
+from textual import work
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.screen import Screen
@@ -205,6 +206,7 @@ class GreeterScreen(Screen[None]):
         super().__init__()
         self._recent = recent_files or []
         self._all_files = _find_all_decks()
+        self._sync_running = False
 
     def compose(self) -> ComposeResult:
         yield GreeterView(recent_files=self._recent, all_files=self._all_files)
@@ -289,25 +291,51 @@ class GreeterScreen(Screen[None]):
         self.app._launch_editor(file_path)  # type: ignore[attr-defined]
 
     def _run_sync(self) -> None:
-        """Run card sync inline — show progress in the greeter."""
+        """Kick off card sync in a worker thread — the ~150 MB download
+        must not freeze the UI event loop."""
+        if self._sync_running:
+            return
+        self._sync_running = True
+        gv = self.query_one(GreeterView)
+        gv._status = "Syncing card data..."
+        gv.refresh()
+        self._sync_worker()
+
+    @work(thread=True, exclusive=True)
+    def _sync_worker(self) -> None:
         from vimtg.config.paths import cache_dir, db_path
         from vimtg.data.card_repository import CardRepository
         from vimtg.data.database import Database
         from vimtg.data.scryfall_sync import ScryfallSync
 
-        gv = self.query_one(GreeterView)
+        def _set_status(text: str) -> None:
+            gv = self.query_one(GreeterView)
+            gv._status = text
+            gv.refresh()
+
+        def _progress(phase: str, current: int, total: int) -> None:
+            if total > 0:
+                pct = current * 100 // total
+                self.app.call_from_thread(
+                    _set_status, f"Sync: {phase} {pct}%"
+                )
+
+        # Own connection: sqlite objects must not cross threads
         db = Database(db_path())
         try:
             db.initialize()
             repo = CardRepository(db)
             sync = ScryfallSync(repo, cache_dir())
-            count = sync.sync()
-            gv._status = f"Synced {count} cards"
-        except Exception as exc:
-            gv._status = f"Sync failed: {exc}"
+            count = sync.sync(progress=_progress)
+            message = f"Synced {count} cards"
+            if sync.last_skipped:
+                message += f" ({sync.last_skipped} skipped)"
+        except Exception as exc:  # network/parse errors -> status line
+            message = f"Sync failed: {exc}"
         finally:
             db.close()
-        gv.refresh()
+            self._sync_running = False
+        self.app.call_from_thread(_set_status, message)
 
 
 def _find_all_decks() -> list[Path]:

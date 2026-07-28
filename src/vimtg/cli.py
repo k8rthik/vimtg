@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import click
+import httpx
 
 from vimtg import __version__
 from vimtg.config.paths import cache_dir, db_path
@@ -113,8 +114,15 @@ def sync_cmd(force: bool) -> None:
         elif phase == "parse" and total > 0:
             click.echo(f"\rParsing... {current}/{total}", nl=False)
 
-    count = syncer.sync(force=force, progress=_progress)
+    try:
+        count = syncer.sync(force=force, progress=_progress)
+    except httpx.HTTPError as exc:
+        raise click.ClickException(f"Network error during sync: {exc}") from exc
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
     click.echo(f"\nSynced {count} cards")
+    if syncer.last_skipped:
+        click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse")
 
 
 @main.command()

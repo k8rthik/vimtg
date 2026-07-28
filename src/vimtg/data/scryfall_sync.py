@@ -26,6 +26,7 @@ class ScryfallSync:
     def __init__(self, card_repo: CardRepository, cache_dir: Path) -> None:
         self._repo = card_repo
         self._cache_dir = cache_dir
+        self.last_skipped = 0  # cards that failed to parse in the last load
 
     def get_bulk_data_url(self) -> str:
         """Fetch bulk-data manifest, return URL for oracle_cards."""
@@ -48,25 +49,37 @@ class ScryfallSync:
         dest: Path,
         progress: ProgressFn | None = None,
     ) -> Path:
-        """Stream download to temp file, atomic rename."""
+        """Stream download to temp file, verify size, atomic rename.
+
+        A truncated download must not be renamed into place — the cache
+        freshness check would then serve broken JSON for a week.
+        """
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_suffix(".tmp")
-        with httpx.stream(
-            "GET",
-            url,
-            headers={"User-Agent": USER_AGENT},
-            timeout=300,
-            follow_redirects=True,
-        ) as resp:
-            resp.raise_for_status()
-            total = int(resp.headers.get("content-length", 0))
-            downloaded = 0
-            with open(tmp, "wb") as f:
-                for chunk in resp.iter_bytes(chunk_size=CHUNK_SIZE):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if progress:
-                        progress(downloaded, total)
+        try:
+            with httpx.stream(
+                "GET",
+                url,
+                headers={"User-Agent": USER_AGENT},
+                timeout=300,
+                follow_redirects=True,
+            ) as resp:
+                resp.raise_for_status()
+                total = int(resp.headers.get("content-length", 0))
+                downloaded = 0
+                with open(tmp, "wb") as f:
+                    for chunk in resp.iter_bytes(chunk_size=CHUNK_SIZE):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if progress:
+                            progress(downloaded, total)
+            if total and downloaded != total:
+                raise RuntimeError(
+                    f"Truncated download: got {downloaded} of {total} bytes"
+                )
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         tmp.rename(dest)
         return dest
 
@@ -75,11 +88,24 @@ class ScryfallSync:
         json_path: Path,
         progress: ProgressFn | None = None,
     ) -> int:
-        """Parse bulk JSON, load cards into repository."""
-        with open(json_path, encoding="utf-8") as f:
-            data = json.load(f)
+        """Parse bulk JSON, load cards into repository.
+
+        Raises RuntimeError when no card parses at all — that means the
+        feed shape changed, not that the sync "succeeded with 0 cards".
+        Tracks skip count so partial failures are visible to callers.
+        """
+        try:
+            with open(json_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as exc:
+            # Corrupt cache: remove it so the next sync re-downloads
+            json_path.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"Corrupt card cache (deleted, retry sync): {exc}"
+            ) from exc
 
         cards: list[Card] = []
+        self.last_skipped = 0
         total = len(data)
         for i, item in enumerate(data):
             if item.get("layout") in SKIP_LAYOUTS:
@@ -87,9 +113,16 @@ class ScryfallSync:
             try:
                 cards.append(Card.from_scryfall(item))
             except Exception:  # noqa: BLE001
+                self.last_skipped += 1
                 continue
             if progress and i % PROGRESS_INTERVAL == 0:
                 progress(i, total)
+
+        if total > 0 and not cards:
+            raise RuntimeError(
+                f"No cards parsed from {total} entries — Scryfall feed "
+                "format may have changed"
+            )
 
         count = self._repo.bulk_insert(cards)
         if progress:
