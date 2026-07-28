@@ -34,6 +34,7 @@ class ConfigView(Static):
     settings: reactive[Settings] = reactive(Settings, recompose=False)
     selected_index: reactive[int] = reactive(0)
     unsaved: reactive[bool] = reactive(False)
+    warning: reactive[str] = reactive("")
 
     def render(self) -> Text:
         t = Text()
@@ -87,8 +88,10 @@ class ConfigView(Static):
         # Footer
         t.append(f"  {'─' * 40}\n", style=f"dim {COLORS['comment']}")
 
-        if self.unsaved:
-            t.append("  * unsaved changes\n", style=f"bold {COLORS['mana_red']}")
+        if self.warning:
+            t.append(f"  {self.warning}\n", style=f"bold {COLORS['error']}")
+        elif self.unsaved:
+            t.append("  * unsaved changes\n", style=f"bold {COLORS['error']}")
 
         hints = Text()
         hints.append("  j", style=f"bold {COLORS['quantity']}")
@@ -135,6 +138,7 @@ class ConfigScreen(Screen[None]):
         self._original = settings
         self._settings = settings
         self._on_save = on_save
+        self._discard_armed = False  # first q with unsaved changes warns
 
     def compose(self) -> ComposeResult:
         yield ConfigView(id="config-view")
@@ -155,18 +159,22 @@ class ConfigScreen(Screen[None]):
         all_options = navigable_options()
         max_idx = len(all_options) - 1
 
+        if key not in ("q", "escape") and self._discard_armed:
+            self._discard_armed = False
+            view.warning = ""
+
         if key == "j":
             view.selected_index = min(view.selected_index + 1, max_idx)
         elif key == "k":
             view.selected_index = max(view.selected_index - 1, 0)
-        elif key in ("l", "space", "enter"):
+        elif key in ("l", " ", "enter"):  # translate() maps Space to " "
             self._cycle_current(view, all_options, direction=1)
         elif key == "h":
             self._cycle_current(view, all_options, direction=-1)
         elif key == "s":
             self._save_and_close()
         elif key in ("escape", "q"):
-            self._close()
+            self._close(view)
 
     def _cycle_current(
         self, view: ConfigView, all_options: list[ConfigOption], direction: int
@@ -182,5 +190,10 @@ class ConfigScreen(Screen[None]):
         self._on_save(self._settings)
         self.app.pop_screen()
 
-    def _close(self) -> None:
+    def _close(self, view: ConfigView) -> None:
+        """Close, but warn once before discarding unsaved changes."""
+        if view.unsaved and not self._discard_armed:
+            self._discard_armed = True
+            view.warning = "Unsaved changes — press q again to discard, s to save"
+            return
         self.app.pop_screen()

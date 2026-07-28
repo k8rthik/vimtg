@@ -173,7 +173,7 @@ class MainScreen(Screen[None]):
         wk.mode = self._state.mode_mgr.current
         if result == KeyResult.PENDING:
             wk.pending_key = key
-            wk.display = True
+            wk.display = self._state.settings.show_which_key
             return
         wk.pending_key = ""
         wk.display = False
@@ -394,6 +394,9 @@ class MainScreen(Screen[None]):
                 s.buffer = s.buffer.set_quantity(duplicate_line, qty + 1)
                 self._delete_blank_cursor_line()
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
+            elif not s.settings.auto_sort:
+                # auto_sort off: card goes exactly where the user opened it
+                s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
             else:
                 # Find or create the right type section, then insert there
                 s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
@@ -440,6 +443,7 @@ class MainScreen(Screen[None]):
         if isinstance(app, VimTGApp):
             app.update_settings(new_settings)
         self._sync_widgets()
+        self.query_one("#command-line", CommandLine).set_message("Settings saved")
 
     # ── VCS integration ─────────────────────────────────────
 
@@ -564,7 +568,16 @@ class MainScreen(Screen[None]):
     @work(thread=True)
     def _run_search(self, query: str) -> None:
         if self.search_service:
-            results = self.search_service.fuzzy_search(query, limit=15)
+            settings = self._state.settings
+            results = self.search_service.fuzzy_search(
+                query, limit=settings.search_limit
+            )
+            if settings.default_format:
+                results = [
+                    c
+                    for c in results
+                    if c.legalities.get(settings.default_format) == "legal"
+                ]
             self.app.call_from_thread(self._update_search_results, results)
 
     def _update_search_results(self, results: list[Card]) -> None:
@@ -614,6 +627,8 @@ class MainScreen(Screen[None]):
         dv.price_source = price_src
         dv.currency_symbol = cur_sym
         dv.show_prices = s.settings.show_prices
+        dv.show_line_numbers = s.settings.show_line_numbers
+        dv.auto_expand = s.settings.auto_expand
 
         sr = self.query_one("#search-results", SearchResults)
         sr.price_source = price_src

@@ -66,13 +66,18 @@ def cmd_quit(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Quit editor. Fails if buffer modified without bang."""
-    if ctx.modified and not cmd.bang:
+    """Quit editor. Fails if buffer modified without bang (configurable)."""
+    if ctx.modified and not cmd.bang and _confirm_quit_enabled(ctx):
         ctx.fail("Unsaved changes (use :q! to force)")
         return buffer, cursor
     ctx.quit_requested = True
     ctx.message = ""
     return buffer, cursor
+
+
+def _confirm_quit_enabled(ctx: EditorContext) -> bool:
+    """Honor the confirm_quit setting; default to safe (True)."""
+    return bool(getattr(ctx.settings, "confirm_quit", True))
 
 
 def cmd_write_quit(
@@ -95,7 +100,7 @@ def cmd_home(
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
     """Return to greeter screen. Fails if buffer modified without bang."""
-    if ctx.modified and not cmd.bang:
+    if ctx.modified and not cmd.bang and _confirm_quit_enabled(ctx):
         ctx.fail("Unsaved changes (use :home! to force)")
         return buffer, cursor
     ctx.greeter_requested = True

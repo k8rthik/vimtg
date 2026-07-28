@@ -73,11 +73,12 @@ def render_line(
     price_source: str = "usd",
     currency_symbol: str = "$",
     show_prices: bool = True,
+    auto_expand: bool = True,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
     Returns 1 line normally, or 1+expansion lines if the cursor
-    is on this card and the card is resolved.
+    is on this card, the card is resolved, and auto_expand is on.
     """
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
@@ -104,7 +105,7 @@ def render_line(
         lines.extend(_render_card_line(
             line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
-            show_prices=show_prices,
+            show_prices=show_prices, auto_expand=auto_expand,
         ))
     else:
         t = Text()
@@ -127,6 +128,7 @@ def _render_card_line(
     price_source: str = "usd",
     currency_symbol: str = "$",
     show_prices: bool = True,
+    auto_expand: bool = True,
 ) -> list[Text]:
     """Build the formatted card line and optional inline expansion."""
     bl = buf.get_line(line_idx)
@@ -164,7 +166,7 @@ def _render_card_line(
 
     lines: list[Text] = [t]
 
-    if is_cursor and card:
+    if is_cursor and card and auto_expand:
         lines.extend(_render_expansion(
             card, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
