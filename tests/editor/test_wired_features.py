@@ -150,12 +150,31 @@ class TestSearchMode:
 
 
 class TestMacroRecording:
-    def test_q_starts_and_stops_recording(self) -> None:
+    def test_q_register_starts_and_q_stop_ends(self) -> None:
         state = _make_state()
-        handle_normal_special(state, ParsedAction("special", "q"))
+        hr = handle_normal_special(state, ParsedAction("special", "qa"))
         assert state.macros.is_recording
-        handle_normal_special(state, ParsedAction("special", "q"))
+        assert state.macros.recording_register == "a"
+        assert "recording @a" in hr.command_message
+        state.macros.record_key("j")
+        hr = handle_normal_special(state, ParsedAction("special", "q_stop"))
         assert not state.macros.is_recording
+        assert "Recorded @a (1 keys)" in hr.command_message
+
+    def test_play_returns_recorded_keys(self) -> None:
+        state = _make_state()
+        handle_normal_special(state, ParsedAction("special", "qb"))
+        state.macros.record_key("j")
+        state.macros.record_key("x")
+        handle_normal_special(state, ParsedAction("special", "q_stop"))
+        hr = handle_normal_special(state, ParsedAction("special", "@b"))
+        assert hr.replay_keys == ("j", "x")
+
+    def test_play_empty_register_reports(self) -> None:
+        state = _make_state()
+        hr = handle_normal_special(state, ParsedAction("special", "@z"))
+        assert "Nothing recorded" in hr.command_message
+        assert hr.replay_keys == ()
 
 
 class TestTagFilterWiring:

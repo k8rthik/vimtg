@@ -102,6 +102,7 @@ class HandlerResult:
     enter_line_edit: bool = False
     enter_tag_input: bool = False
     tag_prompt: str = ""
+    replay_keys: tuple[str, ...] = ()  # macro playback via the key pipeline
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -307,11 +308,23 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         return HandlerResult(help_requested=True)
     elif key == ".":
         _replay_dot(state)
-    elif key == "q":
-        _toggle_macro_recording(state)
-    elif key == "@":
-        reg = action.register or "@"
-        _play_macro(state, reg)
+    elif key == "q_stop":
+        register = state.macros.recording_register or "?"
+        macro = state.macros.stop_recording()
+        count = len(macro.keys) if macro else 0
+        return HandlerResult(
+            command_message=f"Recorded @{register} ({count} keys)"
+        )
+    elif key.startswith("q") and len(key) == 2:
+        state.macros.start_recording(key[1])
+        return HandlerResult(command_message=f"recording @{key[1]}")
+    elif key.startswith("@") and len(key) == 2:
+        keys = state.macros.play(key[1])
+        if keys is None:
+            return HandlerResult(
+                command_message=f"Nothing recorded in @{key[1]}"
+            )
+        return HandlerResult(replay_keys=keys)
     elif key.startswith("m") and len(key) == 2:
         mark_name = key[1]
         state.marks = state.marks.set(mark_name, state.cursor.row)
@@ -510,34 +523,6 @@ def _replay_dot(state: EditorState) -> None:
             )
         state.modified = True
         state.history.record(state.buffer, "dot repeat")
-
-
-def _toggle_macro_recording(state: EditorState) -> None:
-    """Start or stop macro recording."""
-    if state.macros.is_recording:
-        state.macros.stop_recording()
-    else:
-        # Next key press after 'q' should be the register name
-        # For simplicity, use the register from the action if set
-        # The keymap sends 'q' as a special key; we need a follow-up
-        # We'll use a simple convention: q is handled as a toggle
-        # The register selection happens via "@" register prefix
-        state.macros.start_recording("q")
-
-
-def _play_macro(state: EditorState, register: str) -> None:
-    """Play a macro from the given register."""
-    keys = state.macros.play(register)
-    if keys is None:
-        return
-    for key in keys:
-        if key in MOTION_REGISTRY:
-            motion_fn = MOTION_REGISTRY[key]
-            state.cursor = motion_fn(state.cursor, state.buffer, 1)
-        elif key in ("+", "-", "x"):
-            handle_normal_special(
-                state, ParsedAction("special", key),
-            )
 
 
 def handle_insert_special(state: EditorState, action: ParsedAction) -> HandlerResult:

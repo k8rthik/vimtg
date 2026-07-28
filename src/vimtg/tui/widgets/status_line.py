@@ -30,6 +30,7 @@ class StatusLine(Static):
     total_lines: reactive[int] = reactive(0)
     vcs_branch: reactive[str] = reactive("")
     vcs_snapshot_count: reactive[int] = reactive(0)
+    recording_register: reactive[str] = reactive("")
 
     def render(self) -> Text:
         t = Text()
@@ -43,5 +44,10 @@ class StatusLine(Static):
             t.append(f"  [{self.vcs_branch}]", style=f"bold {COLORS['mana_green']}")
             if self.vcs_snapshot_count:
                 t.append(f" ({self.vcs_snapshot_count})", style="dim")
+        if self.recording_register:
+            t.append(
+                f"  recording @{self.recording_register}",
+                style=f"bold {COLORS['error']}",
+            )
         t.append(f"  Ln {self.cursor_line + 1}/{self.total_lines}", style="dim")
         return t

@@ -195,7 +195,9 @@ class TestEndToEndKeybinds:
             (["minus"], "-"),
             (["full_stop"], "."),
             (["question_mark"], "?"),
-            (["at"], "@"),
+            (["at", "a"], "@a"),
+            (["at", "at"], "@@"),
+            (["q", "a"], "qa"),
         ],
     )
     def test_normal_special(self, keys: list[str], expected_action: str) -> None:

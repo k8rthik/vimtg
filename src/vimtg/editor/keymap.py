@@ -51,8 +51,8 @@ MODE_SWITCHES: dict[str, str] = {
     ":": "COMMAND",
     "/": "SEARCH",
 }
-SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "@", "q"})
-MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t"})
+SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?"})
+MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@"})
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 
 
@@ -100,6 +100,11 @@ class KeyMap:
         self._multi_key_prefix = ""
         self._insert_buf = LineBuffer()
         self._command_buf = LineBuffer()
+        self._macro_recording = False
+
+    def set_macro_recording(self, recording: bool) -> None:
+        """While recording, a bare 'q' stops instead of awaiting a register."""
+        self._macro_recording = recording
 
     def set_mode(self, mode: Mode) -> None:
         self._mode = mode
@@ -161,6 +166,10 @@ class KeyMap:
 
         count = int(self._count_str) if self._count_str else 1
 
+        if key == "q" and self._macro_recording and self._state in (_State.IDLE, _State.COUNT):
+            self.reset()
+            return KeyResult.COMPLETE, ParsedAction("special", "q_stop")
+
         if key in MULTI_KEY_STARTERS and self._state in (_State.IDLE, _State.COUNT):
             self._multi_key_prefix = key
             self._state = _State.MULTI_KEY
@@ -178,6 +187,18 @@ class KeyMap:
                 return KeyResult.COMPLETE, action
             # t{a,r,t,f,l,c,n,p} — tag operations
             if self._multi_key_prefix == "t" and key in _TAG_SUB_KEYS:
+                action = ParsedAction("special", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # q{a-z} — record macro into register
+            if self._multi_key_prefix == "q" and key.isalpha() and len(key) == 1:
+                action = ParsedAction("special", full_key.lower(), count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # @{a-z} — play macro, @@ — replay last
+            if self._multi_key_prefix == "@" and (
+                (key.isalpha() and len(key) == 1) or key == "@"
+            ):
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action

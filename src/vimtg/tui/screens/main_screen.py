@@ -115,6 +115,7 @@ class MainScreen(Screen[None]):
         self.remapper = load_remapper()
         self._db = db
         self._vcs_service: VersionControlService | None = None  # Lazily initialized
+        self._replaying = False  # guards against recursive macro replay
 
     def compose(self) -> ComposeResult:
         yield DeckView(id="deck-view")
@@ -164,8 +165,18 @@ class MainScreen(Screen[None]):
             cl.message = ""
         # Translate Textual key name → canonical vim key name
         key = translate(event.key)
+        self._process_key(key)
+
+    def _process_key(self, key: str) -> None:
+        """Run one canonical key through remap, keymap, and dispatch.
+
+        Shared by live keypresses and macro replay.
+        """
         # Resolve user remappings
         key = self.remapper.resolve(key, self._state.mode_mgr.current)
+        # Capture for macro recording (the stopping 'q' is not recorded)
+        if self._state.macros.is_recording and not self._replaying:
+            self._state.macros.record_key(key)
         result, action = self.keymap.feed(key)
 
         # Update which-key tooltip
@@ -199,9 +210,25 @@ class MainScreen(Screen[None]):
         elif action.action_type == "special":
             hr = self._dispatch_special(action)
 
+        self.keymap.set_macro_recording(s.macros.is_recording)
         if hr:
             self._apply_handler_result(hr)
         self._sync_widgets()
+
+    def _replay_macro_keys(self, keys: tuple[str, ...]) -> None:
+        """Replay recorded keys through the normal key pipeline.
+
+        Replay is not re-entrant: an @ inside a macro is skipped rather
+        than looping forever.
+        """
+        if self._replaying:
+            return
+        self._replaying = True
+        try:
+            for key in keys:
+                self._process_key(key)
+        finally:
+            self._replaying = False
 
     def _dispatch_special(self, action: ParsedAction) -> HandlerResult | None:
         s = self._state
@@ -344,6 +371,8 @@ class MainScreen(Screen[None]):
             self._vcs_commit(hr.vcs_commit_description)
         if hr.search_query is not None:
             self._handle_search_action(hr.search_query)
+        if hr.replay_keys:
+            self._replay_macro_keys(hr.replay_keys)
         if hr.insert_confirm:
             self._confirm_insert()
 
@@ -643,6 +672,7 @@ class MainScreen(Screen[None]):
         sl.card_count = count_cards(s.buffer)
         sl.cursor_line = s.cursor.row
         sl.total_lines = s.buffer.line_count()
+        sl.recording_register = s.macros.recording_register or ""
 
         # VCS status — a DB hiccup here must not crash the render path
         vcs = self._vcs_service  # Don't lazily init on every sync
