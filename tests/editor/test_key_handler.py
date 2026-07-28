@@ -279,7 +279,7 @@ class TestTagInput:
         st = _state("4 Goblin Guide  #core\n4 Lava Spike\n", row=0)
         st.tag_input_action = "f"
         hr = handle_tag_input_special(st, _act("enter", text="core"))
-        assert "Filter active" in hr.command_message
+        assert "Filter: 1/2 cards match" in hr.command_message
         assert st.tag_filter is not None
 
     def test_empty_enter_exits(self) -> None:
