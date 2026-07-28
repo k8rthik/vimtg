@@ -66,8 +66,7 @@ def cmd_substitute(
     """
     parsed = _parse_substitute_args(cmd.args)
     if parsed is None:
-        ctx.message = "E: Usage: :s/old/new/[flags]"
-        ctx.error = True
+        ctx.fail("Usage: :s/old/new/[flags]")
         return buffer, cursor
 
     pattern, replacement, flags = parsed
@@ -77,8 +76,7 @@ def cmd_substitute(
     try:
         regex = re.compile(re.escape(pattern), re_flags)
     except re.error:
-        ctx.message = f"E: Invalid pattern: {pattern}"
-        ctx.error = True
+        ctx.fail(f"Invalid pattern: {pattern}")
         return buffer, cursor
 
     start, end = _resolve_line_range(cmd, cursor.row, buffer.line_count())

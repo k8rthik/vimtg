@@ -411,6 +411,45 @@ async def test_confirm_insert_no_selection_cleans_blank(wired_repo) -> None:  # 
 
 
 @pytest.mark.asyncio
+async def test_cleanup_is_noop_on_clean_buffer(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        before = scr._state.buffer
+        scr._cleanup_empty_sections()
+        assert scr._state.buffer is before
+        assert scr._state.modified is False
+
+
+@pytest.mark.asyncio
+async def test_cleanup_after_edit_is_single_undo_step(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+
+    scr = MainScreen(
+        buffer=Buffer.from_text("// Creatures\n4 Goblin Guide\n\n// Lands\n20 Mountain\n"),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=wired_repo),
+        card_repo=wired_repo,
+    )
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        s = scr._state
+        s.history.initialize(s.buffer)
+        # Simulate dd on the last card of // Lands
+        s.buffer, _ = s.buffer.delete_lines(4, 4)
+        s.history.record(s.buffer, "delete card")
+        scr._cleanup_empty_sections()
+        assert "// Lands" not in s.buffer.to_text()
+        assert s.modified is True
+        restored = s.history.undo()
+        assert restored is not None
+        assert "20 Mountain" in restored.to_text()
+
+
+@pytest.mark.asyncio
 async def test_handle_search_next_prev(wired_repo) -> None:  # type: ignore[no-untyped-def]
     scr = _wired_screen(wired_repo)
     app = _Host(scr)

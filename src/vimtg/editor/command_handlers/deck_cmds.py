@@ -109,8 +109,7 @@ def cmd_validate(
     if not issues:
         ctx.message = "Deck OK"
     else:
-        ctx.message = "Issues: " + "; ".join(issues)
-        ctx.error = True
+        ctx.fail("Issues: " + "; ".join(issues))
 
     return buffer, cursor
 

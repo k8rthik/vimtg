@@ -24,15 +24,13 @@ def cmd_find(
 ) -> tuple[Buffer, Cursor]:
     """:find pattern — Jump to next card matching pattern in buffer."""
     if not cmd.args:
-        ctx.message = "E: Usage: :find pattern"
-        ctx.error = True
+        ctx.fail("Usage: :find pattern")
         return buffer, cursor
 
     try:
         regex = re.compile(cmd.args, re.IGNORECASE)
     except re.error:
-        ctx.message = f"E: Invalid pattern: {cmd.args}"
-        ctx.error = True
+        ctx.fail(f"Invalid pattern: {cmd.args}")
         return buffer, cursor
 
     # Search forward from cursor+1, wrapping around

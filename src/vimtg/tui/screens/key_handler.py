@@ -83,6 +83,7 @@ class HandlerResult:
     exit_to_normal: bool = False
     enter_visual: Mode | None = None
     command_message: str = ""
+    error: bool = False  # command_message is an error, not status
     quit_requested: bool = False
     greeter_requested: bool = False
     help_requested: bool = False
@@ -229,6 +230,7 @@ def handle_command(
             state.resolved_cards = dict(ctx.resolved_cards)
         return HandlerResult(
             command_message=ctx.message,
+            error=ctx.error,
             quit_requested=ctx.quit_requested,
             greeter_requested=ctx.greeter_requested,
             file_path=ctx.file_path,
@@ -239,7 +241,7 @@ def handle_command(
             vcs_commit_description=ctx.vcs_commit_description,
         )
     except Exception as exc:
-        return HandlerResult(command_message=str(exc))
+        return HandlerResult(command_message=f"E: {exc}", error=True)
 
 
 def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:

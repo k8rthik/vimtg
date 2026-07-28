@@ -39,22 +39,19 @@ def cmd_write(
 ) -> tuple[Buffer, Cursor]:
     """Save deck to file via ctx.save_fn."""
     if ctx.save_fn is None:
-        ctx.message = "Save not available"
-        ctx.error = True
+        ctx.fail("Save not available")
         return buffer, cursor
 
     try:
         target = _resolve_write_path(cmd, ctx)
     except RuntimeError as exc:
-        ctx.message = str(exc)
-        ctx.error = True
+        ctx.fail(str(exc))
         return buffer, cursor
 
     try:
         ctx.save_fn(target, buffer.to_text())
     except OSError as exc:
-        ctx.message = f"Write failed: {exc}"
-        ctx.error = True
+        ctx.fail(f"Write failed: {exc}")
         return buffer, cursor
 
     ctx.file_path = target
@@ -71,8 +68,7 @@ def cmd_quit(
 ) -> tuple[Buffer, Cursor]:
     """Quit editor. Fails if buffer modified without bang."""
     if ctx.modified and not cmd.bang:
-        ctx.message = "Unsaved changes (use :q! to force)"
-        ctx.error = True
+        ctx.fail("Unsaved changes (use :q! to force)")
         return buffer, cursor
     ctx.quit_requested = True
     ctx.message = ""
@@ -100,8 +96,7 @@ def cmd_home(
 ) -> tuple[Buffer, Cursor]:
     """Return to greeter screen. Fails if buffer modified without bang."""
     if ctx.modified and not cmd.bang:
-        ctx.message = "Unsaved changes (use :home! to force)"
-        ctx.error = True
+        ctx.fail("Unsaved changes (use :home! to force)")
         return buffer, cursor
     ctx.greeter_requested = True
     return buffer, cursor

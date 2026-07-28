@@ -15,12 +15,15 @@ class CommandLine(Static):
     prefix: reactive[str] = reactive("")
     text: reactive[str] = reactive("")
     message: reactive[str] = reactive("")
+    error: reactive[bool] = reactive(False)  # Style `message` as an error
     ghost: reactive[str] = reactive("")  # Inline fuzzy completion preview
     hint: reactive[str] = reactive("")  # Context-sensitive persistent hint
     cursor_pos: reactive[int] = reactive(0)  # Cursor position within text
 
     def render(self) -> Text:
         if self.message:
+            if self.error:
+                return Text(f" {self.message}", style=f"bold {COLORS['error']}")
             return Text(f" {self.message}", style="dim")
         if self.prefix or self.text:
             t = Text(f" {self.prefix}")
@@ -54,6 +57,7 @@ class CommandLine(Static):
         self.prefix = prefix
         self.text = ""
         self.message = ""
+        self.error = False
         self.ghost = ""
         self.cursor_pos = 0
 
@@ -64,10 +68,11 @@ class CommandLine(Static):
         self.ghost = ""
         self.cursor_pos = 0
 
-    def set_message(self, msg: str) -> None:
-        """Display a transient status message."""
+    def set_message(self, msg: str, *, error: bool = False) -> None:
+        """Display a transient status message; errors render highlighted."""
         self.prefix = ""
         self.text = ""
         self.ghost = ""
         self.cursor_pos = 0
         self.message = msg
+        self.error = error

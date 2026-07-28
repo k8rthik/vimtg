@@ -61,8 +61,7 @@ def cmd_tag(
     """:tag name [name2...] — add tag(s) to card(s)."""
     names, err = _validate_tag_names(cmd.args)
     if err:
-        ctx.message = err
-        ctx.error = True
+        ctx.fail(err)
         return buf, cursor
 
     start, end = _card_range(buf, cursor, cmd)
@@ -101,8 +100,7 @@ def cmd_untag(
 
     names, err = _validate_tag_names(cmd.args)
     if err:
-        ctx.message = err
-        ctx.error = True
+        ctx.fail(err)
         return buf, cursor
 
     count = 0
@@ -151,8 +149,7 @@ def cmd_dtag(
     """:dtag name [name2...] — add deck-level tags via // Tags: metadata."""
     names, err = _validate_tag_names(cmd.args)
     if err:
-        ctx.message = err
-        ctx.error = True
+        ctx.fail(err)
         return buf, cursor
 
     # Find existing // Tags: line or insert after last metadata line
@@ -191,8 +188,7 @@ def cmd_duntag(
     """:duntag name — remove deck-level tags."""
     names, err = _validate_tag_names(cmd.args)
     if err:
-        ctx.message = err
-        ctx.error = True
+        ctx.fail(err)
         return buf, cursor
 
     for i in range(buf.line_count()):
@@ -227,8 +223,7 @@ def cmd_filter(
 
     expr = cmd.args.strip()
     if not expr:
-        ctx.message = "Usage: :filter <tag-expression>"
-        ctx.error = True
+        ctx.fail("Usage: :filter <tag-expression>")
         return buf, cursor
 
     tag_filter = parse_tag_filter(expr)
@@ -253,22 +248,19 @@ def cmd_retag(
     """:retag /old/new/ — rename a tag across the entire deck."""
     args = cmd.args.strip()
     if not args or args[0] != "/":
-        ctx.message = "Usage: :retag /old-tag/new-tag/"
-        ctx.error = True
+        ctx.fail("Usage: :retag /old-tag/new-tag/")
         return buf, cursor
 
     parts = args[1:].rstrip("/").split("/")
     if len(parts) != 2:
-        ctx.message = "Usage: :retag /old-tag/new-tag/"
-        ctx.error = True
+        ctx.fail("Usage: :retag /old-tag/new-tag/")
         return buf, cursor
 
     old_tag = parts[0].lower()
     new_tag = parts[1].lower()
 
     if not _TAG_NAME_RE.match(old_tag) or not _TAG_NAME_RE.match(new_tag):
-        ctx.message = "Invalid tag name"
-        ctx.error = True
+        ctx.fail("Invalid tag name")
         return buf, cursor
 
     count = 0

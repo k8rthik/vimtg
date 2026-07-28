@@ -21,8 +21,7 @@ def cmd_help(
     """Open the full-screen help overlay, optionally focused on one command."""
     topic = cmd.args.strip() if cmd.args else None
     if topic is not None and not has_help(topic):
-        ctx.message = f"E: No help for: {topic}"
-        ctx.error = True
+        ctx.fail(f"No help for: {topic}")
         return buffer, cursor
     ctx.open_help_screen = True
     ctx.help_topic = topic

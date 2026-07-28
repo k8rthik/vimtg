@@ -170,6 +170,11 @@ class EditorContext:
     card_repo: CardRepository | None = None
     history: HistoryService | None = None
 
+    def fail(self, message: str) -> None:
+        """Set an error message with the standard 'E: ' prefix."""
+        self.message = message if message.startswith("E: ") else f"E: {message}"
+        self.error = True
+
 
 CommandHandler = Callable[
     [Buffer, Cursor, ParsedCommand, EditorContext], tuple[Buffer, Cursor]
@@ -213,8 +218,7 @@ class CommandRegistry:
         resolved = self._aliases.get(cmd.name, cmd.name)
         handler = self._commands.get(resolved)
         if handler is None:
-            ctx.message = f"Unknown command: {cmd.name}"
-            ctx.error = True
+            ctx.fail(f"Unknown command: {cmd.name}")
             return buffer, cursor
         return handler(buffer, cursor, cmd, ctx)
 

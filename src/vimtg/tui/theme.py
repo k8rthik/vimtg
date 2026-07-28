@@ -20,4 +20,8 @@ COLORS: dict[str, str] = {
     "mode_visual": "#fab387",
     "mode_command": "#f9e2af",
     "tag": "#cba6f7",
+    # Semantic roles — use these (not mana/section colors) for UI state
+    "error": "#f38ba8",
+    "success": "#a6e3a1",
+    "focus": "#fab387",
 }

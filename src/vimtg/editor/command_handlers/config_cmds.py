@@ -33,7 +33,7 @@ def cmd_set(
     :set search_limit=100        Set search limit
     """
     if ctx.settings is None:
-        ctx.message = "E: Settings not available"
+        ctx.fail("Settings not available")
         return buffer, cursor
 
     args = cmd.args.strip()
@@ -51,7 +51,7 @@ def cmd_set(
             ctx.settings_changed = True
             ctx.message = f"{key} = off"
         except ValueError as e:
-            ctx.message = f"E: {e}"
+            ctx.fail(str(e))
         return buffer, cursor
 
     # Handle key=value syntax: :set price_source=eur
@@ -70,7 +70,7 @@ def cmd_set(
         ctx.settings_changed = True
         ctx.message = f"{key} = {value}"
     except ValueError as e:
-        ctx.message = f"E: {e}"
+        ctx.fail(str(e))
 
     return buffer, cursor
 
@@ -99,7 +99,7 @@ def cmd_map(
 
     parts = args.split(None, 1)
     if len(parts) < 2:
-        ctx.message = "E: Usage: :map {key} {action}"
+        ctx.fail("Usage: :map {key} {action}")
         return buffer, cursor
 
     from_key, to_key = parts
@@ -113,7 +113,7 @@ def cmd_unmap(
     """:unmap key — Remove key remapping."""
     args = cmd.args.strip()
     if not args:
-        ctx.message = "E: Usage: :unmap {key}"
+        ctx.fail("Usage: :unmap {key}")
         return buffer, cursor
 
     ctx.message = f"Unmapped: {args}"

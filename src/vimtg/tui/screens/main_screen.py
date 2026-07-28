@@ -26,6 +26,7 @@ from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import load_remapper
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
+from vimtg.editor.sections import normalize_sections
 from vimtg.services.history_service import HistoryService
 from vimtg.tui.key_translator import translate
 from vimtg.tui.screens.key_handler import (
@@ -311,7 +312,9 @@ class MainScreen(Screen[None]):
             s.mode_mgr.transition(hr.enter_visual)
             self.keymap.set_mode(hr.enter_visual)
         if hr.command_message:
-            self.query_one("#command-line", CommandLine).set_message(hr.command_message)
+            self.query_one("#command-line", CommandLine).set_message(
+                hr.command_message, error=hr.error
+            )
         if hr.file_path is not None:
             self.file_path = hr.file_path
             self._vcs_auto_snapshot()
@@ -561,65 +564,19 @@ class MainScreen(Screen[None]):
     # ── Widget sync ──────────────────────────────────────────────
 
     def _cleanup_empty_sections(self) -> None:
-        """Remove section headers that have no card lines below them."""
-        from vimtg.editor.buffer import LineType
+        """Normalize sections, folding any change into the last undo step.
 
-        buf = self._state.buffer
-        to_delete: set[int] = set()
-        for i in range(buf.line_count()):
-            bl = buf.get_line(i)
-            if bl.line_type != LineType.SECTION_HEADER:
-                continue
-            # Check if next non-blank line is a card (skip blanks)
-            has_cards = False
-            for j in range(i + 1, buf.line_count()):
-                next_bl = buf.get_line(j)
-                if next_bl.line_type == LineType.BLANK:
-                    continue
-                if next_bl.line_type in (
-                    LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY, LineType.COMMANDER_ENTRY,
-                ):
-                    has_cards = True
-                    break
-                if next_bl.line_type in (
-                    LineType.SECTION_HEADER, LineType.COMMENT, LineType.METADATA,
-                ):
-                    break
-            if not has_cards:
-                to_delete.add(i)
-                # Also mark trailing blank line for deletion
-                if i + 1 < buf.line_count() and buf.get_line(i + 1).line_type == LineType.BLANK:
-                    to_delete.add(i + 1)
-
-        # Delete in reverse to preserve indices
-        for idx in sorted(to_delete, reverse=True):
-            if idx < buf.line_count():
-                buf, _ = buf.delete_lines(idx, idx)
-
-        # Clean up consecutive blank lines
-        cleaned_lines: list[str] = []
-        prev_blank = False
-        for i in range(buf.line_count()):
-            bl = buf.get_line(i)
-            is_blank = bl.line_type == LineType.BLANK
-            if is_blank and prev_blank:
-                continue
-            cleaned_lines.append(bl.text)
-            prev_blank = is_blank
-
-        # Ensure exactly one blank line before each section header
-        from vimtg.editor.buffer import Buffer, classify_line
-        padded: list[str] = []
-        for line_text in cleaned_lines:
-            lt = classify_line(line_text)
-            if lt == LineType.SECTION_HEADER and padded:
-                prev_lt = classify_line(padded[-1])
-                if prev_lt != LineType.BLANK and prev_lt != LineType.METADATA:
-                    padded.append("")
-            padded.append(line_text)
-
-        self._state.buffer = Buffer.from_text("\n".join(padded) + "\n")
-        self._state.cursor = self._state.cursor.clamp(self._state.buffer.line_count() - 1)
+        No-op (and no state churn) when the buffer is already clean, so
+        pure cursor motion never rewrites the document.
+        """
+        s = self._state
+        cleaned = normalize_sections(s.buffer)
+        if cleaned is s.buffer:
+            return
+        s.buffer = cleaned
+        s.cursor = s.cursor.clamp(cleaned.line_count() - 1)
+        s.modified = True
+        s.history.amend(cleaned)
 
     def _sync_widgets(self) -> None:
         # Only clean up sections in NORMAL mode — INSERT/VISUAL have transient blanks

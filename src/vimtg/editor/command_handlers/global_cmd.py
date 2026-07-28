@@ -58,8 +58,7 @@ def cmd_global(
     parsed = _parse_global_args(cmd.args)
 
     if parsed is None:
-        ctx.message = "E: Usage: :g/pattern/cmd"
-        ctx.error = True
+        ctx.fail("Usage: :g/pattern/cmd")
         return buffer, cursor
 
     pattern, sub_cmd = parsed
@@ -67,8 +66,7 @@ def cmd_global(
     try:
         regex = re.compile(pattern, re.IGNORECASE)
     except re.error:
-        ctx.message = f"E: Invalid pattern: {pattern}"
-        ctx.error = True
+        ctx.fail(f"Invalid pattern: {pattern}")
         return buffer, cursor
 
     # Find matching lines (only card/sideboard lines)
@@ -94,8 +92,7 @@ def cmd_global(
         new_row = min(cursor.row, new_buffer.line_count() - 1)
         return new_buffer, cursor.move_to(max(0, new_row), 0)
 
-    ctx.message = f"E: Unsupported sub-command: {sub_cmd}"
-    ctx.error = True
+    ctx.fail(f"Unsupported sub-command: {sub_cmd}")
     return buffer, cursor
 
 

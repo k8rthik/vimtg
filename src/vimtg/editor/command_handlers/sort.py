@@ -145,8 +145,7 @@ def cmd_sort(
     valid_fields = {"name", "qty", "cmc", "type", "color", "tag"}
 
     if sort_field and sort_field not in valid_fields:
-        ctx.message = f"Unknown sort field: {sort_field}"
-        ctx.error = True
+        ctx.fail(f"Unknown sort field: {sort_field}")
         return buffer, cursor
 
     # cmc, type, color fall back to name when card data unavailable
@@ -156,8 +155,7 @@ def cmd_sort(
 
     resolved = _resolve_range(buffer, cmd, cursor.row)
     if resolved is None:
-        ctx.message = "No card section to sort"
-        ctx.error = True
+        ctx.fail("No card section to sort")
         return buffer, cursor
 
     start, end = resolved

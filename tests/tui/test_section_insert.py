@@ -162,34 +162,19 @@ class TestFindTypeSectionRow:
 
 
 def _find_empty_section_indices(buf: Buffer) -> list[int]:
-    """Replicate the empty-section detection from _cleanup_empty_sections.
+    """Return indices of section headers the real normalizer would drop."""
+    from vimtg.editor.sections import _drop_empty_headers
 
-    Returns indices of section headers that have no card lines below them.
-    This mirrors the logic in MainScreen._cleanup_empty_sections so we can
-    test the scan without instantiating Textual widgets.
-    """
-    to_delete: list[int] = []
-    for i in range(buf.line_count()):
-        bl = buf.get_line(i)
-        if bl.line_type != LineType.SECTION_HEADER:
-            continue
-        has_cards = False
-        for j in range(i + 1, buf.line_count()):
-            next_bl = buf.get_line(j)
-            if next_bl.line_type == LineType.BLANK:
-                continue  # must skip blanks, not break
-            if next_bl.line_type in (
-                LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY, LineType.COMMANDER_ENTRY,
-            ):
-                has_cards = True
-                break
-            if next_bl.line_type in (
-                LineType.SECTION_HEADER, LineType.COMMENT, LineType.METADATA,
-            ):
-                break
-        if not has_cards:
-            to_delete.append(i)
-    return to_delete
+    lines = [
+        (buf.get_line(i).text, buf.get_line(i).line_type)
+        for i in range(buf.line_count())
+    ]
+    kept_ids = {id(entry) for entry in _drop_empty_headers(lines)}
+    return [
+        i
+        for i, entry in enumerate(lines)
+        if entry[1] == LineType.SECTION_HEADER and id(entry) not in kept_ids
+    ]
 
 
 class TestCleanupEmptySections:

@@ -35,28 +35,37 @@ class HistoryService:
 
         now = time.monotonic()
         if now - self._last_record_time < 2.0 and description == self._last_description:
-            # Coalesce: replace current snapshot's deck_state
-            current = self._tree.current
-            updated = Snapshot(
-                id=current.id,
-                parent_id=current.parent_id,
-                deck_state=buffer.to_text(),
-                timestamp=current.timestamp,
-                description=description,
-                branch=current.branch,
-                tag=current.tag,
-            )
-            new_nodes = {**self._tree.nodes, updated.id: updated}
-            self._tree = SnapshotTree(
-                nodes=new_nodes,
-                current_id=self._tree.current_id,
-                branches=self._tree.branches,
-            )
+            self.amend(buffer)
         else:
             self._tree = self._tree.add_snapshot(buffer.to_text(), description)
 
         self._last_record_time = now
         self._last_description = description
+
+    def amend(self, buffer: Buffer) -> None:
+        """Replace the current snapshot's state without adding a new one.
+
+        Used to fold follow-up normalization (e.g. section cleanup) into
+        the edit that caused it, so it stays a single undo step.
+        """
+        if self._tree is None:
+            self.initialize(buffer)
+            return
+        current = self._tree.current
+        updated = Snapshot(
+            id=current.id,
+            parent_id=current.parent_id,
+            deck_state=buffer.to_text(),
+            timestamp=current.timestamp,
+            description=current.description,
+            branch=current.branch,
+            tag=current.tag,
+        )
+        self._tree = SnapshotTree(
+            nodes={**self._tree.nodes, updated.id: updated},
+            current_id=self._tree.current_id,
+            branches=self._tree.branches,
+        )
 
     def undo(self) -> Buffer | None:
         """Undo to parent snapshot, returning the restored buffer or None."""

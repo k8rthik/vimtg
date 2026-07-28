@@ -37,15 +37,13 @@ def cmd_export(
     """:export <format> [file] — Export deck to another format."""
     parts = cmd.args.strip().split(maxsplit=1)
     if not parts:
-        ctx.message = "E: Usage: :export <arena|mtgo|moxfield|archidekt> [file]"
-        ctx.error = True
+        ctx.fail("Usage: :export <arena|mtgo|moxfield|archidekt> [file]")
         return buffer, cursor
 
     fmt_name = parts[0].lower()
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
-        ctx.message = f"E: Unknown format: {fmt_name}. Use arena, mtgo, moxfield, or archidekt"
-        ctx.error = True
+        ctx.fail(f"Unknown format: {fmt_name}. Use arena, mtgo, moxfield, or archidekt")
         return buffer, cursor
 
     deck = parse_deck_text(buffer.to_text())
@@ -59,8 +57,7 @@ def cmd_export(
             out_path.write_text(result, encoding="utf-8")
             ctx.message = f"Exported {fmt_name} to {out_path}"
         except OSError as exc:
-            ctx.message = f"E: Write failed: {exc}"
-            ctx.error = True
+            ctx.fail(f"Write failed: {exc}")
     else:
         # Show first line as preview + total line count
         lines = result.strip().split("\n")
@@ -79,21 +76,18 @@ def cmd_import(
     """:import <file> — Import deck from file (auto-detects format)."""
     file_arg = cmd.args.strip()
     if not file_arg:
-        ctx.message = "E: Usage: :import <file>"
-        ctx.error = True
+        ctx.fail("Usage: :import <file>")
         return buffer, cursor
 
     in_path = Path(file_arg)
     if not in_path.exists():
-        ctx.message = f"E: File not found: {file_arg}"
-        ctx.error = True
+        ctx.fail(f"File not found: {file_arg}")
         return buffer, cursor
 
     try:
         text = in_path.read_text(encoding="utf-8")
     except OSError as exc:
-        ctx.message = f"E: Read failed: {exc}"
-        ctx.error = True
+        ctx.fail(f"Read failed: {exc}")
         return buffer, cursor
 
     service = ImportExportService(card_repo=ctx.card_repo)
@@ -142,8 +136,7 @@ def cmd_clipboard(
     if copy_to_clipboard(text):
         ctx.message = f"Copied {fmt_name} to clipboard ({len(text.splitlines())} lines)"
     else:
-        ctx.message = "E: Clipboard write failed"
-        ctx.error = True
+        ctx.fail("Clipboard write failed")
     return buffer, cursor
 
 

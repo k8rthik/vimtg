@@ -34,8 +34,7 @@ def cmd_commit(
     """:commit "description" — Create a VCS snapshot of the current deck state."""
     description = cmd.args.strip().strip('"').strip("'")
     if not description:
-        ctx.message = "E: Usage: :commit description"
-        ctx.error = True
+        ctx.fail("Usage: :commit description")
         return buffer, cursor
 
     ctx.vcs_commit_description = description
@@ -51,12 +50,10 @@ def cmd_checkpoint(
     """:checkpoint name — Tag the current history state with a name."""
     name = cmd.args.strip().strip('"').strip("'")
     if not name:
-        ctx.message = "E: Usage: :checkpoint name"
-        ctx.error = True
+        ctx.fail("Usage: :checkpoint name")
         return buffer, cursor
     if ctx.history is None:
-        ctx.message = "E: History not available"
-        ctx.error = True
+        ctx.fail("History not available")
         return buffer, cursor
 
     ctx.history.checkpoint(name)
@@ -72,8 +69,7 @@ def cmd_branch(
 ) -> tuple[Buffer, Cursor]:
     """:branch — list branches; :branch name — create; :branch! name — switch."""
     if ctx.history is None:
-        ctx.message = "E: History not available"
-        ctx.error = True
+        ctx.fail("History not available")
         return buffer, cursor
 
     name = cmd.args.strip()
@@ -89,8 +85,7 @@ def cmd_branch(
     if cmd.bang:
         restored = ctx.history.switch_branch(name)
         if restored is None:
-            ctx.message = f"E: Branch not found: {name}"
-            ctx.error = True
+            ctx.fail(f"Branch not found: {name}")
             return buffer, cursor
         ctx.modified = True
         ctx.message = f"Switched to branch: {name}"
