@@ -178,6 +178,7 @@ class EditorContext:
     # the filter (to a TagFilter, or to None to clear it)
     tag_filter: Any = None
     tag_filter_set: bool = False
+    remapper: Any = None  # KeyRemapper — :map/:unmap mutate it
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""

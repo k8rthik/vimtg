@@ -99,32 +99,46 @@ class TestCmdSetNoPrefixInvalid:
         assert ctx.message.startswith("E:")
 
 
+def _ctx_with_remapper() -> EditorContext:
+    from vimtg.editor.keymaps import KeyRemapper
+
+    ctx = _make_ctx()
+    ctx.remapper = KeyRemapper()
+    return ctx
+
+
 class TestCmdMap:
     def test_no_args_shows_hint(self) -> None:
-        ctx = _make_ctx()
+        ctx = _ctx_with_remapper()
         cmd_map(_BUF, Cursor(), ParsedCommand(name="map"), ctx)
         assert "No mappings" in ctx.message
 
     def test_missing_action_reports_usage(self) -> None:
-        ctx = _make_ctx()
+        ctx = _ctx_with_remapper()
         cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="s"), ctx)
         assert "Usage" in ctx.message
 
     def test_valid_mapping(self) -> None:
-        ctx = _make_ctx()
+        ctx = _ctx_with_remapper()
         cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="s :w"), ctx)
         assert "Mapped" in ctx.message
         assert "s" in ctx.message
 
+    def test_no_remapper_reports_error(self) -> None:
+        ctx = _make_ctx()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="s :w"), ctx)
+        assert ctx.error
+
 
 class TestCmdUnmap:
     def test_no_args_reports_usage(self) -> None:
-        ctx = _make_ctx()
+        ctx = _ctx_with_remapper()
         cmd_unmap(_BUF, Cursor(), ParsedCommand(name="unmap"), ctx)
         assert "Usage" in ctx.message
 
     def test_valid_unmap(self) -> None:
-        ctx = _make_ctx()
+        ctx = _ctx_with_remapper()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="Q :q!"), ctx)
         cmd_unmap(_BUF, Cursor(), ParsedCommand(name="unmap", args="Q"), ctx)
         assert "Unmapped: Q" in ctx.message
 
@@ -137,3 +151,47 @@ class TestRegisterConfigCommands:
             ctx = _make_ctx()
             registry.execute(ParsedCommand(name=name), _BUF, Cursor(), ctx)
             assert "Unknown command" not in ctx.message, f"{name} should be registered"
+
+
+class TestMapWiring:
+    """:map/:unmap must mutate a real KeyRemapper, not just print."""
+
+    def _ctx_with_remapper(self):  # type: ignore[no-untyped-def]
+        from vimtg.editor.keymaps import KeyRemapper
+
+        ctx = _make_ctx()
+        ctx.remapper = KeyRemapper()
+        return ctx
+
+    def test_map_creates_normal_mode_mapping(self) -> None:
+        from vimtg.editor.command_handlers.config_cmds import cmd_map
+        from vimtg.editor.modes import Mode
+
+        ctx = self._ctx_with_remapper()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="s :w"), ctx)
+        assert ctx.remapper.resolve("s", Mode.NORMAL) == ":w"
+        assert ctx.remapper.resolve("s", Mode.INSERT) == "s"
+
+    def test_map_no_args_lists_mappings(self) -> None:
+        from vimtg.editor.command_handlers.config_cmds import cmd_map
+
+        ctx = self._ctx_with_remapper()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="Q :q!"), ctx)
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map"), ctx)
+        assert "Q" in ctx.message and ":q!" in ctx.message
+
+    def test_unmap_removes_mapping(self) -> None:
+        from vimtg.editor.command_handlers.config_cmds import cmd_map, cmd_unmap
+        from vimtg.editor.modes import Mode
+
+        ctx = self._ctx_with_remapper()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="s :w"), ctx)
+        cmd_unmap(_BUF, Cursor(), ParsedCommand(name="unmap", args="s"), ctx)
+        assert ctx.remapper.resolve("s", Mode.NORMAL) == "s"
+
+    def test_unmap_unknown_key_errors(self) -> None:
+        from vimtg.editor.command_handlers.config_cmds import cmd_unmap
+
+        ctx = self._ctx_with_remapper()
+        cmd_unmap(_BUF, Cursor(), ParsedCommand(name="unmap", args="z"), ctx)
+        assert ctx.error

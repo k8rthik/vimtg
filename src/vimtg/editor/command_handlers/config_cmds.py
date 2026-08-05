@@ -10,6 +10,7 @@ from vimtg.editor.config_options import (
     get_setting_display,
 )
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.modes import Mode
 
 # Map vim-style shorthand names to Settings field names
 _BOOL_ALIASES: dict[str, str] = {
@@ -86,15 +87,28 @@ def cmd_config(
 def cmd_map(
     buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:map from to — Create key remapping.
+    """:map from to — Create a NORMAL-mode key remapping for this session.
 
-    :map s :w           Map 's' to ':w' (save) in all modes
+    :map s :w           Map 's' to ':w' (save)
     :map Q :q!          Map 'Q' to ':q!' (force quit)
     :map (no args)      Show all current mappings
+
+    Mappings made here last for the session; add them to
+    ~/.config/vimtg/config.toml [keybindings] to persist.
     """
+    if ctx.remapper is None:
+        ctx.fail("Key remapping not available")
+        return buffer, cursor
+
     args = cmd.args.strip()
     if not args:
-        ctx.message = "No mappings defined (add to ~/.config/vimtg/config.toml)"
+        pairs = sorted(
+            {(m.from_key, m.to_key) for m in ctx.remapper.get_mappings()}
+        )
+        if not pairs:
+            ctx.message = "No mappings defined"
+        else:
+            ctx.message = "  ".join(f"{f} → {t}" for f, t in pairs)
         return buffer, cursor
 
     parts = args.split(None, 1)
@@ -103,19 +117,29 @@ def cmd_map(
         return buffer, cursor
 
     from_key, to_key = parts
-    ctx.message = f"Mapped: {from_key} \u2192 {to_key} (save to config.toml to persist)"
+    ctx.remapper.remap(from_key, to_key.strip(), Mode.NORMAL)
+    ctx.message = f"Mapped: {from_key} → {to_key} (config.toml to persist)"
     return buffer, cursor
 
 
 def cmd_unmap(
     buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:unmap key — Remove key remapping."""
+    """:unmap key — Remove a key remapping (all modes)."""
+    if ctx.remapper is None:
+        ctx.fail("Key remapping not available")
+        return buffer, cursor
+
     args = cmd.args.strip()
     if not args:
         ctx.fail("Usage: :unmap {key}")
         return buffer, cursor
 
+    if not any(m.from_key == args for m in ctx.remapper.get_mappings()):
+        ctx.fail(f"No mapping for: {args}")
+        return buffer, cursor
+
+    ctx.remapper.unmap(args)
     ctx.message = f"Unmapped: {args}"
     return buffer, cursor
 

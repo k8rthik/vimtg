@@ -62,6 +62,16 @@ if TYPE_CHECKING:
 _GENERIC_HINT = "Press ? for help  |  : command  |  o add card  |  i edit line"
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 
+_NAMED_KEYS = frozenset({
+    "escape", "enter", "tab", "backspace", "delete",
+    "space", "up", "down", "left", "right", "home", "end",
+})
+
+
+def _is_named_key(key: str) -> bool:
+    """A single named key ("escape", "ctrl_r") vs a multi-char sequence."""
+    return key in _NAMED_KEYS or "_" in key
+
 
 def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     """Return the appropriate command-line hint for the current cursor position."""
@@ -113,6 +123,7 @@ class MainScreen(Screen[None]):
         self.save_fn = save_fn
         self.keymap = KeyMap()
         self.remapper = load_remapper()
+        self._state.remapper = self.remapper
         self._db = db
         self._vcs_service: VersionControlService | None = None  # Lazily initialized
         self._replaying = False  # guards against recursive macro replay
@@ -167,16 +178,31 @@ class MainScreen(Screen[None]):
         key = translate(event.key)
         self._process_key(key)
 
-    def _process_key(self, key: str) -> None:
+    def _process_key(self, key: str, resolve: bool = True) -> None:
         """Run one canonical key through remap, keymap, and dispatch.
 
-        Shared by live keypresses and macro replay.
+        Shared by live keypresses, macro replay, and mapping expansion
+        (expanded keys pass resolve=False so mappings don't re-resolve).
         """
-        # Resolve user remappings
-        key = self.remapper.resolve(key, self._state.mode_mgr.current)
-        # Capture for macro recording (the stopping 'q' is not recorded)
-        if self._state.macros.is_recording and not self._replaying:
+        if (
+            self._state.macros.is_recording
+            and not self._replaying
+            and resolve
+            and not (key == "q" and not self.keymap.awaiting_more_keys)
+        ):
+            # Record the typed key (the recording-stop 'q' is skipped)
             self._state.macros.record_key(key)
+        if resolve:
+            resolved = self.remapper.resolve(key, self._state.mode_mgr.current)
+            if resolved != key and len(resolved) > 1 and not _is_named_key(resolved):
+                # Multi-char mapping target (":w", "dd"): feed char by char.
+                # An ex-command target is submitted with a trailing enter.
+                for expanded in resolved:
+                    self._process_key(expanded, resolve=False)
+                if resolved.startswith(":"):
+                    self._process_key("enter", resolve=False)
+                return
+            key = resolved
         result, action = self.keymap.feed(key)
 
         # Update which-key tooltip

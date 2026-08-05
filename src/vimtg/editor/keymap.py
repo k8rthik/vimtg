@@ -106,6 +106,11 @@ class KeyMap:
         """While recording, a bare 'q' stops instead of awaiting a register."""
         self._macro_recording = recording
 
+    @property
+    def awaiting_more_keys(self) -> bool:
+        """True mid-sequence (count, operator, register, or multi-key prefix)."""
+        return self._state != _State.IDLE
+
     def set_mode(self, mode: Mode) -> None:
         self._mode = mode
         self.reset()

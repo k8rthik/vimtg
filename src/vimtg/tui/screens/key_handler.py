@@ -72,6 +72,7 @@ class EditorState:
     line_edit_prefix: str = ""
     tag_input_action: str = ""
     tag_filter: TagFilter | None = None
+    remapper: Any = None  # KeyRemapper, passed through to :map/:unmap
 
 
 @dataclass(frozen=True)
@@ -227,6 +228,7 @@ def handle_command(
             resolved_cards=state.resolved_cards,
             history=state.history,
             card_repo=state.card_repo,
+            remapper=state.remapper,
         )
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
         # Sync modified flag unconditionally (allows :w to clear it)
