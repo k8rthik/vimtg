@@ -37,13 +37,13 @@ def cmd_export(
     """:export <format> [file] — Export deck to another format."""
     parts = cmd.args.strip().split(maxsplit=1)
     if not parts:
-        ctx.fail("Usage: :export <arena|mtgo|moxfield|archidekt> [file]")
+        ctx.fail("Usage: :export <arena|mtgo|moxfield|archidekt|vimtg> [file]")
         return buffer, cursor
 
     fmt_name = parts[0].lower()
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
-        ctx.fail(f"Unknown format: {fmt_name}. Use arena, mtgo, moxfield, or archidekt")
+        ctx.fail(f"Unknown format: {fmt_name}. Use arena, mtgo, moxfield, archidekt, or vimtg")
         return buffer, cursor
 
     deck = parse_deck_text(buffer.to_text())

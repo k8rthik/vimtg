@@ -71,21 +71,17 @@ class HistoryCommandLine(Static):
                 t.append(cursor_char, style="bold reverse")
                 t.append(after, style="bold")
             return t
-        # Default hint bar
-        t.append(" c", style=f"bold {COLORS['quantity']}")
-        t.append("ommit ", style="dim")
-        t.append("b", style=f"bold {COLORS['quantity']}")
-        t.append("ranch ", style="dim")
-        t.append("t", style=f"bold {COLORS['quantity']}")
-        t.append("ag ", style="dim")
-        t.append("R", style=f"bold {COLORS['quantity']}")
-        t.append("estore ", style="dim")
-        t.append("d", style=f"bold {COLORS['quantity']}")
-        t.append("etail ", style="dim")
-        t.append("Tab", style=f"bold {COLORS['quantity']}")
-        t.append(":panels ", style="dim")
-        t.append("q", style=f"bold {COLORS['quantity']}")
-        t.append(":back", style="dim")
+        # Default hint bar — must list every key on_key handles
+        hints = (
+            ("j/k", "nav"), ("Tab", "panels"), ("c", "commit"),
+            ("b", "branch"), ("B", "switch"), ("t/T", "tag/untag"),
+            ("R", "restore"), ("p", "pick"), ("d", "detail"), ("q", "back"),
+        )
+        for i, (key, desc) in enumerate(hints):
+            t.append(f"{' ' if i == 0 else ''}{key}", style=f"bold {COLORS['quantity']}")
+            t.append(f":{desc}", style="dim")
+            if i < len(hints) - 1:
+                t.append(" ", style="dim")
         return t
 
     def show_prompt(self, prompt: str) -> None:

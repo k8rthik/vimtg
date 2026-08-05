@@ -7,18 +7,25 @@ NAVIGATION
   j/k           Move down/up
   gg/G          First/last line
   w/b           Next/prev card entry
-  {/}           Next/prev section
+  {/}           Prev/next section
+  [[/]]         Prev/next section header
   Ctrl-D/U      Half page down/up
+  m{a-z}        Set mark
+  '{a-z}        Jump to mark
 
 EDITING
   i             Edit current line as plain text
   o/O           Add card (new line below / above)
   dd            Delete card line
+  x             Delete card line (into register)
   yy            Yank (copy) card line
   p/P           Paste below/above
+  "{a-z}        Use named register for yank/paste
   +/-           Increment/decrement quantity
   .             Repeat last change
   u / Ctrl-R    Undo / redo
+  q{a-z} / q    Record macro / stop recording
+  @{a-z} / @@   Play macro / replay last
 
 VISUAL MODE
   v/V           Enter visual / visual-line
@@ -37,25 +44,32 @@ TAGS
 COMMANDS
   :w            Save deck
   :q            Quit (:q! force)
-  :wq           Save and quit
-  :sort [field] Sort by name/cmc/type/qty
+  :wq / :x      Save and quit
+  :home         Return to greeter (:home! discards changes)
+  :sort [field] Sort by name/qty/cmc/type/color/tag
   :s/old/new/g  Substitute across deck
   :g/pat/d      Delete matching cards
   :find pattern Jump to matching card
+  :stats        Deck statistics
+  :validate     Check deck legality basics
   :tag name     Add tag (range supported)
   :untag name   Remove tag (:untag! clears all)
   :tags         List tags with counts
+  :dtag/:duntag Add/remove deck-level tags
   :filter expr  Filter view by tag (+ AND, | OR, - NOT)
   :retag /a/b/  Rename tag across deck
-  :export fmt   Export (arena/mtgo/moxfield/archidekt)
+  :export fmt   Export (arena/mtgo/moxfield/archidekt/vimtg)
   :import file  Import deck (auto-detects format)
   :clipboard    Copy deck to system clipboard (default arena)
+  :set opt=val  Change a setting (:set shows all)
+  :config       Open the settings screen
+  :map / :unmap Key remapping for this session
   :help         This help
 
 VERSION CONTROL
   :history      Open deck history (lazygit-style)
   :commit "msg" Snapshot current deck state
-  :branch       List branches; :branch name creates; :branch! switches
+  :branch       Undo-tree branches: list; name creates; ! switches
   :checkpoint n Tag current undo-tree state
 """.strip()
 
@@ -66,7 +80,7 @@ COMMAND_HELP: dict[str, str] = {
     "sort": (
         ":sort [field]  Sort cards in current section\n"
         "\n"
-        "Fields: name (default), qty\n"
+        "Fields: name (default), qty, cmc, type, color, tag\n"
         ":sort!  reverse order\n"
         ":5,10sort  sort specific range"
     ),
@@ -83,7 +97,10 @@ COMMAND_HELP: dict[str, str] = {
         ":v/SB:/d       delete non-sideboard lines"
     ),
     "find": ":find pattern  Jump to next card matching pattern",
-    "export": ":export format [file]  Export deck (arena/mtgo/moxfield/archidekt)",
+    "export": (
+        ":export format [file]  Export deck "
+        "(arena/mtgo/moxfield/archidekt/vimtg)"
+    ),
     "import": ":import file  Import deck (auto-detects format, replaces buffer)",
     "clipboard": (
         ":clipboard [format]  Copy deck to system clipboard via OSC52\n"
@@ -107,13 +124,14 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "tags": ":tags  List tags with counts",
     "filter": (
-        ":filter expr  Show only cards matching tag expression\n"
+        ":filter expr  Highlight cards matching a tag expression\n"
+        "(non-matching cards are dimmed)\n"
         "\n"
         ":filter core              cards tagged #core\n"
         ":filter core+staple       AND (both tags)\n"
         ":filter flex|budget       OR (either tag)\n"
         ":filter core-removal      AND NOT\n"
-        ":filter                   clear filter"
+        ":filter / :filter!        clear filter"
     ),
     "retag": ":retag /old/new/  Rename a tag across the entire deck",
     "help": ":help [command]  Open full-screen help (also F1; q closes)",
@@ -133,9 +151,52 @@ COMMAND_HELP: dict[str, str] = {
         "  q              Return to editor"
     ),
     "commit": ":commit message  Create a named snapshot of current deck state",
-    "branch": ":branch  Open history screen for branch management",
-    "checkpoint": ":checkpoint name  Alias for :commit",
+    "branch": (
+        ":branch  Undo-tree branches (in-memory, this session)\n"
+        "\n"
+        ":branch          list branches\n"
+        ":branch name     create branch at current state\n"
+        ":branch! name    switch to branch\n"
+        "\n"
+        "For saved snapshots and persistent branches, use :history."
+    ),
+    "checkpoint": (
+        ":checkpoint name  Tag the current undo-tree state\n"
+        "\n"
+        "Checkpoints live in this session's undo tree. For a persistent\n"
+        "snapshot use :commit."
+    ),
+    "stats": ":stats  Show deck statistics (mana curve, colors, types)",
+    "validate": (
+        ":validate  Check deck basics\n"
+        "\n"
+        "Reports zero quantities, >4 copies of non-basics,\n"
+        "undersized mainboard, oversized sideboard, unresolved names."
+    ),
+    "set": (
+        ":set option=value  View or change settings\n"
+        "\n"
+        ":set                 show all settings\n"
+        ":set number          enable (bool shorthand)\n"
+        ":set nonumber        disable\n"
+        ":set price_source=eur"
+    ),
+    "config": ":config  Open the settings screen (j/k navigate, s save)",
+    "map": (
+        ":map key action  Remap a NORMAL-mode key for this session\n"
+        "\n"
+        ":map s :w        's' saves\n"
+        ":map              list mappings\n"
+        "Persist mappings in ~/.config/vimtg/config.toml [keybindings]."
+    ),
+    "unmap": ":unmap key  Remove a key remapping",
+    "home": ":home  Return to the greeter (:home! discards changes)",
 }
+
+
+def is_section_header(line: str) -> bool:
+    """True for HELP_OVERVIEW section headers (shared by all renderers)."""
+    return bool(line) and not line.startswith(" ")
 
 
 def has_help(command: str) -> bool:

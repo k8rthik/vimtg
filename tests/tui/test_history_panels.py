@@ -145,14 +145,13 @@ class TestSnapshotsPanel:
         plain = p.render().plain
         assert "Add burn package" in plain
 
-    def test_description_truncated_at_35_chars(self) -> None:
+    def test_description_truncated_with_ellipsis(self) -> None:
         p = SnapshotsPanel()
         long_desc = "A" * 50
         p.snapshots = [_snapshot("a" * 40, long_desc)]
         plain = p.render().plain
-        # 35 As should appear but not 36
-        assert "A" * 35 in plain
-        assert "A" * 36 not in plain
+        assert "A" * 34 + "…" in plain
+        assert "A" * 35 not in plain
 
     def test_selected_only_highlighted_when_focused(self) -> None:
         p = SnapshotsPanel()

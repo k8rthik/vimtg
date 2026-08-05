@@ -46,7 +46,7 @@ from vimtg.tui.screens.key_handler import (
     handle_tag_input_special,
     resolve_cards,
 )
-from vimtg.tui.widgets.command_line import CommandLine
+from vimtg.tui.widgets.command_line import GENERIC_HINT, CommandLine
 from vimtg.tui.widgets.deck_view import DeckView
 from vimtg.tui.widgets.help_panel import HelpPanel
 from vimtg.tui.widgets.search_results import SearchResults
@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from vimtg.services.vcs_service import VersionControlService
 
 
-_GENERIC_HINT = "Press ? for help  |  : command  |  o add card  |  i edit line"
+_GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 
 _NAMED_KEYS = frozenset({
@@ -207,7 +207,6 @@ class MainScreen(Screen[None]):
 
         # Update which-key tooltip
         wk = self.query_one("#which-key", WhichKey)
-        wk.mode = self._state.mode_mgr.current
         if result == KeyResult.PENDING:
             wk.pending_key = key
             wk.display = self._state.settings.show_which_key
@@ -305,7 +304,6 @@ class MainScreen(Screen[None]):
         self.query_one("#search-results", SearchResults).display = False
         self.query_one("#help-panel", HelpPanel).display = False
         self.query_one("#command-line", CommandLine).hide()
-        self.query_one("#which-key", WhichKey).line_edit = False
 
     def _apply_enter_line_edit(self) -> None:
         s = self._state
@@ -321,7 +319,6 @@ class MainScreen(Screen[None]):
         cl.text = editable
         cl.cursor_pos = len(editable)
         cl.message = ""
-        self.query_one("#which-key", WhichKey).line_edit = True
 
     def _apply_enter_tag_input(self, tag_prompt: str) -> None:
         s = self._state

@@ -17,6 +17,7 @@ from textual.events import Key
 from textual.screen import Screen
 from textual.widgets import Static
 
+from vimtg import __version__
 from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
 
@@ -30,12 +31,12 @@ LOGO_LINES = [
 ]
 
 ACTIONS = [
-    ("n", "New deck", ":new"),
-    ("e", "Open file", ":e"),
-    ("s", "Sync cards", ":sync"),
-    ("r", "Recent files", ""),
-    ("?", "Help", ":help"),
-    ("q", "Quit", ":q"),
+    ("n", "New deck"),
+    ("e", "Open file"),
+    ("s", "Sync cards"),
+    ("r", "Recent files"),
+    ("?", "Help"),
+    ("q", "Quit"),
 ]
 
 _DIM = f"dim {COLORS['comment']}"
@@ -87,10 +88,10 @@ class GreeterView(Static):
         t.append("\n")
 
         t.append("  Vim-powered MTG deck builder\n", style=_DIM)
-        t.append("  v0.1.0\n", style=_DIM)
+        t.append(f"  v{__version__}\n", style=_DIM)
         t.append("\n")
 
-        for key, label, _cmd in ACTIONS:
+        for key, label in ACTIONS:
             t.append(f"  [{key}]", style=f"bold {COLORS['quantity']}")
             t.append(f"  {label}\n", style="")
         t.append("\n")
@@ -106,20 +107,18 @@ class GreeterView(Static):
         if self._status:
             t.append(f"  {self._status}\n", style=f"bold {COLORS['mana_green']}")
 
-        t.append("  Press a key or type :command\n", style=_DIM)
+        t.append("  Press a highlighted key to continue\n", style=_DIM)
         return t
 
     def _render_help(self) -> Text:
-        from vimtg.editor.help_text import HELP_OVERVIEW
+        from vimtg.editor.help_text import HELP_OVERVIEW, is_section_header
 
         t = Text()
         t.append("  vimtg Help\n", style=f"bold {COLORS['mana_blue']}")
         t.append("  " + "=" * 40 + "\n\n", style=_DIM)
 
         for line in HELP_OVERVIEW.split("\n"):
-            stripped = line.strip()
-            if stripped and stripped == stripped.upper() and stripped.isalpha():
-                # Section headers: NAVIGATION, EDITING, COMMANDS
+            if is_section_header(line):
                 t.append(f"  {line}\n", style=f"bold {COLORS['mana_green']}")
             else:
                 t.append(f"  {line}\n", style="")
@@ -142,7 +141,7 @@ class GreeterView(Static):
 
         for i, path in enumerate(files):
             is_selected = i == self._cursor
-            indicator = " "
+            indicator = ">" if is_selected else " "
 
             line = Text()
             line.append(

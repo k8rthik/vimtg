@@ -60,9 +60,11 @@ class SnapshotsPanel(Static):
                 t.append(tag_str, style=f"bold {COLORS['sideboard']}")
             t.append("\n")
 
-            # Description on next line
-            desc = snap.description[:35]
-            indent = "     " if not is_selected else "     "
+            # Description on next line, truncated with an ellipsis
+            desc = snap.description
+            if len(desc) > 35:
+                desc = desc[:34] + "…"
+            indent = "     "
             if is_selected:
                 t.append(f"{indent}{desc}\n", style=f"on {COLORS['cursor_bg']}")
             else:

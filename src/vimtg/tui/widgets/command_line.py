@@ -8,6 +8,9 @@ from textual.widgets import Static
 
 from vimtg.tui.theme import COLORS
 
+# Single source for the idle hint — main_screen shows the same string
+GENERIC_HINT = "Press ? for help  |  : command  |  o add card  |  i edit line"
+
 
 class CommandLine(Static):
     """Bottom-most line for command entry, fuzzy completion ghost, and status."""
@@ -47,10 +50,7 @@ class CommandLine(Static):
             return t
         if self.hint:
             return Text(f" {self.hint}", style="dim")
-        return Text(
-            " Press ? for help  |  : command  |  o add card",
-            style="dim",
-        )
+        return Text(f" {GENERIC_HINT}", style="dim")
 
     def show(self, prefix: str) -> None:
         """Activate command input with the given prefix (: or /)."""

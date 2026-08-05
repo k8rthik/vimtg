@@ -1,8 +1,8 @@
 """Which-key tooltip widget — shows available keybindings contextually.
 
-Appears at the bottom of the screen after a short delay when the user
-is in NORMAL mode, showing what keys are available. Inspired by emacs
-which-key and vim's popup menu.
+Appears when a multi-key sequence is pending in NORMAL mode (operator,
+register, count, or prefix key), showing what can follow. Inspired by
+emacs which-key and vim's popup menu.
 """
 
 from __future__ import annotations
@@ -11,14 +11,15 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from vimtg.editor.modes import Mode
 from vimtg.tui.theme import COLORS
 
+# Fallback shown for pending states with no specific continuation
+# (e.g. a count in progress).
 NORMAL_HINTS = {
     "Navigation": [
         ("j/k", "down/up"),
         ("w/b", "next/prev card"),
-        ("{/}", "next/prev section"),
+        ("{/}", "prev/next section"),
         ("[[/]]", "prev/next header"),
         ("gg/G", "top/bottom"),
         ("Ctrl-D/U", "page down/up"),
@@ -42,45 +43,6 @@ NORMAL_HINTS = {
     ],
 }
 
-INSERT_HINTS = {
-    "Insert Mode": [
-        ("Esc", "back to normal"),
-        ("Ctrl-J", "next result"),
-        ("Ctrl-K", "prev result"),
-        ("Enter", "confirm card"),
-        ("Tab", "next result"),
-    ],
-}
-
-LINE_EDIT_HINTS = {
-    "Line Edit": [
-        ("Esc", "cancel"),
-        ("Enter", "confirm"),
-    ],
-}
-
-COMMAND_HINTS = {
-    "Commands": [
-        (":w", "save"),
-        (":q", "quit"),
-        (":sort", "sort cards"),
-        (":s/a/b/g", "substitute"),
-        (":g/pat/d", "global delete"),
-        (":export", "export deck"),
-        (":import", "import deck"),
-        (":stats", "deck stats"),
-        (":validate", "check deck"),
-        (":help", "show help"),
-    ],
-    "Tags": [
-        (":tag", "add tag"),
-        (":untag", "remove tag"),
-        (":tags", "list tags"),
-        (":filter", "filter by tag"),
-        (":retag", "rename tag"),
-    ],
-}
-
 PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
     "d": [
         ("dd", "delete line"), ("dw", "del next card"),
@@ -97,6 +59,8 @@ PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
     "\"": [("\"a-z", "named register"), ("\"0", "yank register"), ("\"1-9", "delete history")],
     "q": [("qa-z", "record macro"), ("q (stop)", "stop recording")],
     "@": [("@a-z", "play macro"), ("@@", "replay last")],
+    "m": [("ma-z", "set mark")],
+    "'": [("'a-z", "jump to mark")],
     "t": [
         ("ta", "add tag"), ("tr", "remove tag"), ("tt", "toggle tag"),
         ("tf", "filter by tag"), ("tl", "list tags"), ("tc", "clear tags"),
@@ -108,23 +72,13 @@ PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
 class WhichKey(Static):
     """Context-sensitive keybinding tooltip overlay."""
 
-    mode: reactive[Mode] = reactive(Mode.NORMAL)
     pending_key: reactive[str] = reactive("")
-    line_edit: reactive[bool] = reactive(False)
 
     def render(self) -> Text:
         # Show pending key hints if we're mid-sequence
         if self.pending_key and self.pending_key in PENDING_HINTS:
             return self._render_hints({"Next": PENDING_HINTS[self.pending_key]})
-
-        # Show mode-appropriate hints
-        hints = NORMAL_HINTS
-        if self.mode == Mode.INSERT:
-            hints = LINE_EDIT_HINTS if self.line_edit else INSERT_HINTS
-        elif self.mode in (Mode.COMMAND, Mode.SEARCH):
-            hints = COMMAND_HINTS
-
-        return self._render_hints(hints)
+        return self._render_hints(NORMAL_HINTS)
 
     def _render_hints(self, hints: dict[str, list[tuple[str, str]]]) -> Text:
         t = Text()
