@@ -1,7 +1,8 @@
 """Dot-repeat tracking for the deck editor.
 
 Records the last repeatable action so the '.' key can replay it.
-Only operator, insert, quantity, and substitution actions are recorded.
+Operator and quantity actions are repeatable — those are the two
+action shapes the replay path (key_handler._replay_dot) implements.
 
 TUI-agnostic: no Textual imports.
 """
@@ -13,9 +14,7 @@ from dataclasses import dataclass
 # Action types that are repeatable via '.'
 REPEATABLE_TYPES: frozenset[str] = frozenset({
     "operator",
-    "insert",
     "quantity",
-    "substitution",
 })
 
 
@@ -23,12 +22,11 @@ REPEATABLE_TYPES: frozenset[str] = frozenset({
 class RepeatableAction:
     """A single action that can be replayed with '.'."""
 
-    action_type: str  # "operator", "insert", "quantity", "substitution"
+    action_type: str  # "operator" or "quantity"
     operator: str | None = None
     motion: str | None = None
     count: int = 1
     register: str | None = None
-    inserted_text: str | None = None
 
 
 class DotRepeat:

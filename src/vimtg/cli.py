@@ -14,6 +14,7 @@ from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
 from vimtg.data.scryfall_sync import ScryfallSync
+from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService
 from vimtg.services.search_service import SearchService
 
@@ -131,6 +132,8 @@ def sync_cmd(force: bool) -> None:
 def search(query: str, limit: int) -> None:
     """Search for cards."""
     repo = _make_card_repo()
+    if repo.count() == 0:
+        raise click.ClickException(str(DatabaseNotInitializedError()))
     service = SearchService(card_repo=repo)
     results = service.fuzzy_search(query, limit=limit)
 

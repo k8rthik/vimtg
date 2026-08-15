@@ -11,7 +11,6 @@ class TestRepeatableAction:
         assert action.motion == "j"
         assert action.count == 1
         assert action.register is None
-        assert action.inserted_text is None
 
     def test_defaults(self) -> None:
         action = RepeatableAction(action_type="insert")
@@ -19,7 +18,6 @@ class TestRepeatableAction:
         assert action.motion is None
         assert action.count == 1
         assert action.register is None
-        assert action.inserted_text is None
 
 
 class TestDotRepeat:
@@ -43,14 +41,11 @@ class TestDotRepeat:
         dr.record(second)
         assert dr.last_action is second
 
-    def test_record_insert_action(self) -> None:
+    def test_insert_actions_are_not_repeatable(self) -> None:
         dr = DotRepeat()
-        action = RepeatableAction(
-            action_type="insert", inserted_text="4 Lightning Bolt"
-        )
-        dr.record(action)
-        assert dr.last_action is action
-        assert dr.last_action.inserted_text == "4 Lightning Bolt"
+        dr.record(RepeatableAction(action_type="insert"))
+        assert dr.last_action is None
+
 
     def test_record_quantity_action(self) -> None:
         dr = DotRepeat()

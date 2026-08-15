@@ -25,6 +25,14 @@ class SearchService:
     def fuzzy_search(self, query: str, limit: int = 20) -> list[Card]:
         return self._repo.search(query, limit=limit)
 
+    def search(self, query: str, limit: int = 20) -> list[Card]:
+        """Name search, or filtered search when the query uses filter
+        syntax (t:creature, c:r, cmc<=2, r:rare, o:draw, set:mh2)."""
+        sq = self.parse_query(query)
+        if any(getattr(sq, f) for f in _FILTER_FIELDS):
+            return self.advanced_search(query)[:limit]
+        return self.fuzzy_search(query, limit=limit)
+
     def advanced_search(self, query: str) -> list[Card]:
         sq = self.parse_query(query)
         if sq.is_empty():

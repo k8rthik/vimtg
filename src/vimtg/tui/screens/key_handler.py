@@ -95,7 +95,6 @@ class HandlerResult:
     greeter_requested: bool = False
     help_requested: bool = False
     search_query: str | None = None
-    insert_card: Card | None = None
     insert_confirm: bool = False
     file_path: Path | None = None
     open_config_screen: bool = False

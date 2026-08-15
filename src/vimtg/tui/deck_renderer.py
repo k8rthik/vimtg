@@ -236,15 +236,6 @@ def _render_expansion(
     return lines
 
 
-def render_filter_collapse(hidden_count: int, gutter_pad: str = "") -> Text:
-    """Render a collapse indicator for hidden-by-filter cards."""
-    t = Text()
-    t.append(f"{gutter_pad}")
-    t.append(f"     ··· {hidden_count} card{'s' if hidden_count != 1 else ''} hidden by filter ···",
-             style=f"dim italic {COLORS['comment']}")
-    return t
-
-
 def format_mana(mana_cost: str) -> Text:
     """Format mana cost with per-symbol colors: {R} red, {U} blue, etc."""
     t = Text()

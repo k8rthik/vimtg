@@ -45,14 +45,6 @@ def _price_delta_str(
     return t
 
 
-def _curve_bar(count: int, max_count: int) -> str:
-    """Render a small bar chart segment."""
-    if max_count == 0:
-        return ""
-    width = min(count, 20)
-    return "\u2588" * width
-
-
 class StatsPanel(Static):
     """Renders stats comparison between two deck states."""
 

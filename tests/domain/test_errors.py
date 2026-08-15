@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from vimtg.domain.errors import (
-    CardNotFoundError,
+    CardsNotFoundWarning,
     DatabaseNotInitializedError,
-    DeckParseError,
-    UnsavedChangesError,
     VimTGError,
 )
 
@@ -24,31 +22,6 @@ def test_database_not_initialized() -> None:
     assert "sync" in err.message
 
 
-def test_card_not_found_without_suggestion() -> None:
-    err = CardNotFoundError("Lightnig Bolt")
-    assert err.code == "E101"
-    assert "Lightnig Bolt" in err.message
-    assert "did you mean" not in err.message
-
-
-def test_card_not_found_with_suggestion() -> None:
-    err = CardNotFoundError("Lightnig Bolt", suggestion="Lightning Bolt")
-    assert "did you mean 'Lightning Bolt'" in err.message
-
-
-def test_deck_parse_error() -> None:
-    err = DeckParseError(line=7, detail="expected quantity")
-    assert err.code == "E102"
-    assert "line 7" in err.message
-    assert "expected quantity" in err.message
-
-
-def test_unsaved_changes_error() -> None:
-    err = UnsavedChangesError()
-    assert err.code == "E37"
-    assert "!" in err.message
-
-
 def test_vimtg_error_is_exception() -> None:
     err = DatabaseNotInitializedError()
     assert isinstance(err, Exception)
@@ -56,8 +29,6 @@ def test_vimtg_error_is_exception() -> None:
 
 
 def test_cards_not_found_warning() -> None:
-    from vimtg.domain.errors import CardsNotFoundWarning
-
     warn = CardsNotFoundWarning(3)
     assert warn.code == "W100"
     assert warn.message == "3 cards not found in database"

@@ -11,7 +11,6 @@ from vimtg.editor.buffer import Buffer
 from vimtg.tui.deck_renderer import (
     _line_number_gutter,
     format_mana,
-    render_filter_collapse,
     render_line,
 )
 from vimtg.tui.theme import COLORS
@@ -219,28 +218,6 @@ class TestExpansionWrapping:
 
 # ── Filter collapse indicator ──────────────────────────────────────
 
-
-class TestFilterCollapse:
-    def test_single_hidden_uses_singular(self) -> None:
-        text = render_filter_collapse(1)
-        assert "1 card hidden" in text.plain
-        assert "cards hidden" not in text.plain
-
-    def test_multiple_hidden_uses_plural(self) -> None:
-        text = render_filter_collapse(7)
-        assert "7 cards hidden" in text.plain
-
-    def test_zero_hidden_uses_plural(self) -> None:
-        """0 is conventionally plural in English ('0 cards')."""
-        text = render_filter_collapse(0)
-        assert "0 cards hidden" in text.plain
-
-    def test_gutter_pad_prepended(self) -> None:
-        text = render_filter_collapse(3, gutter_pad="    ")
-        assert text.plain.startswith("    ")
-
-
-# ── Mana cost edge cases ───────────────────────────────────────────
 
 
 class TestManaCostEdgeCases:

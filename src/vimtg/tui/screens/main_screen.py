@@ -619,7 +619,7 @@ class MainScreen(Screen[None]):
     def _run_search(self, query: str) -> None:
         if self.search_service:
             settings = self._state.settings
-            results = self.search_service.fuzzy_search(
+            results = self.search_service.search(
                 query, limit=settings.search_limit
             )
             if settings.default_format:
