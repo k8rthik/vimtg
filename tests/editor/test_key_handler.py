@@ -462,6 +462,23 @@ class TestCardHelpers:
         assert "Lightning Bolt" in resolved
         assert "Goblin Guide" in resolved
 
+    def test_resolve_cards_degrades_on_corrupt_json_cell(
+        self, loaded_repo: CardRepository
+    ) -> None:
+        """A corrupt JSON cell (e.g. interrupted sync) must degrade to
+        unresolved cards, not crash every render (regression: only
+        sqlite3.Error was caught, json.JSONDecodeError escaped)."""
+        conn = loaded_repo._db.connect()
+        conn.execute(
+            "UPDATE cards SET legalities = '{broken' WHERE name = ?",
+            ("Lightning Bolt",),
+        )
+        conn.commit()
+        resolved = resolve_cards(
+            Buffer.from_text("4 Lightning Bolt\n"), loaded_repo
+        )
+        assert resolved == {}
+
 
 class TestMarkAdjustment:
     """Marks must track their lines across inserts and deletes."""
@@ -489,6 +506,18 @@ class TestMarkAdjustment:
         mark = st.marks.get("a")
         assert mark is not None
         assert mark.row == 4
+
+    def test_marks_shift_down_after_counted_put(self) -> None:
+        """3p must shift marks by the FIRST inserted row, not the row of
+        the last paste (regression: marks below the cursor drifted into
+        the pasted block)."""
+        st = _state(row=1)
+        st.marks = st.marks.set("a", 3)
+        handle_operator(st, ParsedAction("operator", "yy"))
+        handle_normal_special(st, ParsedAction("special", "p", count=3))
+        mark = st.marks.get("a")
+        assert mark is not None
+        assert mark.row == 6  # original row 3 pushed down by 3 pasted lines
 
     def test_marks_shift_after_x_delete(self) -> None:
         st = _state(row=1)

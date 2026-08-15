@@ -312,6 +312,10 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             state.modified = True
     elif key in ("p", "P"):
         before = state.buffer.line_count()
+        # First row the paste block occupies — after the loop the cursor
+        # sits on the LAST paste, which would leave marks below the
+        # original line stranded inside the block on counted puts.
+        first_insert_row = state.cursor.row + (0 if key == "P" else 1)
         for _ in range(count):
             state.buffer, state.cursor = put_lines(
                 state.buffer, state.cursor, state.registers, action.register,
@@ -319,7 +323,7 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             )
         inserted = state.buffer.line_count() - before
         if inserted > 0:
-            state.marks = state.marks.update_for_insert(state.cursor.row, inserted)
+            state.marks = state.marks.update_for_insert(first_insert_row, inserted)
             state.modified = True
             state.history.record(
                 state.buffer, "put" if key == "p" else "put above"
@@ -724,14 +728,16 @@ def count_cards(buffer: Buffer) -> int:
 def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
     """Resolve card names in the buffer to Card objects.
 
-    Database errors degrade to "nothing resolved" rather than crashing
-    the render path, but only sqlite errors — not arbitrary bugs.
+    Bad data degrades to "nothing resolved" rather than crashing the
+    render path: sqlite errors, and ValueError for corrupt JSON cells
+    (row_to_card raises json.JSONDecodeError on an interrupted sync) —
+    not arbitrary bugs.
     """
     deck = parse_deck_text(buffer.to_text())
     names = list(deck.unique_card_names())
     try:
         return card_repo.get_by_names(names)
-    except sqlite3.Error:
+    except (sqlite3.Error, ValueError):
         return {}
 
 
