@@ -1,8 +1,6 @@
-"""Tests for :checkpoint and :branch command handlers."""
+"""Tests for the VCS request command handlers (:commit, :branch, :merge, ...)."""
 
 from __future__ import annotations
-
-from unittest.mock import MagicMock
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.history_cmds import (
@@ -10,153 +8,116 @@ from vimtg.editor.command_handlers.history_cmds import (
     cmd_checkpoint,
     cmd_commit,
     cmd_history,
+    cmd_merge,
+    cmd_rebase,
 )
 from vimtg.editor.commands import EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
 
-
-def _make_ctx(history: object | None = None) -> EditorContext:
-    return EditorContext(history=history)
+BUF = Buffer.from_text("4 Lightning Bolt\n")
 
 
 class TestHistory:
     def test_history_sets_open_flag(self) -> None:
-        ctx = _make_ctx()
-        cmd_history(
-            Buffer.from_text("x\n"), Cursor(), ParsedCommand(name="history"), ctx
-        )
+        ctx = EditorContext()
+        cmd_history(BUF, Cursor(), ParsedCommand(name="history"), ctx)
         assert ctx.open_history_screen is True
 
 
 class TestCommit:
     def test_commit_sets_description(self) -> None:
-        ctx = _make_ctx()
+        ctx = EditorContext()
         cmd_commit(
-            Buffer.from_text("x\n"), Cursor(),
-            ParsedCommand(name="commit", args='"new build"'), ctx,
+            BUF, Cursor(), ParsedCommand(name="commit", args='"new build"'), ctx
         )
         assert ctx.vcs_commit_description == "new build"
 
     def test_commit_no_description_errors(self) -> None:
-        ctx = _make_ctx()
-        cmd_commit(Buffer.from_text("x\n"), Cursor(), ParsedCommand(name="commit"), ctx)
+        ctx = EditorContext()
+        cmd_commit(BUF, Cursor(), ParsedCommand(name="commit"), ctx)
         assert ctx.error is True
         assert "Usage" in ctx.message
 
 
 class TestCheckpoint:
-    def test_checkpoint_with_name(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        history = MagicMock()
-        ctx = _make_ctx(history=history)
-        cmd = ParsedCommand(name="checkpoint", args="save1")
-
-        result_buf, _ = cmd_checkpoint(buffer, cursor, cmd, ctx)
-        history.checkpoint.assert_called_once_with("save1")
-        assert "Checkpoint: save1" in ctx.message
-        assert result_buf is buffer
+    def test_checkpoint_sets_request(self) -> None:
+        ctx = EditorContext()
+        result_buf, _ = cmd_checkpoint(
+            BUF, Cursor(), ParsedCommand(name="checkpoint", args="save1"), ctx
+        )
+        assert ctx.vcs_checkpoint_name == "save1"
+        assert result_buf is BUF
 
     def test_checkpoint_strips_quotes(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        history = MagicMock()
-        ctx = _make_ctx(history=history)
-        cmd = ParsedCommand(name="checkpoint", args='"before refactor"')
-
-        cmd_checkpoint(buffer, cursor, cmd, ctx)
-        history.checkpoint.assert_called_once_with("before refactor")
+        ctx = EditorContext()
+        cmd_checkpoint(
+            BUF, Cursor(),
+            ParsedCommand(name="checkpoint", args='"before refactor"'), ctx,
+        )
+        assert ctx.vcs_checkpoint_name == "before refactor"
 
     def test_checkpoint_no_name_errors(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        ctx = _make_ctx(history=MagicMock())
-        cmd = ParsedCommand(name="checkpoint", args="")
-
-        cmd_checkpoint(buffer, cursor, cmd, ctx)
+        ctx = EditorContext()
+        cmd_checkpoint(BUF, Cursor(), ParsedCommand(name="checkpoint", args=""), ctx)
         assert ctx.error is True
         assert "Usage" in ctx.message
-
-    def test_checkpoint_no_history_errors(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        ctx = _make_ctx(history=None)
-        cmd = ParsedCommand(name="checkpoint", args="save1")
-
-        cmd_checkpoint(buffer, cursor, cmd, ctx)
-        assert ctx.error is True
-        assert "History not available" in ctx.message
+        assert ctx.vcs_checkpoint_name == ""
 
 
 class TestBranch:
-    def test_list_branches(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        history = MagicMock()
-        history.list_branches.return_value = ["main", "experiment"]
-        ctx = _make_ctx(history=history)
-        cmd = ParsedCommand(name="branch", args="")
+    def test_no_args_requests_listing(self) -> None:
+        ctx = EditorContext()
+        cmd_branch(BUF, Cursor(), ParsedCommand(name="branch", args=""), ctx)
+        assert ctx.vcs_list_branches is True
+        assert ctx.vcs_create_branch == ""
+        assert ctx.vcs_switch_branch == ""
 
-        cmd_branch(buffer, cursor, cmd, ctx)
-        assert "main" in ctx.message
-        assert "experiment" in ctx.message
+    def test_name_requests_create(self) -> None:
+        ctx = EditorContext()
+        cmd_branch(
+            BUF, Cursor(), ParsedCommand(name="branch", args="experiment"), ctx
+        )
+        assert ctx.vcs_create_branch == "experiment"
+        assert ctx.vcs_switch_branch == ""
 
-    def test_list_branches_empty(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        history = MagicMock()
-        history.list_branches.return_value = []
-        ctx = _make_ctx(history=history)
-        cmd = ParsedCommand(name="branch", args="")
+    def test_bang_name_requests_switch(self) -> None:
+        ctx = EditorContext()
+        cmd_branch(
+            BUF, Cursor(),
+            ParsedCommand(name="branch", args="experiment", bang=True), ctx,
+        )
+        assert ctx.vcs_switch_branch == "experiment"
+        assert ctx.vcs_create_branch == ""
 
-        cmd_branch(buffer, cursor, cmd, ctx)
-        assert "(none)" in ctx.message
+    def test_buffer_unchanged(self) -> None:
+        ctx = EditorContext()
+        result_buf, _ = cmd_branch(
+            BUF, Cursor(), ParsedCommand(name="branch", args="x", bang=True), ctx
+        )
+        assert result_buf is BUF
 
-    def test_create_branch(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        history = MagicMock()
-        ctx = _make_ctx(history=history)
-        cmd = ParsedCommand(name="branch", args="experiment")
 
-        cmd_branch(buffer, cursor, cmd, ctx)
-        history.create_branch.assert_called_once_with("experiment")
-        assert "Branch created: experiment" in ctx.message
+class TestMerge:
+    def test_merge_sets_target(self) -> None:
+        ctx = EditorContext()
+        cmd_merge(BUF, Cursor(), ParsedCommand(name="merge", args="budget"), ctx)
+        assert ctx.vcs_merge_target == "budget"
 
-    def test_switch_branch(self) -> None:
-        original_buf = Buffer.from_text("4 Lightning Bolt\n")
-        restored_buf = Buffer.from_text("2 Counterspell\n")
-        cursor = Cursor(row=0)
-        history = MagicMock()
-        history.switch_branch.return_value = restored_buf
-        ctx = _make_ctx(history=history)
-        cmd = ParsedCommand(name="branch", args="experiment", bang=True)
-
-        result_buf, _ = cmd_branch(original_buf, cursor, cmd, ctx)
-        history.switch_branch.assert_called_once_with("experiment")
-        assert result_buf is restored_buf
-        assert "Switched to branch: experiment" in ctx.message
-        assert ctx.modified is True
-
-    def test_switch_branch_not_found(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        history = MagicMock()
-        history.switch_branch.return_value = None
-        ctx = _make_ctx(history=history)
-        cmd = ParsedCommand(name="branch", args="nonexistent", bang=True)
-
-        result_buf, _ = cmd_branch(buffer, cursor, cmd, ctx)
+    def test_merge_no_target_errors(self) -> None:
+        ctx = EditorContext()
+        cmd_merge(BUF, Cursor(), ParsedCommand(name="merge", args=""), ctx)
         assert ctx.error is True
-        assert "Branch not found" in ctx.message
-        assert result_buf is buffer
+        assert "Usage" in ctx.message
 
-    def test_branch_no_history_errors(self) -> None:
-        buffer = Buffer.from_text("4 Lightning Bolt\n")
-        cursor = Cursor(row=0)
-        ctx = _make_ctx(history=None)
-        cmd = ParsedCommand(name="branch", args="")
 
-        cmd_branch(buffer, cursor, cmd, ctx)
+class TestRebase:
+    def test_rebase_sets_target(self) -> None:
+        ctx = EditorContext()
+        cmd_rebase(BUF, Cursor(), ParsedCommand(name="rebase", args="main"), ctx)
+        assert ctx.vcs_rebase_target == "main"
+
+    def test_rebase_no_target_errors(self) -> None:
+        ctx = EditorContext()
+        cmd_rebase(BUF, Cursor(), ParsedCommand(name="rebase", args=""), ctx)
         assert ctx.error is True
-        assert "History not available" in ctx.message
+        assert "Usage" in ctx.message

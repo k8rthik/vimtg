@@ -1,4 +1,4 @@
-"""Tests for the snapshot undo tree domain model."""
+"""Tests for the snapshot session undo tree domain model."""
 
 from datetime import UTC, datetime
 
@@ -12,9 +12,7 @@ def test_new_tree_single_root_node() -> None:
     assert len(tree.nodes) == 1
     assert tree.current.deck_state == SAMPLE_STATE
     assert tree.current.parent_id is None
-    assert tree.current.branch == "main"
     assert tree.current.description == "initial"
-    assert tree.branches == {"main": tree.current_id}
 
 
 def test_add_snapshot_grows_tree() -> None:
@@ -57,7 +55,7 @@ def test_redo_at_leaf_returns_none() -> None:
     assert tree2.redo() is None
 
 
-def test_branch_after_undo_creates_fork() -> None:
+def test_fork_after_undo_creates_two_children() -> None:
     tree = SnapshotTree.new("v0\n")
     tree = tree.add_snapshot("v1\n", "first")
     tree = tree.add_snapshot("v2\n", "second")
@@ -71,7 +69,7 @@ def test_branch_after_undo_creates_fork() -> None:
 
     # v1 now has two children
     children = SnapshotTree(
-        nodes=forked.nodes, current_id=tree_at_v1.current_id, branches=forked.branches
+        nodes=forked.nodes, current_id=tree_at_v1.current_id
     ).children()
     assert len(children) == 2
 
@@ -87,7 +85,6 @@ def test_redo_picks_newest_among_multiple_children() -> None:
         deck_state="older\n",
         timestamp=datetime(2025, 1, 1, tzinfo=UTC),
         description="older",
-        branch="main",
     )
     newer_child = Snapshot(
         id="newer",
@@ -95,56 +92,14 @@ def test_redo_picks_newest_among_multiple_children() -> None:
         deck_state="newer\n",
         timestamp=datetime(2025, 6, 1, tzinfo=UTC),
         description="newer",
-        branch="main",
     )
     nodes = {**tree.nodes, older_child.id: older_child, newer_child.id: newer_child}
-    tree_with_fork = SnapshotTree(
-        nodes=nodes, current_id=root_id, branches=tree.branches
-    )
+    tree_with_fork = SnapshotTree(nodes=nodes, current_id=root_id)
 
     # Redo should pick the most recent (newer)
     result = tree_with_fork.redo()
     assert result is not None
     assert result.current_id == "newer"
-
-
-def test_checkpoint_stores_tag() -> None:
-    tree = SnapshotTree.new(SAMPLE_STATE)
-    tree2 = tree.add_snapshot("v1\n", "edit")
-    tree3 = tree2.checkpoint("release-1")
-    assert tree3.current.tag == "release-1"
-    # Other fields unchanged
-    assert tree3.current.deck_state == tree2.current.deck_state
-    assert tree3.current.description == tree2.current.description
-
-
-def test_create_branch_adds_pointer() -> None:
-    tree = SnapshotTree.new(SAMPLE_STATE)
-    tree2 = tree.create_branch("experiment")
-    assert "experiment" in tree2.branches
-    assert tree2.branches["experiment"] == tree.current_id
-    # Current position unchanged
-    assert tree2.current_id == tree.current_id
-
-
-def test_switch_branch_moves_to_tip() -> None:
-    tree = SnapshotTree.new(SAMPLE_STATE)
-    tree = tree.add_snapshot("v1\n", "first")
-    tip_id = tree.current_id
-
-    # Create branch, then add more on main
-    tree = tree.create_branch("side")
-    tree = tree.add_snapshot("v2\n", "second on main")
-
-    # Switch back to side branch
-    switched = tree.switch_branch("side")
-    assert switched is not None
-    assert switched.current_id == tip_id
-
-
-def test_switch_unknown_branch_returns_none() -> None:
-    tree = SnapshotTree.new(SAMPLE_STATE)
-    assert tree.switch_branch("nonexistent") is None
 
 
 def test_original_tree_not_mutated_by_add() -> None:

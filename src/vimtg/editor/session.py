@@ -103,11 +103,18 @@ class HandlerResult:
     search_query: str | None = None
     insert_confirm: bool = False
     file_path: Path | None = None
+    file_saved: bool = False
     open_config_screen: bool = False
     open_history_screen: bool = False
     open_help_screen: bool = False
     help_topic: str | None = None
     vcs_commit_description: str = ""
+    vcs_checkpoint_name: str = ""
+    vcs_list_branches: bool = False
+    vcs_create_branch: str = ""
+    vcs_switch_branch: str = ""
+    vcs_merge_target: str = ""
+    vcs_rebase_target: str = ""
     command_ghost: str = ""
     command_accept: str = ""
     enter_line_edit: bool = False
@@ -264,11 +271,18 @@ def handle_command(
             quit_requested=ctx.quit_requested,
             greeter_requested=ctx.greeter_requested,
             file_path=ctx.file_path,
+            file_saved=ctx.file_saved,
             open_config_screen=ctx.open_config_screen,
             open_history_screen=ctx.open_history_screen,
             open_help_screen=ctx.open_help_screen,
             help_topic=ctx.help_topic,
             vcs_commit_description=ctx.vcs_commit_description,
+            vcs_checkpoint_name=ctx.vcs_checkpoint_name,
+            vcs_list_branches=ctx.vcs_list_branches,
+            vcs_create_branch=ctx.vcs_create_branch,
+            vcs_switch_branch=ctx.vcs_switch_branch,
+            vcs_merge_target=ctx.vcs_merge_target,
+            vcs_rebase_target=ctx.vcs_rebase_target,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)

@@ -55,6 +55,7 @@ def cmd_write(
         return buffer, cursor
 
     ctx.file_path = target
+    ctx.file_saved = True
     ctx.modified = False
     ctx.message = f"Written: {target.name}"
     return buffer, cursor

@@ -59,8 +59,13 @@ from vimtg.tui.widgets.which_key import WhichKey
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
+    from vimtg.domain.deck_merge import CardKey
     from vimtg.services.search_service import SearchService
-    from vimtg.services.vcs_service import VersionControlService
+    from vimtg.services.vcs_service import (
+        MergeResult,
+        PendingMerge,
+        VersionControlService,
+    )
 
 
 _GENERIC_HINT = GENERIC_HINT
@@ -402,6 +407,10 @@ class MainScreen(Screen[None]):
                 # unsaved deck) instead of the stale "(unsaved)" bucket.
                 self._vcs_service = None
             self.file_path = hr.file_path
+        if hr.file_saved:
+            # Only an actual save auto-snapshots — every ex command carries
+            # file_path, and committing on each one would defeat the
+            # uncommitted-changes guard on merge/rebase/switch.
             self._vcs_auto_snapshot()
         if hr.help_requested:
             hp = self.query_one("#help-panel", HelpPanel)
@@ -424,6 +433,18 @@ class MainScreen(Screen[None]):
             self._open_help(hr.help_topic)
         if hr.vcs_commit_description:
             self._vcs_commit(hr.vcs_commit_description)
+        if hr.vcs_checkpoint_name:
+            self._vcs_checkpoint(hr.vcs_checkpoint_name)
+        if hr.vcs_list_branches:
+            self._vcs_list_branches()
+        if hr.vcs_create_branch:
+            self._vcs_create_branch(hr.vcs_create_branch)
+        if hr.vcs_switch_branch:
+            self._vcs_switch_branch(hr.vcs_switch_branch)
+        if hr.vcs_merge_target:
+            self._vcs_merge(hr.vcs_merge_target)
+        if hr.vcs_rebase_target:
+            self._vcs_rebase(hr.vcs_rebase_target)
         if hr.search_query is not None:
             self._handle_search_action(hr.search_query)
         if hr.replay_keys:
@@ -587,6 +608,221 @@ class MainScreen(Screen[None]):
             return
         cl.set_message(f"Snapshot: {snap.description}")
         self._sync_widgets()
+
+    def _vcs_checkpoint(self, name: str) -> None:
+        """Commit the current deck state and tag the snapshot with name."""
+        vcs = self._get_vcs_service()
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            cl.set_message("VCS unavailable (no database)")
+            return
+        try:
+            snap = vcs.commit(self._state.buffer.to_text(), name)
+            vcs.tag(snap.id, name)
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Checkpoint failed: {exc}", error=True)
+            return
+        cl.set_message(f"Checkpoint: {name}")
+        self._sync_widgets()
+
+    def _vcs_list_branches(self) -> None:
+        """Show all branches on the command line, marking the current one."""
+        vcs = self._get_vcs_service()
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            cl.set_message("VCS unavailable (no database)")
+            return
+        try:
+            branches = vcs.list_branches()
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Branch list failed: {exc}", error=True)
+            return
+        if not branches:
+            cl.set_message("Branches: (none — nothing committed yet)")
+            return
+        names = [
+            f"*{b.name}" if b.name == vcs.current_branch else b.name
+            for b in branches
+        ]
+        cl.set_message("Branches: " + ", ".join(names))
+
+    def _vcs_create_branch(self, name: str) -> None:
+        """Create a branch at the current branch tip."""
+        vcs = self._get_vcs_service()
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            cl.set_message("VCS unavailable (no database)")
+            return
+        try:
+            existing = {b.name for b in vcs.list_branches()}
+            if name in existing:
+                cl.set_message(f"E: Branch exists: {name}", error=True)
+                return
+            branch = vcs.create_branch(name)
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Branch failed: {exc}", error=True)
+            return
+        if branch is None:
+            cl.set_message("E: Nothing committed yet — :commit first", error=True)
+            return
+        cl.set_message(f"Branch created: {name}")
+
+    def _vcs_switch_branch(self, name: str) -> None:
+        """Switch to a branch and load its tip into the buffer."""
+        vcs = self._get_vcs_service()
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            cl.set_message("VCS unavailable (no database)")
+            return
+        try:
+            if vcs.is_dirty(self._state.buffer.to_text()):
+                cl.set_message(
+                    "E: Uncommitted changes — :commit first", error=True
+                )
+                return
+            state = vcs.switch_branch(name)
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Switch failed: {exc}", error=True)
+            return
+        if state is None:
+            cl.set_message(f"E: Branch not found: {name}", error=True)
+            return
+        self._on_restore(state)
+        cl.set_message(f"Switched to branch: {name}")
+
+    def _vcs_merge(self, target: str) -> None:
+        """Merge a branch, or another deck file, into the current branch.
+
+        Disambiguation: an exact branch-name match wins; otherwise an
+        argument containing a path separator or ending in .deck is treated
+        as a deck file. Anything else is an error.
+        """
+        vcs = self._get_vcs_service()
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            cl.set_message("VCS unavailable (no database)")
+            return
+        if self.file_path is None:
+            cl.set_message("E: Save the deck before merging (:w)", error=True)
+            return
+        try:
+            if vcs.is_dirty(self._state.buffer.to_text()):
+                cl.set_message(
+                    "E: Uncommitted changes — :commit first", error=True
+                )
+                return
+            branch_names = {b.name for b in vcs.list_branches()}
+            result: MergeResult | None
+            if target in branch_names:
+                result = vcs.merge_branch(target)
+            elif "/" in target or "\\" in target or target.endswith(".deck"):
+                result = self._merge_deck_file(target)
+            else:
+                cl.set_message(
+                    f"E: No branch or deck file: {target}", error=True
+                )
+                return
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Merge failed: {exc}", error=True)
+            return
+        if result is not None:
+            self._handle_merge_result(result)
+
+    def _merge_deck_file(self, arg: str) -> MergeResult | None:
+        """Read another deck file and merge its cards (empty merge base)."""
+        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_service
+        if vcs is None:
+            return None
+
+        path = Path(arg).expanduser()
+        if not path.is_absolute():
+            base_dir = (
+                self.file_path.parent if self.file_path else Path.cwd()
+            )
+            for candidate in (base_dir / path, Path.cwd() / path):
+                if candidate.exists():
+                    path = candidate
+                    break
+        if self.file_path and path.resolve() == self.file_path.resolve():
+            cl.set_message("E: Cannot merge a deck into itself", error=True)
+            return None
+        try:
+            theirs_state = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            cl.set_message(f"E: Cannot read {arg}: {exc}", error=True)
+            return None
+        return vcs.merge_external(theirs_state, path.name)
+
+    def _handle_merge_result(self, result: MergeResult) -> None:
+        """Apply a merge outcome: adopt state, or open conflict resolution."""
+        from vimtg.services.vcs_service import MergeKind
+        from vimtg.tui.screens.merge_screen import MergeScreen
+
+        cl = self.query_one("#command-line", CommandLine)
+        if result.kind is MergeKind.CONFLICTS and result.pending is not None:
+            pending = result.pending
+            deck_name = self.file_path.name if self.file_path else "(new)"
+            self.app.push_screen(MergeScreen(
+                pending=pending,
+                deck_name=deck_name,
+                on_complete=lambda res: self._finish_merge(pending, res),
+            ))
+            return
+        if result.new_state is not None:
+            self._on_restore(result.new_state)
+        cl.set_message(
+            ("E: " if result.kind is MergeKind.FAILED else "")
+            + result.message,
+            error=result.kind is MergeKind.FAILED,
+        )
+
+    def _finish_merge(
+        self,
+        pending: PendingMerge,
+        resolutions: dict[CardKey, int | None],
+    ) -> None:
+        """Complete a conflicted merge with the user's resolutions."""
+        vcs = self._vcs_service
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            return
+        try:
+            result = vcs.complete_merge(pending, resolutions)
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Merge failed: {exc}", error=True)
+            return
+        self._handle_merge_result(result)
+
+    def _vcs_rebase(self, target: str) -> None:
+        """Replay the current branch's commits onto the target branch tip."""
+        from vimtg.services.vcs_service import MergeKind
+
+        vcs = self._get_vcs_service()
+        cl = self.query_one("#command-line", CommandLine)
+        if vcs is None:
+            cl.set_message("VCS unavailable (no database)")
+            return
+        if self.file_path is None:
+            cl.set_message("E: Save the deck before rebasing (:w)", error=True)
+            return
+        try:
+            if vcs.is_dirty(self._state.buffer.to_text()):
+                cl.set_message(
+                    "E: Uncommitted changes — :commit first", error=True
+                )
+                return
+            result = vcs.rebase(target)
+        except sqlite3.Error as exc:
+            cl.set_message(f"E: Rebase failed: {exc}", error=True)
+            return
+        if result.new_state is not None:
+            self._on_restore(result.new_state)
+        cl.set_message(
+            ("E: " if result.kind is MergeKind.FAILED else "")
+            + result.message,
+            error=result.kind is MergeKind.FAILED,
+        )
 
     def _vcs_auto_snapshot(self) -> None:
         """Auto-create VCS snapshot on :w (if enabled).

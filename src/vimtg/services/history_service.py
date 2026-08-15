@@ -1,8 +1,11 @@
-"""History service managing a snapshot undo tree for deck editing.
+"""History service managing the session undo tree for deck editing.
 
-Provides undo/redo, branching, checkpoints, and debounced recording.
-Wraps SnapshotTree with mutable state tracking (last record time, etc.)
-while keeping SnapshotTree itself immutable.
+Provides undo/redo and debounced recording. Wraps SnapshotTree with
+mutable state tracking (last record time, etc.) while keeping
+SnapshotTree itself immutable.
+
+Durable version control (branches, tags, merges) is handled by
+vimtg.services.vcs_service, not here.
 
 TUI-agnostic: no Textual imports.
 """
@@ -16,7 +19,7 @@ from vimtg.editor.buffer import Buffer
 
 
 class HistoryService:
-    """Manages deck edit history with undo tree, branches, and checkpoints."""
+    """Manages the session undo tree for deck edits."""
 
     def __init__(self) -> None:
         self._tree: SnapshotTree | None = None
@@ -58,13 +61,10 @@ class HistoryService:
             deck_state=buffer.to_text(),
             timestamp=current.timestamp,
             description=current.description,
-            branch=current.branch,
-            tag=current.tag,
         )
         self._tree = SnapshotTree(
             nodes={**self._tree.nodes, updated.id: updated},
             current_id=self._tree.current_id,
-            branches=self._tree.branches,
         )
 
     def undo(self) -> Buffer | None:
@@ -86,32 +86,6 @@ class HistoryService:
             return None
         self._tree = new_tree
         return Buffer.from_text(self._tree.current.deck_state)
-
-    def checkpoint(self, name: str) -> None:
-        """Tag the current snapshot with a checkpoint name."""
-        if self._tree is not None:
-            self._tree = self._tree.checkpoint(name)
-
-    def create_branch(self, name: str) -> None:
-        """Create a new branch at the current snapshot."""
-        if self._tree is not None:
-            self._tree = self._tree.create_branch(name)
-
-    def switch_branch(self, name: str) -> Buffer | None:
-        """Switch to a branch tip, returning the restored buffer or None."""
-        if self._tree is None:
-            return None
-        new_tree = self._tree.switch_branch(name)
-        if new_tree is None:
-            return None
-        self._tree = new_tree
-        return Buffer.from_text(self._tree.current.deck_state)
-
-    def list_branches(self) -> list[str]:
-        """Return names of all branches."""
-        if self._tree is None:
-            return []
-        return list(self._tree.branches.keys())
 
     @property
     def can_undo(self) -> bool:

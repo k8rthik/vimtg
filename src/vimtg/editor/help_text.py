@@ -78,8 +78,10 @@ COMMANDS
 VERSION CONTROL
   :history      Open deck history (lazygit-style)
   :commit "msg" Snapshot current deck state
-  :branch       Undo-tree branches: list; name creates; ! switches
-  :checkpoint n Tag current undo-tree state
+  :branch       Branches: list; name creates; ! switches
+  :checkpoint n Commit and tag the current state
+  :merge x      Merge branch x (or another .deck file)
+  :rebase x     Replay this branch's commits onto branch x
 """.strip()
 
 COMMAND_HELP: dict[str, str] = {
@@ -153,6 +155,8 @@ COMMAND_HELP: dict[str, str] = {
         "  c              Commit snapshot\n"
         "  b              Create branch\n"
         "  B              Switch branch\n"
+        "  m              Merge selected branch\n"
+        "  r              Rebase onto selected branch\n"
         "  t/T            Tag/untag snapshot\n"
         "  R              Restore snapshot\n"
         "  p              Cherry-pick\n"
@@ -161,19 +165,34 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "commit": ":commit message  Create a named snapshot of current deck state",
     "branch": (
-        ":branch  Undo-tree branches (in-memory, this session)\n"
+        ":branch  Persistent deck branches (saved across sessions)\n"
         "\n"
-        ":branch          list branches\n"
-        ":branch name     create branch at current state\n"
-        ":branch! name    switch to branch\n"
+        ":branch          list branches (* marks current)\n"
+        ":branch name     create branch at current tip\n"
+        ":branch! name    switch to branch (loads its tip)\n"
         "\n"
-        "For saved snapshots and persistent branches, use :history."
+        "Browse branches and snapshots with :history."
     ),
     "checkpoint": (
-        ":checkpoint name  Tag the current undo-tree state\n"
+        ":checkpoint name  Commit the current state and tag it\n"
         "\n"
-        "Checkpoints live in this session's undo tree. For a persistent\n"
-        "snapshot use :commit."
+        "Shorthand for :commit followed by tagging the new snapshot."
+    ),
+    "merge": (
+        ":merge target  Merge into the current branch\n"
+        "\n"
+        ":merge branch        merge another branch (3-way, fast-forwards\n"
+        "                     when possible)\n"
+        ":merge path.deck     merge another deck file's cards\n"
+        "\n"
+        "Conflicting card quantities open an interactive resolution screen."
+    ),
+    "rebase": (
+        ":rebase branch  Replay this branch's commits onto another tip\n"
+        "\n"
+        "Rewrites the current branch as if it had started from the target\n"
+        "branch's tip. Overlapping edits resolve in favor of the replayed\n"
+        "commit. Original snapshots stay recoverable by id."
     ),
     "stats": ":stats  Show deck statistics (mana curve, colors, types)",
     "validate": (

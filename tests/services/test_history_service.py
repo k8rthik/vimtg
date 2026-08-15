@@ -102,33 +102,6 @@ def test_no_debounce_different_description() -> None:
     assert len(svc.tree.nodes) == 3  # initial + edit-a + edit-b
 
 
-def test_checkpoint() -> None:
-    svc = HistoryService()
-    svc.initialize(_buf("v0\n"))
-    svc.record(_buf("v1\n"), "edit")
-    svc.checkpoint("milestone-1")
-    assert svc.tree is not None
-    assert svc.tree.current.tag == "milestone-1"
-
-
-def test_branch_and_switch() -> None:
-    svc = HistoryService()
-    svc.initialize(_buf("v0\n"))
-    svc.record(_buf("v1\n"), "edit")
-    svc.create_branch("experiment")
-
-    # Add more on main
-    svc.record(_buf("v2\n"), "main-work")
-
-    # Switch to experiment (should be at v1)
-    buf = svc.switch_branch("experiment")
-    assert buf is not None
-    assert buf.to_text() == "v1\n"
-
-    # List branches
-    branches = svc.list_branches()
-    assert "main" in branches
-    assert "experiment" in branches
 
 
 def test_can_undo_redo_properties() -> None:
@@ -163,7 +136,3 @@ def test_undo_redo_on_uninitialized_returns_none() -> None:
     assert svc.redo() is None
 
 
-def test_switch_unknown_branch_returns_none() -> None:
-    svc = HistoryService()
-    svc.initialize(_buf("v0\n"))
-    assert svc.switch_branch("nope") is None

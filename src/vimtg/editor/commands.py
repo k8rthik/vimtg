@@ -155,6 +155,7 @@ class EditorContext:
     """Mutable context passed to command handlers for side effects."""
 
     file_path: Path | None = None
+    file_saved: bool = False  # set by :w — gates auto-snapshot
     modified: bool = False
     quit_requested: bool = False
     greeter_requested: bool = False
@@ -168,6 +169,12 @@ class EditorContext:
     open_help_screen: bool = False
     help_topic: str | None = None
     vcs_commit_description: str = ""
+    vcs_checkpoint_name: str = ""
+    vcs_list_branches: bool = False
+    vcs_create_branch: str = ""
+    vcs_switch_branch: str = ""
+    vcs_merge_target: str = ""
+    vcs_rebase_target: str = ""
     resolved_cards: dict[str, Card] | None = None
     card_repo: CardRepository | None = None
     history: HistoryService | None = None
