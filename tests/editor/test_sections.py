@@ -44,3 +44,13 @@ class TestNormalizeSections:
         buf = Buffer.from_text("// Creatures\n\n// Lands\n\n\n20 Mountain\n// Spells\n")
         once = normalize_sections(buf)
         assert normalize_sections(once) is once
+
+
+class TestMaybeboardSections:
+    def test_header_with_only_maybeboard_cards_survives(self) -> None:
+        """A section whose cards are all MB: lines is not empty (regression:
+        the card-type set was a stale copy missing MAYBEBOARD_ENTRY)."""
+        buf = Buffer.from_text("// Maybeboard\nMB: 2 Opt\nMB: 1 Shock\n")
+        cleaned = normalize_sections(buf)
+        assert "// Maybeboard" in cleaned.to_text()
+        assert "MB: 2 Opt" in cleaned.to_text()

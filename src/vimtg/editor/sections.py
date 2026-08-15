@@ -10,13 +10,12 @@ TUI-agnostic: no Textual imports.
 
 from __future__ import annotations
 
-from vimtg.editor.buffer import Buffer, LineType, classify_line
-
-_CARD_TYPES = frozenset({
-    LineType.CARD_ENTRY,
-    LineType.SIDEBOARD_ENTRY,
-    LineType.COMMANDER_ENTRY,
-})
+from vimtg.editor.buffer import (
+    CARD_LINE_TYPES,
+    Buffer,
+    LineType,
+    classify_line,
+)
 
 
 def normalize_sections(buffer: Buffer) -> Buffer:
@@ -47,7 +46,7 @@ def _drop_empty_headers(
         for _, next_type in lines[i + 1:]:
             if next_type == LineType.BLANK:
                 continue
-            if next_type in _CARD_TYPES:
+            if next_type in CARD_LINE_TYPES:
                 has_cards = True
             break
         if not has_cards:
