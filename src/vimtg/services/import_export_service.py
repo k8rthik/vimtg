@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import sqlite3
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
@@ -159,8 +160,8 @@ class ImportExportService:
             unresolved.append(name)
             try:
                 hits = self._card_repo.search(name, limit=1)
-            except Exception:
-                hits = []
+            except sqlite3.Error:
+                hits = []  # suggestion lookup is best-effort
             if hits:
                 suggestions[name] = hits[0].name
         return CardResolution(

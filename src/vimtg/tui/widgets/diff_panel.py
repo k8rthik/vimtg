@@ -45,7 +45,7 @@ class DiffPanel(Static):
 
     def render(self) -> Text:
         t = Text()
-        border_color = COLORS["quantity"] if self.focused_panel else COLORS["comment"]
+        border_color = COLORS["focus"] if self.focused_panel else COLORS["comment"]
         t.append(" Diff", style=f"bold {border_color}")
         t.append("\n")
         t.append(f" {'─' * 40}\n", style=f"dim {COLORS['comment']}")

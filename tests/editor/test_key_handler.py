@@ -25,8 +25,7 @@ from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
-from vimtg.services.history_service import HistoryService
-from vimtg.tui.screens.key_handler import (
+from vimtg.editor.session import (
     EditorState,
     InsertSubmode,
     count_cards,
@@ -40,6 +39,7 @@ from vimtg.tui.screens.key_handler import (
     handle_tag_input_special,
     resolve_cards,
 )
+from vimtg.services.history_service import HistoryService
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 

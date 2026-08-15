@@ -406,9 +406,11 @@ class TestResolveCards:
         assert res.suggestions == {}
 
     def test_fts_error_is_swallowed(self) -> None:
+        import sqlite3
+
         class _ExplodingRepo(_StubRepo):
             def search(self, query: str, limit: int = 50) -> list[Card]:
-                raise RuntimeError("malformed FTS query")
+                raise sqlite3.OperationalError("database is locked")
 
         svc = ImportExportService(card_repo=_ExplodingRepo())
         deck = _make_deck(main=[(1, "Bad)Name(")])

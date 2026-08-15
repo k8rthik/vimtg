@@ -7,13 +7,13 @@ from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.modes import ModeManager
 from vimtg.editor.registers import RegisterStore
-from vimtg.services.history_service import HistoryService
-from vimtg.tui.screens.key_handler import (
+from vimtg.editor.session import (
     EditorState,
     InsertSubmode,
     handle_line_edit_special,
     handle_mode_switch,
 )
+from vimtg.services.history_service import HistoryService
 
 
 def _make_state(text: str, cursor_row: int = 0) -> EditorState:

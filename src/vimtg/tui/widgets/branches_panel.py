@@ -20,7 +20,7 @@ class BranchesPanel(Static):
 
     def render(self) -> Text:
         t = Text()
-        border_color = COLORS["mana_green"] if self.focused_panel else COLORS["comment"]
+        border_color = COLORS["focus"] if self.focused_panel else COLORS["comment"]
         t.append(" Branches", style=f"bold {border_color}")
         t.append(f"  ({len(self.branches)})\n", style="dim")
         t.append(f" {'─' * 28}\n", style=f"dim {COLORS['comment']}")

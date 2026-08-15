@@ -93,5 +93,7 @@ class DeckDiffService:
                 new_price=new_stats.total_price_usd,
                 curve_delta=curve_delta,
             )
-        except Exception:
+        except (ValueError, KeyError, ZeroDivisionError):
+            # Stats math can fail on degenerate decks; the panel shows
+            # nothing rather than crashing the history screen.
             return None

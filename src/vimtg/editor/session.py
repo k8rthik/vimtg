@@ -1,11 +1,13 @@
-"""Key action handlers for MainScreen — separated to keep screen under 200 lines.
+"""Editor session: EditorState and the key-action handlers.
 
-Each handler mutates EditorState and returns it. The MainScreen calls these
-and then syncs the updated state to widgets.
+This is the editor engine — pure state + handlers with zero Textual
+imports. The TUI layer (MainScreen) feeds it ParsedActions and applies
+the returned HandlerResult side effects to widgets.
 """
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -590,21 +592,26 @@ def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerR
 
 
 def count_cards(buffer: Buffer) -> int:
-    """Count total cards in the buffer."""
-    try:
-        deck = parse_deck_text(buffer.to_text())
-        return sum(e.quantity for e in deck.entries)
-    except Exception:
-        return 0
+    """Count total cards in the buffer.
+
+    parse_deck_text is lenient by design and does not raise on user
+    text, so no blanket except is needed — a real bug should surface.
+    """
+    deck = parse_deck_text(buffer.to_text())
+    return sum(e.quantity for e in deck.entries)
 
 
 def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
-    """Resolve card names in the buffer to Card objects."""
+    """Resolve card names in the buffer to Card objects.
+
+    Database errors degrade to "nothing resolved" rather than crashing
+    the render path, but only sqlite errors — not arbitrary bugs.
+    """
+    deck = parse_deck_text(buffer.to_text())
+    names = list(deck.unique_card_names())
     try:
-        deck = parse_deck_text(buffer.to_text())
-        names = list(deck.unique_card_names())
         return card_repo.get_by_names(names)
-    except Exception:
+    except sqlite3.Error:
         return {}
 
 

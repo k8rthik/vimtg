@@ -156,7 +156,7 @@ class TestStatsPanelFocus:
         p = StatsPanel()
         p.focused_panel = True
         text = p.render()
-        assert COLORS["mana_red"] in _styles_at("Stats", text)
+        assert COLORS["focus"] in _styles_at("Stats", text)
 
     def test_unfocused_uses_dim_border(self) -> None:
         p = StatsPanel()

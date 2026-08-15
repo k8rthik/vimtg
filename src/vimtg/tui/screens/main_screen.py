@@ -29,9 +29,7 @@ from vimtg.editor.keymaps import load_remapper
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.sections import normalize_sections
-from vimtg.services.history_service import HistoryService
-from vimtg.tui.key_translator import translate
-from vimtg.tui.screens.key_handler import (
+from vimtg.editor.session import (
     EditorState,
     HandlerResult,
     InsertSubmode,
@@ -47,6 +45,8 @@ from vimtg.tui.screens.key_handler import (
     handle_tag_input_special,
     resolve_cards,
 )
+from vimtg.services.history_service import HistoryService
+from vimtg.tui.key_translator import translate
 from vimtg.tui.widgets.command_line import GENERIC_HINT, CommandLine
 from vimtg.tui.widgets.deck_view import DeckView
 from vimtg.tui.widgets.help_panel import HelpPanel

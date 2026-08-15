@@ -7,13 +7,13 @@ from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
-from vimtg.services.history_service import HistoryService
-from vimtg.tui.screens.key_handler import (
+from vimtg.editor.session import (
     EditorState,
     handle_mode_switch,
     handle_normal_special,
     handle_operator,
 )
+from vimtg.services.history_service import HistoryService
 
 
 def _make_state(text: str = "4 Lightning Bolt\n2 Counterspell\n1 Abrade\n") -> EditorState:
