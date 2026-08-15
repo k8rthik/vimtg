@@ -24,20 +24,19 @@ class FormatRules:
     requires_commander: bool = False
 
 
-_SINGLETON_100 = {
-    "exact_deck_size": 100,
-    "copy_limit": 1,
-    "allows_sideboard": False,
-    "requires_commander": True,
-}
-
 FORMAT_RULES: dict[str, FormatRules] = {
     "standard": FormatRules(name="standard"),
     "pioneer": FormatRules(name="pioneer"),
     "modern": FormatRules(name="modern"),
     "legacy": FormatRules(name="legacy"),
     "vintage": FormatRules(name="vintage"),
-    "commander": FormatRules(name="commander", **_SINGLETON_100),
+    "commander": FormatRules(
+        name="commander",
+        exact_deck_size=100,
+        copy_limit=1,
+        allows_sideboard=False,
+        requires_commander=True,
+    ),
     "brawl": FormatRules(
         name="brawl",
         copy_limit=1,
