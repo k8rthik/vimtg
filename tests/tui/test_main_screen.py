@@ -548,3 +548,51 @@ async def test_scaffold_added_on_open_without_modified(tmp_path: Path) -> None:
         assert "// Format:" in text
         assert "// Tags:" in text
         assert scr._state.modified is False
+
+
+@pytest.mark.asyncio
+async def test_macro_records_literal_q_in_command_mode(tmp_path: Path) -> None:
+    """Literal 'q' characters typed in COMMAND/INSERT mode belong in the
+    recording (regression: any bare 'q' was skipped as the stop key)."""
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        await pilot.press("q", "a")  # start recording into @a
+        assert scr._state.macros.is_recording
+        await pilot.press("colon")
+        await pilot.press("q", "q")  # literal text containing q
+        await pilot.press("escape")  # cancel the command line
+        await pilot.press("q")  # stop recording (normal mode)
+        assert not scr._state.macros.is_recording
+        macro = scr._state.macros.get("a")
+        assert macro is not None
+        assert macro.keys == (":", "q", "q", "escape")
+
+
+@pytest.mark.asyncio
+async def test_search_filters_by_deck_declared_format(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    """Search legality filtering honors the deck's '// Format:' metadata
+    over the global default (regression: default_format was used raw,
+    hiding cards legal in the deck's actual format)."""
+    from vimtg.config.settings import Settings
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+    from vimtg.tui.widgets.search_results import SearchResults
+
+    scr = MainScreen(
+        buffer=Buffer.from_text("// Format: modern\n\n4 Goblin Guide\n"),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=wired_repo),
+        card_repo=wired_repo,
+        settings=Settings(default_format="standard"),
+    )
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._run_search("Lightning")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        sr = scr.query_one("#search-results", SearchResults)
+        # Bolt is modern-legal but not standard-legal
+        assert any(c.name == "Lightning Bolt" for c in sr.results)

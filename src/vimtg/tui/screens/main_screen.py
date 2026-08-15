@@ -27,7 +27,12 @@ from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import load_remapper
-from vimtg.editor.lint import EMPTY_LINT, LintResult, lint_buffer
+from vimtg.editor.lint import (
+    EMPTY_LINT,
+    LintResult,
+    effective_format,
+    lint_buffer,
+)
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.sections import normalize_sections
@@ -196,13 +201,20 @@ class MainScreen(Screen[None]):
         Shared by live keypresses, macro replay, and mapping expansion
         (expanded keys pass resolve=False so mappings don't re-resolve).
         """
+        # A bare 'q' only stops recording in NORMAL mode with no pending
+        # sequence — in INSERT/COMMAND modes (or mid-sequence) it is a
+        # literal character and must be recorded like any other key.
+        is_stop_q = (
+            key == "q"
+            and self._state.mode_mgr.is_normal()
+            and not self.keymap.awaiting_more_keys
+        )
         if (
             self._state.macros.is_recording
             and not self._replaying
             and resolve
-            and not (key == "q" and not self.keymap.awaiting_more_keys)
+            and not is_stop_q
         ):
-            # Record the typed key (the recording-stop 'q' is skipped)
             self._state.macros.record_key(key)
         if resolve:
             resolved = self.remapper.resolve(key, self._state.mode_mgr.current)
@@ -892,11 +904,13 @@ class MainScreen(Screen[None]):
             results = self.search_service.search(
                 query, limit=settings.search_limit
             )
-            if settings.default_format:
+            # Same format resolution as lint: the deck's declared
+            # "// Format:" wins over the global default.
+            deck = parse_deck_text(self._state.buffer.to_text())
+            fmt = effective_format(deck, settings.default_format)
+            if fmt:
                 results = [
-                    c
-                    for c in results
-                    if c.legalities.get(settings.default_format) == "legal"
+                    c for c in results if c.legalities.get(fmt) == "legal"
                 ]
             self.app.call_from_thread(self._update_search_results, results)
 
