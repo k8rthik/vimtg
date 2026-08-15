@@ -72,16 +72,30 @@ So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
 
 ## Version control
 
-vimtg keeps a snapshot tree per deck (lazygit-style).
+vimtg keeps a git-like commit graph per deck (lazygit-style history
+screen, persistent branches, merges, and rebases). Branches and the
+current branch survive across sessions.
 
 | Command | Description |
 |---------|-------------|
 | `:history` (alias `:log`) | Open the history screen |
 | `:commit "msg"` | Snapshot the current deck state |
-| `:checkpoint name` | Tag the current undo-tree state |
-| `:branch` | List branches |
-| `:branch name` | Create a new branch from the current state |
-| `:branch! name` | Switch to an existing branch |
+| `:checkpoint name` | Commit the current state and tag it |
+| `:branch` | List branches (`*` marks the current one) |
+| `:branch name` | Create a new branch at the current tip |
+| `:branch! name` | Switch to an existing branch (loads its tip) |
+| `:merge branch` | Merge a branch (3-way; fast-forwards when possible) |
+| `:merge path.deck` | Merge another deck file's cards (empty merge base) |
+| `:rebase branch` | Replay this branch's commits onto another branch tip |
+
+Merging and rebasing require a committed working state (`:commit` first).
+When both branches changed the same card differently, an interactive
+resolution screen opens: pick ours, theirs, or a custom quantity per
+card. Merge commits record both parents; the log shows the first-parent
+history with a `⇄ merge` marker. Rebase replays commits with a
+replayed-change-wins policy and leaves the original snapshots recoverable
+by id. Note that merge and rebase results are normalized on write
+(sections regrouped, free comments dropped), like cherry-pick.
 
 ## Analytics
 

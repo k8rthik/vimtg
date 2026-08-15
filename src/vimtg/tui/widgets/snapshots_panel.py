@@ -56,6 +56,8 @@ class SnapshotsPanel(Static):
                 t.append(short_hash, style=f"{COLORS['mana_blue']}")
 
             t.append(f" {ts}", style="dim")
+            if snap.merge_parent_id:
+                t.append(" ⇄ merge", style=f"dim {COLORS['mana_blue']}")
             if tag_str:
                 t.append(tag_str, style=f"bold {COLORS['sideboard']}")
             t.append("\n")

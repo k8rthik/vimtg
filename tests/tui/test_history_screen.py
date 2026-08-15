@@ -512,3 +512,165 @@ async def test_cherry_pick_on_branch(
         await pilot.pause()
         cl = screen.query_one("#history-command", HistoryCommandLine)
         assert cl.message != ""
+
+# ──────────────────────────────────────────────────────────────────
+# Integration tests: merge and rebase from the history screen
+# ──────────────────────────────────────────────────────────────────
+
+STATE_CHANDRA = STATE_V1 + "2 Chandra, Torch of Defiance\n"
+
+
+@pytest.fixture
+def vcs_diverged(vcs: VersionControlService) -> VersionControlService:
+    """main: V1 -> V2; budget (from V1): +Chandra. Current branch: main."""
+    vcs.commit(STATE_V1, "initial build")
+    vcs.create_branch("budget")
+    vcs.switch_branch("budget")
+    vcs.commit(STATE_CHANDRA, "add chandra")
+    vcs.switch_branch("main")
+    vcs.commit(STATE_V2, "add swiftspear")
+    return vcs
+
+
+@pytest.mark.asyncio
+async def test_merge_key_merges_selected_branch(
+    vcs_diverged: VersionControlService,
+) -> None:
+    restored: list[str] = []
+    screen = _make_screen(
+        vcs_diverged, on_restore=restored.append, current_state=STATE_V2
+    )
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Branches are sorted: budget first — already selected at index 0
+        await pilot.press("m")
+        await pilot.pause()
+        cl = screen.query_one("#history-command", HistoryCommandLine)
+        assert "Merged budget" in cl.message
+        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
+        assert sp.snapshots[0].merge_parent_id is not None
+    assert restored  # editor buffer got the merged state
+    assert "Chandra, Torch of Defiance" in restored[-1]
+    assert "Monastery Swiftspear" in restored[-1]
+
+
+@pytest.mark.asyncio
+async def test_merge_key_refuses_dirty_state(
+    vcs_diverged: VersionControlService,
+) -> None:
+    screen = _make_screen(
+        vcs_diverged, current_state=STATE_V2 + "1 Shock\n"
+    )
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("m")
+        cl = screen.query_one("#history-command", HistoryCommandLine)
+        assert "Uncommitted changes" in cl.message
+
+
+@pytest.mark.asyncio
+async def test_merge_key_refuses_current_branch(
+    vcs_with_history: VersionControlService,
+) -> None:
+    screen = _make_screen(vcs_with_history, current_state=STATE_V2)
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("m")  # only branch is main == current
+        cl = screen.query_one("#history-command", HistoryCommandLine)
+        assert "Already on that branch" in cl.message
+
+
+@pytest.mark.asyncio
+async def test_merge_with_conflicts_pushes_merge_screen(
+    vcs: VersionControlService,
+) -> None:
+    from vimtg.tui.screens.merge_screen import MergeScreen
+
+    vcs.commit(STATE_V1, "initial")
+    vcs.create_branch("budget")
+    vcs.switch_branch("budget")
+    vcs.commit("2 Lightning Bolt\n4 Goblin Guide\n", "trim bolts")
+    vcs.switch_branch("main")
+    vcs.commit("1 Lightning Bolt\n4 Goblin Guide\n", "one bolt")
+    screen = _make_screen(
+        vcs, current_state="1 Lightning Bolt\n4 Goblin Guide\n"
+    )
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("m")
+        await pilot.pause()
+        assert isinstance(app.screen, MergeScreen)
+
+
+@pytest.mark.asyncio
+async def test_rebase_key_confirms_then_rebases(
+    vcs_diverged: VersionControlService,
+) -> None:
+    restored: list[str] = []
+    vcs_diverged.switch_branch("budget")
+    screen = _make_screen(
+        vcs_diverged, on_restore=restored.append, current_state=STATE_CHANDRA
+    )
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bp = screen.query_one("#branches-panel", BranchesPanel)
+        bp.select_next()  # budget, main -> select main
+        await pilot.press("r")
+        assert screen._input_mode == InputMode.CONFIRM_REBASE
+        await pilot.press("y")
+        await pilot.press("enter")
+        await pilot.pause()
+        cl = screen.query_one("#history-command", HistoryCommandLine)
+        assert "Rebased 1 commit" in cl.message
+        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
+        assert sp.snapshots[0].description == "add chandra"
+        assert sp.snapshots[1].description == "add swiftspear"
+    assert restored
+    assert "Monastery Swiftspear" in restored[-1]
+
+
+@pytest.mark.asyncio
+async def test_rebase_cancelled_with_n(
+    vcs_diverged: VersionControlService,
+) -> None:
+    vcs_diverged.switch_branch("budget")
+    screen = _make_screen(vcs_diverged, current_state=STATE_CHANDRA)
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bp = screen.query_one("#branches-panel", BranchesPanel)
+        bp.select_next()
+        await pilot.press("r")
+        await pilot.press("n")
+        await pilot.press("enter")
+        cl = screen.query_one("#history-command", HistoryCommandLine)
+        assert "cancelled" in cl.message.lower()
+        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
+        assert sp.snapshots[0].description == "add chandra"
+        assert len(sp.snapshots) == 2
+
+
+@pytest.mark.asyncio
+async def test_hint_bar_lists_merge_and_rebase() -> None:
+    cl = HistoryCommandLine()
+    text = cl.render().plain
+    assert "merge" in text
+    assert "rebase" in text
+
+
+@pytest.mark.asyncio
+async def test_merge_commit_renders_marker(
+    vcs_diverged: VersionControlService,
+) -> None:
+    vcs_diverged.merge_branch("budget")
+    screen = _make_screen(vcs_diverged, current_state=STATE_V2)
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
+        assert "⇄ merge" in sp.render().plain

@@ -18,8 +18,13 @@ from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import Static
 
+from vimtg.domain.deck_merge import CardKey
 from vimtg.services.deck_diff_service import DeckDiffService
-from vimtg.services.vcs_service import VersionControlService
+from vimtg.services.vcs_service import (
+    MergeKind,
+    PendingMerge,
+    VersionControlService,
+)
 from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.branches_panel import BranchesPanel
@@ -41,6 +46,7 @@ class InputMode(Enum):
     BRANCH = "branch"
     TAG = "tag"
     CONFIRM_RESTORE = "confirm_restore"
+    CONFIRM_REBASE = "confirm_rebase"
 
 
 class HistoryCommandLine(Static):
@@ -74,7 +80,8 @@ class HistoryCommandLine(Static):
         # Default hint bar — must list every key on_key handles
         hints = (
             ("j/k", "nav"), ("Tab", "panels"), ("c", "commit"),
-            ("b", "branch"), ("B", "switch"), ("t/T", "tag/untag"),
+            ("b", "branch"), ("B", "switch"), ("m", "merge"),
+            ("r", "rebase"), ("t/T", "tag/untag"),
             ("R", "restore"), ("p", "pick"), ("d", "detail"), ("q", "back"),
         )
         for i, (key, desc) in enumerate(hints):
@@ -180,6 +187,7 @@ class HistoryScreen(Screen[None]):
         self._active_panel = Panel.SNAPSHOTS
         self._input_mode = InputMode.NORMAL
         self._input_text = ""
+        self._rebase_target: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -300,6 +308,10 @@ class HistoryScreen(Screen[None]):
             self._start_branch()
         elif key == "B":
             self._switch_branch()
+        elif key == "m":
+            self._merge_selected_branch()
+        elif key == "r":
+            self._start_rebase()
         elif key == "t":
             self._start_tag()
         elif key == "T":
@@ -415,6 +427,17 @@ class HistoryScreen(Screen[None]):
             else:
                 cl.show_message("Restore cancelled")
 
+        elif self._input_mode == InputMode.CONFIRM_REBASE:
+            if text.lower() in ("y", "yes") and self._rebase_target:
+                result = self._vcs.rebase(self._rebase_target)
+                self._apply_vcs_state(result.new_state)
+                cl.show_message(result.message)
+                self._refresh_data()
+                self._update_diff_for_selected()
+            else:
+                cl.show_message("Rebase cancelled")
+            self._rebase_target = None
+
         self._input_mode = InputMode.NORMAL
         self._input_text = ""
 
@@ -499,6 +522,82 @@ class HistoryScreen(Screen[None]):
             self._update_diff_for_selected()
         else:
             cl.show_message("Cherry-pick failed")
+
+    def _apply_vcs_state(self, new_state: str | None) -> None:
+        """Adopt a merge/rebase result state into screen + editor buffer."""
+        if new_state is None:
+            return
+        self._current_state = new_state
+        if self._on_restore:
+            self._on_restore(new_state)
+
+    def _selected_other_branch(self) -> str | None:
+        """The selected branch name, or None if unusable as a merge source."""
+        bp = self.query_one("#branches-panel", BranchesPanel)
+        cl = self.query_one("#history-command", HistoryCommandLine)
+        branch = bp.get_selected_branch()
+        if branch is None:
+            cl.show_message("Select a branch (Tab to Branches panel)")
+            return None
+        if branch.name == self._vcs.current_branch:
+            cl.show_message("Already on that branch")
+            return None
+        if self._vcs.is_dirty(self._current_state):
+            cl.show_message("Uncommitted changes — commit first (c)")
+            return None
+        return branch.name
+
+    def _merge_selected_branch(self) -> None:
+        name = self._selected_other_branch()
+        if name is None:
+            return
+        cl = self.query_one("#history-command", HistoryCommandLine)
+        result = self._vcs.merge_branch(name)
+        if result.kind is MergeKind.CONFLICTS and result.pending is not None:
+            from vimtg.tui.screens.merge_screen import MergeScreen
+
+            pending = result.pending
+            self.app.push_screen(MergeScreen(
+                pending=pending,
+                deck_name=self._deck_name,
+                on_complete=lambda res: self._finish_merge(pending, res),
+            ))
+            return
+        self._apply_vcs_state(result.new_state)
+        cl.show_message(result.message)
+        self._refresh_data()
+        self._update_diff_for_selected()
+
+    def _finish_merge(
+        self,
+        pending: PendingMerge,
+        resolutions: dict[CardKey, int | None],
+    ) -> None:
+        # Runs from MergeScreen's callback, outside on_key's sqlite guard —
+        # a locked DB here must not crash the app after the user resolved
+        # every conflict by hand.
+        cl = self.query_one("#history-command", HistoryCommandLine)
+        try:
+            result = self._vcs.complete_merge(pending, resolutions)
+        except sqlite3.Error as exc:
+            cl.show_message(f"E: Merge failed: {exc}")
+            return
+        self._apply_vcs_state(result.new_state)
+        cl.show_message(result.message)
+        self._refresh_data()
+        self._update_diff_for_selected()
+
+    def _start_rebase(self) -> None:
+        name = self._selected_other_branch()
+        if name is None:
+            return
+        cl = self.query_one("#history-command", HistoryCommandLine)
+        cl.show_prompt(
+            f"Rebase {self._vcs.current_branch} onto {name}? (y/N): "
+        )
+        self._rebase_target = name
+        self._input_mode = InputMode.CONFIRM_REBASE
+        self._input_text = ""
 
     def _toggle_detail(self) -> None:
         dp = self.query_one("#diff-panel", DiffPanel)
