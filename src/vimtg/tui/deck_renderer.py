@@ -75,6 +75,7 @@ def render_line(
     show_prices: bool = True,
     auto_expand: bool = True,
     dimmed: bool = False,
+    width: int | None = None,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
@@ -109,6 +110,7 @@ def render_line(
             line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
             show_prices=show_prices, auto_expand=auto_expand and not dimmed,
+            width=width,
         ))
         if dimmed:
             for line in lines:
@@ -135,6 +137,7 @@ def _render_card_line(
     currency_symbol: str = "$",
     show_prices: bool = True,
     auto_expand: bool = True,
+    width: int | None = None,
 ) -> list[Text]:
     """Build the formatted card line and optional inline expansion."""
     bl = buf.get_line(line_idx)
@@ -176,7 +179,7 @@ def _render_card_line(
         lines.extend(_render_expansion(
             card, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
-            show_prices=show_prices,
+            show_prices=show_prices, width=width,
         ))
 
     return lines
@@ -188,18 +191,25 @@ def _render_expansion(
     price_source: str = "usd",
     currency_symbol: str = "$",
     show_prices: bool = True,
+    width: int | None = None,
 ) -> list[Text]:
-    """Render expansion lines with proper word-wrapping to avoid broken indentation."""
+    """Render expansion lines with proper word-wrapping to avoid broken indentation.
+
+    `width` is the rendering widget's width; the terminal size is only a
+    fallback for headless use (the widget may not span the terminal).
+    """
     lines: list[Text] = []
     pad = gutter_pad.plain if gutter_pad else ""
     prefix = f"{pad} \u2502    "
     prefix_len = len(prefix)
 
-    # Terminal width — leave margin for safety
-    try:
-        term_width = max(40, os.get_terminal_size().columns - 2)
-    except OSError:
-        term_width = 78
+    if width and width > 0:
+        term_width = max(40, width - 2)
+    else:
+        try:
+            term_width = max(40, os.get_terminal_size().columns - 2)
+        except OSError:
+            term_width = 78
     wrap_width = term_width - prefix_len
 
     type_str = card.type_line

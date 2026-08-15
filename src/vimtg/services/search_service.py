@@ -3,16 +3,8 @@
 import contextlib
 
 from vimtg.data.card_repository import CardRepository
-from vimtg.domain.card import Card, Color, Rarity
+from vimtg.domain.card import Card, Color, Rarity, color_from_symbol
 from vimtg.domain.search import SearchQuery
-
-COLOR_MAP: dict[str, Color] = {
-    "w": Color.WHITE,
-    "u": Color.BLUE,
-    "b": Color.BLACK,
-    "r": Color.RED,
-    "g": Color.GREEN,
-}
 
 _FILTER_FIELDS = (
     "type_contains",
@@ -66,10 +58,11 @@ class SearchService:
             if token.startswith(("t:", "type:")):
                 type_contains = token.split(":", 1)[1]
             elif token.startswith(("c:", "color:")):
-                color_str = token.split(":", 1)[1].lower()
+                color_str = token.split(":", 1)[1]
                 for ch in color_str:
-                    if ch in COLOR_MAP:
-                        colors.append(COLOR_MAP[ch])
+                    color = color_from_symbol(ch)
+                    if color is not None:
+                        colors.append(color)
             elif token.startswith("cmc"):
                 result = _parse_cmc(token)
                 if result is not None:

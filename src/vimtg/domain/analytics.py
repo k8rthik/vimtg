@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from vimtg.domain.card import Card, Color
+from vimtg.domain.card import Card, Color, color_from_symbol
+from vimtg.domain.card_types import primary_type
 from vimtg.domain.deck import Deck, DeckSection
 
 # Land-count heuristic (a simplified Frank Karsten model).
@@ -68,30 +69,11 @@ class DeckStats:
     recommended_lands: int
 
 
-_COLOR_MAP: dict[str, Color] = {
-    "W": Color.WHITE,
-    "U": Color.BLUE,
-    "B": Color.BLACK,
-    "R": Color.RED,
-    "G": Color.GREEN,
-}
-
-_PRIMARY_TYPES = (
-    "Creature",
-    "Instant",
-    "Sorcery",
-    "Enchantment",
-    "Artifact",
-    "Planeswalker",
-    "Land",
-)
-
-
 def count_mana_pips(mana_cost: str) -> dict[Color, int]:
     """Count color pips in a mana cost string like '{2}{R}{R}'."""
     pips: dict[Color, int] = {}
     for symbol in re.findall(r"\{([^}]+)\}", mana_cost):
-        color = _COLOR_MAP.get(symbol)
+        color = color_from_symbol(symbol) if len(symbol) == 1 else None
         if color is not None:
             pips[color] = pips.get(color, 0) + 1
     return pips
@@ -99,11 +81,7 @@ def count_mana_pips(mana_cost: str) -> dict[Color, int]:
 
 def _classify_type(type_line: str) -> str | None:
     """Return the first matching primary type from the front face."""
-    front = type_line.split("—")[0].split("//")[0].strip()
-    for t in _PRIMARY_TYPES:
-        if t in front:
-            return t
-    return None
+    return primary_type(type_line)
 
 
 def _compute_recommended_lands(

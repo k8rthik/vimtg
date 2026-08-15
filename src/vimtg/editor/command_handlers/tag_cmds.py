@@ -5,8 +5,9 @@ TUI-agnostic: zero Textual imports.
 
 from __future__ import annotations
 
-import re
-
+from vimtg.domain.tags import (
+    TAG_NAME_RE as _TAG_NAME_RE,
+)
 from vimtg.domain.tags import (
     format_tag_summary,
     matches_filter,
@@ -17,16 +18,14 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
+    resolve_command_range,
 )
 from vimtg.editor.cursor import Cursor
-
-_TAG_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9-]{0,31}$")
-
-_CARD_LINE_TYPES = frozenset({
-    LineType.CARD_ENTRY,
-    LineType.SIDEBOARD_ENTRY,
-    LineType.COMMANDER_ENTRY,
-})
+from vimtg.editor.tag_ops import (
+    add_tags_in_range,
+    clear_tags_in_range,
+    remove_tags_in_range,
+)
 
 
 def _validate_tag_names(raw: str) -> tuple[list[str], str | None]:
@@ -48,11 +47,8 @@ def _card_range(
     No range → cursor line only. Range → start..end inclusive. A reversed
     range (e.g. ``:5,2``) is normalized so start <= end, matching vim.
     """
-    if cmd.cmd_range is not None and cmd.cmd_range.start is not None:
-        start = cmd.cmd_range.start
-        end = cmd.cmd_range.end if cmd.cmd_range.end is not None else start
-        return min(start, end), max(start, end)
-    return cursor.row, cursor.row
+    explicit = resolve_command_range(cmd)
+    return explicit if explicit is not None else (cursor.row, cursor.row)
 
 
 def cmd_tag(
@@ -65,12 +61,7 @@ def cmd_tag(
         return buf, cursor
 
     start, end = _card_range(buf, cursor, cmd)
-    count = 0
-    for line in range(start, end + 1):
-        if buf.is_card_line(line):
-            for name in names:
-                buf = buf.add_tag(line, name)
-            count += 1
+    buf, count = add_tags_in_range(buf, start, end, names)
 
     if count == 0:
         ctx.message = "No card lines in range"
@@ -88,11 +79,7 @@ def cmd_untag(
     start, end = _card_range(buf, cursor, cmd)
 
     if cmd.bang:
-        count = 0
-        for line in range(start, end + 1):
-            if buf.is_card_line(line) and buf.tags_at(line):
-                buf = buf.set_tags(line, frozenset())
-                count += 1
+        buf, count = clear_tags_in_range(buf, start, end)
         ctx.message = f"Cleared tags from {count} card(s)" if count else "No tagged cards in range"
         if count:
             ctx.modified = True
@@ -103,13 +90,7 @@ def cmd_untag(
         ctx.fail(err)
         return buf, cursor
 
-    count = 0
-    for line in range(start, end + 1):
-        if buf.is_card_line(line):
-            for name in names:
-                if name in buf.tags_at(line):
-                    buf = buf.remove_tag(line, name)
-                    count += 1
+    buf, count = remove_tags_in_range(buf, start, end, names)
 
     if count == 0:
         ctx.message = "No matching tags found"

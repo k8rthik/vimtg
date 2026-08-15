@@ -19,6 +19,7 @@ from textual.screen import Screen
 from vimtg.config.settings import Settings
 from vimtg.data.database import Database
 from vimtg.domain.card import Card
+from vimtg.domain.card_types import primary_type
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
@@ -82,10 +83,7 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
 
 def _card_type_section(type_line: str) -> str:
     """Map a card's type_line to its singular section name."""
-    for t in ("Creature", "Instant", "Sorcery", "Enchantment", "Artifact", "Planeswalker", "Land"):
-        if t in type_line:
-            return t
-    return "Other"
+    return primary_type(type_line) or "Other"
 
 
 class MainScreen(Screen[None]):

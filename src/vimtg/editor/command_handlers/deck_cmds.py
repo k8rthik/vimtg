@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.analytics import compute_stats
+from vimtg.domain.card_types import PRIMARY_TYPES
+from vimtg.domain.validation import validate_deck
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -11,17 +13,6 @@ from vimtg.editor.commands import (
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
-
-_BASIC_LANDS = frozenset({
-    "Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes",
-    "Snow-Covered Plains", "Snow-Covered Island", "Snow-Covered Swamp",
-    "Snow-Covered Mountain", "Snow-Covered Forest",
-})
-
-_TYPE_NAMES = (
-    "Creature", "Instant", "Sorcery", "Enchantment",
-    "Artifact", "Planeswalker", "Land",
-)
 
 
 def cmd_stats(
@@ -38,7 +29,7 @@ def cmd_stats(
         parts = [f"{stats.total_cards} cards"]
         parts.append(f"Avg CMC {stats.average_cmc:.2f}")
         type_parts = []
-        for tname in _TYPE_NAMES:
+        for tname in PRIMARY_TYPES:
             count = stats.type_breakdown.counts.get(tname, 0)
             if count > 0:
                 type_parts.append(f"{count} {tname}")
@@ -74,42 +65,14 @@ def cmd_validate(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Run comprehensive validation on the buffer."""
+    """Run deck validation — same rules as `vimtg validate` (CLI)."""
     deck = parse_deck_text(buffer.to_text())
-    issues: list[str] = []
+    errors = validate_deck(deck, ctx.resolved_cards or {})
 
-    for entry in deck.entries:
-        if entry.quantity <= 0:
-            issues.append(
-                f"Invalid quantity {entry.quantity} for {entry.card_name}"
-            )
-
-    # 4-of rule on mainboard only (excluding basic lands)
-    for entry in deck.mainboard():
-        if entry.quantity > 4 and entry.card_name not in _BASIC_LANDS:
-            issues.append(f">4 copies of {entry.card_name}")
-
-    main_count = sum(e.quantity for e in deck.mainboard())
-    if main_count > 0 and main_count < 60:
-        issues.append(f"Mainboard has {main_count} cards (min 60)")
-
-    side_count = sum(e.quantity for e in deck.sideboard())
-    if side_count > 15:
-        issues.append(f"Sideboard has {side_count} cards (max 15)")
-
-    resolved = ctx.resolved_cards or {}
-    if resolved:
-        for entry in deck.entries:
-            if entry.card_name not in resolved:
-                issues.append(f"Card not found: {entry.card_name}")
-
-    if main_count == 0:
-        issues.append("No mainboard cards")
-
-    if not issues:
+    if not errors:
         ctx.message = "Deck OK"
     else:
-        ctx.fail("Issues: " + "; ".join(issues))
+        ctx.fail("Issues: " + "; ".join(e.message for e in errors))
 
     return buffer, cursor
 

@@ -58,64 +58,13 @@ class DiffPanel(Static):
             t.append("  (no changes)\n", style="dim")
             return t
 
-        # Mainboard changes
-        main_changes = [
-            c for c in self.diff.changes
-            if c.section == DeckSection.MAIN
-            or c.old_section == DeckSection.MAIN
-            or c.new_section == DeckSection.MAIN
-        ]
-        active_main = [
-            c for c in main_changes
-            if c.change_type != ChangeType.UNCHANGED
-        ]
-        if active_main or (self.show_unchanged and main_changes):
-            t.append(" Mainboard:\n", style=f"bold {COLORS['fg']}")
-            for change in main_changes:
-                if change.change_type == ChangeType.UNCHANGED and not self.show_unchanged:
-                    continue
-                t.append_text(_format_change_line(change))
-                t.append("\n")
-            t.append("\n")
-
-        # Sideboard changes
-        side_changes = [
-            c for c in self.diff.changes
-            if c.section == DeckSection.SIDEBOARD
-            or c.old_section == DeckSection.SIDEBOARD
-            or c.new_section == DeckSection.SIDEBOARD
-        ]
-        active_side = [
-            c for c in side_changes
-            if c.change_type != ChangeType.UNCHANGED
-        ]
-        if active_side or (self.show_unchanged and side_changes):
-            t.append(" Sideboard:\n", style=f"bold {COLORS['fg']}")
-            for change in side_changes:
-                if change.change_type == ChangeType.UNCHANGED and not self.show_unchanged:
-                    continue
-                t.append_text(_format_change_line(change))
-                t.append("\n")
-            t.append("\n")
-
-        # Commander changes
-        cmd_changes = [
-            c for c in self.diff.changes
-            if c.section == DeckSection.COMMANDER
-            or c.old_section == DeckSection.COMMANDER
-            or c.new_section == DeckSection.COMMANDER
-        ]
-        active_cmd = [
-            c for c in cmd_changes
-            if c.change_type != ChangeType.UNCHANGED
-        ]
-        if active_cmd or (self.show_unchanged and cmd_changes):
-            t.append(" Commander:\n", style=f"bold {COLORS['fg']}")
-            for change in cmd_changes:
-                if change.change_type == ChangeType.UNCHANGED and not self.show_unchanged:
-                    continue
-                t.append_text(_format_change_line(change))
-                t.append("\n")
+        sections = (
+            ("Mainboard", DeckSection.MAIN),
+            ("Sideboard", DeckSection.SIDEBOARD),
+            ("Commander", DeckSection.COMMANDER),
+        )
+        for label, section in sections:
+            t.append_text(self._render_section(label, section))
 
         # Summary
         added = self.diff.added_count
@@ -129,4 +78,27 @@ class DiffPanel(Static):
             )
             t.append("\n")
 
+        return t
+
+    def _render_section(self, label: str, section: DeckSection) -> Text:
+        """Render one section's changes (empty Text when nothing to show)."""
+        assert self.diff is not None
+        changes = [
+            c for c in self.diff.changes
+            if section in (c.section, c.old_section, c.new_section)
+        ]
+        visible = [
+            c for c in changes
+            if self.show_unchanged or c.change_type != ChangeType.UNCHANGED
+        ]
+        has_active = any(c.change_type != ChangeType.UNCHANGED for c in changes)
+        if not (has_active or (self.show_unchanged and changes)):
+            return Text()
+
+        t = Text()
+        t.append(f" {label}:\n", style=f"bold {COLORS['fg']}")
+        for change in visible:
+            t.append_text(_format_change_line(change))
+            t.append("\n")
+        t.append("\n")
         return t

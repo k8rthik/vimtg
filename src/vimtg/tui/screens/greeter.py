@@ -339,5 +339,6 @@ class GreeterScreen(Screen[None]):
 
 def _find_all_decks() -> list[Path]:
     """Find all .deck files in cwd, sorted alphabetically by name."""
-    cwd = Path.cwd()
-    return sorted(cwd.glob("*.deck"), key=lambda p: p.name.lower())
+    from vimtg.data.deck_repository import DeckRepository
+
+    return DeckRepository().list_decks(Path.cwd())

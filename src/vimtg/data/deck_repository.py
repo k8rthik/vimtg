@@ -15,9 +15,17 @@ from vimtg.domain.deck import (
 )
 from vimtg.domain.deck_lines import (
     CARD_PATTERN as _MAINBOARD_PATTERN,
+)
+from vimtg.domain.deck_lines import (
     CMD_PATTERN as _COMMANDER_PATTERN,
+)
+from vimtg.domain.deck_lines import (
     METADATA_PATTERN as _METADATA_PATTERN,
+)
+from vimtg.domain.deck_lines import (
     SB_PATTERN as _SIDEBOARD_PATTERN,
+)
+from vimtg.domain.deck_lines import (
     clamp_quantity,
 )
 from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
@@ -221,8 +229,19 @@ class DeckRepository:
                 os.unlink(tmp_path)
             raise
 
-    def list_decks(self, directory: Path) -> list[Path]:
-        return sorted(directory.glob("*.deck"))
+    def list_decks(self, directory: Path, by_mtime: bool = False) -> list[Path]:
+        """List .deck files, sorted by name (default) or newest first."""
+        decks = list(directory.glob("*.deck"))
+        if by_mtime:
+
+            def _mtime(p: Path) -> float:
+                try:
+                    return p.stat().st_mtime
+                except OSError:  # deleted between glob and stat
+                    return 0.0
+
+            return sorted(decks, key=_mtime, reverse=True)
+        return sorted(decks, key=lambda p: p.name.lower())
 
     def exists(self, path: Path) -> bool:
         return path.is_file()

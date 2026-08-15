@@ -29,12 +29,21 @@ _SPLIT_LAYOUTS = frozenset({"split"})
 _ADVENTURE_LAYOUTS = frozenset({"adventure"})
 
 
-def _parse_colors(raw: list[str]) -> tuple[Color, ...]:
+def parse_colors(raw: list[str]) -> tuple[Color, ...]:
+    """Parse a list of color letters ('W', 'U', ...) into Color values."""
     return tuple(_COLOR_MAP[c] for c in raw if c in _COLOR_MAP)
 
 
-def _parse_rarity(raw: str) -> Rarity:
+def parse_rarity(raw: str) -> Rarity:
+    """Parse a rarity string, degrading unknown values to SPECIAL."""
     return _RARITY_MAP.get(raw, Rarity.SPECIAL)
+
+
+def color_from_symbol(symbol: str) -> Color | None:
+    """Map a single mana symbol letter (any case) to a Color."""
+    return _COLOR_MAP.get(symbol.upper())
+
+
 
 
 def _to_float(val: str | None) -> float | None:
@@ -169,12 +178,12 @@ class Card:
             cmc=data.get("cmc", 0.0),
             type_line=data.get("type_line", ""),
             oracle_text=face_fields["oracle_text"],
-            colors=_parse_colors(data.get("colors", [])),
-            color_identity=_parse_colors(data.get("color_identity", [])),
+            colors=parse_colors(data.get("colors", [])),
+            color_identity=parse_colors(data.get("color_identity", [])),
             power=face_fields["power"],
             toughness=face_fields["toughness"],
             set_code=data.get("set", ""),
-            rarity=_parse_rarity(data.get("rarity", "common")),
+            rarity=parse_rarity(data.get("rarity", "common")),
             prices=_parse_prices(data.get("prices")),
             legalities=dict(data.get("legalities", {})),
             image_uri=_extract_image_uri(data),

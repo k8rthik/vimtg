@@ -34,6 +34,11 @@ from vimtg.editor.operators import (
     resolve_line_range,
 )
 from vimtg.editor.registers import RegisterStore
+from vimtg.editor.tag_ops import (
+    add_tags_in_range,
+    remove_tags_in_range,
+    toggle_tag_in_range,
+)
 from vimtg.services.history_service import HistoryService
 
 if TYPE_CHECKING:
@@ -444,38 +449,23 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
         start = end = row
 
     if action == "a":
-        count = 0
-        for line in range(start, end + 1):
-            if state.buffer.is_card_line(line):
-                state.buffer = state.buffer.add_tag(line, tag)
-                count += 1
+        state.buffer, count = add_tags_in_range(state.buffer, start, end, [tag])
         if count:
             state.modified = True
             state.history.record(state.buffer, f"tag add #{tag}")
         return f"Tagged {count} card(s) with #{tag}" if count else "No card lines"
 
     if action == "r":
-        count = 0
-        for line in range(start, end + 1):
-            if state.buffer.is_card_line(line) and tag in state.buffer.tags_at(line):
-                state.buffer = state.buffer.remove_tag(line, tag)
-                count += 1
+        state.buffer, count = remove_tags_in_range(state.buffer, start, end, [tag])
         if count:
             state.modified = True
             state.history.record(state.buffer, f"tag remove #{tag}")
         return f"Removed #{tag} from {count} card(s)" if count else f"No cards with #{tag}"
 
     if action == "t":
-        added = 0
-        removed = 0
-        for line in range(start, end + 1):
-            if state.buffer.is_card_line(line):
-                if tag in state.buffer.tags_at(line):
-                    state.buffer = state.buffer.remove_tag(line, tag)
-                    removed += 1
-                else:
-                    state.buffer = state.buffer.add_tag(line, tag)
-                    added += 1
+        state.buffer, added, removed = toggle_tag_in_range(
+            state.buffer, start, end, tag
+        )
         if added or removed:
             state.modified = True
             state.history.record(state.buffer, f"tag toggle #{tag}")

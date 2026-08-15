@@ -11,7 +11,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-_TAG_TOKEN = re.compile(r"#([a-zA-Z][a-zA-Z0-9-]{0,31})")
+# One grammar for tag names — the inline token and standalone
+# validation are built from the same body
+_TAG_BODY = r"[a-zA-Z][a-zA-Z0-9-]{0,31}"
+_TAG_TOKEN = re.compile(rf"#({_TAG_BODY})")
+TAG_NAME_RE = re.compile(rf"^{_TAG_BODY}$")
 
 
 @dataclass(frozen=True)

@@ -12,6 +12,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
+    resolve_command_range,
 )
 from vimtg.editor.cursor import Cursor
 
@@ -41,16 +42,11 @@ def _parse_substitute_args(
 def _resolve_line_range(
     cmd: ParsedCommand, cursor_row: int, line_count: int
 ) -> tuple[int, int]:
-    """Determine the start and end line indices for substitution."""
+    """Determine the line range for substitution (default: current line)."""
     if cmd.cmd_range and cmd.cmd_range.is_whole_file:
         return 0, line_count - 1
-
-    if cmd.cmd_range and cmd.cmd_range.start is not None:
-        start = cmd.cmd_range.start
-        end = cmd.cmd_range.end if cmd.cmd_range.end is not None else start
-        return start, end
-
-    return cursor_row, cursor_row
+    explicit = resolve_command_range(cmd)
+    return explicit if explicit is not None else (cursor_row, cursor_row)
 
 
 def cmd_substitute(

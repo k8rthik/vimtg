@@ -7,11 +7,11 @@ config screen but read by nothing.
 from __future__ import annotations
 
 from vimtg.config.settings import Settings
+from vimtg.domain.card import Card
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.buffer_cmds import cmd_quit
 from vimtg.editor.commands import EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
-from vimtg.domain.card import Card
 from vimtg.tui.deck_renderer import render_line
 
 

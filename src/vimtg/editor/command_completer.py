@@ -82,7 +82,7 @@ class CommandCompleter:
         if not typed:
             return CompletionState(range_prefix=range_prefix, typed_command="")
 
-        names = sorted(set(self._registry._commands) | set(self._registry._aliases))
+        names = self._registry.get_completions("")
         scored: list[tuple[int, str]] = []
         for name in names:
             score = fuzzy_score(typed, name)

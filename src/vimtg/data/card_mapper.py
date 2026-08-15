@@ -3,10 +3,7 @@
 import json
 import sqlite3
 
-from vimtg.domain.card import Card, Color, Prices, Rarity
-
-_COLOR_MAP: dict[str, Color] = {c.value: c for c in Color}
-_RARITY_MAP: dict[str, Rarity] = {r.value: r for r in Rarity}
+from vimtg.domain.card import Card, Prices, parse_colors, parse_rarity
 
 
 def _safe_price(row: sqlite3.Row, key: str) -> float | None:
@@ -20,20 +17,13 @@ def _safe_price(row: sqlite3.Row, key: str) -> float | None:
 
 def row_to_card(row: sqlite3.Row) -> Card:
     """Convert a SQLite Row to a Card domain object."""
-    raw_colors = json.loads(row["colors"])
-    colors = tuple(
-        _COLOR_MAP[c] for c in raw_colors if c in _COLOR_MAP
-    )
-
-    raw_identity = json.loads(row["color_identity"])
-    color_identity = tuple(
-        _COLOR_MAP[c] for c in raw_identity if c in _COLOR_MAP
-    )
+    colors = parse_colors(json.loads(row["colors"]))
+    color_identity = parse_colors(json.loads(row["color_identity"]))
 
     legalities = json.loads(row["legalities"])
     keywords = tuple(json.loads(row["keywords"]))
 
-    rarity = _RARITY_MAP.get(row["rarity"], Rarity.SPECIAL)
+    rarity = parse_rarity(row["rarity"])
 
     prices = Prices(
         usd=_safe_price(row, "price_usd"),

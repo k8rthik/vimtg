@@ -78,11 +78,12 @@ def classify_line(text: str) -> LineType:
     return LineType.COMMENT
 
 
-_CARD_LINE_TYPES = frozenset({
+CARD_LINE_TYPES = frozenset({
     LineType.CARD_ENTRY,
     LineType.SIDEBOARD_ENTRY,
     LineType.COMMANDER_ENTRY,
 })
+_CARD_LINE_TYPES = CARD_LINE_TYPES
 
 _CARD_PATTERNS = (_CARD_PATTERN, _SB_PATTERN, _CMD_PATTERN)
 

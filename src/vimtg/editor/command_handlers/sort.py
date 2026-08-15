@@ -8,33 +8,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from vimtg.domain.card import Color
+from vimtg.domain.card_types import TYPE_ORDER, primary_type
+from vimtg.domain.deck_lines import CARD_PATTERN, CMD_PATTERN, SB_PATTERN
 from vimtg.domain.tags import parse_inline_tags, strip_inline_tags
-from vimtg.editor.buffer import Buffer, BufferLine, LineType, classify_line
+from vimtg.editor.buffer import CARD_LINE_TYPES, Buffer, BufferLine, classify_line
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
+    resolve_command_range,
 )
 from vimtg.editor.cursor import Cursor
 
-_CARD_LINE_TYPES = frozenset({
-    LineType.CARD_ENTRY,
-    LineType.SIDEBOARD_ENTRY,
-    LineType.COMMANDER_ENTRY,
-})
-
-
-_TYPE_ORDER: dict[str, int] = {
-    "Creature": 0,
-    "Planeswalker": 1,
-    "Instant": 2,
-    "Sorcery": 3,
-    "Enchantment": 4,
-    "Artifact": 5,
-    "Land": 6,
-}
-
-_COLOR_ORDER: dict[str, int] = {"W": 0, "U": 1, "B": 2, "R": 3, "G": 4}
+_COLOR_ORDER: dict[str, int] = {c.value: i for i, c in enumerate(Color)}
 
 
 def _extract_sort_key(
@@ -53,15 +40,8 @@ def _extract_sort_key(
     fallback = card_name.lower()
 
     if sort_field == "qty":
-        parts = text.split(None, 1)
-        if parts and parts[0].isdigit():
-            return (int(parts[0]), fallback)
-        if text.startswith(("SB:", "CMD:")):
-            rest = text.split(":", 1)[1].strip()
-            qty_parts = rest.split(None, 1)
-            if qty_parts and qty_parts[0].isdigit():
-                return (int(qty_parts[0]), fallback)
-        return (0, fallback)
+        m = _match_card_line(text)
+        return (int(m.group(1)) if m else 0, fallback)
 
     if sort_field == "cmc":
         return (card.cmc if card is not None else 9999.0, fallback)
@@ -69,13 +49,8 @@ def _extract_sort_key(
     if sort_field == "type":
         if card is None:
             return (99, fallback)
-        front = card.type_line.split("—")[0].split("//")[0].strip()
-        order = 99
-        for tname, tord in _TYPE_ORDER.items():
-            if tname in front:
-                order = tord
-                break
-        return (order, fallback)
+        ptype = primary_type(card.type_line)
+        return (TYPE_ORDER.get(ptype, 99) if ptype else 99, fallback)
 
     if sort_field == "color":
         if card is None:
@@ -102,31 +77,29 @@ def _extract_sort_key(
     return (0, fallback)
 
 
+def _match_card_line(text: str):  # type: ignore[no-untyped-def]
+    """Match a card line against the shared deck-line grammar."""
+    for pattern in (SB_PATTERN, CMD_PATTERN, CARD_PATTERN):
+        m = pattern.match(text)
+        if m:
+            return m
+    return None
+
+
 def _extract_card_name(text: str) -> str:
     """Extract card name from a line, stripping quantity, prefix, and inline tags."""
-    # SB: N CardName or CMD: N CardName
-    if text.startswith(("SB:", "CMD:")):
-        rest = text.split(":", 1)[1].strip()
-        parts = rest.split(None, 1)
-        raw = parts[1] if len(parts) > 1 else rest
-        return strip_inline_tags(raw).strip()
-
-    # N CardName
-    parts = text.split(None, 1)
-    if len(parts) > 1 and parts[0].isdigit():
-        return strip_inline_tags(parts[1]).strip()
-    return strip_inline_tags(text).strip()
+    m = _match_card_line(text)
+    raw = m.group(2) if m else text
+    return strip_inline_tags(raw).strip()
 
 
 def _resolve_range(
     buffer: Buffer, cmd: ParsedCommand, cursor_row: int
 ) -> tuple[int, int] | None:
-    """Determine the line range to sort."""
-    if cmd.cmd_range is not None and cmd.cmd_range.start is not None:
-        end = cmd.cmd_range.end if cmd.cmd_range.end is not None else cmd.cmd_range.start
-        return (cmd.cmd_range.start, end)
-
-    # No explicit range: sort current section
+    """Determine the line range to sort (default: current section)."""
+    explicit = resolve_command_range(cmd)
+    if explicit is not None:
+        return explicit
     return buffer.section_range(cursor_row)
 
 
@@ -138,7 +111,7 @@ def cmd_sort(
 ) -> tuple[Buffer, Cursor]:
     """:sort [field] — Sort card lines within range or current section.
 
-    Fields: name (default), qty.
+    Fields: name (default), qty, cmc, type, color, tag.
     :sort! reverses the order.
     Only sorts card entry lines; comments and blanks stay anchored.
     """
@@ -168,7 +141,7 @@ def cmd_sort(
     anchored: dict[int, BufferLine] = {}
 
     for offset, bl in enumerate(region):
-        if bl.line_type in _CARD_LINE_TYPES:
+        if bl.line_type in CARD_LINE_TYPES:
             card_entries.append((offset, bl))
         else:
             anchored[offset] = bl

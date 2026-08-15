@@ -2,38 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from vimtg.data.deck_repository import DeckRepository, parse_deck_text
+from vimtg.domain.card_types import BASIC_LANDS  # noqa: F401  (re-export)
 from vimtg.domain.deck import Deck
+from vimtg.domain.validation import ValidationError, validate_deck
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
     from vimtg.domain.card import Card
 
-
-BASIC_LANDS = frozenset({
-    "Plains",
-    "Island",
-    "Swamp",
-    "Mountain",
-    "Forest",
-    "Wastes",
-    "Snow-Covered Plains",
-    "Snow-Covered Island",
-    "Snow-Covered Swamp",
-    "Snow-Covered Mountain",
-    "Snow-Covered Forest",
-})
-
-
-@dataclass(frozen=True)
-class ValidationError:
-    level: str  # "error" or "warning"
-    message: str
-    line_number: int | None = None
+__all__ = ["BASIC_LANDS", "DeckService", "ValidationError"]
 
 
 class DeckService:
@@ -93,51 +74,5 @@ class DeckService:
         deck: Deck,
         resolved: dict[str, Card] | None = None,
     ) -> list[ValidationError]:
-        """Validate deck structure. Returns list of errors/warnings."""
-        errors: list[ValidationError] = []
-
-        for entry in deck.entries:
-            if entry.quantity <= 0:
-                errors.append(
-                    ValidationError(
-                        "error",
-                        f"Invalid quantity {entry.quantity} for {entry.card_name}",
-                    )
-                )
-            if entry.quantity > 4 and entry.card_name not in BASIC_LANDS:
-                errors.append(
-                    ValidationError(
-                        "warning",
-                        f"More than 4 copies of {entry.card_name}",
-                    )
-                )
-
-        main_count = sum(e.quantity for e in deck.mainboard())
-        if main_count < 60:
-            errors.append(
-                ValidationError(
-                    "warning",
-                    f"Mainboard has {main_count} cards (minimum 60)",
-                )
-            )
-
-        side_count = sum(e.quantity for e in deck.sideboard())
-        if side_count > 15:
-            errors.append(
-                ValidationError(
-                    "warning",
-                    f"Sideboard has {side_count} cards (maximum 15)",
-                )
-            )
-
-        if resolved is not None:
-            for entry in deck.entries:
-                if entry.card_name not in resolved:
-                    errors.append(
-                        ValidationError(
-                            "warning",
-                            f"Card not found: {entry.card_name}",
-                        )
-                    )
-
-        return errors
+        """Validate deck structure. Delegates to domain.validation."""
+        return validate_deck(deck, resolved)

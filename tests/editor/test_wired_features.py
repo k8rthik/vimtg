@@ -181,9 +181,9 @@ class TestTagFilterWiring:
     """:filter and tf must actually drive the deck view's filter state."""
 
     def test_cmd_filter_sets_context_filter(self) -> None:
+        from vimtg.editor.buffer import Buffer
         from vimtg.editor.command_handlers.tag_cmds import cmd_filter
         from vimtg.editor.commands import EditorContext, ParsedCommand
-        from vimtg.editor.buffer import Buffer
         from vimtg.editor.cursor import Cursor
 
         buf = Buffer.from_text("4 Lightning Bolt  #burn\n4 Goblin Guide\n")
@@ -194,9 +194,9 @@ class TestTagFilterWiring:
         assert "1/2" in ctx.message
 
     def test_cmd_filter_bang_clears(self) -> None:
+        from vimtg.editor.buffer import Buffer
         from vimtg.editor.command_handlers.tag_cmds import cmd_filter
         from vimtg.editor.commands import EditorContext, ParsedCommand
-        from vimtg.editor.buffer import Buffer
         from vimtg.editor.cursor import Cursor
 
         buf = Buffer.from_text("4 Lightning Bolt\n")

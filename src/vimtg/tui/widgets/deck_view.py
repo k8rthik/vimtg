@@ -48,6 +48,7 @@ class DeckView(Static):
                 show_prices=self.show_prices,
                 auto_expand=self.auto_expand,
                 dimmed=dimmed,
+                width=self.size.width or None,
             )
             for line in lines:
                 output.append(line)

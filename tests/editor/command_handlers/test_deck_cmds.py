@@ -135,7 +135,7 @@ class TestValidateBasic:
 
         cmd_validate(buffer, cursor, cmd, ctx)
         assert ctx.error is True
-        assert "min 60" in ctx.message
+        assert "minimum 60" in ctx.message
 
     def test_validate_over_4_copies(self) -> None:
         text = "5 Lightning Bolt\n"
@@ -146,7 +146,7 @@ class TestValidateBasic:
 
         cmd_validate(buffer, cursor, cmd, ctx)
         assert ctx.error is True
-        assert ">4 copies" in ctx.message
+        assert "More than 4 copies" in ctx.message
 
     def test_validate_basic_lands_exempt(self) -> None:
         lines = ["20 Island"] + [f"1 Card{i}" for i in range(40)]
@@ -170,7 +170,7 @@ class TestValidateBasic:
 
         cmd_validate(buffer, cursor, cmd, ctx)
         assert ctx.error is True
-        assert "max 15" in ctx.message
+        assert "maximum 15" in ctx.message
 
     def test_validate_with_unresolved_cards(self) -> None:
         text = "4 Lightning Bolt\n2 FakeCard\n"

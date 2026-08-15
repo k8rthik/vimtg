@@ -125,13 +125,6 @@ class VimTGApp(App[None]):
         )
 
     def _find_recent_decks(self) -> list[Path]:
-        """Find .deck files in current directory, sorted by modification time."""
-
-        def _mtime(p: Path) -> float:
-            try:
-                return p.stat().st_mtime
-            except OSError:  # deleted between glob and stat
-                return 0.0
-
-        decks = sorted(Path.cwd().glob("*.deck"), key=_mtime, reverse=True)
-        return decks[:5]
+        """Find .deck files in current directory, newest first."""
+        repo = self._deck_repo or DeckRepository()
+        return repo.list_decks(Path.cwd(), by_mtime=True)[:5]

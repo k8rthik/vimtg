@@ -153,6 +153,20 @@ def parse_command(
     return ParsedCommand(name=name, args=args, cmd_range=cmd_range, bang=bang)
 
 
+def resolve_command_range(cmd: ParsedCommand) -> tuple[int, int] | None:
+    """Return the explicit (start, end) range of a command, or None.
+
+    Normalizes reversed ranges and defaults end to start. Callers pick
+    their own fallback when None (current line, current section, ...) —
+    previously each handler re-implemented this with different bugs.
+    """
+    rng = cmd.cmd_range
+    if rng is None or rng.start is None:
+        return None
+    end = rng.end if rng.end is not None else rng.start
+    return (min(rng.start, end), max(rng.start, end))
+
+
 @dataclass
 class EditorContext:
     """Mutable context passed to command handlers for side effects."""
