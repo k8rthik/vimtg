@@ -478,3 +478,73 @@ async def test_handle_search_short_query_hides(wired_repo) -> None:  # type: ign
         sr.display = True
         scr._handle_search_action("b")  # < 2 chars
         assert sr.display is False
+
+
+# ── Live lint + comment flow (pilot) ───────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_live_lint_flags_copy_limit(tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        row = scr._state.buffer.next_card_line(0)
+        assert row is not None
+        scr._state.cursor = Cursor(row=row)
+        await pilot.press("plus")  # 5th copy in a modern deck
+        dv = scr.query_one("#deck-view")
+        err = dv.line_errors.get(row)
+        assert err is not None and err.level == "error"
+        assert "copies" in err.message
+
+
+@pytest.mark.asyncio
+async def test_cursor_on_flagged_row_shows_reason(tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        row = scr._state.buffer.next_card_line(0)
+        scr._state.cursor = Cursor(row=row)
+        await pilot.press("plus")
+        sl = scr.query_one("#status-line")
+        assert "copies" in sl.cursor_lint
+        assert sl.cursor_lint_level == "error"
+        # Moving off the row clears the reason
+        await pilot.press("j")
+        assert sl.cursor_lint == ""
+
+
+@pytest.mark.asyncio
+async def test_comment_key_end_to_end(tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        row = scr._state.buffer.next_card_line(0)
+        scr._state.cursor = Cursor(row=row)
+        await pilot.press("A")
+        for ch in "wincon":
+            await pilot.press(ch)
+        await pilot.press("enter")
+        assert scr._state.buffer.comment_at(row) == "wincon"
+        # A again prefills; escape leaves it untouched
+        await pilot.press("A")
+        await pilot.press("escape")
+        assert scr._state.buffer.comment_at(row) == "wincon"
+
+
+@pytest.mark.asyncio
+async def test_scaffold_added_on_open_without_modified(tmp_path: Path) -> None:
+    p = tmp_path / "bare.deck"
+    p.write_text("4 Goblin Guide\n", encoding="utf-8")
+    app = VimTGApp(deck_path=p)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        text = scr._state.buffer.to_text()
+        assert "// Deck:" in text
+        assert "// Format:" in text
+        assert "// Tags:" in text
+        assert scr._state.modified is False

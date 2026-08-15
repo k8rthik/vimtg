@@ -31,6 +31,13 @@ class StatusLine(Static):
     vcs_branch: reactive[str] = reactive("")
     vcs_snapshot_count: reactive[int] = reactive(0)
     recording_register: reactive[str] = reactive("")
+    pending_keys: reactive[str] = reactive("")
+    lint_error_count: reactive[int] = reactive(0)
+    lint_warning_count: reactive[int] = reactive(0)
+    cursor_lint: reactive[str] = reactive("")  # reason for the cursor row
+    cursor_lint_level: reactive[str] = reactive("")  # "error" | "warning"
+
+    _CURSOR_LINT_MAX = 60
 
     def render(self) -> Text:
         t = Text()
@@ -40,6 +47,19 @@ class StatusLine(Static):
         if self.modified:
             t.append(" [+]", style=f"bold {COLORS['mana_red']}")
         t.append(f"  {self.card_count} cards", style="dim")
+        if self.lint_error_count:
+            t.append(f"  ✗{self.lint_error_count}", style=f"bold {COLORS['error']}")
+        if self.lint_warning_count:
+            t.append(
+                f"  !{self.lint_warning_count}", style=f"bold {COLORS['warning']}"
+            )
+        if self.cursor_lint:
+            reason = self.cursor_lint
+            if len(reason) > self._CURSOR_LINT_MAX:
+                reason = reason[: self._CURSOR_LINT_MAX - 1] + "…"
+            sign = "✗" if self.cursor_lint_level == "error" else "!"
+            color = COLORS["error"] if self.cursor_lint_level == "error" else COLORS["warning"]
+            t.append(f"  {sign} {reason}", style=color)
         if self.vcs_branch:
             t.append(f"  [{self.vcs_branch}]", style=f"bold {COLORS['mana_green']}")
             if self.vcs_snapshot_count:
@@ -49,5 +69,7 @@ class StatusLine(Static):
                 f"  recording @{self.recording_register}",
                 style=f"bold {COLORS['error']}",
             )
+        if self.pending_keys:
+            t.append(f"  {self.pending_keys}", style=f"bold {COLORS['quantity']}")
         t.append(f"  Ln {self.cursor_line + 1}/{self.total_lines}", style="dim")
         return t

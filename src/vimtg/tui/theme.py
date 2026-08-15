@@ -14,6 +14,7 @@ COLORS: dict[str, str] = {
     "mana_green": "#a6e3a1",
     "mana_colorless": "#9399b2",
     "sideboard": "#f9e2af",
+    "maybeboard": "#b4befe",
     "expansion": "#6c7086",
     "mode_normal": "#a6e3a1",
     "mode_insert": "#89b4fa",
@@ -22,6 +23,7 @@ COLORS: dict[str, str] = {
     "tag": "#cba6f7",
     # Semantic roles — use these (not mana/section colors) for UI state
     "error": "#f38ba8",
+    "warning": "#f9e2af",
     "success": "#a6e3a1",
     "focus": "#fab387",
 }

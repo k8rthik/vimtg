@@ -132,3 +132,43 @@ def test_render_expansion_shows_set_and_rarity() -> None:
     assert "STA" in meta_line
     assert "Uncommon" in meta_line
     assert "$1.50" in meta_line
+
+
+class TestLintSign:
+    def _err(self, level="error"):
+        from vimtg.domain.validation import ValidationError
+
+        return ValidationError(level, "test issue", line_number=1)
+
+    def test_error_sign_rendered(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        lines = render_line(0, buf, cursor_row=1, resolved={}, line_error=self._err())
+        assert lines[0].plain.startswith("✗ ")
+
+    def test_warning_sign_rendered(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        lines = render_line(
+            0, buf, cursor_row=1, resolved={}, line_error=self._err("warning")
+        )
+        assert lines[0].plain.startswith("! ")
+
+    def test_clean_line_reserves_sign_column(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        lines = render_line(0, buf, cursor_row=1, resolved={})
+        assert lines[0].plain.startswith("  ")
+
+    def test_sign_without_line_numbers(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        lines = render_line(
+            0, buf, cursor_row=1, resolved={},
+            show_line_numbers=False, line_error=self._err(),
+        )
+        assert lines[0].plain.startswith("✗ ")
+
+
+class TestInlineCommentRender:
+    def test_comment_rendered_dim(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt  #burn  // best burn spell\n")
+        lines = render_line(0, buf, cursor_row=1, resolved={})
+        assert "// best burn spell" in lines[0].plain
+        assert "#burn" in lines[0].plain

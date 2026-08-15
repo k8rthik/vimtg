@@ -60,7 +60,7 @@ COMMANDS
   :g/pat/d      Delete matching cards
   :find pattern Jump to matching card
   :stats        Deck statistics
-  :validate     Check deck legality basics
+  :validate     Check format legality (uses // Format:)
   :tag name     Add tag (range supported)
   :untag name   Remove tag (:untag! clears all)
   :tags         List tags with counts
@@ -177,10 +177,13 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "stats": ":stats  Show deck statistics (mana curve, colors, types)",
     "validate": (
-        ":validate  Check deck basics\n"
+        ":validate  Check deck legality for its format\n"
         "\n"
-        "Reports zero quantities, >4 copies of non-basics,\n"
-        "undersized mainboard, oversized sideboard, unresolved names."
+        "Uses the deck's // Format: line (falling back to the\n"
+        "default_format setting): banned/restricted/not-legal cards,\n"
+        "deck size, copy limits, commander rules. Without a format,\n"
+        "checks generic 60-card rules. Issues also show live as\n"
+        "gutter signs (✗ error, ! warning)."
     ),
     "set": (
         ":set option=value  View or change settings\n"

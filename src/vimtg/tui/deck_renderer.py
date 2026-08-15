@@ -13,6 +13,7 @@ import textwrap
 from rich.text import Text
 
 from vimtg.domain.card import Card
+from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.tui.theme import COLORS
 
@@ -28,6 +29,19 @@ _MANA_RE = re.compile(r"\{([^}]+)\}")
 _CURSOR_STYLE = f"on {COLORS['cursor_bg']}"
 _COMMENT_STYLE = f"dim italic {COLORS['comment']}"
 _EXPANSION_STYLE = f"dim {COLORS['expansion']}"
+
+
+def _lint_sign(err: ValidationError | None) -> Text:
+    """Two-char sign column: '✗ ' error, '! ' warning, '  ' clean.
+
+    The column is always reserved so signs appearing and disappearing
+    never shift the layout.
+    """
+    if err is None:
+        return Text("  ")
+    if err.level == "error":
+        return Text("✗ ", style=f"bold {COLORS['error']}")
+    return Text("! ", style=f"bold {COLORS['warning']}")
 
 
 def _line_number_gutter(
@@ -76,22 +90,22 @@ def render_line(
     auto_expand: bool = True,
     dimmed: bool = False,
     width: int | None = None,
+    line_error: ValidationError | None = None,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
     Returns 1 line normally, or 1+expansion lines if the cursor
     is on this card, the card is resolved, and auto_expand is on.
     `dimmed` renders the line de-emphasized (tag filter mismatch)
-    and suppresses expansion.
+    and suppresses expansion. `line_error` puts a ✗/! sign in the
+    gutter.
     """
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
+    gutter = _lint_sign(line_error)
     if show_line_numbers:
-        gutter = _line_number_gutter(line_idx, cursor_row, buf)
-        gutter_pad = Text(" " * len(gutter.plain))
-    else:
-        gutter = Text("")
-        gutter_pad = Text("")
+        gutter.append_text(_line_number_gutter(line_idx, cursor_row, buf))
+    gutter_pad = Text(" " * len(gutter.plain))
     lines: list[Text] = []
 
     if bl.line_type == LineType.BLANK:
@@ -105,7 +119,10 @@ def render_line(
         if is_cursor:
             t.stylize(_CURSOR_STYLE)
         lines.append(t)
-    elif bl.line_type in (LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY, LineType.COMMANDER_ENTRY):
+    elif bl.line_type in (
+        LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY,
+        LineType.MAYBEBOARD_ENTRY, LineType.COMMANDER_ENTRY,
+    ):
         lines.extend(_render_card_line(
             line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
@@ -152,6 +169,8 @@ def _render_card_line(
 
     if bl.line_type == LineType.SIDEBOARD_ENTRY:
         t.append("SB: ", style=COLORS["sideboard"])
+    elif bl.line_type == LineType.MAYBEBOARD_ENTRY:
+        t.append("MB: ", style=COLORS["maybeboard"])
     elif bl.line_type == LineType.COMMANDER_ENTRY:
         t.append("CMD: ", style=COLORS["sideboard"])
 
@@ -169,6 +188,11 @@ def _render_card_line(
     if tags:
         tag_str = " ".join(f"#{tag}" for tag in sorted(tags))
         t.append(f"  {tag_str}", style=f"dim {COLORS['tag']}")
+
+    # Render inline card comment
+    comment = buf.comment_at(line_idx)
+    if comment:
+        t.append(f"  // {comment}", style="dim italic")
 
     if is_cursor:
         t.stylize(_CURSOR_STYLE)

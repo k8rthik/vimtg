@@ -18,6 +18,7 @@ from textual.screen import Screen
 
 from vimtg.config.settings import Settings
 from vimtg.data.database import Database
+from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.domain.card_types import primary_type
 from vimtg.editor.buffer import Buffer
@@ -26,6 +27,7 @@ from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import load_remapper
+from vimtg.editor.lint import EMPTY_LINT, LintResult, lint_buffer
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.sections import normalize_sections
@@ -36,6 +38,7 @@ from vimtg.editor.session import (
     count_cards,
     handle_command,
     handle_command_special,
+    handle_comment_input_special,
     handle_insert_special,
     handle_line_edit_special,
     handle_mode_switch,
@@ -125,6 +128,12 @@ class MainScreen(Screen[None]):
         self._db = db
         self._vcs_service: VersionControlService | None = None  # Lazily initialized
         self._replaying = False  # guards against recursive macro replay
+        self._lint: LintResult = EMPTY_LINT
+        # (buffer, resolved_cards, fmt) of the last lint — buffer and
+        # resolved dict are compared by identity (both are replaced, never
+        # mutated, on change), so cursor-only keys cost one comparison
+        self._lint_key: tuple[Buffer, dict[str, Card], str] | None = None
+        self._lint_resolved_names: frozenset[str] = frozenset()
 
     def compose(self) -> ComposeResult:
         yield DeckView(id="deck-view")
@@ -203,8 +212,10 @@ class MainScreen(Screen[None]):
             key = resolved
         result, action = self.keymap.feed(key)
 
-        # Update which-key tooltip
+        # Update which-key tooltip and status-line pending sequence (showcmd)
         wk = self.query_one("#which-key", WhichKey)
+        sl = self.query_one("#status-line", StatusLine)
+        sl.pending_keys = self.keymap.pending_display
         if result == KeyResult.PENDING:
             wk.pending_key = key
             wk.display = self._state.settings.show_which_key
@@ -261,6 +272,10 @@ class MainScreen(Screen[None]):
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
                 return handle_tag_input_special(s, action)
+            if s.insert_submode == InsertSubmode.COMMENT_INPUT:
+                cl.text = action.text or ""
+                cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
+                return handle_comment_input_special(s, action)
             if s.insert_submode == InsertSubmode.LINE_EDIT:
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
@@ -328,6 +343,20 @@ class MainScreen(Screen[None]):
         cl.show(tag_prompt)
         cl.message = ""
 
+    def _apply_enter_comment_input(self, prefill: str) -> None:
+        s = self._state
+        s.insert_submode = InsertSubmode.COMMENT_INPUT
+        s.mode_mgr.transition(Mode.INSERT)
+        self.keymap.set_mode(Mode.INSERT)
+        # set_mode resets pending keys but not the text accumulator, so
+        # the prefill survives for editing (same ordering as line edit)
+        self.keymap.set_insert_text(prefill)
+        cl = self.query_one("#command-line", CommandLine)
+        cl.show("comment: ")
+        cl.text = prefill
+        cl.cursor_pos = len(prefill)
+        cl.message = ""
+
     def _apply_enter_card_search(self) -> None:
         s = self._state
         s.insert_submode = InsertSubmode.CARD_SEARCH
@@ -346,6 +375,8 @@ class MainScreen(Screen[None]):
             self._apply_enter_line_edit()
         if hr.enter_tag_input:
             self._apply_enter_tag_input(hr.tag_prompt)
+        if hr.enter_comment_input:
+            self._apply_enter_comment_input(hr.comment_prefill)
         if hr.enter_insert:
             self._apply_enter_card_search()
         if hr.enter_command:
@@ -662,10 +693,35 @@ class MainScreen(Screen[None]):
         s.modified = True
         s.history.amend(cleaned)
 
+    def _update_lint(self) -> None:
+        """Recompute validation for the deck view gutter when inputs change.
+
+        Cheap on cursor-only keys (identity compare); re-parses on buffer
+        change; hits the card DB only when the set of card names changes.
+        """
+        s = self._state
+        fmt = s.settings.default_format
+        key = self._lint_key
+        if (
+            key is not None
+            and key[0] is s.buffer
+            and key[1] is s.resolved_cards
+            and key[2] == fmt
+        ):
+            return
+        deck = parse_deck_text(s.buffer.to_text())
+        names = frozenset(n.lower() for n in deck.unique_card_names())
+        if names != self._lint_resolved_names and self.card_repo is not None:
+            s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
+            self._lint_resolved_names = names
+        self._lint = lint_buffer(s.buffer, s.resolved_cards, fmt, deck=deck)
+        self._lint_key = (s.buffer, s.resolved_cards, fmt)
+
     def _sync_widgets(self) -> None:
         # Only clean up sections in NORMAL mode — INSERT/VISUAL have transient blanks
         if self._state.mode_mgr.is_normal():
             self._cleanup_empty_sections()
+        self._update_lint()
 
         s = self._state
         from vimtg.editor.config_options import currency_symbol_for
@@ -683,6 +739,7 @@ class MainScreen(Screen[None]):
         dv.show_line_numbers = s.settings.show_line_numbers
         dv.auto_expand = s.settings.auto_expand
         dv.tag_filter = s.tag_filter
+        dv.line_errors = self._lint.line_errors
 
         sr = self.query_one("#search-results", SearchResults)
         sr.price_source = price_src
@@ -697,6 +754,12 @@ class MainScreen(Screen[None]):
         sl.cursor_line = s.cursor.row
         sl.total_lines = s.buffer.line_count()
         sl.recording_register = s.macros.recording_register or ""
+        sl.pending_keys = self.keymap.pending_display
+        sl.lint_error_count = self._lint.error_count
+        sl.lint_warning_count = self._lint.warning_count
+        cursor_err = self._lint.line_errors.get(s.cursor.row)
+        sl.cursor_lint = cursor_err.message if cursor_err else ""
+        sl.cursor_lint_level = cursor_err.level if cursor_err else ""
 
         # VCS status — a DB hiccup here must not crash the render path
         vcs = self._vcs_service  # Don't lazily init on every sync

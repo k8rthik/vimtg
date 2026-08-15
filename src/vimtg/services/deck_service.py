@@ -109,6 +109,7 @@ class DeckService:
         self,
         deck: Deck,
         resolved: dict[str, Card] | None = None,
+        fmt: str = "",
     ) -> list[ValidationError]:
-        """Validate deck structure. Delegates to domain.validation."""
-        return validate_deck(deck, resolved)
+        """Validate deck structure and format legality. Delegates to domain."""
+        return validate_deck(deck, resolved, fmt)

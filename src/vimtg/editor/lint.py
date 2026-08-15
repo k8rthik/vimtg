@@ -1,0 +1,75 @@
+"""Buffer linting — validation results mapped onto buffer rows.
+
+TUI-agnostic bridge between domain validation and the deck view's
+gutter signs. Row mapping is exact: Buffer.to_text() is a line-for-line
+join and parse_deck_text numbers lines from 1, so row = line_number - 1.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from vimtg.data.deck_repository import parse_deck_text
+from vimtg.domain.validation import ValidationError, validate_deck
+
+if TYPE_CHECKING:
+    from vimtg.domain.card import Card
+    from vimtg.domain.deck import Deck
+    from vimtg.editor.buffer import Buffer
+
+
+@dataclass(frozen=True)
+class LintResult:
+    line_errors: dict[int, ValidationError]  # 0-based row -> worst issue
+    deck_errors: tuple[ValidationError, ...]  # no line anchor
+    error_count: int
+    warning_count: int
+
+
+EMPTY_LINT = LintResult(
+    line_errors={}, deck_errors=(), error_count=0, warning_count=0
+)
+
+
+def effective_format(deck: Deck, default_format: str) -> str:
+    """The deck's declared format, falling back to the global setting."""
+    return deck.metadata.format or default_format
+
+
+def lint_buffer(
+    buffer: Buffer,
+    resolved: dict[str, Card],
+    default_format: str = "",
+    deck: Deck | None = None,
+) -> LintResult:
+    """Validate the buffer's deck and map issues to buffer rows.
+
+    Callers that already parsed the buffer can pass `deck` to skip
+    the re-parse.
+    """
+    if deck is None:
+        deck = parse_deck_text(buffer.to_text())
+
+    errors = validate_deck(deck, resolved, effective_format(deck, default_format))
+
+    line_errors: dict[int, ValidationError] = {}
+    deck_errors: list[ValidationError] = []
+    for err in errors:
+        if err.line_number is None:
+            deck_errors.append(err)
+            continue
+        row = err.line_number - 1
+        existing = line_errors.get(row)
+        # Worst issue wins the row: error beats warning, first wins ties
+        if existing is None or (
+            existing.level != "error" and err.level == "error"
+        ):
+            line_errors[row] = err
+
+    return LintResult(
+        line_errors=line_errors,
+        deck_errors=tuple(deck_errors),
+        error_count=sum(1 for e in errors if e.level == "error"),
+        warning_count=sum(1 for e in errors if e.level == "warning"),
+    )

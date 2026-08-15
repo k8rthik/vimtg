@@ -242,3 +242,42 @@ def test_no_subcommand_launches_app(
     result = runner.invoke(main, [])
     assert result.exit_code == 0
     fake_app.run.assert_called_once()
+
+
+# --- format-aware validate ---
+
+
+def test_validate_format_rules_without_db(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    deck_file = tmp_path / "cmd.deck"
+    deck_file.write_text(
+        "// Format: commander\nCMD: 1 Atraxa\n2 Sol Ring\n96 Island\n",
+        encoding="utf-8",
+    )
+    result = runner.invoke(main, ["validate", str(deck_file)])
+    assert result.exit_code == 1
+    assert "Sol Ring" in result.output
+    assert "exactly 100" in result.output
+
+
+def test_validate_notes_missing_db_when_format_set(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    deck_file = tmp_path / "m.deck"
+    deck_file.write_text(
+        "// Format: modern\n" + "".join(f"1 Card{i}\n" for i in range(60)),
+        encoding="utf-8",
+    )
+    result = runner.invoke(main, ["validate", str(deck_file)])
+    assert "no card database" in result.output
+    assert result.exit_code == 0
+
+
+def test_validate_line_numbers_in_output(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    deck_file = tmp_path / "q.deck"
+    deck_file.write_text("// Deck: X\n0 Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", str(deck_file)])
+    assert "q.deck:2:" in result.output

@@ -163,3 +163,34 @@ class TestSegmentOrdering:
             plain.index("Ln 6/60"),
         ]
         assert order == sorted(order), f"segments out of order: {order}"
+
+
+class TestLintSegment:
+    def test_counts_shown_when_nonzero(self) -> None:
+        sl = StatusLine()
+        sl.lint_error_count = 2
+        sl.lint_warning_count = 1
+        text = sl.render().plain
+        assert "✗2" in text
+        assert "!1" in text
+
+    def test_counts_hidden_when_zero(self) -> None:
+        sl = StatusLine()
+        text = sl.render().plain
+        assert "✗" not in text
+        assert "!" not in text
+
+    def test_cursor_reason_shown(self) -> None:
+        sl = StatusLine()
+        sl.cursor_lint = "Mana Crypt is banned in commander"
+        sl.cursor_lint_level = "error"
+        text = sl.render().plain
+        assert "✗ Mana Crypt is banned in commander" in text
+
+    def test_long_reason_truncated(self) -> None:
+        sl = StatusLine()
+        sl.cursor_lint = "x" * 100
+        sl.cursor_lint_level = "warning"
+        text = sl.render().plain
+        assert "…" in text
+        assert "x" * 100 not in text

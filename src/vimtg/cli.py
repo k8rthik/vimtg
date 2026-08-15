@@ -56,17 +56,43 @@ def new(name: str, fmt: str, output: str | None) -> None:
     click.echo(f"Created {out_path}")
 
 
+def _try_card_repo() -> CardRepository | None:
+    """A populated card repository, or None when no usable database exists."""
+    import sqlite3
+
+    try:
+        if not db_path().exists():
+            return None
+        repo = _make_card_repo()
+        return repo if repo.count() > 0 else None
+    except (sqlite3.Error, DatabaseNotInitializedError):
+        return None
+
+
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
 def validate(path: str) -> None:
-    """Validate a deck file."""
-    service = _make_service()
+    """Validate a deck file (format-aware when a card database exists)."""
+    from vimtg.config.settings import load_settings
+
+    card_repo = _try_card_repo()
+    service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
     file_path = Path(path)
     _text, deck = service.open_deck(file_path)
-    errors = service.validate(deck)
+
+    fmt = deck.metadata.format or load_settings().default_format
+    resolved = None
+    if card_repo is not None:
+        resolved, _unresolved = service.resolve_cards(deck)
+    errors = service.validate(deck, resolved, fmt)
+
+    if fmt and card_repo is None:
+        click.echo(
+            "(no card database — legality checks skipped; run 'vimtg sync')"
+        )
 
     if not errors:
-        click.echo(f"{file_path.name}: ok")
+        click.echo(f"{file_path.name}: ok" + (f" ({fmt})" if fmt else ""))
         return
 
     has_errors = False

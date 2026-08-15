@@ -134,7 +134,7 @@ class TestValidateBasic:
         cmd = ParsedCommand(name="validate")
 
         cmd_validate(buffer, cursor, cmd, ctx)
-        assert ctx.error is True
+        assert ctx.error is False  # warnings alone are not errors
         assert "minimum 60" in ctx.message
 
     def test_validate_over_4_copies(self) -> None:
@@ -145,7 +145,7 @@ class TestValidateBasic:
         cmd = ParsedCommand(name="validate")
 
         cmd_validate(buffer, cursor, cmd, ctx)
-        assert ctx.error is True
+        assert ctx.error is False  # warnings alone are not errors
         assert "More than 4 copies" in ctx.message
 
     def test_validate_basic_lands_exempt(self) -> None:
@@ -169,7 +169,7 @@ class TestValidateBasic:
         cmd = ParsedCommand(name="validate")
 
         cmd_validate(buffer, cursor, cmd, ctx)
-        assert ctx.error is True
+        assert ctx.error is False  # warnings alone are not errors
         assert "maximum 15" in ctx.message
 
     def test_validate_with_unresolved_cards(self) -> None:
@@ -183,5 +183,31 @@ class TestValidateBasic:
         cmd = ParsedCommand(name="validate")
 
         cmd_validate(buffer, cursor, cmd, ctx)
-        assert ctx.error is True
+        assert ctx.error is False  # warnings alone are not errors
         assert "Card not found: FakeCard" in ctx.message
+
+
+class TestValidateFormatAware:
+    def test_deck_format_line_drives_validation(self) -> None:
+        text = "// Format: commander\nCMD: 1 Atraxa\n2 Sol Ring\n96 Island\n"
+        buffer = Buffer.from_text(text)
+        ctx = EditorContext()
+        cmd_validate(buffer, Cursor(row=0), ParsedCommand(name="validate"), ctx)
+        assert ctx.error is True
+        assert "Sol Ring" in ctx.message
+        assert "L3" in ctx.message
+
+    def test_deck_ok_names_format(self) -> None:
+        text = "// Format: modern\n" + "\n".join(f"1 Card{i}" for i in range(60)) + "\n"
+        buffer = Buffer.from_text(text)
+        ctx = EditorContext()
+        cmd_validate(buffer, Cursor(row=0), ParsedCommand(name="validate"), ctx)
+        assert ctx.message == "Deck OK (modern)"
+
+    def test_repeated_messages_deduped(self) -> None:
+        # Same singleton violation across two lines with identical message text
+        text = "// Format: commander\nCMD: 1 Atraxa\n3 Sol Ring\n96 Island\n"
+        buffer = Buffer.from_text(text)
+        ctx = EditorContext()
+        cmd_validate(buffer, Cursor(row=0), ParsedCommand(name="validate"), ctx)
+        assert ctx.message.count("Sol Ring: 3 copies") == 1

@@ -13,6 +13,7 @@ from vimtg.editor.commands import (
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.lint import effective_format
 
 
 def cmd_stats(
@@ -47,6 +48,10 @@ def cmd_stats(
             1 for bl in lines
             if bl.line_type == LineType.SIDEBOARD_ENTRY
         )
+        mb_count = sum(
+            1 for bl in lines
+            if bl.line_type == LineType.MAYBEBOARD_ENTRY
+        )
         cmd_count = sum(
             1 for bl in lines
             if bl.line_type == LineType.COMMANDER_ENTRY
@@ -54,7 +59,9 @@ def cmd_stats(
         total = card_count + sb_count + cmd_count
         ctx.message = (
             f"Cards: {total} (main: {card_count}, "
-            f"sideboard: {sb_count}, commander: {cmd_count})"
+            f"sideboard: {sb_count}, commander: {cmd_count}"
+            + (f", maybe: {mb_count}" if mb_count else "")
+            + ")"
         )
     return buffer, cursor
 
@@ -67,13 +74,31 @@ def cmd_validate(
 ) -> tuple[Buffer, Cursor]:
     """Run deck validation — same rules as `vimtg validate` (CLI)."""
     deck = parse_deck_text(buffer.to_text())
-    errors = validate_deck(deck, ctx.resolved_cards or {})
+    default_fmt = getattr(ctx.settings, "default_format", "") or ""
+    fmt = effective_format(deck, default_fmt)
+    errors = validate_deck(deck, ctx.resolved_cards or {}, fmt)
 
     if not errors:
-        ctx.message = "Deck OK"
-    else:
-        ctx.fail("Issues: " + "; ".join(e.message for e in errors))
+        ctx.message = f"Deck OK ({fmt})" if fmt else "Deck OK"
+        return buffer, cursor
 
+    n_err = sum(1 for e in errors if e.level == "error")
+    n_warn = len(errors) - n_err
+    # Dedupe repeated messages (a 4-row copy-limit violation reads once)
+    parts: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for e in errors:
+        if (e.level, e.message) in seen:
+            continue
+        seen.add((e.level, e.message))
+        tag = "E" if e.level == "error" else "W"
+        line_part = f" L{e.line_number}" if e.line_number is not None else ""
+        parts.append(f"{tag}{line_part}: {e.message}")
+    summary = f"{n_err} errors, {n_warn} warnings: " + "; ".join(parts)
+    if n_err:
+        ctx.fail(summary)
+    else:
+        ctx.message = summary
     return buffer, cursor
 
 

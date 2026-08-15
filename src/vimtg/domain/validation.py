@@ -1,7 +1,9 @@
 """Deck validation rules — the single implementation.
 
 Used by both the CLI (vimtg validate) and the editor (:validate) so the
-two can never disagree about what a legal deck looks like.
+two can never disagree about what a legal deck looks like. When a format
+is supplied, per-card Scryfall legalities and per-format construction
+rules (deck size, copy limit, commander) are checked as well.
 """
 
 from __future__ import annotations
@@ -10,10 +12,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from vimtg.domain.card_types import BASIC_LANDS
-from vimtg.domain.deck import Deck, DeckSection
+from vimtg.domain.deck import Deck, DeckEntry, DeckSection
+from vimtg.domain.formats import FormatRules, get_format_rules
 
 if TYPE_CHECKING:
     from vimtg.domain.card import Card
+
+# Sections whose entries count toward deck size / copy limits.
+# Maybeboard is a scratchpad outside the deck proper.
+_COUNTED_SECTIONS = (DeckSection.MAIN, DeckSection.SIDEBOARD)
 
 
 @dataclass(frozen=True)
@@ -26,13 +33,17 @@ class ValidationError:
 def validate_deck(
     deck: Deck,
     resolved: dict[str, Card] | None = None,
+    fmt: str = "",
 ) -> list[ValidationError]:
-    """Validate deck structure. Returns list of errors/warnings.
+    """Validate deck structure and (when `fmt` is set) format legality.
 
-    Pass `resolved` (card-name lookups) to also flag unknown names;
-    an empty dict means "no card database" and skips that check.
+    Pass `resolved` (card-name lookups) to also flag unknown names and
+    run per-card legality checks; an empty dict means "no card database"
+    and skips those checks. `fmt` empty or unknown falls back to the
+    generic 60-card constructed rules.
     """
     errors: list[ValidationError] = []
+    lookup = _lowercase_lookup(resolved)
 
     for entry in deck.entries:
         if entry.quantity <= 0:
@@ -40,17 +51,69 @@ def validate_deck(
                 ValidationError(
                     "error",
                     f"Invalid quantity {entry.quantity} for {entry.card_name}",
+                    line_number=entry.line_number,
                 )
             )
 
-    # 4-of rule: copies are counted across mainboard + sideboard
+    if lookup:
+        for entry in deck.entries:
+            if entry.card_name.lower() not in lookup:
+                errors.append(
+                    ValidationError(
+                        "warning",
+                        f"Card not found: {entry.card_name}",
+                        line_number=entry.line_number,
+                    )
+                )
+
+    rules = get_format_rules(fmt)
+    if rules is None:
+        if fmt.strip():
+            errors.append(
+                ValidationError("warning", f"Unknown format: {fmt}")
+            )
+        errors.extend(_generic_checks(deck))
+        return errors
+
+    errors.extend(_check_legality(deck, lookup, rules))
+    errors.extend(_check_copy_limit(deck, rules))
+    errors.extend(_check_deck_size(deck, rules))
+    errors.extend(_check_sideboard(deck, rules))
+    if rules.requires_commander:
+        errors.extend(_check_commander(deck, lookup, rules))
+    return errors
+
+
+def _lowercase_lookup(
+    resolved: dict[str, Card] | None,
+) -> dict[str, Card]:
+    """Key resolved cards by lowercase name.
+
+    CardRepository.get_by_names matches COLLATE NOCASE but keys results
+    by the DB-canonical name, so a hand-typed 'lightning bolt' must
+    still find its Card here.
+    """
+    if not resolved:
+        return {}
+    return {name.lower(): card for name, card in resolved.items()}
+
+
+def _counted_copies(deck: Deck) -> dict[str, int]:
+    """Total copies per card name across mainboard + sideboard."""
     combined: dict[str, int] = {}
     for entry in deck.entries:
-        if entry.section in (DeckSection.MAIN, DeckSection.SIDEBOARD):
+        if entry.section in _COUNTED_SECTIONS:
             combined[entry.card_name] = (
                 combined.get(entry.card_name, 0) + entry.quantity
             )
-    for name, qty in combined.items():
+    return combined
+
+
+def _generic_checks(deck: Deck) -> list[ValidationError]:
+    """Format-agnostic rules: 4-of, 60-card minimum, 15-card sideboard."""
+    errors: list[ValidationError] = []
+
+    for name, qty in _counted_copies(deck).items():
         if qty > 4 and name not in BASIC_LANDS:
             errors.append(
                 ValidationError("warning", f"More than 4 copies of {name}")
@@ -73,14 +136,190 @@ def validate_deck(
                 "warning", f"Sideboard has {side_count} cards (maximum 15)"
             )
         )
+    return errors
 
-    if resolved:
-        for entry in deck.entries:
-            if entry.card_name not in resolved:
-                errors.append(
-                    ValidationError(
-                        "warning", f"Card not found: {entry.card_name}"
-                    )
+
+def _check_legality(
+    deck: Deck, lookup: dict[str, Card], rules: FormatRules
+) -> list[ValidationError]:
+    """Flag banned / not-legal / restricted-over-limit cards per entry."""
+    if not lookup:
+        return []
+    errors: list[ValidationError] = []
+    copies = _counted_copies(deck)
+    for entry in deck.entries:
+        card = lookup.get(entry.card_name.lower())
+        if card is None or not card.legalities:
+            continue
+        status = card.legalities.get(rules.name)
+        # Maybeboard cards are outside the deck: surface legality as a
+        # heads-up warning, never an error.
+        level = (
+            "warning" if entry.section == DeckSection.MAYBEBOARD else "error"
+        )
+        if status == "banned":
+            errors.append(
+                ValidationError(
+                    level,
+                    f"{entry.card_name} is banned in {rules.name}",
+                    line_number=entry.line_number,
                 )
+            )
+        elif status == "not_legal":
+            errors.append(
+                ValidationError(
+                    level,
+                    f"{entry.card_name} is not legal in {rules.name}",
+                    line_number=entry.line_number,
+                )
+            )
+        elif (
+            status == "restricted"
+            and entry.section in _COUNTED_SECTIONS
+            and copies.get(entry.card_name, 0) > 1
+        ):
+            errors.append(
+                ValidationError(
+                    "error",
+                    f"{entry.card_name} is restricted (max 1 copy)",
+                    line_number=entry.line_number,
+                )
+            )
+    return errors
 
+
+def _check_copy_limit(
+    deck: Deck, rules: FormatRules
+) -> list[ValidationError]:
+    """Flag every entry-line of a card exceeding the format's copy limit."""
+    copies = _counted_copies(deck)
+    over = {
+        name
+        for name, qty in copies.items()
+        if qty > rules.copy_limit and name not in BASIC_LANDS
+    }
+    if not over:
+        return []
+    limit_word = "copy" if rules.copy_limit == 1 else "copies"
+    return [
+        ValidationError(
+            "error",
+            f"{entry.card_name}: {copies[entry.card_name]} copies "
+            f"(max {rules.copy_limit} {limit_word} in {rules.name})",
+            line_number=entry.line_number,
+        )
+        for entry in deck.entries
+        if entry.card_name in over and entry.section in _COUNTED_SECTIONS
+    ]
+
+
+def _check_deck_size(
+    deck: Deck, rules: FormatRules
+) -> list[ValidationError]:
+    """Exact-size formats get a deck-level error; others a minimum warning."""
+    main_count = sum(e.quantity for e in deck.mainboard())
+    if rules.exact_deck_size is not None:
+        commander_count = sum(
+            e.quantity
+            for e in deck.entries
+            if e.section == DeckSection.COMMANDER
+        )
+        total = main_count + commander_count
+        if total != rules.exact_deck_size:
+            return [
+                ValidationError(
+                    "error",
+                    f"Deck has {total} cards "
+                    f"({rules.name} requires exactly {rules.exact_deck_size})",
+                )
+            ]
+        return []
+    if main_count == 0:
+        return [ValidationError("error", "No mainboard cards")]
+    if main_count < rules.min_deck_size:
+        return [
+            ValidationError(
+                "warning",
+                f"Mainboard has {main_count} cards "
+                f"(minimum {rules.min_deck_size})",
+            )
+        ]
+    return []
+
+
+def _check_sideboard(
+    deck: Deck, rules: FormatRules
+) -> list[ValidationError]:
+    sideboard = deck.sideboard()
+    if not rules.allows_sideboard:
+        return [
+            ValidationError(
+                "error",
+                f"{rules.name} decks have no sideboard",
+                line_number=entry.line_number,
+            )
+            for entry in sideboard
+        ]
+    side_count = sum(e.quantity for e in sideboard)
+    if side_count > rules.max_sideboard:
+        return [
+            ValidationError(
+                "warning",
+                f"Sideboard has {side_count} cards "
+                f"(maximum {rules.max_sideboard})",
+            )
+        ]
+    return []
+
+
+def _check_commander(
+    deck: Deck, lookup: dict[str, Card], rules: FormatRules
+) -> list[ValidationError]:
+    """Commander presence, legendary status, and color-identity checks."""
+    commanders = [
+        e for e in deck.entries if e.section == DeckSection.COMMANDER
+    ]
+    if not commanders:
+        return [
+            ValidationError(
+                "error", "No commander (add a CMD: line)"
+            )
+        ]
+
+    errors: list[ValidationError] = []
+    resolved_commanders: list[tuple[DeckEntry, Card]] = []
+    for entry in commanders:
+        card = lookup.get(entry.card_name.lower())
+        if card is None:
+            continue  # unknown-name warning already covers it
+        resolved_commanders.append((entry, card))
+        if "Legendary" not in card.type_line:
+            errors.append(
+                ValidationError(
+                    "error",
+                    f"{entry.card_name} is not legendary",
+                    line_number=entry.line_number,
+                )
+            )
+
+    if not resolved_commanders:
+        return errors
+
+    identity = {
+        color
+        for _, card in resolved_commanders
+        for color in card.color_identity
+    }
+    for entry in deck.mainboard():
+        card = lookup.get(entry.card_name.lower())
+        if card is None:
+            continue
+        if not set(card.color_identity) <= identity:
+            errors.append(
+                ValidationError(
+                    "error",
+                    f"{entry.card_name} is outside commander color identity",
+                    line_number=entry.line_number,
+                )
+            )
     return errors

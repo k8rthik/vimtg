@@ -11,6 +11,7 @@ from textual.widgets import Static
 
 from vimtg.domain.card import Card
 from vimtg.domain.tags import TagFilter, matches_filter
+from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.cursor import Cursor
 from vimtg.tui.deck_renderer import render_line
@@ -28,6 +29,7 @@ class DeckView(Static):
     show_line_numbers: reactive[bool] = reactive(True)
     auto_expand: reactive[bool] = reactive(True)
     tag_filter: reactive[TagFilter | None] = reactive(None)
+    line_errors: reactive[dict[int, ValidationError]] = reactive(dict)
 
     def render(self) -> Text:
         if self.buffer is None:
@@ -49,6 +51,7 @@ class DeckView(Static):
                 auto_expand=self.auto_expand,
                 dimmed=dimmed,
                 width=self.size.width or None,
+                line_error=self.line_errors.get(i),
             )
             for line in lines:
                 output.append(line)
@@ -68,5 +71,12 @@ class DeckView(Static):
 
     def watch_tag_filter(
         self, _old: TagFilter | None, _new: TagFilter | None
+    ) -> None:
+        self.refresh()
+
+    def watch_line_errors(
+        self,
+        _old: dict[int, ValidationError],
+        _new: dict[int, ValidationError],
     ) -> None:
         self.refresh()

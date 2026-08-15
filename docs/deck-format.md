@@ -34,6 +34,10 @@ Values may be empty (`// Format:`) — new decks are scaffolded with empty
 gets them added (in the buffer only) on open. Press `i` on a metadata line
 to edit just the value; the `// Key:` prefix is locked.
 
+The `Format` value drives live legality checking: illegal cards get a
+gutter sign (`✗` error, `!` warning) and the reason appears in the status
+bar when the cursor is on the line. `:validate` prints the full list.
+
 Unknown keys are preserved on save.
 
 ## Sections
