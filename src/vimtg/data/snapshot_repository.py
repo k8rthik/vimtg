@@ -31,6 +31,7 @@ def _row_to_snapshot(row: dict[str, Any]) -> VCSSnapshot:
         branch=row["branch"] or "main",
         tag=row["tag"],
         deck_hash=row["deck_hash"] or "",
+        merge_parent_id=row["merge_parent_id"],
     )
 
 
@@ -56,8 +57,8 @@ class SnapshotRepository:
         conn.execute(
             """INSERT INTO snapshots
                (id, deck_path, parent_id, deck_state, timestamp,
-                description, branch, tag, deck_hash)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                description, branch, tag, deck_hash, merge_parent_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 snapshot.id,
                 snapshot.deck_path,
@@ -68,6 +69,7 @@ class SnapshotRepository:
                 snapshot.branch,
                 snapshot.tag,
                 snapshot.deck_hash,
+                snapshot.merge_parent_id,
             ),
         )
         conn.commit()
@@ -177,8 +179,8 @@ class SnapshotRepository:
             conn.execute(
                 """INSERT INTO snapshots
                    (id, deck_path, parent_id, deck_state, timestamp,
-                    description, branch, tag, deck_hash)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    description, branch, tag, deck_hash, merge_parent_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     replacement.id,
                     replacement.deck_path,
@@ -189,11 +191,21 @@ class SnapshotRepository:
                     replacement.branch,
                     replacement.tag,
                     replacement.deck_hash,
+                    replacement.merge_parent_id,
                 ),
             )
             conn.execute(
                 f"UPDATE snapshots SET parent_id = ? "  # noqa: S608
                 f"WHERE parent_id IN ({placeholders}) AND id != ?",
+                [replacement.id, *snapshot_ids, replacement.id],
+            )
+            # Merge-parent edges into the replaced run point at the
+            # replacement too. If a replaced snapshot was itself a merge
+            # commit, its second-parent ancestry is lost (the replacement
+            # is linear) — acceptable for squash.
+            conn.execute(
+                f"UPDATE snapshots SET merge_parent_id = ? "  # noqa: S608
+                f"WHERE merge_parent_id IN ({placeholders}) AND id != ?",
                 [replacement.id, *snapshot_ids, replacement.id],
             )
             if update_tip:
@@ -209,6 +221,84 @@ class SnapshotRepository:
         except Exception:
             conn.rollback()
             raise
+
+    # ── Ancestry operations ───────────────────────────────
+
+    def get_ancestor_ids(self, snapshot_id: str, deck_path: str) -> set[str]:
+        """All snapshot ids reachable from snapshot_id (inclusive).
+
+        Follows both parent_id and merge_parent_id, but never leaves the
+        given deck_path partition — a parent edge into another deck's
+        history is treated as missing.
+        """
+        conn = self._db.connect()
+        visited: set[str] = set()
+        frontier = [snapshot_id]
+        while frontier:
+            current = frontier.pop()
+            if current in visited:
+                continue
+            row = conn.execute(
+                "SELECT parent_id, merge_parent_id FROM snapshots"
+                " WHERE id = ? AND deck_path = ?",
+                (current, deck_path),
+            ).fetchone()
+            if row is None:
+                continue
+            visited.add(current)
+            for pid in (row["parent_id"], row["merge_parent_id"]):
+                if pid is not None and pid not in visited:
+                    frontier.append(pid)
+        return visited
+
+    def is_ancestor(
+        self, ancestor_id: str, descendant_id: str, deck_path: str
+    ) -> bool:
+        """True if ancestor_id is reachable from descendant_id (or equal)."""
+        conn = self._db.connect()
+        visited: set[str] = set()
+        frontier = [descendant_id]
+        while frontier:
+            current = frontier.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            row = conn.execute(
+                "SELECT parent_id, merge_parent_id FROM snapshots"
+                " WHERE id = ? AND deck_path = ?",
+                (current, deck_path),
+            ).fetchone()
+            if row is None:
+                continue  # outside this deck's partition — not an ancestor
+            if current == ancestor_id:
+                return True
+            for pid in (row["parent_id"], row["merge_parent_id"]):
+                if pid is not None and pid not in visited:
+                    frontier.append(pid)
+        return False
+
+    def find_merge_base(
+        self, id_a: str, id_b: str, deck_path: str
+    ) -> str | None:
+        """Best common ancestor of two snapshots, or None if unrelated.
+
+        Intersects the two ancestor sets and picks the candidate with the
+        greatest (timestamp, id) — deterministic for deck-scale histories.
+        """
+        common = self.get_ancestor_ids(id_a, deck_path) & self.get_ancestor_ids(
+            id_b, deck_path
+        )
+        if not common:
+            return None
+        candidates = [
+            snap
+            for sid in common
+            if (snap := self.get_snapshot(sid)) is not None
+        ]
+        if not candidates:
+            return None
+        best = max(candidates, key=lambda s: (s.timestamp, s.id))
+        return best.id
 
     # ── Branch operations ─────────────────────────────────
 
@@ -265,5 +355,26 @@ class SnapshotRepository:
         conn.execute(
             "UPDATE branches SET tip_id = ? WHERE deck_path = ? AND name = ?",
             (new_tip_id, deck_path, branch_name),
+        )
+        conn.commit()
+
+    # ── Head (current branch) operations ──────────────────
+
+    def get_head(self, deck_path: str) -> str | None:
+        """Return the persisted current branch for a deck, if any."""
+        conn = self._db.connect()
+        row = conn.execute(
+            "SELECT current_branch FROM deck_heads WHERE deck_path = ?",
+            (deck_path,),
+        ).fetchone()
+        return row["current_branch"] if row else None
+
+    def set_head(self, deck_path: str, branch: str) -> None:
+        """Persist the current branch for a deck."""
+        conn = self._db.connect()
+        conn.execute(
+            """INSERT OR REPLACE INTO deck_heads (deck_path, current_branch)
+               VALUES (?, ?)""",
+            (deck_path, branch),
         )
         conn.commit()

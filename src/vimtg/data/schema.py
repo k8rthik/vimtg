@@ -59,7 +59,9 @@ CREATE TABLE IF NOT EXISTS snapshots (
     timestamp TEXT NOT NULL,
     description TEXT DEFAULT '',
     branch TEXT DEFAULT 'main',
-    tag TEXT
+    tag TEXT,
+    deck_hash TEXT DEFAULT '',
+    merge_parent_id TEXT
 )
 """
 
@@ -78,6 +80,13 @@ CREATE TABLE IF NOT EXISTS branches (
 )
 """
 
+DECK_HEADS_TABLE = """
+CREATE TABLE IF NOT EXISTS deck_heads (
+    deck_path TEXT PRIMARY KEY,
+    current_branch TEXT NOT NULL
+)
+"""
+
 
 _PRICE_MIGRATIONS = (
     ("price_usd_foil", "ALTER TABLE cards ADD COLUMN price_usd_foil REAL"),
@@ -89,6 +98,7 @@ _PRICE_MIGRATIONS = (
 
 _SNAPSHOT_MIGRATIONS = (
     ("deck_hash", "ALTER TABLE snapshots ADD COLUMN deck_hash TEXT DEFAULT ''"),
+    ("merge_parent_id", "ALTER TABLE snapshots ADD COLUMN merge_parent_id TEXT"),
 )
 
 
@@ -121,5 +131,6 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     for idx in SNAPSHOT_INDEXES:
         conn.execute(idx)
     conn.execute(BRANCHES_TABLE)
+    conn.execute(DECK_HEADS_TABLE)
     conn.commit()
     _run_migrations(conn)

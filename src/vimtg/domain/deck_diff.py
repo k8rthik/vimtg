@@ -90,7 +90,7 @@ class DeckDiff:
         return sum(1 for c in self.changes if c.change_type == ChangeType.REMOVED)
 
 
-def _build_card_map(
+def build_card_map(
     deck_text: str,
 ) -> dict[tuple[str, DeckSection], int]:
     """Parse deck text into {(card_name, section): total_quantity}.
@@ -128,8 +128,8 @@ def compute_deck_diff(old_state: str, new_state: str) -> DeckDiff:
     reported as one SECTION_MOVED. Any other arrangement (including a card
     present in two sections at once) is diffed independently per section.
     """
-    old_map = _build_card_map(old_state)
-    new_map = _build_card_map(new_state)
+    old_map = build_card_map(old_state)
+    new_map = build_card_map(new_state)
     old_sections = _sections_by_name(old_map)
     new_sections = _sections_by_name(new_map)
 

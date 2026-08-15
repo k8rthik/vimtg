@@ -15,7 +15,11 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class VCSSnapshot:
-    """A persisted point-in-time deck state (like a git commit)."""
+    """A persisted point-in-time deck state (like a git commit).
+
+    merge_parent_id is the second parent of a merge commit; log rendering
+    walks parent_id only (first-parent), while ancestry queries follow both.
+    """
 
     id: str
     deck_path: str
@@ -26,6 +30,7 @@ class VCSSnapshot:
     branch: str = "main"
     tag: str | None = None
     deck_hash: str = ""
+    merge_parent_id: str | None = None
 
 
 @dataclass(frozen=True)

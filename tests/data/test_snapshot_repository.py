@@ -26,10 +26,12 @@ def _snap(
     tag: str | None = None,
     deck_hash: str = "abc123",
     timestamp: datetime | None = None,
+    merge_parent_id: str | None = None,
+    deck_path: str = DECK_PATH,
 ) -> VCSSnapshot:
     return VCSSnapshot(
         id=id,
-        deck_path=DECK_PATH,
+        deck_path=deck_path,
         parent_id=parent_id,
         deck_state=deck_state,
         timestamp=timestamp or datetime(2025, 3, 15, 14, 30, tzinfo=UTC),
@@ -37,6 +39,7 @@ def _snap(
         branch=branch,
         tag=tag,
         deck_hash=deck_hash,
+        merge_parent_id=merge_parent_id,
     )
 
 
@@ -249,3 +252,95 @@ class TestBranches:
         assert result is not None
         assert result.tip_id == "snap2"
         assert len(repo.list_branches(DECK_PATH)) == 1
+
+class TestDeckHeads:
+    def test_get_head_unset_returns_none(self, repo: SnapshotRepository) -> None:
+        assert repo.get_head(DECK_PATH) is None
+
+    def test_set_and_get_head(self, repo: SnapshotRepository) -> None:
+        repo.set_head(DECK_PATH, "budget")
+        assert repo.get_head(DECK_PATH) == "budget"
+
+    def test_set_head_replaces(self, repo: SnapshotRepository) -> None:
+        repo.set_head(DECK_PATH, "budget")
+        repo.set_head(DECK_PATH, "main")
+        assert repo.get_head(DECK_PATH) == "main"
+
+    def test_heads_scoped_per_deck(self, repo: SnapshotRepository) -> None:
+        repo.set_head(DECK_PATH, "budget")
+        repo.set_head("/tmp/other.deck", "spicy")
+        assert repo.get_head(DECK_PATH) == "budget"
+        assert repo.get_head("/tmp/other.deck") == "spicy"
+
+
+class TestAncestry:
+    def _linear_chain(self, repo: SnapshotRepository) -> None:
+        """a <- b <- c on DECK_PATH."""
+        repo.save_snapshot(_snap(id="a"))
+        repo.save_snapshot(_snap(id="b", parent_id="a"))
+        repo.save_snapshot(_snap(id="c", parent_id="b"))
+
+    def _diamond(self, repo: SnapshotRepository) -> None:
+        """base <- (left, right) <- merge (merge has both parents)."""
+        repo.save_snapshot(_snap(id="base", timestamp=datetime(2025, 1, 1, tzinfo=UTC)))
+        repo.save_snapshot(_snap(id="left", parent_id="base",
+                                 timestamp=datetime(2025, 1, 2, tzinfo=UTC)))
+        repo.save_snapshot(_snap(id="right", parent_id="base",
+                                 timestamp=datetime(2025, 1, 3, tzinfo=UTC)))
+        repo.save_snapshot(_snap(id="merge", parent_id="left",
+                                 merge_parent_id="right",
+                                 timestamp=datetime(2025, 1, 4, tzinfo=UTC)))
+
+    def test_ancestors_linear(self, repo: SnapshotRepository) -> None:
+        self._linear_chain(repo)
+        assert repo.get_ancestor_ids("c", DECK_PATH) == {"a", "b", "c"}
+
+    def test_ancestors_follow_merge_parent(self, repo: SnapshotRepository) -> None:
+        self._diamond(repo)
+        assert repo.get_ancestor_ids("merge", DECK_PATH) == {
+            "base", "left", "right", "merge",
+        }
+
+    def test_is_ancestor_true_and_false(self, repo: SnapshotRepository) -> None:
+        self._linear_chain(repo)
+        assert repo.is_ancestor("a", "c", DECK_PATH) is True
+        assert repo.is_ancestor("c", "a", DECK_PATH) is False
+        assert repo.is_ancestor("a", "a", DECK_PATH) is True
+
+    def test_is_ancestor_via_merge_parent(self, repo: SnapshotRepository) -> None:
+        self._diamond(repo)
+        assert repo.is_ancestor("right", "merge", DECK_PATH) is True
+
+    def test_merge_base_diamond_is_fork_point(self, repo: SnapshotRepository) -> None:
+        self._diamond(repo)
+        assert repo.find_merge_base("left", "right", DECK_PATH) == "base"
+
+    def test_merge_base_linear_is_older_commit(self, repo: SnapshotRepository) -> None:
+        repo.save_snapshot(_snap(id="a", timestamp=datetime(2025, 1, 1, tzinfo=UTC)))
+        repo.save_snapshot(_snap(id="b", parent_id="a",
+                                 timestamp=datetime(2025, 1, 2, tzinfo=UTC)))
+        assert repo.find_merge_base("a", "b", DECK_PATH) == "a"
+
+    def test_merge_base_unrelated_returns_none(self, repo: SnapshotRepository) -> None:
+        repo.save_snapshot(_snap(id="a"))
+        repo.save_snapshot(_snap(id="x"))
+        assert repo.find_merge_base("a", "x", DECK_PATH) is None
+
+    def test_ancestry_never_leaves_deck_partition(
+        self, repo: SnapshotRepository
+    ) -> None:
+        """A parent edge into another deck's history is treated as missing."""
+        repo.save_snapshot(_snap(id="foreign", deck_path="/tmp/other.deck"))
+        repo.save_snapshot(_snap(id="local", parent_id="foreign"))
+        assert repo.get_ancestor_ids("local", DECK_PATH) == {"local"}
+        assert repo.is_ancestor("foreign", "local", DECK_PATH) is False
+
+    def test_replace_snapshots_repoints_merge_parent(
+        self, repo: SnapshotRepository
+    ) -> None:
+        self._diamond(repo)
+        replacement = _snap(id="squashed", parent_id="base")
+        repo.replace_snapshots(["right"], replacement, update_tip=False)
+        merged = repo.get_snapshot("merge")
+        assert merged is not None
+        assert merged.merge_parent_id == "squashed"
