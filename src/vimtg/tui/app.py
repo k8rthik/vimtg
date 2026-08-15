@@ -62,9 +62,9 @@ class VimTGApp(App[None]):
     def on_mount(self) -> None:
         self._init_services()
         if self._deck_path and self._deck_path.exists():
-            self._launch_editor(self._deck_path)
+            self.open_deck(self._deck_path)
         else:
-            self._launch_greeter()
+            self.show_greeter()
 
     def on_unmount(self) -> None:
         """Release the database connection when the app shuts down."""
@@ -89,13 +89,15 @@ class VimTGApp(App[None]):
             self._db = Database(db_file)
             self._db.initialize()
 
-    def _launch_greeter(self) -> None:
+    def show_greeter(self) -> None:
+        """Public navigation: open the greeter screen."""
         from vimtg.tui.screens.greeter import GreeterScreen
 
         recent = self._find_recent_decks()
         self.push_screen(GreeterScreen(recent_files=recent))
 
-    def _launch_editor(self, file_path: Path | None = None) -> None:
+    def open_deck(self, file_path: Path | None = None) -> None:
+        """Public navigation: open a deck (or an empty buffer) in the editor."""
         from vimtg.tui.screens.main_screen import MainScreen
 
         if file_path and file_path.exists():

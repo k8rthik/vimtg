@@ -223,7 +223,7 @@ class _HostApp(App[None]):
     def on_mount(self) -> None:
         self.push_screen(self._target)
 
-    def _launch_editor(self, file_path: Path | None = None) -> None:
+    def open_deck(self, file_path: Path | None = None) -> None:
         self.launched.append(file_path)
 
 

@@ -286,8 +286,11 @@ class GreeterScreen(Screen[None]):
             gv.refresh()
 
     def _open_editor(self, file_path: Path | None) -> None:
+        app = self.app
         self.app.pop_screen()
-        self.app._launch_editor(file_path)  # type: ignore[attr-defined]
+        open_deck = getattr(app, "open_deck", None)
+        if callable(open_deck):  # duck-typed: hosts expose open_deck
+            open_deck(file_path)
 
     def _run_sync(self) -> None:
         """Kick off card sync in a worker thread — the ~150 MB download

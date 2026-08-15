@@ -224,7 +224,7 @@ class ImportExportService:
             if low == "commander":
                 section = DeckSection.COMMANDER
                 continue
-            m = re.match(r"^(\d+)\s+(.+?)(?:\s+\([A-Z0-9]+\)\s*\d*)?$", line)
+            m = re.match(r"^(\d+)\s+(.+?)(?:\s+\([A-Za-z0-9]{3,5}\)\s*\d*)?$", line)
             if m:
                 entries.append(
                     DeckEntry(int(m.group(1)), m.group(2).strip(), section)

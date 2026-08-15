@@ -377,8 +377,11 @@ class MainScreen(Screen[None]):
             hp.display = not hp.display
             self.query_one("#which-key", WhichKey).display = not hp.display
         if hr.greeter_requested:
+            app = self.app
             self.app.pop_screen()
-            self.app._launch_greeter()  # type: ignore[attr-defined]
+            show_greeter = getattr(app, "show_greeter", None)
+            if callable(show_greeter):  # duck-typed navigation
+                show_greeter()
             return
         if hr.quit_requested:
             self.app.exit()
