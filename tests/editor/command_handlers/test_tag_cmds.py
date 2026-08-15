@@ -200,12 +200,13 @@ class TestCmdDuntag:
                 assert "aggro" not in text
                 assert "budget" in text
 
-    def test_remove_last_deck_tag_removes_line(self):
+    def test_remove_last_deck_tag_leaves_empty_scaffold_line(self):
         buf = _buf("// Deck: Test\n// Tags: aggro\n\n4 Goblin Guide\n")
         ctx = _ctx()
         initial_count = buf.line_count()
         buf, _ = cmd_duntag(buf, Cursor(0, 0), _cmd("duntag", "aggro"), ctx)
-        assert buf.line_count() < initial_count
+        assert buf.line_count() == initial_count
+        assert buf.get_line(1).text == "// Tags:"
 
 
 class TestCmdFilter:

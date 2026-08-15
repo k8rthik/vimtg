@@ -277,3 +277,75 @@ class TestTagCounts:
     def test_ignores_non_card_lines(self) -> None:
         buf = Buffer.from_text("// Comment  #core\n4 Goblin Guide  #flex\n")
         assert buf.tag_counts() == {"flex": 1}
+
+
+class TestMetadataClassification:
+    def test_empty_value_is_metadata(self):
+        assert classify_line("// Format:") == LineType.METADATA
+
+    def test_space_before_colon_is_metadata(self):
+        assert classify_line("// Format : modern") == LineType.METADATA
+
+    def test_source_key_is_metadata(self):
+        assert classify_line("// Source: https://x.com") == LineType.METADATA
+
+    def test_unknown_key_is_comment(self):
+        assert classify_line("// Wincons: storm") == LineType.COMMENT
+
+
+class TestCardComments:
+    def _buf(self, text):
+        return Buffer.from_text(text)
+
+    def test_comment_at_none(self):
+        buf = self._buf("4 Lightning Bolt\n")
+        assert buf.comment_at(0) == ""
+
+    def test_comment_at_present(self):
+        buf = self._buf("4 Lightning Bolt  // wincon\n")
+        assert buf.comment_at(0) == "wincon"
+
+    def test_comment_at_non_card_line(self):
+        buf = self._buf("// a comment  // not a card\n")
+        assert buf.comment_at(0) == ""
+
+    def test_set_comment_adds(self):
+        buf = self._buf("4 Bolt\n").set_comment(0, "wincon")
+        assert buf.get_line(0).text == "4 Bolt  // wincon"
+
+    def test_set_comment_replaces(self):
+        buf = self._buf("4 Bolt  // old\n").set_comment(0, "new")
+        assert buf.get_line(0).text == "4 Bolt  // new"
+
+    def test_set_comment_empty_removes(self):
+        buf = self._buf("4 Bolt  // old\n").set_comment(0, "")
+        assert buf.get_line(0).text == "4 Bolt"
+
+    def test_set_comment_non_card_noop(self):
+        buf = self._buf("// header\n")
+        assert buf.set_comment(0, "x") is buf
+
+    def test_set_comment_preserves_tags(self):
+        buf = self._buf("4 Bolt  #burn\n").set_comment(0, "wincon")
+        assert buf.get_line(0).text == "4 Bolt  #burn  // wincon"
+
+    def test_card_name_at_strips_comment(self):
+        buf = self._buf("SB: 2 Pyroblast  // vs blue\n")
+        assert buf.card_name_at(0) == "Pyroblast"
+
+    def test_tags_at_ignores_hash_in_comment(self):
+        buf = self._buf("4 Bolt  // see #discussion\n")
+        assert buf.tags_at(0) == frozenset()
+
+    def test_tags_at_with_tags_and_comment(self):
+        buf = self._buf("4 Bolt  #burn  // wincon\n")
+        assert buf.tags_at(0) == frozenset({"burn"})
+
+    def test_set_tags_preserves_comment(self):
+        buf = self._buf("4 Bolt  #burn  // wincon\n")
+        buf = buf.set_tags(0, frozenset({"core"}))
+        assert buf.get_line(0).text == "4 Bolt  #core  // wincon"
+
+    def test_set_quantity_preserves_comment(self):
+        buf = self._buf("4 Bolt  #burn  // wincon\n").set_quantity(0, 2)
+        assert buf.get_line(0).text == "2 Bolt  #burn  // wincon"

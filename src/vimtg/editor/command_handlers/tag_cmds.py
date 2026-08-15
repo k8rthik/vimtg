@@ -181,7 +181,9 @@ def cmd_duntag(
             if remaining:
                 buf = buf.set_line(i, f"// Tags: {', '.join(sorted(remaining))}")
             else:
-                buf, _ = buf.delete_lines(i, i)
+                # Keep the empty scaffold line — decks always carry
+                # // Tags: so `i` can refill it
+                buf = buf.set_line(i, "// Tags:")
             ctx.message = f"Removed deck tag(s): {' '.join(f'#{n}' for n in names)}"
             ctx.modified = True
             return buf, cursor

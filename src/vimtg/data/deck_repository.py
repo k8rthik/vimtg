@@ -20,6 +20,9 @@ from vimtg.domain.deck_lines import (
     CMD_PATTERN as _COMMANDER_PATTERN,
 )
 from vimtg.domain.deck_lines import (
+    MB_PATTERN as _MAYBEBOARD_PATTERN,
+)
+from vimtg.domain.deck_lines import (
     METADATA_PATTERN as _METADATA_PATTERN,
 )
 from vimtg.domain.deck_lines import (
@@ -27,8 +30,10 @@ from vimtg.domain.deck_lines import (
 )
 from vimtg.domain.deck_lines import (
     clamp_quantity,
+    format_inline_comment,
+    parse_card_suffix,
 )
-from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
+from vimtg.domain.tags import format_inline_tags
 
 
 def _parse_metadata_block(lines: tuple[str, ...]) -> DeckMetadata:
@@ -37,6 +42,7 @@ def _parse_metadata_block(lines: tuple[str, ...]) -> DeckMetadata:
     fmt = ""
     author = ""
     description = ""
+    source = ""
     tags: frozenset[str] = frozenset()
     for line in lines:
         match = _METADATA_PATTERN.match(line)
@@ -51,14 +57,41 @@ def _parse_metadata_block(lines: tuple[str, ...]) -> DeckMetadata:
                 author = value
             elif key == "description":
                 description = value
+            elif key == "source":
+                source = value
             elif key == "tags":
                 tags = frozenset(
                     t.strip().lower() for t in value.split(",") if t.strip()
                 )
     return DeckMetadata(
         name=name, format=fmt, author=author, description=description,
-        tags=tags,
+        source=source, tags=tags,
     )
+
+
+_ENTRY_PATTERNS = (
+    (_SIDEBOARD_PATTERN, DeckSection.SIDEBOARD),
+    (_MAYBEBOARD_PATTERN, DeckSection.MAYBEBOARD),
+    (_COMMANDER_PATTERN, DeckSection.COMMANDER),
+    (_MAINBOARD_PATTERN, DeckSection.MAIN),
+)
+
+
+def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
+    """Parse one SB:/CMD:/mainboard card line, or None if not a card line."""
+    for pattern, section in _ENTRY_PATTERNS:
+        match = pattern.match(line)
+        if match:
+            name, card_tags, comment = parse_card_suffix(match.group(2).strip())
+            return DeckEntry(
+                quantity=clamp_quantity(int(match.group(1))),
+                card_name=name,
+                section=section,
+                tags=card_tags,
+                comment=comment,
+                line_number=line_number,
+            )
+    return None
 
 
 def parse_deck_text(text: str) -> Deck:
@@ -94,50 +127,9 @@ def parse_deck_text(text: str) -> Deck:
                 )
             continue
 
-        # Sideboard entry
-        sb_match = _SIDEBOARD_PATTERN.match(line)
-        if sb_match:
-            raw_name = sb_match.group(2).strip()
-            card_tags = parse_inline_tags(raw_name)
-            entries.append(
-                DeckEntry(
-                    quantity=clamp_quantity(int(sb_match.group(1))),
-                    card_name=strip_inline_tags(raw_name).strip(),
-                    section=DeckSection.SIDEBOARD,
-                    tags=card_tags,
-                )
-            )
-            continue
-
-        # Commander entry
-        cmd_match = _COMMANDER_PATTERN.match(line)
-        if cmd_match:
-            raw_name = cmd_match.group(2).strip()
-            card_tags = parse_inline_tags(raw_name)
-            entries.append(
-                DeckEntry(
-                    quantity=clamp_quantity(int(cmd_match.group(1))),
-                    card_name=strip_inline_tags(raw_name).strip(),
-                    section=DeckSection.COMMANDER,
-                    tags=card_tags,
-                )
-            )
-            continue
-
-        # Mainboard entry
-        main_match = _MAINBOARD_PATTERN.match(line)
-        if main_match:
-            raw_name = main_match.group(2).strip()
-            card_tags = parse_inline_tags(raw_name)
-            entries.append(
-                DeckEntry(
-                    quantity=clamp_quantity(int(main_match.group(1))),
-                    card_name=strip_inline_tags(raw_name).strip(),
-                    section=DeckSection.MAIN,
-                    tags=card_tags,
-                )
-            )
-            continue
+        entry = _parse_entry_line(line, line_number)
+        if entry is not None:
+            entries.append(entry)
 
         # Invalid line — skip gracefully
 
@@ -169,8 +161,15 @@ def serialize_deck(deck: Deck) -> str:
         lines.append(f"// Author: {deck.metadata.author}")
     if deck.metadata.description:
         lines.append(f"// Description: {deck.metadata.description}")
+    if deck.metadata.source:
+        lines.append(f"// Source: {deck.metadata.source}")
     if deck.metadata.tags:
         lines.append(f"// Tags: {', '.join(sorted(deck.metadata.tags))}")
+
+    # Freeform comments (positions are not reconstructed, but the text
+    # must survive — :import and VCS cherry-pick serialize through here)
+    for comment in sorted(deck.comments, key=lambda c: c.line_number):
+        lines.append(comment.text)
 
     # Group entries by section
     sections_order = (
@@ -178,6 +177,7 @@ def serialize_deck(deck: Deck) -> str:
         DeckSection.COMPANION,
         DeckSection.MAIN,
         DeckSection.SIDEBOARD,
+        DeckSection.MAYBEBOARD,
     )
 
     for section in sections_order:
@@ -191,13 +191,17 @@ def serialize_deck(deck: Deck) -> str:
             lines.append("")
 
         for entry in section_entries:
-            tag_suffix = format_inline_tags(entry.tags)
+            suffix = format_inline_tags(entry.tags) + format_inline_comment(
+                entry.comment
+            )
             if section == DeckSection.SIDEBOARD:
-                lines.append(f"SB: {entry.quantity} {entry.card_name}{tag_suffix}")
+                lines.append(f"SB: {entry.quantity} {entry.card_name}{suffix}")
+            elif section == DeckSection.MAYBEBOARD:
+                lines.append(f"MB: {entry.quantity} {entry.card_name}{suffix}")
             elif section == DeckSection.COMMANDER:
-                lines.append(f"CMD: {entry.quantity} {entry.card_name}{tag_suffix}")
+                lines.append(f"CMD: {entry.quantity} {entry.card_name}{suffix}")
             else:
-                lines.append(f"{entry.quantity} {entry.card_name}{tag_suffix}")
+                lines.append(f"{entry.quantity} {entry.card_name}{suffix}")
 
     if lines:
         lines.append("")

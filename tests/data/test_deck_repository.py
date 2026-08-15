@@ -167,3 +167,73 @@ class TestDeckRepository:
         assert deck_path.exists()
         tmp_file = deck_path.with_suffix(".tmp")
         assert not tmp_file.exists()
+
+
+class TestLineNumbers:
+    def test_entries_carry_source_line_numbers(self) -> None:
+        text = (
+            "// Deck: T\n"          # 1
+            "\n"                    # 2
+            "CMD: 1 Atraxa\n"       # 3
+            "// a comment\n"        # 4
+            "4 Lightning Bolt\n"    # 5
+            "\n"                    # 6
+            "SB: 2 Rest in Peace\n"  # 7
+        )
+        deck = parse_deck_text(text)
+        by_name = {e.card_name: e.line_number for e in deck.entries}
+        assert by_name == {"Atraxa": 3, "Lightning Bolt": 5, "Rest in Peace": 7}
+
+
+class TestCardComments:
+    def test_parse_comment_into_entry(self) -> None:
+        deck = parse_deck_text("4 Lightning Bolt  // best burn spell\n")
+        assert deck.entries[0].card_name == "Lightning Bolt"
+        assert deck.entries[0].comment == "best burn spell"
+
+    def test_parse_comment_with_tags(self) -> None:
+        deck = parse_deck_text("4 Bolt  #burn #core  // cut for meta?\n")
+        entry = deck.entries[0]
+        assert entry.card_name == "Bolt"
+        assert entry.tags == frozenset({"burn", "core"})
+        assert entry.comment == "cut for meta?"
+
+    def test_serialize_comment_canonical_order(self) -> None:
+        deck = parse_deck_text("4 Bolt  #burn  // wincon\n")
+        assert "4 Bolt  #burn  // wincon" in serialize_deck(deck)
+
+    def test_comment_round_trip(self) -> None:
+        text = "CMD: 1 Atraxa  // partner?\n4 Bolt  // wincon\nSB: 1 Pyroblast  // vs blue\n"
+        reparsed = parse_deck_text(serialize_deck(parse_deck_text(text)))
+        comments = {e.card_name: e.comment for e in reparsed.entries}
+        assert comments == {
+            "Atraxa": "partner?", "Bolt": "wincon", "Pyroblast": "vs blue",
+        }
+
+
+class TestMetadataExtensions:
+    def test_empty_metadata_values_parse_as_empty(self) -> None:
+        deck = parse_deck_text("// Deck:\n// Format:\n// Tags:\n")
+        assert deck.metadata.name == ""
+        assert deck.metadata.format == ""
+        assert deck.metadata.tags == frozenset()
+        assert deck.comments == ()  # scaffold lines are metadata, not comments
+
+    def test_source_parse_and_serialize(self) -> None:
+        deck = parse_deck_text("// Source: https://example.com/d/1\n4 Bolt\n")
+        assert deck.metadata.source == "https://example.com/d/1"
+        assert "// Source: https://example.com/d/1" in serialize_deck(deck)
+
+    def test_serialize_preserves_freeform_comments(self) -> None:
+        text = "// Deck: T\n// my sideboard notes\n4 Bolt\n"
+        serialized = serialize_deck(parse_deck_text(text))
+        assert "// my sideboard notes" in serialized
+
+
+class TestMaybeboard:
+    def test_mb_round_trip(self) -> None:
+        deck = parse_deck_text("MB: 2 Chandra  #maybe  // testing\n")
+        entry = deck.entries[0]
+        assert entry.section.value == "maybeboard"
+        assert entry.card_name == "Chandra"
+        assert "MB: 2 Chandra  #maybe  // testing" in serialize_deck(deck)

@@ -225,6 +225,84 @@ class TestNormalSpecial:
         assert st.buffer.quantity_at(2) == 5
 
 
+# ── count prefixes on normal-mode specials (10+, 2x, 3p, …) ────────
+
+
+class TestCountedSpecials:
+    def test_counted_increment(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("+", count=10))
+        assert st.buffer.quantity_at(1) == 14
+
+    def test_counted_decrement(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("-", count=3))
+        assert st.buffer.quantity_at(1) == 1
+
+    def test_counted_decrement_past_zero_deletes_line(self) -> None:
+        st = _state(row=1)
+        before = st.buffer.line_count()
+        handle_normal_special(st, _act("-", count=4))
+        assert st.buffer.line_count() == before - 1
+
+    def test_counted_x_deletes_multiple_cards(self) -> None:
+        st = _state(row=1)
+        before = st.buffer.line_count()
+        handle_normal_special(st, _act("x", count=2))
+        assert st.buffer.line_count() == before - 2
+
+    def test_counted_put_pastes_multiple_copies(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("x"))  # yanks to unnamed register
+        before = st.buffer.line_count()
+        handle_normal_special(st, _act("p", count=3))
+        assert st.buffer.line_count() == before + 3
+
+    def test_counted_undo_redo(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("+"))
+        handle_normal_special(st, _act("+"))
+        handle_normal_special(st, _act("u", count=2))
+        assert st.buffer.quantity_at(1) == 4
+        handle_normal_special(st, _act("ctrl_r", count=2))
+        assert st.buffer.quantity_at(1) == 6
+
+    def test_counted_undo_stops_at_history_start(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("+"))
+        handle_normal_special(st, _act("u", count=99))
+        assert st.buffer.quantity_at(1) == 4
+
+    def test_dot_repeats_counted_quantity(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("+", count=5))
+        st.cursor = st.cursor.move_to(2, 0)
+        handle_normal_special(st, _act("."))
+        assert st.buffer.quantity_at(2) == 9  # 4 + 5
+
+    def test_counted_dot_overrides_recorded_count(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("+"))  # 4 -> 5, records count=1
+        handle_normal_special(st, _act(".", count=3))  # 5 -> 8
+        assert st.buffer.quantity_at(1) == 8
+
+    def test_dot_repeats_counted_x(self) -> None:
+        st = _state(row=1)
+        handle_normal_special(st, _act("x", count=2))
+        st.buffer = Buffer.from_text(DECK)
+        st.cursor = st.cursor.move_to(1, 0)
+        handle_normal_special(st, _act("."))
+        assert st.buffer.line_count() == Buffer.from_text(DECK).line_count() - 2
+
+    def test_counted_macro_replay(self) -> None:
+        st = _state(row=1)
+        st.macros.start_recording("a")
+        st.macros.record_key("+")
+        st.macros.stop_recording()
+        hr = handle_normal_special(st, _act("@a", count=3))
+        assert hr.replay_keys == ("+", "+", "+")
+
+
 # ── tag actions via normal special (t<x>) ──────────────────────────
 
 
@@ -427,3 +505,76 @@ class TestMarkAdjustment:
         mark = st.marks.get("a")
         assert mark is not None
         assert mark.row == 3
+
+
+# ── Zone moves (ms/mm/md) ──────────────────────────────────────────
+
+
+class TestZoneMoves:
+    def test_ms_moves_all_copies_to_sideboard(self) -> None:
+        state = _state(row=1)  # "4 Goblin Guide"
+        result = handle_normal_special(state, _act("ms", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert "SB: 4 Goblin Guide" in lines
+        assert "4 Goblin Guide" not in lines
+        assert state.modified
+        assert "Moved 4x Goblin Guide to sideboard" in result.command_message
+        # Cursor follows the card
+        assert state.cursor.row == lines.index("SB: 4 Goblin Guide")
+
+    def test_counted_ms_splits_entry(self) -> None:
+        state = _state(row=1)
+        handle_normal_special(state, _act("ms", count=1))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert "3 Goblin Guide" in lines
+        assert "SB: 1 Goblin Guide" in lines
+
+    def test_md_moves_sideboard_card_back(self) -> None:
+        state = _state("4 Goblin Guide\n\nSB: 2 Eidolon of the Great Revel\n", row=2)
+        handle_normal_special(state, _act("md", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert "2 Eidolon of the Great Revel" in lines
+        assert "SB: 2 Eidolon of the Great Revel" not in lines
+
+    def test_mm_moves_to_maybeboard(self) -> None:
+        state = _state(row=1)
+        handle_normal_special(state, _act("mm", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert "MB: 4 Goblin Guide" in lines
+
+    def test_ms_does_not_set_mark(self) -> None:
+        state = _state(row=1)
+        handle_normal_special(state, _act("ms", count=0))
+        assert state.marks.get("s") is None
+
+    def test_other_letters_still_set_marks(self) -> None:
+        state = _state(row=1)
+        result = handle_normal_special(state, _act("ma"))
+        assert "Mark 'a' set" in result.command_message
+        assert state.marks.get("a") is not None
+
+    def test_zone_move_records_history_for_undo(self) -> None:
+        state = _state(row=1)
+        original = state.buffer.to_text()
+        handle_normal_special(state, _act("ms", count=0))
+        restored = state.history.undo()
+        assert restored is not None
+        assert restored.to_text() == original
+
+    def test_dot_repeats_zone_move(self) -> None:
+        state = _state(row=1)
+        handle_normal_special(state, _act("ms", count=0))
+        # Move cursor to the next main-deck card and repeat
+        state.cursor = Cursor(row=state.buffer.get_lines().index(
+            next(bl for bl in state.buffer.get_lines()
+                 if bl.text == "4 Monastery Swiftspear")
+        ))
+        handle_normal_special(state, _act("."))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert "SB: 4 Monastery Swiftspear" in lines
+
+    def test_noop_on_comment_line_reports_error(self) -> None:
+        state = _state(row=0)  # "// Creatures"
+        result = handle_normal_special(state, _act("ms", count=0))
+        assert result.error
+        assert not state.modified

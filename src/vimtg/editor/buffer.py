@@ -16,9 +16,13 @@ from enum import Enum
 from vimtg.domain.deck_lines import (
     CARD_PATTERN,
     CMD_PATTERN,
-    METADATA_KEYS,
+    MB_PATTERN,
     SB_PATTERN,
     clamp_quantity,
+    format_inline_comment,
+    match_metadata,
+    parse_card_suffix,
+    split_inline_comment,
 )
 from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
 
@@ -28,6 +32,7 @@ class LineType(Enum):
     SECTION_HEADER = "section"
     CARD_ENTRY = "card"
     SIDEBOARD_ENTRY = "sideboard"
+    MAYBEBOARD_ENTRY = "maybeboard"
     COMMANDER_ENTRY = "commander"
     BLANK = "blank"
     METADATA = "metadata"
@@ -37,16 +42,17 @@ SECTION_HEADERS = frozenset({
     "Creatures", "Creature", "Spells", "Lands", "Land", "Sideboard",
     "Enchantments", "Enchantment", "Artifacts", "Artifact",
     "Planeswalkers", "Planeswalker", "Instants", "Instant",
-    "Sorceries", "Sorcery", "Mainboard",
+    "Sorceries", "Sorcery", "Mainboard", "Maybeboard",
     "Other", "Commander", "Companion",
 })
 
 _CARD_PATTERN = CARD_PATTERN
 _SB_PATTERN = SB_PATTERN
+_MB_PATTERN = MB_PATTERN
 _CMD_PATTERN = CMD_PATTERN
 # Splits a card line into (prefix+leading-ws, quantity, rest) so the quantity
 # can be replaced in place without disturbing the prefix, name, or tags.
-_QUANTITY_SUB = re.compile(r"^(\s*(?:SB:|CMD:)?\s*)(\d+)(\s.*)$", re.DOTALL)
+_QUANTITY_SUB = re.compile(r"^(\s*(?:SB:|MB:|CMD:)?\s*)(\d+)(\s.*)$", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -61,16 +67,15 @@ def classify_line(text: str) -> LineType:
     if not stripped:
         return LineType.BLANK
     if stripped.startswith("//"):
-        content = stripped[2:].strip()
-        if ":" in content:
-            key = content.split(":")[0].strip()
-            if key in METADATA_KEYS:
-                return LineType.METADATA
-        if content in SECTION_HEADERS:
+        if match_metadata(stripped) is not None:
+            return LineType.METADATA
+        if stripped[2:].strip() in SECTION_HEADERS:
             return LineType.SECTION_HEADER
         return LineType.COMMENT
     if _SB_PATTERN.match(stripped):
         return LineType.SIDEBOARD_ENTRY
+    if _MB_PATTERN.match(stripped):
+        return LineType.MAYBEBOARD_ENTRY
     if _CMD_PATTERN.match(stripped):
         return LineType.COMMANDER_ENTRY
     if _CARD_PATTERN.match(stripped):
@@ -81,11 +86,12 @@ def classify_line(text: str) -> LineType:
 CARD_LINE_TYPES = frozenset({
     LineType.CARD_ENTRY,
     LineType.SIDEBOARD_ENTRY,
+    LineType.MAYBEBOARD_ENTRY,
     LineType.COMMANDER_ENTRY,
 })
 _CARD_LINE_TYPES = CARD_LINE_TYPES
 
-_CARD_PATTERNS = (_CARD_PATTERN, _SB_PATTERN, _CMD_PATTERN)
+_CARD_PATTERNS = (_CARD_PATTERN, _SB_PATTERN, _MB_PATTERN, _CMD_PATTERN)
 
 
 class Buffer:
@@ -166,20 +172,15 @@ class Buffer:
     def card_name_at(self, line: int) -> str | None:
         """Extract card name from a card/sideboard/commander line.
 
-        Strips trailing inline tags (e.g. '  #core #burn') before returning.
+        Strips trailing inline tags ('  #core') and the inline comment
+        ('  // note') before returning.
         """
-        if line < 0 or line >= self.line_count():
+        if not self.is_card_line(line):
             return None
-        bl = self._lines[line]
-        if bl.line_type == LineType.CARD_ENTRY:
-            m = _CARD_PATTERN.match(bl.text.strip())
-            return strip_inline_tags(m.group(2)).strip() if m else None
-        if bl.line_type == LineType.SIDEBOARD_ENTRY:
-            m = _SB_PATTERN.match(bl.text.strip())
-            return strip_inline_tags(m.group(2)).strip() if m else None
-        if bl.line_type == LineType.COMMANDER_ENTRY:
-            m = _CMD_PATTERN.match(bl.text.strip())
-            return strip_inline_tags(m.group(2)).strip() if m else None
+        for pattern in _CARD_PATTERNS:
+            m = pattern.match(self._lines[line].text.strip())
+            if m:
+                return parse_card_suffix(m.group(2))[0]
         return None
 
     def quantity_at(self, line: int) -> int | None:
@@ -247,20 +248,44 @@ class Buffer:
         """Extract the tag set from a card line. Returns empty set for non-card lines."""
         if not self.is_card_line(line):
             return frozenset()
-        text = self._lines[line].text
+        # Split the comment off first — '#word' inside a comment is prose
+        base, _ = split_inline_comment(self._lines[line].text)
         # Only parse tags after the two-space delimiter
-        idx = text.find("  #")
+        idx = base.find("  #")
         if idx == -1:
             return frozenset()
-        return parse_inline_tags(text[idx:])
+        return parse_inline_tags(base[idx:])
 
     def set_tags(self, line: int, tags: frozenset[str]) -> Buffer:
-        """Return new Buffer with the tag suffix on line replaced."""
+        """Return new Buffer with the tag suffix on line replaced.
+
+        The inline comment (if any) is preserved after the tags.
+        """
         if not self.is_card_line(line):
             return self
-        text = self._lines[line].text
-        base = strip_inline_tags(text)
-        return self.set_line(line, base + format_inline_tags(tags))
+        base, comment = split_inline_comment(self._lines[line].text)
+        new_text = (
+            strip_inline_tags(base)
+            + format_inline_tags(tags)
+            + format_inline_comment(comment)
+        )
+        return self.set_line(line, new_text)
+
+    def comment_at(self, line: int) -> str:
+        """Inline comment on a card line ('' for none / non-card lines)."""
+        if not self.is_card_line(line):
+            return ""
+        return split_inline_comment(self._lines[line].text)[1]
+
+    def set_comment(self, line: int, comment: str) -> Buffer:
+        """Return new Buffer with the inline comment on a card line replaced.
+
+        An empty comment removes the suffix. Non-card lines are unchanged.
+        """
+        if not self.is_card_line(line):
+            return self
+        base, _ = split_inline_comment(self._lines[line].text)
+        return self.set_line(line, base + format_inline_comment(comment))
 
     def add_tag(self, line: int, tag: str) -> Buffer:
         """Return new Buffer with tag added to the card at line."""

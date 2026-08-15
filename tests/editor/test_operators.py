@@ -1,11 +1,12 @@
 """Tests for vimtg.editor.operators — vim-style operators."""
 
-from vimtg.editor.buffer import Buffer
+from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.operators import (
     decrement_quantity,
     execute_operator,
     increment_quantity,
+    move_to_zone,
     put_lines,
 )
 from vimtg.editor.registers import RegisterStore
@@ -188,6 +189,11 @@ class TestIncrementQuantity:
         new_buf = increment_quantity(buf, _make_cursor(row=0))
         assert new_buf.get_line(0).text == "CMD: 2 Atraxa, Praetors' Voice"
 
+    def test_increment_with_count(self) -> None:
+        buf = _make_buffer()
+        new_buf = increment_quantity(buf, _make_cursor(row=1), count=10)
+        assert new_buf.get_line(1).text == "14 Ragavan, Nimble Pilferer"
+
 
 class TestDecrementQuantity:
     def test_decrement_card(self) -> None:
@@ -195,6 +201,17 @@ class TestDecrementQuantity:
         cursor = _make_cursor(row=1)  # "4 Ragavan..."
         new_buf, _ = decrement_quantity(buf, cursor)
         assert new_buf.get_line(1).text == "3 Ragavan, Nimble Pilferer"
+
+    def test_decrement_with_count(self) -> None:
+        buf = _make_buffer()
+        new_buf, _ = decrement_quantity(buf, _make_cursor(row=1), count=3)
+        assert new_buf.get_line(1).text == "1 Ragavan, Nimble Pilferer"
+
+    def test_decrement_count_past_zero_deletes(self) -> None:
+        buf = Buffer.from_text("// Deck\n4 Ragavan, Nimble Pilferer\n4 Other Card")
+        new_buf, _ = decrement_quantity(buf, _make_cursor(row=1), count=9)
+        assert new_buf.line_count() == 2
+        assert new_buf.get_line(1).text == "4 Other Card"
 
     def test_decrement_to_zero_deletes(self) -> None:
         # Create a buffer with a 1-count card
@@ -226,3 +243,104 @@ class TestDecrementQuantity:
         buf = Buffer.from_text("2 Atraxa\nCMD: 2 Najeela\n")
         new_buf, _ = decrement_quantity(buf, _make_cursor(row=1))
         assert new_buf.get_line(1).text == "CMD: 1 Najeela"
+
+
+class TestMoveToZone:
+    def _lines(self, buf: Buffer) -> list[str]:
+        return [bl.text for bl in buf.get_lines()]
+
+    def test_move_all_copies_to_sideboard(self) -> None:
+        buf = _make_buffer()
+        result = move_to_zone(
+            buf, _make_cursor(row=4), LineType.SIDEBOARD_ENTRY
+        )
+        assert result.moved
+        lines = self._lines(result.buffer)
+        assert "4 Lightning Bolt" not in lines
+        assert "SB: 4 Lightning Bolt" in lines
+        # Joins the existing sideboard block, after its last entry
+        assert lines.index("SB: 4 Lightning Bolt") == (
+            lines.index("SB: 2 Engineered Explosives") + 1
+        )
+        assert result.cursor.row == lines.index("SB: 4 Lightning Bolt")
+        assert "Moved 4x Lightning Bolt to sideboard" in result.message
+
+    def test_partial_move_splits_entry(self) -> None:
+        buf = _make_buffer()
+        result = move_to_zone(
+            buf, _make_cursor(row=4), LineType.SIDEBOARD_ENTRY, count=1
+        )
+        lines = self._lines(result.buffer)
+        assert "3 Lightning Bolt" in lines
+        assert "SB: 1 Lightning Bolt" in lines
+        assert "(3 remain)" in result.message
+
+    def test_count_capped_at_quantity(self) -> None:
+        buf = _make_buffer()
+        result = move_to_zone(
+            buf, _make_cursor(row=4), LineType.SIDEBOARD_ENTRY, count=99
+        )
+        lines = self._lines(result.buffer)
+        assert "SB: 4 Lightning Bolt" in lines
+        assert "4 Lightning Bolt" not in lines
+
+    def test_merges_into_existing_target_entry(self) -> None:
+        buf = Buffer.from_text(
+            "4 Lightning Bolt\n2 Goblin Guide\n\nSB: 2 Lightning Bolt\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY
+        )
+        lines = self._lines(result.buffer)
+        assert "SB: 6 Lightning Bolt" in lines
+        assert not any(line == "4 Lightning Bolt" for line in lines)
+
+    def test_move_to_maybeboard_opens_new_block(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n2 Goblin Guide\n")
+        result = move_to_zone(
+            buf, _make_cursor(row=1), LineType.MAYBEBOARD_ENTRY
+        )
+        lines = self._lines(result.buffer)
+        # Blank-separated block at the end of the buffer
+        assert lines[-2:] == ["", "MB: 2 Goblin Guide"]
+
+    def test_move_sideboard_card_to_main(self) -> None:
+        buf = _make_buffer()
+        sb_row = self._lines(buf).index("SB: 2 Engineered Explosives")
+        result = move_to_zone(
+            buf, _make_cursor(row=sb_row), LineType.CARD_ENTRY
+        )
+        lines = self._lines(result.buffer)
+        assert "2 Engineered Explosives" in lines
+        assert "SB: 2 Engineered Explosives" not in lines
+        # Lands in the main block, after its last entry
+        assert lines.index("2 Engineered Explosives") == (
+            lines.index("3 Unholy Heat") + 1
+        )
+
+    def test_preserves_tags_and_comment(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt  #burn  // never cut\n")
+        result = move_to_zone(
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY
+        )
+        assert "SB: 4 Lightning Bolt  #burn  // never cut" in self._lines(
+            result.buffer
+        )
+
+    def test_noop_on_non_card_line(self) -> None:
+        buf = _make_buffer()
+        result = move_to_zone(
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY
+        )
+        assert not result.moved
+        assert result.buffer is buf
+        assert result.message.startswith("E:")
+
+    def test_noop_when_already_in_zone(self) -> None:
+        buf = _make_buffer()
+        sb_row = self._lines(buf).index("SB: 2 Engineered Explosives")
+        result = move_to_zone(
+            buf, _make_cursor(row=sb_row), LineType.SIDEBOARD_ENTRY
+        )
+        assert not result.moved
+        assert "Already in sideboard" in result.message

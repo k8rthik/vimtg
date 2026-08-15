@@ -72,6 +72,29 @@ class TestCountMotion:
         assert action is not None
         assert action.count == 12
 
+    def test_count_reaches_special_key(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed("1")
+        km.feed("0")
+        result, action = km.feed("+")
+        assert result == KeyResult.COMPLETE
+        assert action is not None
+        assert action.action == "+"
+        assert action.count == 10
+
+    def test_pending_display_shows_count(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        assert km.pending_display == ""
+        km.feed("1")
+        km.feed("0")
+        assert km.pending_display == "10"
+        km.feed("d")
+        assert km.pending_display == "10d"
+        km.feed("3")
+        assert km.pending_display == "10d3"
+        km.feed("d")
+        assert km.pending_display == ""  # sequence completed
+
 
 class TestModeSwitch:
     def test_i_mode_switch(self) -> None:
@@ -688,3 +711,45 @@ class TestCommandCursorMovement:
         _, action = km.feed("left")
         assert action is not None
         assert action.cursor_pos == 3
+
+
+class TestZoneMoveKeys:
+    def test_ms_completes_with_no_count_sentinel(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        r1, a1 = km.feed("m")
+        assert r1 == KeyResult.PENDING
+        r2, a2 = km.feed("s")
+        assert r2 == KeyResult.COMPLETE
+        assert a2 is not None
+        assert a2.action_type == "special"
+        assert a2.action == "ms"
+        # 0 = "no count given" — move every copy
+        assert a2.count == 0
+
+    def test_counted_zone_move(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed("3")
+        km.feed("m")
+        result, action = km.feed("m")
+        assert result == KeyResult.COMPLETE
+        assert action is not None
+        assert action.action == "mm"
+        assert action.count == 3
+
+    def test_md_completes(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed("m")
+        result, action = km.feed("d")
+        assert result == KeyResult.COMPLETE
+        assert action is not None
+        assert action.action == "md"
+        assert action.count == 0
+
+    def test_other_letters_still_set_marks(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed("m")
+        result, action = km.feed("a")
+        assert result == KeyResult.COMPLETE
+        assert action is not None
+        assert action.action == "ma"
+        assert action.count == 1

@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 HELP_OVERVIEW = """
+COUNTS
+  {n}key        Repeat/scale any motion or edit: 5j down 5 lines,
+                3dd delete 3 cards, 10+ add 10 to quantity,
+                2x delete 2 cards, 3p paste 3 copies, 3@a play macro 3x
+
 NAVIGATION
   j/k           Move down/up
   gg/G          First/last line
@@ -10,11 +15,13 @@ NAVIGATION
   {/}           Prev/next section
   [[/]]         Prev/next section header
   Ctrl-D/U      Half page down/up
-  m{a-z}        Set mark
+  m{a-z}        Set mark (s/m/d are taken by zone moves)
   '{a-z}        Jump to mark
 
 EDITING
   i             Edit current line as plain text
+                (on // Key: metadata lines, edits just the value)
+  A             Add/edit card comment (empty removes)
   o/O           Add card (new line below / above)
   dd            Delete card line
   x             Delete card line (into register)
@@ -22,6 +29,8 @@ EDITING
   p/P           Paste below/above
   "{a-z}        Use named register for yank/paste
   +/-           Increment/decrement quantity
+  ms/mm/md      Move card to sideboard/maybeboard/main deck
+                (all copies; 2ms moves just 2)
   .             Repeat last change
   u / Ctrl-R    Undo / redo
   q{a-z} / q    Record macro / stop recording

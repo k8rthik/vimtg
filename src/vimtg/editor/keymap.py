@@ -51,7 +51,7 @@ MODE_SWITCHES: dict[str, str] = {
     ":": "COMMAND",
     "/": "SEARCH",
 }
-SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?"})
+SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "A"})
 MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@"})
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 
@@ -111,6 +111,15 @@ class KeyMap:
         """True mid-sequence (count, operator, register, or multi-key prefix)."""
         return self._state != _State.IDLE
 
+    @property
+    def pending_display(self) -> str:
+        """The in-progress key sequence for status display (e.g. "10", "2d")."""
+        register = f'"{self._register}' if self._register else ""
+        return (
+            register + self._count_str + (self._operator or "")
+            + self._operator_count_str + self._multi_key_prefix
+        )
+
     def set_mode(self, mode: Mode) -> None:
         self._mode = mode
         self.reset()
@@ -157,7 +166,12 @@ class KeyMap:
             self._state = _State.IDLE
             return KeyResult.PENDING, None
 
-        if key.isdigit() and key != "0" and self._state in (_State.IDLE, _State.COUNT):
+        # "0" starts the line-start motion when no count is pending, but
+        # extends an in-progress count ("10j"), matching vim.
+        if key.isdigit() and (
+            self._state == _State.COUNT
+            or (key != "0" and self._state == _State.IDLE)
+        ):
             self._count_str += key
             self._state = _State.COUNT
             return KeyResult.PENDING, None
@@ -183,6 +197,16 @@ class KeyMap:
             full_key = self._multi_key_prefix + key
             if full_key in ("gg", "[[", "]]"):
                 action = ParsedAction("motion", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # m{s,m,d} — move card to sideboard/maybeboard/main deck.
+            # Count 0 is the "no count given" sentinel (like G): a bare
+            # move takes every copy, "3ms" splits off 3.
+            if self._multi_key_prefix == "m" and key in ("s", "m", "d"):
+                explicit_count = int(self._count_str) if self._count_str else 0
+                action = ParsedAction(
+                    "special", full_key, explicit_count, self._register
+                )
                 self.reset()
                 return KeyResult.COMPLETE, action
             # m{a-z} — set mark, '{a-z} — jump to mark

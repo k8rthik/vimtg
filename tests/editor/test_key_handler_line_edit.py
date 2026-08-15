@@ -67,12 +67,24 @@ class TestIModeSwitch:
         assert state.line_edit_prefix == ""
         assert state.line_edit_original == ""
 
-    def test_i_on_metadata_sets_prefix(self) -> None:
+    def test_i_on_metadata_locks_key_prefix(self) -> None:
         state = _make_state("// Deck: Burn\n// Creature\n4 Goblin Guide\n")
         action = ParsedAction("mode_switch", "i")
         handle_mode_switch(state, action)
-        assert state.line_edit_prefix == "// "
+        assert state.line_edit_prefix == "// Deck: "
         assert state.line_edit_original == "// Deck: Burn"
+
+    def test_i_on_empty_metadata_gets_trailing_space(self) -> None:
+        state = _make_state("// Format:\n4 Goblin Guide\n")
+        action = ParsedAction("mode_switch", "i")
+        handle_mode_switch(state, action)
+        assert state.line_edit_prefix == "// Format: "
+
+    def test_i_on_plain_comment_keeps_marker_prefix(self) -> None:
+        state = _make_state("// just notes\n4 Goblin Guide\n")
+        action = ParsedAction("mode_switch", "i")
+        handle_mode_switch(state, action)
+        assert state.line_edit_prefix == "// "
 
 
 class TestLineEditSpecial:

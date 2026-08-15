@@ -9,6 +9,7 @@ from enum import Enum
 class DeckSection(Enum):
     MAIN = "main"
     SIDEBOARD = "sideboard"
+    MAYBEBOARD = "maybeboard"
     COMMANDER = "commander"
     COMPANION = "companion"
 
@@ -19,6 +20,10 @@ class DeckEntry:
     card_name: str
     section: DeckSection
     tags: frozenset[str] = frozenset()
+    comment: str = ""
+    # 1-based source line when parsed from text; None for entries
+    # built programmatically.
+    line_number: int | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +38,7 @@ class DeckMetadata:
     format: str = ""
     author: str = ""
     description: str = ""
+    source: str = ""
     tags: frozenset[str] = frozenset()
 
 
@@ -53,6 +59,11 @@ class Deck:
     def sideboard(self) -> tuple[DeckEntry, ...]:
         return tuple(
             e for e in self.entries if e.section == DeckSection.SIDEBOARD
+        )
+
+    def maybeboard(self) -> tuple[DeckEntry, ...]:
+        return tuple(
+            e for e in self.entries if e.section == DeckSection.MAYBEBOARD
         )
 
     def unique_card_names(self) -> frozenset[str]:

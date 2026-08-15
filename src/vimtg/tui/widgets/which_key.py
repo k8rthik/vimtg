@@ -26,6 +26,7 @@ NORMAL_HINTS = {
     ],
     "Editing": [
         ("i", "edit line"),
+        ("A", "comment card"),
         ("o/O", "add card"),
         ("dd", "delete card"),
         ("yy", "yank card"),
@@ -59,7 +60,10 @@ PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
     "\"": [("\"a-z", "named register"), ("\"0", "yank register"), ("\"1-9", "delete history")],
     "q": [("qa-z", "record macro"), ("q (stop)", "stop recording")],
     "@": [("@a-z", "play macro"), ("@@", "replay last")],
-    "m": [("ma-z", "set mark")],
+    "m": [
+        ("ms", "→ sideboard"), ("mm", "→ maybeboard"), ("md", "→ main deck"),
+        ("ma-z", "set mark"),
+    ],
     "'": [("'a-z", "jump to mark")],
     "t": [
         ("ta", "add tag"), ("tr", "remove tag"), ("tt", "toggle tag"),

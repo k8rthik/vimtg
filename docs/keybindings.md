@@ -7,7 +7,7 @@ flagged otherwise.
 
 | Key | From → To | Notes |
 |-----|-----------|-------|
-| `i` | normal → line-edit | Edit the current card line in place |
+| `i` | normal → line-edit | Edit the current line in place; on `// Key:` metadata lines only the value is editable |
 | `o` | normal → insert | Open a card-search prompt below the cursor |
 | `O` | normal → insert | Open a card-search prompt above the cursor |
 | `a` | normal → insert | Like `o`, but appends to the same section |
@@ -38,6 +38,7 @@ flagged otherwise.
 
 | Key | Action |
 |-----|--------|
+| `A` | Add/edit the card's inline comment (`// …`); confirming empty text removes it |
 | `dd` | Delete current line into the unnamed register |
 | `yy` | Yank current line |
 | `cc` | Change current line (delete + insert) |

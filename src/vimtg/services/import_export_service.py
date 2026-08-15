@@ -260,9 +260,12 @@ class ImportExportService:
             # DictReader yields None (not the default) for short rows
             name = row.get("Name") or ""
             section_str = (row.get("Section") or "mainboard").lower()
-            section = (
-                DeckSection.SIDEBOARD if "side" in section_str else DeckSection.MAIN
-            )
+            if "side" in section_str:
+                section = DeckSection.SIDEBOARD
+            elif "maybe" in section_str:
+                section = DeckSection.MAYBEBOARD
+            else:
+                section = DeckSection.MAIN
             if name:
                 entries.append(DeckEntry(qty, name, section))
         return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
@@ -284,6 +287,8 @@ class ImportExportService:
             writer.writerow(self._moxfield_row(e, resolved, "mainboard"))
         for e in deck.sideboard():
             writer.writerow(self._moxfield_row(e, resolved, "sideboard"))
+        for e in deck.maybeboard():
+            writer.writerow(self._moxfield_row(e, resolved, "maybeboard"))
         return output.getvalue()
 
     # ------------------------------------------------------------------

@@ -17,8 +17,9 @@ from typing import TYPE_CHECKING, Any
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
+from vimtg.domain.deck_lines import split_metadata_prefix
 from vimtg.domain.tags import TagFilter, format_tag_summary
-from vimtg.editor.buffer import Buffer
+from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
 from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
 from vimtg.editor.cursor import Cursor
@@ -29,9 +30,11 @@ from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.motions import MOTION_REGISTRY, motion_goto_line
 from vimtg.editor.operators import (
+    ZONE_LABELS,
     decrement_quantity,
     execute_operator,
     increment_quantity,
+    move_to_zone,
     put_lines,
     resolve_line_range,
 )
@@ -51,6 +54,7 @@ class InsertSubmode(Enum):
     CARD_SEARCH = "card_search"
     LINE_EDIT = "line_edit"
     TAG_INPUT = "tag_input"
+    COMMENT_INPUT = "comment_input"
 
 
 @dataclass
@@ -109,6 +113,8 @@ class HandlerResult:
     enter_line_edit: bool = False
     enter_tag_input: bool = False
     tag_prompt: str = ""
+    enter_comment_input: bool = False
+    comment_prefill: str = ""
     replay_keys: tuple[str, ...] = ()  # macro playback via the key pipeline
 
 
@@ -186,8 +192,13 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         state.insert_submode = InsertSubmode.LINE_EDIT
         state.line_edit_original = line_text
         state.line_edit_row = state.cursor.row
+        # On metadata lines, lock the whole '// Key: ' prefix so the
+        # user edits only the value
+        meta = split_metadata_prefix(line_text)
+        if meta is not None:
+            state.line_edit_prefix = meta[0]
         # Protect the // comment marker — user edits only the content after it
-        if line_text.lstrip().startswith("//"):
+        elif line_text.lstrip().startswith("//"):
             idx = line_text.index("//") + 2
             # Include trailing space after // if present
             if idx < len(line_text) and line_text[idx] == " ":
@@ -264,58 +275,69 @@ def handle_command(
 
 
 def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
-    """Process normal-mode special keys (u, p, +, -, x, ., q, @, m, ')."""
+    """Process normal-mode special keys (u, p, +, -, x, ., q, @, m, ').
+
+    A count prefix repeats or scales the action vim-style: 10+ adds 10
+    to the quantity, 2x deletes two cards, 3p pastes three copies.
+    """
     key = action.action
+    count = action.count if action.count > 0 else 1
     if key == "u":
-        restored = state.history.undo()
-        if restored:
+        for _ in range(count):
+            restored = state.history.undo()
+            if restored is None:
+                break
             state.buffer = restored
             state.modified = True
     elif key == "ctrl_r":
-        restored = state.history.redo()
-        if restored:
+        for _ in range(count):
+            restored = state.history.redo()
+            if restored is None:
+                break
             state.buffer = restored
             state.modified = True
-    elif key == "p":
+    elif key in ("p", "P"):
         before = state.buffer.line_count()
-        state.buffer, state.cursor = put_lines(
-            state.buffer, state.cursor, state.registers, action.register,
-        )
+        for _ in range(count):
+            state.buffer, state.cursor = put_lines(
+                state.buffer, state.cursor, state.registers, action.register,
+                above=(key == "P"),
+            )
         inserted = state.buffer.line_count() - before
         if inserted > 0:
             state.marks = state.marks.update_for_insert(state.cursor.row, inserted)
-        state.modified = True
-        state.history.record(state.buffer, "put")
-    elif key == "P":
-        before = state.buffer.line_count()
-        state.buffer, state.cursor = put_lines(
-            state.buffer, state.cursor, state.registers, action.register,
-            above=True,
-        )
-        inserted = state.buffer.line_count() - before
-        if inserted > 0:
-            state.marks = state.marks.update_for_insert(state.cursor.row, inserted)
-        state.modified = True
-        state.history.record(state.buffer, "put above")
+            state.modified = True
+            state.history.record(
+                state.buffer, "put" if key == "p" else "put above"
+            )
     elif key == "+":
-        state.buffer = increment_quantity(state.buffer, state.cursor)
+        state.buffer = increment_quantity(state.buffer, state.cursor, count)
         state.modified = True
         state.history.record(state.buffer, "increment")
-        state.dot_repeat.record(RepeatableAction("quantity", operator="+"))
+        state.dot_repeat.record(
+            RepeatableAction("quantity", operator="+", count=count)
+        )
     elif key == "-":
         state.buffer, state.cursor = decrement_quantity(
-            state.buffer, state.cursor,
+            state.buffer, state.cursor, count,
         )
         state.modified = True
         state.history.record(state.buffer, "decrement")
-        state.dot_repeat.record(RepeatableAction("quantity", operator="-"))
+        state.dot_repeat.record(
+            RepeatableAction("quantity", operator="-", count=count)
+        )
     elif key == "x":
-        _delete_card_at_cursor(state)
-        state.dot_repeat.record(RepeatableAction("operator", operator="x"))
+        for _ in range(count):
+            _delete_card_at_cursor(state)
+        state.dot_repeat.record(
+            RepeatableAction("operator", operator="x", count=count)
+        )
     elif key == "?":
         return HandlerResult(help_requested=True)
     elif key == ".":
-        _replay_dot(state)
+        # A count given to '.' replaces the recorded one (vim semantics);
+        # count=1 is indistinguishable from "no count", so only >1 overrides.
+        _replay_dot(state, count if count > 1 else None)
     elif key == "q_stop":
         register = state.macros.recording_register or "?"
         macro = state.macros.stop_recording()
@@ -332,7 +354,11 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             return HandlerResult(
                 command_message=f"Nothing recorded in @{key[1]}"
             )
-        return HandlerResult(replay_keys=keys)
+        return HandlerResult(replay_keys=keys * count)
+    elif key in ("ms", "mm", "md"):
+        # Zone moves shadow marks s/m/d; action.count is read raw because
+        # 0 means "no count given" — move every copy (see keymap).
+        return _move_card_to_zone(state, key, action.count)
     elif key.startswith("m") and len(key) == 2:
         mark_name = key[1]
         state.marks = state.marks.set(mark_name, state.cursor.row)
@@ -351,6 +377,41 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             )
     elif key.startswith("t") and len(key) == 2:
         return _handle_tag_action(state, key[1])
+    elif key == "A":
+        return _handle_comment_action(state)
+    return HandlerResult()
+
+
+def _handle_comment_action(state: EditorState) -> HandlerResult:
+    """Enter comment-input mode for the card under the cursor (A key)."""
+    if not state.buffer.is_card_line(state.cursor.row):
+        return HandlerResult(command_message="Comments attach to card lines")
+    state.visual_anchor = None
+    state.insert_submode = InsertSubmode.COMMENT_INPUT
+    return HandlerResult(
+        enter_comment_input=True,
+        comment_prefill=state.buffer.comment_at(state.cursor.row),
+    )
+
+
+def handle_comment_input_special(
+    state: EditorState, action: ParsedAction
+) -> HandlerResult:
+    """Process comment-input keys. Only Enter mutates the buffer, so
+    Escape cancels for free via the shared exit-to-normal path."""
+    key = action.action
+    if key == "enter":
+        text = (action.text or "").strip()
+        row = state.cursor.row
+        old = state.buffer.comment_at(row)
+        state.insert_submode = InsertSubmode.CARD_SEARCH
+        message = ""
+        if text != old:
+            state.buffer = state.buffer.set_comment(row, text)
+            state.modified = True
+            state.history.record(state.buffer, "edit comment")
+            message = "Comment removed" if not text else "Comment set"
+        return HandlerResult(exit_to_normal=True, command_message=message)
     return HandlerResult()
 
 
@@ -489,18 +550,57 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
     return ""
 
 
-def _replay_dot(state: EditorState) -> None:
-    """Replay the last repeatable action."""
+# ms/mm/md → the zone (line type) each move key targets
+ZONE_TARGETS: dict[str, LineType] = {
+    "md": LineType.CARD_ENTRY,
+    "ms": LineType.SIDEBOARD_ENTRY,
+    "mm": LineType.MAYBEBOARD_ENTRY,
+}
+
+
+def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResult:
+    """ms/mm/md — move the card at the cursor to another zone.
+
+    count == 0 moves every copy; a positive count splits that many off.
+    """
+    target = ZONE_TARGETS[key]
+    result = move_to_zone(state.buffer, state.cursor, target, count)
+    if not result.moved:
+        return HandlerResult(
+            command_message=result.message,
+            error=result.message.startswith("E:"),
+        )
+    if result.deleted_row is not None:
+        state.marks = state.marks.update_for_delete(
+            result.deleted_row, result.deleted_row
+        )
+    if result.inserted_row is not None:
+        state.marks = state.marks.update_for_insert(result.inserted_row, 1)
+    state.buffer = result.buffer
+    state.cursor = result.cursor
+    state.modified = True
+    state.history.record(state.buffer, f"move to {ZONE_LABELS[target]}")
+    state.dot_repeat.record(RepeatableAction("zone", operator=key, count=count))
+    return HandlerResult(command_message=result.message)
+
+
+def _replay_dot(state: EditorState, count_override: int | None = None) -> None:
+    """Replay the last repeatable action, optionally with a new count."""
     last = state.dot_repeat.last_action
     if last is None:
         return
+    count = count_override if count_override is not None else last.count
+    if last.action_type == "zone" and last.operator:
+        _move_card_to_zone(state, last.operator, count)
+        return
     if last.action_type == "operator" and last.operator:
         if last.operator == "x":
-            _delete_card_at_cursor(state)
+            for _ in range(count):
+                _delete_card_at_cursor(state)
         else:
             result = execute_operator(
                 last.operator, last.motion, state.cursor, state.buffer,
-                last.count, state.registers, last.register,
+                count, state.registers, last.register,
             )
             state.buffer = result.buffer
             state.cursor = result.cursor
@@ -509,10 +609,10 @@ def _replay_dot(state: EditorState) -> None:
             state.history.record(state.buffer, "dot repeat")
     elif last.action_type == "quantity":
         if last.operator == "+":
-            state.buffer = increment_quantity(state.buffer, state.cursor)
+            state.buffer = increment_quantity(state.buffer, state.cursor, count)
         elif last.operator == "-":
             state.buffer, state.cursor = decrement_quantity(
-                state.buffer, state.cursor,
+                state.buffer, state.cursor, count,
             )
         state.modified = True
         state.history.record(state.buffer, "dot repeat")
@@ -550,6 +650,12 @@ def handle_line_edit_special(state: EditorState, action: ParsedAction) -> Handle
     if key == "enter":
         # Confirm: record history, clear original (signals "confirmed, don't restore")
         if row is not None:
+            # A cleared metadata value leaves '// Format: ' — drop the
+            # trailing space so the committed line is '// Format:'
+            if row < state.buffer.line_count():
+                committed = state.buffer.get_line(row).text
+                if committed.rstrip() != committed:
+                    state.buffer = state.buffer.set_line(row, committed.rstrip())
             state.history.record(state.buffer, "edit line")
             state.modified = True
         state.line_edit_original = None

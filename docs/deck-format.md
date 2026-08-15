@@ -13,8 +13,8 @@ Each line is one of:
 |------|---------|---------|
 | Metadata | `// key: value` | `// Deck: Burn` |
 | Section header | `// header text` | `// Creatures` |
-| Card entry | `[N] CardName [#tag …]` | `4 Lightning Bolt #removal` |
-| Sideboard entry | `SB: [N] CardName [#tag …]` | `SB: 2 Rest in Peace` |
+| Card entry | `[N] CardName [#tag …] [// comment]` | `4 Lightning Bolt  #removal  // core` |
+| Sideboard entry | `SB: [N] CardName [#tag …] [// comment]` | `SB: 2 Rest in Peace` |
 | Blank | (empty) | |
 
 ## Metadata keys
@@ -26,7 +26,13 @@ Recognized at the top of the file:
 | `Deck` | Deck name (used in greeter, history) |
 | `Format` | Format name (`modern`, `legacy`, `commander`, …) |
 | `Author` | Optional |
-| `Source` | Optional |
+| `Source` | Optional (URL or provenance note) |
+| `Tags` | Deck-level tags, comma-separated |
+
+Values may be empty (`// Format:`) — new decks are scaffolded with empty
+`// Deck:`, `// Format:`, and `// Tags:` lines, and any deck missing them
+gets them added (in the buffer only) on open. Press `i` on a metadata line
+to edit just the value; the `// Key:` prefix is locked.
 
 Unknown keys are preserved on save.
 
@@ -55,6 +61,10 @@ section header. Sections are purely visual — they affect rendering and the
   the separator (`Bonecrusher Giant // Stomp`).
 - Tags follow the name and are space-separated `#word` tokens. They are
   stored deck-locally and never sent to Scryfall.
+- An inline comment may follow, introduced by two spaces and `//`
+  (`4 Bolt  #burn  // best card`). Canonical order is name, tags, comment.
+  The two-space delimiter keeps double-faced names (`Fire // Ice`, single
+  spaces) unambiguous. Add or edit a comment with `A` in the editor.
 
 ## Sideboard
 

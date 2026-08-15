@@ -15,6 +15,7 @@ from dataclasses import dataclass
 REPEATABLE_TYPES: frozenset[str] = frozenset({
     "operator",
     "quantity",
+    "zone",
 })
 
 
@@ -22,7 +23,7 @@ REPEATABLE_TYPES: frozenset[str] = frozenset({
 class RepeatableAction:
     """A single action that can be replayed with '.'."""
 
-    action_type: str  # "operator" or "quantity"
+    action_type: str  # "operator", "quantity", or "zone"
     operator: str | None = None
     motion: str | None = None
     count: int = 1

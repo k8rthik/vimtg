@@ -10,8 +10,15 @@ from typing import Any
 
 from vimtg.domain.card import Color
 from vimtg.domain.card_types import TYPE_ORDER, primary_type
-from vimtg.domain.deck_lines import CARD_PATTERN, CMD_PATTERN, SB_PATTERN
-from vimtg.domain.tags import parse_inline_tags, strip_inline_tags
+from vimtg.domain.deck_lines import (
+    CARD_PATTERN,
+    CMD_PATTERN,
+    MB_PATTERN,
+    SB_PATTERN,
+    parse_card_suffix,
+    split_inline_comment,
+)
+from vimtg.domain.tags import parse_inline_tags
 from vimtg.editor.buffer import CARD_LINE_TYPES, Buffer, BufferLine, classify_line
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -67,7 +74,8 @@ def _extract_sort_key(
         return (_COLOR_ORDER.get(color_val, 98), fallback)
 
     if sort_field == "tag":
-        tags = parse_inline_tags(text)
+        # '#word' inside an inline comment is prose, not a tag
+        tags = parse_inline_tags(split_inline_comment(text)[0])
         if not tags:
             return (1, fallback)  # untagged cards sort after tagged
         first_tag = sorted(tags)[0]
@@ -79,7 +87,7 @@ def _extract_sort_key(
 
 def _match_card_line(text: str):  # type: ignore[no-untyped-def]
     """Match a card line against the shared deck-line grammar."""
-    for pattern in (SB_PATTERN, CMD_PATTERN, CARD_PATTERN):
+    for pattern in (SB_PATTERN, MB_PATTERN, CMD_PATTERN, CARD_PATTERN):
         m = pattern.match(text)
         if m:
             return m
@@ -87,10 +95,10 @@ def _match_card_line(text: str):  # type: ignore[no-untyped-def]
 
 
 def _extract_card_name(text: str) -> str:
-    """Extract card name from a line, stripping quantity, prefix, and inline tags."""
+    """Extract card name from a line, stripping quantity, prefix, tags, and comment."""
     m = _match_card_line(text)
     raw = m.group(2) if m else text
-    return strip_inline_tags(raw).strip()
+    return parse_card_suffix(raw)[0]
 
 
 def _resolve_range(

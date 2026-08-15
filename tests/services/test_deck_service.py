@@ -8,7 +8,7 @@ import pytest
 
 from vimtg.data.deck_repository import DeckRepository, parse_deck_text
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
-from vimtg.services.deck_service import DeckService
+from vimtg.services.deck_service import DeckService, scaffold_missing_metadata
 
 
 @pytest.fixture
@@ -140,3 +140,41 @@ def test_validate_large_sideboard(service: DeckService) -> None:
     errors = service.validate(deck)
     side_warnings = [e for e in errors if "maximum 15" in e.message]
     assert len(side_warnings) == 1
+
+
+class TestScaffoldMissingMetadata:
+    def test_empty_text_yields_full_scaffold(self) -> None:
+        text = scaffold_missing_metadata("")
+        lines = text.split("\n")
+        assert lines[0] == "// Deck:"
+        assert lines[1] == "// Format:"
+        assert lines[2] == "// Tags:"
+
+    def test_no_metadata_prepends_scaffold(self) -> None:
+        text = scaffold_missing_metadata("4 Lightning Bolt\n")
+        assert text.startswith("// Deck:\n// Format:\n// Tags:\n\n4 Lightning Bolt")
+
+    def test_partial_metadata_fills_gaps_after_block(self) -> None:
+        text = scaffold_missing_metadata("// Deck: Burn\n\n4 Bolt\n")
+        assert text.startswith("// Deck: Burn\n// Format:\n// Tags:\n")
+
+    def test_complete_returns_same_object(self) -> None:
+        original = "// Deck: X\n// Format: modern\n// Tags: a\n\n4 Bolt\n"
+        assert scaffold_missing_metadata(original) is original
+
+    def test_mid_file_metadata_not_duplicated(self) -> None:
+        text = scaffold_missing_metadata("4 Bolt\n// Tags: burn\n")
+        assert text.count("// Tags") == 1
+        assert "// Deck:\n// Format:\n" in text
+
+    def test_idempotent(self) -> None:
+        once = scaffold_missing_metadata("4 Bolt\n")
+        assert scaffold_missing_metadata(once) is once
+
+    def test_new_deck_always_includes_scaffold_keys(
+        self, service: DeckService
+    ) -> None:
+        text = service.new_deck(name="", fmt="")
+        assert "// Deck:" in text
+        assert "// Format:" in text
+        assert "// Tags:" in text
