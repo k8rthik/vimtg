@@ -35,6 +35,7 @@ from vimtg.domain.deck_lines import (
 from vimtg.domain.deck_lines import (
     clamp_quantity,
     format_inline_comment,
+    is_deck_header,
     parse_card_parts,
 )
 from vimtg.domain.tags import format_inline_tags
@@ -134,6 +135,11 @@ def parse_deck_text(text: str) -> Deck:
                 comments.append(
                     CommentLine(line_number=line_number, text=line)
                 )
+            continue
+
+        # "DCK:" main-deck block header — structural, like section
+        # headers; the cards beneath it are already mainboard.
+        if is_deck_header(line):
             continue
 
         entry = _parse_entry_line(line, line_number)

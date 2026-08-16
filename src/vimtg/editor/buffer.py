@@ -27,6 +27,7 @@ from vimtg.domain.deck_lines import (
     SB_PATTERN,
     clamp_quantity,
     format_inline_comment,
+    is_deck_header,
     match_metadata,
     parse_card_suffix,
     split_inline_comment,
@@ -87,6 +88,9 @@ def classify_line(text: str) -> LineType:
         if parse_category_header(stripped) is not None:
             return LineType.SECTION_HEADER
         return LineType.COMMENT
+    # "DCK:" — Python-style main-deck block header (cards sit beneath it)
+    if is_deck_header(stripped):
+        return LineType.SECTION_HEADER
     if _SB_PATTERN.match(stripped):
         return LineType.SIDEBOARD_ENTRY
     if _MB_PATTERN.match(stripped):

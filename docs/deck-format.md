@@ -12,6 +12,7 @@ Each line is one of:
 | Kind | Pattern | Example |
 |------|---------|---------|
 | Metadata | `// key: value` | `// Deck: Burn` |
+| Deck block header | `DCK:` | `DCK:` (cards beneath are mainboard) |
 | Section header | `// header text` | `// Creatures` |
 | Category header | `// @name` | `// @ramp` |
 | Card entry | `[N] CardName [@category] [#tag …] [// comment]` | `4 Lightning Bolt  @removal  #burn  // core` |
@@ -115,6 +116,24 @@ The same prefix convention covers the remaining zones:
 
 In the editor, `ms`/`mm`/`md`/`mc`/`mp` move the cursor card between
 zones.
+
+## DCK: block header
+
+The main deck has no per-line prefix, so it can optionally be labeled
+Python-style: a `DCK:` line on its own, with the deck's cards beneath
+it (indentation welcome — card lines may be indented):
+
+```
+CMD: 1 Atraxa, Praetors' Voice
+
+DCK:
+    1 Cultivate
+    1 Sol Ring
+```
+
+`DCK:` is a structural header like `// Mainboard` — bare card lines are
+mainboard with or without it. `md` moves a card under the `DCK:` block
+when one exists.
 
 ## Round-trip fidelity
 

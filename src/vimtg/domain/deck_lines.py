@@ -27,6 +27,17 @@ MB_PATTERN = re.compile(r"^MB:\s*(\d+)\s+(.+)$")
 CMD_PATTERN = re.compile(r"^CMD:\s*(\d+)\s+(.+)$")
 CMP_PATTERN = re.compile(r"^CMP:\s*(\d+)\s+(.+)$")
 
+# "DCK:" on a line of its own is a Python-style block header for the
+# main deck: the cards beneath it (indented or not) are mainboard, which
+# bare card lines already are — the header is a structural label, not a
+# per-line prefix like SB:/CMD:.
+DCK_HEADER_PATTERN = re.compile(r"^DCK:\s*$", re.IGNORECASE)
+
+
+def is_deck_header(text: str) -> bool:
+    """True for a 'DCK:' main-deck block header line."""
+    return DCK_HEADER_PATTERN.match(text.strip()) is not None
+
 METADATA_KEYS = frozenset(
     {"Deck", "Format", "Author", "Description", "Source", "Tags"}
 )

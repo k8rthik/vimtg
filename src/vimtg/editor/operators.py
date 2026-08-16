@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vimtg.domain.deck_lines import format_inline_comment
+from vimtg.domain.deck_lines import format_inline_comment, is_deck_header
 from vimtg.domain.tags import format_inline_tags
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
@@ -224,13 +224,18 @@ def _find_zone_entry(
 def _zone_insert_row(buffer: Buffer, zone: LineType) -> int:
     """Row where a new `zone` line belongs: after the zone's last entry,
     else before the first later-zone block (and its blank separator),
-    else at the end of the buffer."""
+    else at the end of the buffer. A main-deck card with no siblings
+    goes right under a 'DCK:' block header when one exists."""
     last = None
     for i in range(buffer.line_count()):
         if buffer.get_line(i).line_type == zone:
             last = i
     if last is not None:
         return last + 1
+    if zone == LineType.CARD_ENTRY:
+        for i in range(buffer.line_count()):
+            if is_deck_header(buffer.get_line(i).text):
+                return i + 1
     for i in range(buffer.line_count()):
         if buffer.get_line(i).line_type in _ZONE_SUCCESSORS[zone]:
             # Step back over the block's own header and separator so the
