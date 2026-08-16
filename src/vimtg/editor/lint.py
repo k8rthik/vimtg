@@ -33,8 +33,13 @@ EMPTY_LINT = LintResult(
 
 
 def effective_format(deck: Deck, default_format: str) -> str:
-    """The deck's declared format, falling back to the global setting."""
-    return deck.metadata.format or default_format
+    """The deck's declared format, falling back to the global setting.
+
+    Normalized to lowercase: Scryfall legality keys are lowercase, and
+    hand-typed '// Format: Commander' must mean the same as 'commander'
+    everywhere (a raw-cased key once silently emptied card search).
+    """
+    return (deck.metadata.format or default_format).strip().lower()
 
 
 def lint_buffer(

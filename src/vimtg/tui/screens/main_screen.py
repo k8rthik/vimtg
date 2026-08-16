@@ -25,6 +25,7 @@ from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.domain.card_types import primary_type
+from vimtg.domain.formats import get_format_rules
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
@@ -1219,10 +1220,12 @@ class MainScreen(Screen[None]):
                 query, limit=settings.search_limit
             )
             # Same format resolution as lint: the deck's declared
-            # "// Format:" wins over the global default.
+            # "// Format:" wins over the global default. Only filter on
+            # formats we actually know — an unknown or misspelled format
+            # must not silently empty the results.
             deck = parse_deck_text(self._state.buffer.to_text())
             fmt = effective_format(deck, settings.default_format)
-            if fmt:
+            if fmt and get_format_rules(fmt) is not None:
                 results = [
                     c for c in results if c.legalities.get(fmt) == "legal"
                 ]
