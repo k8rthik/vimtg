@@ -10,6 +10,7 @@ TUI-agnostic: no Textual imports.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
@@ -27,10 +28,11 @@ from vimtg.domain.deck_lines import (
     SB_PATTERN,
     clamp_quantity,
     format_inline_comment,
-    is_deck_header,
     match_metadata,
     parse_card_suffix,
+    parse_zone_header,
     split_inline_comment,
+    zone_block_contexts,
 )
 from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
 
@@ -88,8 +90,8 @@ def classify_line(text: str) -> LineType:
         if parse_category_header(stripped) is not None:
             return LineType.SECTION_HEADER
         return LineType.COMMENT
-    # "DCK:" — Python-style main-deck block header (cards sit beneath it)
-    if is_deck_header(stripped):
+    # "DCK:"/"CMD:"/… — Python-style zone block header (cards sit beneath)
+    if parse_zone_header(stripped) is not None:
         return LineType.SECTION_HEADER
     if _SB_PATTERN.match(stripped):
         return LineType.SIDEBOARD_ENTRY
@@ -117,6 +119,32 @@ _CARD_PATTERNS = (
     _CARD_PATTERN, _SB_PATTERN, _MB_PATTERN, _CMD_PATTERN, _CMP_PATTERN,
 )
 
+# Zone-block header tag → the LineType its indented bare card lines get
+_ZONE_TAG_TYPES: dict[str, LineType] = {
+    "DCK": LineType.CARD_ENTRY,
+    "CMD": LineType.COMMANDER_ENTRY,
+    "CMP": LineType.COMPANION_ENTRY,
+    "SB": LineType.SIDEBOARD_ENTRY,
+    "MB": LineType.MAYBEBOARD_ENTRY,
+}
+
+
+def classify_lines(texts: Sequence[str]) -> tuple[BufferLine, ...]:
+    """Classify lines with zone-block context.
+
+    A bare card line indented under a 'CMD:'-style block header takes
+    the block's zone; explicit prefixes and every other line type keep
+    their per-line classification (see deck_lines.zone_block_contexts).
+    """
+    contexts = zone_block_contexts(texts)
+    lines: list[BufferLine] = []
+    for text, ctx in zip(texts, contexts, strict=True):
+        line_type = classify_line(text)
+        if ctx is not None and line_type == LineType.CARD_ENTRY:
+            line_type = _ZONE_TAG_TYPES[ctx]
+        lines.append(BufferLine(text=text, line_type=line_type))
+    return tuple(lines)
+
 
 class Buffer:
     """Immutable deck-as-text-buffer. All mutations return a new Buffer."""
@@ -132,12 +160,7 @@ class Buffer:
         raw_lines = text.split("\n")
         if raw_lines and raw_lines[-1] == "":
             raw_lines = raw_lines[:-1]
-        return Buffer(
-            tuple(
-                BufferLine(text=line, line_type=classify_line(line))
-                for line in raw_lines
-            )
-        )
+        return Buffer(classify_lines(raw_lines))
 
     def to_text(self) -> str:
         """Serialize buffer back to text (with trailing newline)."""
@@ -160,17 +183,24 @@ class Buffer:
     def get_lines(self) -> tuple[BufferLine, ...]:
         return self._lines
 
+    def _texts(self) -> list[str]:
+        return [bl.text for bl in self._lines]
+
     def set_line(self, n: int, text: str) -> Buffer:
-        """Return new Buffer with line n replaced."""
-        new_lines = list(self._lines)
-        new_lines[n] = BufferLine(text=text, line_type=classify_line(text))
-        return Buffer(tuple(new_lines))
+        """Return new Buffer with line n replaced.
+
+        Reclassifies the whole buffer: an edit can open or close a zone
+        block, changing the zone of the indented lines beneath it.
+        """
+        texts = self._texts()
+        texts[n] = text
+        return Buffer(classify_lines(texts))
 
     def insert_line(self, n: int, text: str) -> Buffer:
         """Return new Buffer with a line inserted at position n."""
-        new_lines = list(self._lines)
-        new_lines.insert(n, BufferLine(text=text, line_type=classify_line(text)))
-        return Buffer(tuple(new_lines))
+        texts = self._texts()
+        texts.insert(n, text)
+        return Buffer(classify_lines(texts))
 
     def delete_lines(self, start: int, end: int) -> tuple[Buffer, tuple[str, ...]]:
         """Delete lines [start, end] inclusive. Returns (new_buffer, deleted_texts).
@@ -184,10 +214,10 @@ class Buffer:
         if start > end:
             return self, ()
         deleted = tuple(self._lines[i].text for i in range(start, end + 1))
-        remaining = list(self._lines[:start]) + list(self._lines[end + 1:])
+        remaining = self._texts()[:start] + self._texts()[end + 1:]
         if not remaining:
-            remaining = [BufferLine(text="", line_type=LineType.BLANK)]
-        return Buffer(tuple(remaining)), deleted
+            remaining = [""]
+        return Buffer(classify_lines(remaining)), deleted
 
     def append_line(self, text: str) -> Buffer:
         """Return new Buffer with a line appended at the end."""

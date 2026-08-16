@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from vimtg.domain.deck_lines import format_inline_comment, is_deck_header
+from vimtg.domain.deck_lines import (
+    CARD_PATTERN,
+    format_inline_comment,
+    parse_zone_header,
+)
 from vimtg.domain.tags import format_inline_tags
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
@@ -180,6 +184,15 @@ _ZONE_PREFIXES = {
     LineType.SIDEBOARD_ENTRY: "SB: ",
     LineType.MAYBEBOARD_ENTRY: "MB: ",
 }
+# Zone → its Python-style block header tag ('DCK:', 'CMD:', ...)
+_ZONE_TAGS = {
+    LineType.CARD_ENTRY: "DCK",
+    LineType.COMMANDER_ENTRY: "CMD",
+    LineType.COMPANION_ENTRY: "CMP",
+    LineType.SIDEBOARD_ENTRY: "SB",
+    LineType.MAYBEBOARD_ENTRY: "MB",
+}
+_BLOCK_INDENT = "    "
 # Zones whose blocks come after this zone in the canonical file layout
 # (commander, companion, main deck, sideboard, maybeboard).
 _ZONE_SUCCESSORS = {
@@ -223,19 +236,18 @@ def _find_zone_entry(
 
 def _zone_insert_row(buffer: Buffer, zone: LineType) -> int:
     """Row where a new `zone` line belongs: after the zone's last entry,
-    else before the first later-zone block (and its blank separator),
-    else at the end of the buffer. A main-deck card with no siblings
-    goes right under a 'DCK:' block header when one exists."""
+    else right under the zone's own block header ('DCK:', 'CMD:', ...)
+    when one exists, else before the first later-zone block (and its
+    blank separator), else at the end of the buffer."""
     last = None
     for i in range(buffer.line_count()):
         if buffer.get_line(i).line_type == zone:
             last = i
     if last is not None:
         return last + 1
-    if zone == LineType.CARD_ENTRY:
-        for i in range(buffer.line_count()):
-            if is_deck_header(buffer.get_line(i).text):
-                return i + 1
+    for i in range(buffer.line_count()):
+        if parse_zone_header(buffer.get_line(i).text) == _ZONE_TAGS[zone]:
+            return i + 1
     for i in range(buffer.line_count()):
         if buffer.get_line(i).line_type in _ZONE_SUCCESSORS[zone]:
             # Step back over the block's own header and separator so the
@@ -249,17 +261,37 @@ def _zone_insert_row(buffer: Buffer, zone: LineType) -> int:
 
 
 def _insert_zone_line(
-    buffer: Buffer, zone: LineType, text: str
+    buffer: Buffer, zone: LineType, body: str
 ) -> tuple[Buffer, int]:
-    """Insert `text` into its zone block, opening a new blank-separated
-    block at the end of the buffer when the zone has no lines yet."""
+    """Insert a new zone line ('body' = 'N Name…' without prefix) into
+    its zone block, opening a new blank-separated block at the end of
+    the buffer when the zone has no lines yet.
+
+    Inside a Python-style zone block the line is written indented and
+    bare, matching the block's style; elsewhere it gets the SB:/CMD:
+    prefix."""
     row = _zone_insert_row(buffer, zone)
     if row == buffer.line_count() and row > 0:
         prev_type = buffer.get_line(row - 1).line_type
         if prev_type not in (LineType.BLANK, zone):
             buffer = buffer.insert_line(row, "")
             row += 1
+    text = _zone_line_text(buffer, row, zone, body)
     return buffer.insert_line(row, text), row
+
+
+def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
+    """Prefix or indent `body` to match the insertion point's style."""
+    if row > 0:
+        prev = buffer.get_line(row - 1)
+        in_block = parse_zone_header(prev.text) == _ZONE_TAGS[zone] or (
+            prev.line_type == zone
+            and prev.text[:1].isspace()
+            and CARD_PATTERN.match(prev.text) is not None
+        )
+        if in_block:
+            return f"{_BLOCK_INDENT}{body}"
+    return f"{_ZONE_PREFIXES[zone]}{body}"
 
 
 def move_to_zone(
@@ -310,13 +342,13 @@ def move_to_zone(
             dest_row = merge_row if merge_row < row else merge_row - 1
     else:
         suffix = format_inline_tags(tags) + format_inline_comment(comment)
-        new_line = f"{_ZONE_PREFIXES[target]}{moved} {name}{suffix}"
+        body = f"{moved} {name}{suffix}"
         if remainder > 0:
             new_buf = new_buf.set_quantity(row, remainder)
         else:
             new_buf, _ = new_buf.delete_lines(row, row)
             deleted_row = row
-        new_buf, dest_row = _insert_zone_line(new_buf, target, new_line)
+        new_buf, dest_row = _insert_zone_line(new_buf, target, body)
         inserted_row = dest_row
 
     new_cursor = cursor.move_to(

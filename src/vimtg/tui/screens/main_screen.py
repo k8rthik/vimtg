@@ -113,6 +113,24 @@ def _card_type_section(type_line: str) -> str:
     return primary_type(type_line) or "Other"
 
 
+def _matched_indent(buf: Buffer, row: int) -> str:
+    """Indentation for a card inserted at `row`, matching the enclosing
+    Python-style zone block (an unindented line would terminate it)."""
+    from vimtg.domain.deck_lines import parse_zone_header
+    from vimtg.editor.buffer import LineType
+
+    for i in range(row - 1, -1, -1):
+        bl = buf.get_line(i)
+        if bl.line_type == LineType.BLANK:
+            continue
+        if parse_zone_header(bl.text) is not None:
+            return "    "
+        if buf.is_card_line(i):
+            return bl.text[: len(bl.text) - len(bl.text.lstrip())]
+        return ""
+    return ""
+
+
 @dataclass
 class _SplitPane:
     """State of the split pane (second deck or EDHREC)."""
@@ -590,11 +608,13 @@ class MainScreen(Screen[None]):
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
             elif not s.settings.auto_sort:
                 # auto_sort off: card goes exactly where the user opened it
-                s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
+                indent = _matched_indent(s.buffer, s.cursor.row)
+                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}1 {card.name}")
             elif detect_layout(s.buffer) == LAYOUT_CATEGORY:
                 # Category layout: stay where opened, inherit the
                 # enclosing '// @name' section's category
-                s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
+                indent = _matched_indent(s.buffer, s.cursor.row)
+                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}1 {card.name}")
                 category = enclosing_category(s.buffer, s.cursor.row)
                 if category:
                     s.buffer = s.buffer.set_category(s.cursor.row, category)
@@ -605,10 +625,12 @@ class MainScreen(Screen[None]):
                     # Remove the blank line 'o' inserted and place card in correct section
                     if self._delete_blank_cursor_line() and insert_row > s.cursor.row:
                         insert_row -= 1
-                    s.buffer = s.buffer.insert_line(insert_row, f"1 {card.name}")
+                    indent = _matched_indent(s.buffer, insert_row)
+                    s.buffer = s.buffer.insert_line(insert_row, f"{indent}1 {card.name}")
                     s.cursor = s.cursor.move_to(insert_row, 0)
                 else:
-                    s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
+                    indent = _matched_indent(s.buffer, s.cursor.row)
+                    s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}1 {card.name}")
             s.modified = True
             s.history.record(s.buffer, f"added {card.name}")
             if self.card_repo:
@@ -828,7 +850,8 @@ class MainScreen(Screen[None]):
                     insert_row = s.buffer.line_count()
             else:
                 insert_row = s.buffer.line_count()
-            s.buffer = s.buffer.insert_line(insert_row, f"1 {rec.name}")
+            indent = _matched_indent(s.buffer, insert_row)
+            s.buffer = s.buffer.insert_line(insert_row, f"{indent}1 {rec.name}")
             row = insert_row
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)

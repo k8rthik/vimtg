@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 from vimtg.domain.categories import format_inline_category
@@ -35,8 +36,9 @@ from vimtg.domain.deck_lines import (
 from vimtg.domain.deck_lines import (
     clamp_quantity,
     format_inline_comment,
-    is_deck_header,
     parse_card_parts,
+    parse_zone_header,
+    zone_block_contexts,
 )
 from vimtg.domain.tags import format_inline_tags
 
@@ -82,6 +84,15 @@ _ENTRY_PATTERNS = (
     (_MAINBOARD_PATTERN, DeckSection.MAIN),
 )
 
+# Zone-block header tag → the section its indented bare card lines join
+_BLOCK_SECTIONS = {
+    "DCK": DeckSection.MAIN,
+    "CMD": DeckSection.COMMANDER,
+    "CMP": DeckSection.COMPANION,
+    "SB": DeckSection.SIDEBOARD,
+    "MB": DeckSection.MAYBEBOARD,
+}
+
 
 def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
     """Parse one SB:/CMD:/mainboard card line, or None if not a card line."""
@@ -113,9 +124,13 @@ def parse_deck_text(text: str) -> Deck:
     - CMD: N CardName -> commander entry.
     - CMP: N CardName -> companion entry.
     - N CardName -> mainboard entry.
+    - A bare 'DCK:'/'CMD:'/... line opens a Python-style zone block:
+      bare card lines indented beneath it belong to that zone
+      (explicit prefixes always win).
     - Blank/invalid lines are skipped gracefully.
     """
     raw_lines = text.split("\n") if text else []
+    block_contexts = zone_block_contexts(raw_lines)
 
     entries: list[DeckEntry] = []
     comments: list[CommentLine] = []
@@ -137,13 +152,15 @@ def parse_deck_text(text: str) -> Deck:
                 )
             continue
 
-        # "DCK:" main-deck block header — structural, like section
-        # headers; the cards beneath it are already mainboard.
-        if is_deck_header(line):
+        # Bare zone block headers are structural, like section headers
+        if parse_zone_header(line) is not None:
             continue
 
         entry = _parse_entry_line(line, line_number)
         if entry is not None:
+            block = block_contexts[line_number - 1]
+            if entry.section == DeckSection.MAIN and block is not None:
+                entry = replace(entry, section=_BLOCK_SECTIONS[block])
             entries.append(entry)
 
         # Invalid line — skip gracefully

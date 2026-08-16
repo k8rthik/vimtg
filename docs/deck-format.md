@@ -117,23 +117,36 @@ The same prefix convention covers the remaining zones:
 In the editor, `ms`/`mm`/`md`/`mc`/`mp` move the cursor card between
 zones.
 
-## DCK: block header
+## Zone block headers (Python style)
 
-The main deck has no per-line prefix, so it can optionally be labeled
-Python-style: a `DCK:` line on its own, with the deck's cards beneath
-it (indentation welcome — card lines may be indented):
+Every zone can also be written Python-style: the zone name alone on a
+line, with its cards indented beneath it. Bare card lines indented under
+the header belong to that zone — no per-line prefix needed. This reads
+especially well for the commander, and for partner pairs:
 
 ```
-CMD: 1 Atraxa, Praetors' Voice
+CMD:
+    1 Thrasios, Triton Hero
+    1 Tymna the Weaver
 
 DCK:
     1 Cultivate
     1 Sol Ring
 ```
 
-`DCK:` is a structural header like `// Mainboard` — bare card lines are
-mainboard with or without it. `md` moves a card under the `DCK:` block
-when one exists.
+Block rules, Python-like:
+
+- A bare `DCK:` / `CMD:` / `CMP:` / `SB:` / `MB:` line opens the block
+  (case-insensitive; `DCK: 4 Bolt` is a normal line, not a header).
+- Indented lines are inside the block; blank lines are neutral.
+- Any unindented non-blank line closes the block.
+- An explicit prefix always wins: `SB: 1 Duress` is sideboard even
+  inside a `CMD:` block.
+
+Zone moves (`ms`/`mm`/`md`/`mc`/`mp`) and card inserts write indented
+lines when they land inside a block, prefixed lines elsewhere. Layout
+regrouping (`:layout`, `gl`) and export normalize block-style lines back
+to prefix style.
 
 ## Round-trip fidelity
 

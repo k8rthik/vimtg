@@ -8,6 +8,7 @@ Keeping them here prevents the two parsers from drifting apart.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 from vimtg.domain.categories import (
     parse_inline_category,
@@ -27,16 +28,54 @@ MB_PATTERN = re.compile(r"^MB:\s*(\d+)\s+(.+)$")
 CMD_PATTERN = re.compile(r"^CMD:\s*(\d+)\s+(.+)$")
 CMP_PATTERN = re.compile(r"^CMP:\s*(\d+)\s+(.+)$")
 
-# "DCK:" on a line of its own is a Python-style block header for the
-# main deck: the cards beneath it (indented or not) are mainboard, which
-# bare card lines already are — the header is a structural label, not a
-# per-line prefix like SB:/CMD:.
-DCK_HEADER_PATTERN = re.compile(r"^DCK:\s*$", re.IGNORECASE)
+# A zone name alone on a line is a Python-style block header: the
+# indented card lines beneath it belong to that zone. "DCK:" labels the
+# main deck (which has no per-line prefix); the others mirror their
+# prefixes, so a commander (or partner pair) can be written as
+#   CMD:
+#       1 Thrasios, Triton Hero
+#       1 Tymna the Weaver
+ZONE_HEADER_PATTERN = re.compile(r"^(DCK|CMD|CMP|SB|MB):\s*$", re.IGNORECASE)
+
+
+def parse_zone_header(text: str) -> str | None:
+    """Canonical zone tag ('DCK', 'CMD', …) for a bare header line, else None."""
+    m = ZONE_HEADER_PATTERN.match(text.strip())
+    return m.group(1).upper() if m else None
 
 
 def is_deck_header(text: str) -> bool:
     """True for a 'DCK:' main-deck block header line."""
-    return DCK_HEADER_PATTERN.match(text.strip()) is not None
+    return parse_zone_header(text) == "DCK"
+
+
+def zone_block_contexts(raw_lines: Sequence[str]) -> list[str | None]:
+    """Per-line enclosing zone-block tag, or None outside any block.
+
+    Python-style rules: a bare 'ZONE:' header opens a block; indented
+    lines are inside it; blank lines are neutral; any unindented
+    non-blank line closes it. Header and blank lines themselves map to
+    None. Zone membership applies only to bare card lines — an explicit
+    'SB: 1 X' prefix always wins over the enclosing block.
+    """
+    contexts: list[str | None] = []
+    current: str | None = None
+    for raw in raw_lines:
+        stripped = raw.strip()
+        if not stripped:
+            contexts.append(None)
+            continue
+        tag = parse_zone_header(raw)
+        if tag is not None:
+            current = tag
+            contexts.append(None)
+            continue
+        if raw[:1].isspace():
+            contexts.append(current)
+            continue
+        current = None
+        contexts.append(None)
+    return contexts
 
 METADATA_KEYS = frozenset(
     {"Deck", "Format", "Author", "Description", "Source", "Tags"}

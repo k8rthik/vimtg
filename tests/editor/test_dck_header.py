@@ -55,13 +55,16 @@ class TestZoneMoves:
         result = move_to_zone(buf, Cursor(row=2), LineType.CARD_ENTRY)
         assert result.moved
         lines = result.buffer.to_text().splitlines()
-        assert lines.index("DCK:") + 1 == lines.index("4 Lightning Bolt")
+        # Inside the block the moved card is written indented, block-style
+        assert lines.index("DCK:") + 1 == lines.index("    4 Lightning Bolt")
 
     def test_md_appends_to_existing_dck_block(self):
         buf = Buffer.from_text("DCK:\n    4 Shock\n\nSB: 4 Lightning Bolt\n")
         result = move_to_zone(buf, Cursor(row=3), LineType.CARD_ENTRY)
         lines = result.buffer.to_text().splitlines()
-        assert lines.index("4 Lightning Bolt") == lines.index("    4 Shock") + 1
+        assert (
+            lines.index("    4 Lightning Bolt") == lines.index("    4 Shock") + 1
+        )
 
 
 class TestNormalization:

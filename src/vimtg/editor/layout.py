@@ -118,12 +118,18 @@ def regroup_buffer(
     if zone_lines[LineType.COMMANDER_ENTRY]:
         _pad(out)
         out.append("// Commander")
-        out.extend(bl.text for bl in zone_lines[LineType.COMMANDER_ENTRY])
+        out.extend(
+            _prefixed(bl.text, "CMD: ")
+            for bl in zone_lines[LineType.COMMANDER_ENTRY]
+        )
 
     if zone_lines[LineType.COMPANION_ENTRY]:
         _pad(out)
         out.append("// Companion")
-        out.extend(bl.text for bl in zone_lines[LineType.COMPANION_ENTRY])
+        out.extend(
+            _prefixed(bl.text, "CMP: ")
+            for bl in zone_lines[LineType.COMPANION_ENTRY]
+        )
 
     for header, group in groups:
         if not group:
@@ -135,12 +141,18 @@ def regroup_buffer(
     if zone_lines[LineType.SIDEBOARD_ENTRY]:
         _pad(out)
         out.append("// Sideboard")
-        out.extend(bl.text for bl in sort_group(zone_lines[LineType.SIDEBOARD_ENTRY]))
+        out.extend(
+            _prefixed(bl.text, "SB: ")
+            for bl in sort_group(zone_lines[LineType.SIDEBOARD_ENTRY])
+        )
 
     if zone_lines[LineType.MAYBEBOARD_ENTRY]:
         _pad(out)
         out.append("// Maybeboard")
-        out.extend(bl.text for bl in sort_group(zone_lines[LineType.MAYBEBOARD_ENTRY]))
+        out.extend(
+            _prefixed(bl.text, "MB: ")
+            for bl in sort_group(zone_lines[LineType.MAYBEBOARD_ENTRY])
+        )
 
     return Buffer.from_text("\n".join(out) + "\n")
 
@@ -149,6 +161,19 @@ def _pad(out: list[str]) -> None:
     """Blank-line separator before a new block (skipped at the top)."""
     if out and out[-1] != "":
         out.append("")
+
+
+def _prefixed(text: str, prefix: str) -> str:
+    """Canonicalize a zone line to prefix style for the regrouped file.
+
+    Regrouping rewrites the buffer without the Python-style block
+    headers, so a bare 'CMD:'-block line must regain its explicit
+    prefix or it would reclassify as mainboard.
+    """
+    stripped = text.strip()
+    if stripped.upper().startswith(prefix.strip().upper()):
+        return stripped
+    return f"{prefix}{stripped}"
 
 
 def _group_by_type(

@@ -168,7 +168,13 @@ def _render_card_line(
         t.append(gutter)
     t.append(" ")
 
-    if bl.line_type == LineType.SIDEBOARD_ENTRY:
+    # A line inside a Python-style zone block has no prefix of its own —
+    # render its indentation instead of synthesizing a label; the block
+    # header above already names the zone.
+    stripped = bl.text.lstrip()
+    if not stripped.upper().startswith(("SB:", "MB:", "CMD:", "CMP:")):
+        t.append(bl.text[: len(bl.text) - len(stripped)])
+    elif bl.line_type == LineType.SIDEBOARD_ENTRY:
         t.append("SB: ", style=COLORS["sideboard"])
     elif bl.line_type == LineType.MAYBEBOARD_ENTRY:
         t.append("MB: ", style=COLORS["maybeboard"])
