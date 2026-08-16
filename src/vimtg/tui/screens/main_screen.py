@@ -6,16 +6,20 @@ then syncs updated EditorState to Textual widgets.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual import work
 from textual.app import ComposeResult
+from textual.containers import Container
 from textual.events import Key
 from textual.screen import Screen
 
+from vimtg.config.paths import cache_dir
 from vimtg.config.settings import Settings
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
@@ -27,6 +31,11 @@ from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import load_remapper
+from vimtg.editor.layout import (
+    LAYOUT_CATEGORY,
+    detect_layout,
+    enclosing_category,
+)
 from vimtg.editor.lint import (
     EMPTY_LINT,
     LintResult,
@@ -53,10 +62,14 @@ from vimtg.editor.session import (
     handle_tag_input_special,
     resolve_cards,
 )
+from vimtg.editor.splits import EdhrecOpen, SplitDirection, SplitOpen
+from vimtg.services.edhrec import EdhrecClient, EdhrecError, EdhrecPage
 from vimtg.services.history_service import HistoryService
 from vimtg.tui.key_translator import translate
+from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.command_line import GENERIC_HINT, CommandLine
 from vimtg.tui.widgets.deck_view import DeckView
+from vimtg.tui.widgets.edhrec_panel import EdhrecPanel
 from vimtg.tui.widgets.help_panel import HelpPanel
 from vimtg.tui.widgets.search_results import SearchResults
 from vimtg.tui.widgets.status_line import StatusLine
@@ -97,6 +110,19 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
 def _card_type_section(type_line: str) -> str:
     """Map a card's type_line to its singular section name."""
     return primary_type(type_line) or "Other"
+
+
+@dataclass
+class _CompanionPane:
+    """State of the companion split pane (second deck or EDHREC)."""
+
+    kind: str  # "deck" | "edhrec"
+    direction: SplitDirection
+    focused: bool = False
+    path: Path | None = None
+    buffer: Buffer | None = None
+    resolved: dict[str, Card] = field(default_factory=dict)
+    cursor_row: int = 0
 
 
 class MainScreen(Screen[None]):
@@ -144,9 +170,18 @@ class MainScreen(Screen[None]):
         # mutated, on change), so cursor-only keys cost one comparison
         self._lint_key: tuple[Buffer, dict[str, Card], str] | None = None
         self._lint_resolved_names: frozenset[str] = frozenset()
+        self._companion: _CompanionPane | None = None
+        # Deck card names for the EDHREC ✓ marks, cached by buffer identity
+        self._deck_names: frozenset[str] = frozenset()
+        self._deck_names_key: Buffer | None = None
 
     def compose(self) -> ComposeResult:
-        yield DeckView(id="deck-view")
+        yield Container(
+            DeckView(id="deck-view"),
+            DeckView(id="deck-view-2"),
+            EdhrecPanel(id="edhrec-panel"),
+            id="editor-area",
+        )
         yield SearchResults(id="search-results")
         yield HelpPanel(id="help-panel")
         yield WhichKey(id="which-key")
@@ -158,6 +193,8 @@ class MainScreen(Screen[None]):
         self.query_one("#search-results", SearchResults).display = False
         self.query_one("#help-panel", HelpPanel).display = False
         self.query_one("#which-key", WhichKey).display = False
+        self.query_one("#deck-view-2", DeckView).display = False
+        self.query_one("#edhrec-panel", EdhrecPanel).display = False
 
         if self.card_repo:
             self._state.resolved_cards = resolve_cards(
@@ -201,6 +238,23 @@ class MainScreen(Screen[None]):
         Shared by live keypresses, macro replay, and mapping expansion
         (expanded keys pass resolve=False so mappings don't re-resolve).
         """
+        # Companion pane focused: navigation keys drive the pane; ':' and
+        # 'S' sequences pass through; any other key refocuses the editor
+        # and is handled normally.
+        if (
+            resolve
+            and not self._replaying
+            and self._companion is not None
+            and self._companion.focused
+            and self._state.mode_mgr.is_normal()
+            and not self.keymap.awaiting_more_keys
+        ):
+            if self._handle_companion_key(key):
+                self._sync_widgets()
+                return
+            if key not in (":", "S"):
+                self._companion.focused = False
+                self._sync_pane_focus()
         # A bare 'q' only stops recording in NORMAL mode with no pending
         # sequence — in INSERT/COMMAND modes (or mid-sequence) it is a
         # literal character and must be recorded like any other key.
@@ -288,7 +342,14 @@ class MainScreen(Screen[None]):
             if s.insert_submode == InsertSubmode.TAG_INPUT:
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
-                return handle_tag_input_special(s, action)
+                hr = handle_tag_input_special(s, action)
+                # Category input ghosts a completion; Tab accepts it
+                if hr.command_accept:
+                    cl.text = hr.command_accept
+                    cl.cursor_pos = len(hr.command_accept)
+                    self.keymap.set_insert_text(hr.command_accept)
+                cl.ghost = hr.command_ghost
+                return hr
             if s.insert_submode == InsertSubmode.COMMENT_INPUT:
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
@@ -400,7 +461,12 @@ class MainScreen(Screen[None]):
             s.mode_mgr.transition(Mode.COMMAND)
             self.keymap.set_mode(Mode.COMMAND)
             self.keymap.reset_text()
-            self.query_one("#command-line", CommandLine).show(":")
+            cl = self.query_one("#command-line", CommandLine)
+            cl.show(":")
+            if hr.command_prefill:
+                self.keymap.set_command_text(hr.command_prefill)
+                cl.text = hr.command_prefill
+                cl.cursor_pos = len(hr.command_prefill)
         if hr.enter_search:
             s.mode_mgr.transition(Mode.SEARCH)
             self.keymap.set_mode(Mode.SEARCH)
@@ -463,6 +529,16 @@ class MainScreen(Screen[None]):
             self._replay_macro_keys(hr.replay_keys)
         if hr.insert_confirm:
             self._confirm_insert()
+        if hr.split_close:
+            self._close_split()
+        if hr.split_open is not None:
+            self._open_split_deck(hr.split_open)
+        if hr.edhrec_open is not None:
+            self._open_edhrec(hr.edhrec_open)
+        if hr.focus_next_pane:
+            self._toggle_pane_focus()
+        if hr.run_ex_command:
+            self._execute_ex(hr.run_ex_command)
 
     # ── Search and insert ────────────────────────────────────────
 
@@ -514,6 +590,13 @@ class MainScreen(Screen[None]):
             elif not s.settings.auto_sort:
                 # auto_sort off: card goes exactly where the user opened it
                 s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
+            elif detect_layout(s.buffer) == LAYOUT_CATEGORY:
+                # Category layout: stay where opened, inherit the
+                # enclosing '// @name' section's category
+                s.buffer = s.buffer.set_line(s.cursor.row, f"1 {card.name}")
+                category = enclosing_category(s.buffer, s.cursor.row)
+                if category:
+                    s.buffer = s.buffer.set_category(s.cursor.row, category)
             else:
                 # Find or create the right type section, then insert there
                 s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
@@ -539,6 +622,237 @@ class MainScreen(Screen[None]):
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
+
+    # ── Split panes and EDHREC ───────────────────────────────────
+
+    def _execute_ex(self, text: str) -> None:
+        """Run an ex command as if the user typed :text<Enter>."""
+        s = self._state
+        prev_settings = s.settings
+        hr = handle_command(
+            s, ParsedAction("command_submit", "enter", text=text),
+            self.registry, self.file_path, self.save_fn,
+        )
+        if s.settings is not prev_settings:
+            self._on_settings_saved(s.settings)
+        s.mode_mgr.force_normal()
+        self.keymap.set_mode(Mode.NORMAL)
+        if hr:
+            self._apply_handler_result(hr)
+
+    def _companion_widget(self) -> DeckView | EdhrecPanel:
+        if self._companion is not None and self._companion.kind == "edhrec":
+            return self.query_one("#edhrec-panel", EdhrecPanel)
+        return self.query_one("#deck-view-2", DeckView)
+
+    def _apply_split_layout(self) -> None:
+        """Show the companion widget in the requested direction."""
+        comp = self._companion
+        if comp is None:
+            return
+        area = self.query_one("#editor-area", Container)
+        side_by_side = comp.direction is SplitDirection.VERTICAL
+        area.styles.layout = "horizontal" if side_by_side else "vertical"
+        show = self._companion_widget()
+        for widget in (
+            self.query_one("#deck-view-2", DeckView),
+            self.query_one("#edhrec-panel", EdhrecPanel),
+        ):
+            widget.display = widget is show
+        self._sync_pane_focus()
+
+    def _sync_pane_focus(self) -> None:
+        """Reflect which pane is active: separator color + panel state."""
+        comp = self._companion
+        if comp is None:
+            return
+        widget = self._companion_widget()
+        color = COLORS["focus"] if comp.focused else COLORS["comment"]
+        if comp.direction is SplitDirection.VERTICAL:
+            widget.styles.border_left = ("solid", color)
+            widget.styles.border_top = None
+        else:
+            widget.styles.border_top = ("solid", color)
+            widget.styles.border_left = None
+        panel = self.query_one("#edhrec-panel", EdhrecPanel)
+        panel.focused_panel = comp.kind == "edhrec" and comp.focused
+
+    def _open_split_deck(self, spec: SplitOpen) -> None:
+        cl = self.query_one("#command-line", CommandLine)
+        try:
+            text = spec.path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            cl.set_message(f"E: Cannot open {spec.path.name}: {exc}", error=True)
+            return
+        buf = Buffer.from_text(text)
+        resolved = resolve_cards(buf, self.card_repo) if self.card_repo else {}
+        self._companion = _CompanionPane(
+            kind="deck", direction=spec.direction,
+            path=spec.path, buffer=buf, resolved=resolved,
+        )
+        self._apply_split_layout()
+        cl.set_message(
+            f"Split: {spec.path.name}  (Ss switch pane, :close to close)"
+        )
+
+    def _open_edhrec(self, req: EdhrecOpen) -> None:
+        # Focus starts on the panel so j/k/h/l work immediately
+        self._companion = _CompanionPane(
+            kind="edhrec", direction=req.direction, focused=True,
+        )
+        self._apply_split_layout()
+        panel = self.query_one("#edhrec-panel", EdhrecPanel)
+        panel.page = None
+        panel.status_error = False
+        if os.environ.get("VIMTG_NO_EDHREC"):
+            panel.status = "EDHREC lookups disabled (VIMTG_NO_EDHREC)"
+            return
+        names = " + ".join(req.commanders)
+        panel.status = f"Fetching EDHREC recommendations for {names}..."
+        self._run_edhrec_fetch(req.commanders, req.initial_tab)
+
+    @work(thread=True)
+    def _run_edhrec_fetch(
+        self, commanders: tuple[str, ...], initial_tab: str
+    ) -> None:
+        client = EdhrecClient(cache_dir=cache_dir())
+        try:
+            page = client.fetch(commanders)
+        except EdhrecError as exc:
+            self.app.call_from_thread(self._edhrec_failed, str(exc))
+            return
+        self.app.call_from_thread(self._edhrec_loaded, page, initial_tab)
+
+    def _edhrec_failed(self, message: str) -> None:
+        if self._companion is None or self._companion.kind != "edhrec":
+            return  # pane was closed while the fetch ran
+        panel = self.query_one("#edhrec-panel", EdhrecPanel)
+        panel.status = f"E: {message}"
+        panel.status_error = True
+
+    def _edhrec_loaded(self, page: EdhrecPage, initial_tab: str) -> None:
+        if self._companion is None or self._companion.kind != "edhrec":
+            return  # pane was closed while the fetch ran
+        panel = self.query_one("#edhrec-panel", EdhrecPanel)
+        panel.status = ""
+        panel.page = page
+        if initial_tab:
+            panel.set_tab_by_label(initial_tab)
+        self._sync_widgets()
+
+    def _close_split(self) -> None:
+        cl = self.query_one("#command-line", CommandLine)
+        if self._companion is None:
+            cl.set_message("E: No split open", error=True)
+            return
+        self._companion = None
+        self.query_one("#deck-view-2", DeckView).display = False
+        self.query_one("#edhrec-panel", EdhrecPanel).display = False
+
+    def _toggle_pane_focus(self) -> None:
+        cl = self.query_one("#command-line", CommandLine)
+        if self._companion is None:
+            cl.set_message("E: No split open (Sv/Sh or :vsplit)", error=True)
+            return
+        self._companion.focused = not self._companion.focused
+        self._sync_pane_focus()
+
+    def _handle_companion_key(self, key: str) -> bool:
+        """Drive the focused companion pane; True when the key was consumed."""
+        comp = self._companion
+        assert comp is not None
+        if key == "escape":
+            comp.focused = False
+            self._sync_pane_focus()
+            return True
+        if comp.kind == "deck":
+            return self._companion_deck_key(comp, key)
+        return self._companion_edhrec_key(key)
+
+    def _companion_deck_key(self, comp: _CompanionPane, key: str) -> bool:
+        if comp.buffer is None:
+            return False
+        last = comp.buffer.line_count() - 1
+        page = max(1, self.query_one("#deck-view-2", DeckView).size.height // 2)
+        if key in ("j", "down"):
+            comp.cursor_row = min(comp.cursor_row + 1, last)
+        elif key in ("k", "up"):
+            comp.cursor_row = max(comp.cursor_row - 1, 0)
+        elif key == "ctrl_d":
+            comp.cursor_row = min(comp.cursor_row + page, last)
+        elif key == "ctrl_u":
+            comp.cursor_row = max(comp.cursor_row - page, 0)
+        elif key in ("g", "home"):
+            comp.cursor_row = 0
+        elif key in ("G", "end"):
+            comp.cursor_row = last
+        else:
+            return False
+        return True
+
+    def _companion_edhrec_key(self, key: str) -> bool:
+        panel = self.query_one("#edhrec-panel", EdhrecPanel)
+        if key in ("j", "down"):
+            panel.select_next()
+        elif key in ("k", "up"):
+            panel.select_prev()
+        elif key in ("l", "right", "tab"):
+            panel.next_tab()
+        elif key in ("h", "left", "shift_tab"):
+            panel.prev_tab()
+        elif key == "enter":
+            self._insert_from_edhrec()
+        else:
+            return False
+        return True
+
+    def _insert_from_edhrec(self) -> None:
+        """Add the selected recommendation to the deck (Enter in the panel)."""
+        panel = self.query_one("#edhrec-panel", EdhrecPanel)
+        cl = self.query_one("#command-line", CommandLine)
+        rec = panel.get_selected()
+        if rec is None:
+            return
+        s = self._state
+        existing = self._find_card_line(rec.name)
+        if existing is not None:
+            qty = s.buffer.quantity_at(existing) or 0
+            s.buffer = s.buffer.set_quantity(existing, qty + 1)
+            row = existing
+        else:
+            card = self.card_repo.get_by_name(rec.name) if self.card_repo else None
+            if card is not None:
+                s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
+                if insert_row is None:
+                    insert_row = s.buffer.line_count()
+            else:
+                insert_row = s.buffer.line_count()
+            s.buffer = s.buffer.insert_line(insert_row, f"1 {rec.name}")
+            row = insert_row
+            if self.card_repo:
+                s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
+        s.cursor = s.cursor.move_to(min(row, s.buffer.line_count() - 1), 0)
+        s.modified = True
+        s.history.record(s.buffer, f"added {rec.name} (EDHREC)")
+        cl.set_message(f"Added {rec.name}")
+
+    def attach_card_repo(
+        self, card_repo: CardRepository, search_service: SearchService,
+    ) -> None:
+        """Adopt a card repository that became available after mount.
+
+        Called when a background auto-sync finishes on a screen that
+        started without card data: wires search, re-resolves the
+        buffer's cards, and forces a lint recompute.
+        """
+        self.card_repo = card_repo
+        self.search_service = search_service
+        s = self._state
+        s.card_repo = card_repo
+        s.resolved_cards = resolve_cards(s.buffer, card_repo)
+        self._lint_key = None
+        self._lint_resolved_names = frozenset()
+        self._sync_widgets()
 
     def _open_help(self, topic: str | None) -> None:
         from vimtg.tui.screens.help_screen import HelpScreen
@@ -990,6 +1304,29 @@ class MainScreen(Screen[None]):
         dv.auto_expand = s.settings.auto_expand
         dv.tag_filter = s.tag_filter
         dv.line_errors = self._lint.line_errors
+
+        comp = self._companion
+        if comp is not None:
+            if comp.kind == "deck" and comp.buffer is not None:
+                dv2 = self.query_one("#deck-view-2", DeckView)
+                dv2.buffer = comp.buffer
+                dv2.cursor = Cursor(row=comp.cursor_row)
+                dv2.resolved_cards = comp.resolved
+                dv2.price_source = price_src
+                dv2.currency_symbol = cur_sym
+                dv2.show_prices = s.settings.show_prices
+                dv2.show_line_numbers = s.settings.show_line_numbers
+                dv2.auto_expand = s.settings.auto_expand
+            elif comp.kind == "edhrec":
+                if self._deck_names_key is not s.buffer:
+                    self._deck_names = frozenset(
+                        name.lower()
+                        for i in range(s.buffer.line_count())
+                        if (name := s.buffer.card_name_at(i))
+                    )
+                    self._deck_names_key = s.buffer
+                panel = self.query_one("#edhrec-panel", EdhrecPanel)
+                panel.deck_names = self._deck_names
 
         sr = self.query_one("#search-results", SearchResults)
         sr.price_source = price_src

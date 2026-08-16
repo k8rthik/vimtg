@@ -22,6 +22,12 @@ if TYPE_CHECKING:
 # Maybeboard is a scratchpad outside the deck proper.
 _COUNTED_SECTIONS = (DeckSection.MAIN, DeckSection.SIDEBOARD)
 
+# Sections that count toward per-card copy limits. The commander is part
+# of the deck: CMD: Atraxa plus a mainboard Atraxa is two copies.
+_COPY_SECTIONS = (
+    DeckSection.MAIN, DeckSection.SIDEBOARD, DeckSection.COMMANDER,
+)
+
 
 @dataclass(frozen=True)
 class ValidationError:
@@ -99,10 +105,10 @@ def _lowercase_lookup(
 
 
 def _counted_copies(deck: Deck) -> dict[str, int]:
-    """Total copies per card name across mainboard + sideboard."""
+    """Total copies per card name across mainboard, sideboard, commander."""
     combined: dict[str, int] = {}
     for entry in deck.entries:
-        if entry.section in _COUNTED_SECTIONS:
+        if entry.section in _COPY_SECTIONS:
             combined[entry.card_name] = (
                 combined.get(entry.card_name, 0) + entry.quantity
             )
@@ -175,7 +181,7 @@ def _check_legality(
             )
         elif (
             status == "restricted"
-            and entry.section in _COUNTED_SECTIONS
+            and entry.section in _COPY_SECTIONS
             and copies.get(entry.card_name, 0) > 1
         ):
             errors.append(
@@ -209,7 +215,7 @@ def _check_copy_limit(
             line_number=entry.line_number,
         )
         for entry in deck.entries
-        if entry.card_name in over and entry.section in _COUNTED_SECTIONS
+        if entry.card_name in over and entry.section in _COPY_SECTIONS
     ]
 
 
@@ -275,7 +281,7 @@ def _check_sideboard(
 def _check_commander(
     deck: Deck, lookup: dict[str, Card], rules: FormatRules
 ) -> list[ValidationError]:
-    """Commander presence, legendary status, and color-identity checks."""
+    """Commander presence, count, legendary status, and color identity."""
     commanders = [
         e for e in deck.entries if e.section == DeckSection.COMMANDER
     ]
@@ -287,6 +293,23 @@ def _check_commander(
         ]
 
     errors: list[ValidationError] = []
+    for entry in commanders:
+        if entry.quantity != 1:
+            errors.append(
+                ValidationError(
+                    "error",
+                    f"Commander {entry.card_name}: quantity must be 1",
+                    line_number=entry.line_number,
+                )
+            )
+    if len(commanders) > 2:
+        errors.append(
+            ValidationError(
+                "error",
+                f"Deck has {len(commanders)} commanders (maximum 2, as partners)",
+            )
+        )
+
     resolved_commanders: list[tuple[DeckEntry, Card]] = []
     for entry in commanders:
         card = lookup.get(entry.card_name.lower())
@@ -299,6 +322,17 @@ def _check_commander(
                     "error",
                     f"{entry.card_name} is not legendary",
                     line_number=entry.line_number,
+                )
+            )
+
+    if len(commanders) == 2 and len(resolved_commanders) == 2:
+        pair = (resolved_commanders[0][1], resolved_commanders[1][1])
+        if not _partner_pair_ok(*pair):
+            errors.append(
+                ValidationError(
+                    "warning",
+                    f"{pair[0].name} and {pair[1].name} may not be a legal "
+                    "commander pair (no partner ability)",
                 )
             )
 
@@ -323,3 +357,33 @@ def _check_commander(
                 )
             )
     return errors
+
+
+# Abilities that allow a second commander. "Partner with" and plain
+# "Partner" both surface as the "Partner" keyword on Scryfall data.
+_PARTNER_KEYWORDS = frozenset(
+    {"partner", "friends forever", "doctor's companion", "choose a background"}
+)
+
+
+def _partner_pair_ok(a: Card, b: Card) -> bool:
+    """Best-effort check that two commanders can legally pair.
+
+    True when both carry a partner-style keyword, or when one card says
+    "Choose a Background" and the other is a Background. Exotic pairings
+    the heuristic misses only ever produce a warning, never an error.
+    """
+    def has_partner_ability(card: Card) -> bool:
+        keywords = {k.lower() for k in card.keywords}
+        if keywords & _PARTNER_KEYWORDS:
+            return True
+        return "choose a background" in card.oracle_text.lower()
+
+    def is_background(card: Card) -> bool:
+        return "Background" in card.type_line
+
+    if has_partner_ability(a) and has_partner_ability(b):
+        return True
+    if has_partner_ability(a) and is_background(b):
+        return True
+    return has_partner_ability(b) and is_background(a)

@@ -2,23 +2,12 @@
 
 Sorts card entry lines within a range or current section.
 Non-card lines (comments, section headers, blanks) stay anchored in place.
+Key extraction lives in vimtg.editor.sort_keys, shared with the layout
+regrouper so ordering means the same thing everywhere.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
-from vimtg.domain.card import Color
-from vimtg.domain.card_types import TYPE_ORDER, primary_type
-from vimtg.domain.deck_lines import (
-    CARD_PATTERN,
-    CMD_PATTERN,
-    MB_PATTERN,
-    SB_PATTERN,
-    parse_card_suffix,
-    split_inline_comment,
-)
-from vimtg.domain.tags import parse_inline_tags
 from vimtg.editor.buffer import CARD_LINE_TYPES, Buffer, BufferLine, classify_line
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -27,78 +16,11 @@ from vimtg.editor.commands import (
     resolve_command_range,
 )
 from vimtg.editor.cursor import Cursor
-
-_COLOR_ORDER: dict[str, int] = {c.value: i for i, c in enumerate(Color)}
-
-
-def _extract_sort_key(
-    line: BufferLine,
-    sort_field: str,
-    resolved_cards: dict[str, Any] | None = None,
-) -> tuple[float, str]:
-    """Extract a sort key from a card line based on the requested field.
-
-    Always returns a consistent 2-tuple (numeric_key, name_fallback) so
-    sorted() never compares mismatched shapes.
-    """
-    text = line.text.strip()
-    card_name = _extract_card_name(text)
-    card = resolved_cards.get(card_name) if resolved_cards else None
-    fallback = card_name.lower()
-
-    if sort_field == "qty":
-        m = _match_card_line(text)
-        return (int(m.group(1)) if m else 0, fallback)
-
-    if sort_field == "cmc":
-        return (card.cmc if card is not None else 9999.0, fallback)
-
-    if sort_field == "type":
-        if card is None:
-            return (99, fallback)
-        ptype = primary_type(card.type_line)
-        return (TYPE_ORDER.get(ptype, 99) if ptype else 99, fallback)
-
-    if sort_field == "color":
-        if card is None:
-            return (99, fallback)
-        colors = card.colors or []
-        if not colors:
-            return (99, fallback)
-        if len(colors) > 1:
-            return (10 + len(colors), fallback)
-        color_val = (
-            colors[0].value if hasattr(colors[0], "value")
-            else str(colors[0])
-        )
-        return (_COLOR_ORDER.get(color_val, 98), fallback)
-
-    if sort_field == "tag":
-        # '#word' inside an inline comment is prose, not a tag
-        tags = parse_inline_tags(split_inline_comment(text)[0])
-        if not tags:
-            return (1, fallback)  # untagged cards sort after tagged
-        first_tag = sorted(tags)[0]
-        return (0, first_tag + "|" + fallback)
-
-    # "name" — sort alphabetically, all at same numeric priority
-    return (0, fallback)
-
-
-def _match_card_line(text: str):  # type: ignore[no-untyped-def]
-    """Match a card line against the shared deck-line grammar."""
-    for pattern in (SB_PATTERN, MB_PATTERN, CMD_PATTERN, CARD_PATTERN):
-        m = pattern.match(text)
-        if m:
-            return m
-    return None
-
-
-def _extract_card_name(text: str) -> str:
-    """Extract card name from a line, stripping quantity, prefix, tags, and comment."""
-    m = _match_card_line(text)
-    raw = m.group(2) if m else text
-    return parse_card_suffix(raw)[0]
+from vimtg.editor.sort_keys import (
+    CARD_DATA_FIELDS,
+    SORT_FIELDS,
+    extract_sort_key,
+)
 
 
 def _resolve_range(
@@ -111,6 +33,12 @@ def _resolve_range(
     return buffer.section_range(cursor_row)
 
 
+def default_sort_field(ctx: EditorContext) -> str:
+    """The sort_order setting, guarded against missing/invalid values."""
+    field = getattr(ctx.settings, "sort_order", "") or ""
+    return field if field in SORT_FIELDS else "name"
+
+
 def cmd_sort(
     buffer: Buffer,
     cursor: Cursor,
@@ -119,19 +47,19 @@ def cmd_sort(
 ) -> tuple[Buffer, Cursor]:
     """:sort [field] — Sort card lines within range or current section.
 
-    Fields: name (default), qty, cmc, type, color, tag.
-    :sort! reverses the order.
+    Fields: name, qty, cmc, type, color, tag, category, power,
+    toughness, rarity, price. Without a field, the sort_order setting
+    decides (default: cmc). :sort! reverses the order.
     Only sorts card entry lines; comments and blanks stay anchored.
     """
-    sort_field = cmd.args.strip().lower() if cmd.args else "name"
-    valid_fields = {"name", "qty", "cmc", "type", "color", "tag"}
+    sort_field = cmd.args.strip().lower() if cmd.args else default_sort_field(ctx)
 
-    if sort_field and sort_field not in valid_fields:
+    if sort_field and sort_field not in SORT_FIELDS:
         ctx.fail(f"Unknown sort field: {sort_field}")
         return buffer, cursor
 
-    # cmc, type, color fall back to name when card data unavailable
-    if sort_field in {"cmc", "type", "color"} and not ctx.resolved_cards:
+    # Card-data fields fall back to name when card data unavailable
+    if sort_field in CARD_DATA_FIELDS and not ctx.resolved_cards:
         ctx.message = "Card data not available; sorting by name"
         sort_field = "name"
 
@@ -160,9 +88,12 @@ def cmd_sort(
 
     # Sort the card entries
     card_data = ctx.resolved_cards or {}
+    price_source = getattr(ctx.settings, "price_source", "usd") or "usd"
     sorted_cards = sorted(
         [bl for _, bl in card_entries],
-        key=lambda bl: _extract_sort_key(bl, sort_field, card_data),
+        key=lambda bl: extract_sort_key(
+            bl, sort_field, card_data, price_source=price_source
+        ),
         reverse=cmd.bang,
     )
 

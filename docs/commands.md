@@ -18,7 +18,7 @@ current line, `'a,'b` for marks).
 
 | Command | Description |
 |---------|-------------|
-| `:sort [field]` | Sort the current section. Fields: `name`, `cmc`, `type`, `color`, `qty`, `tag`. `:sort!` reverses |
+| `:sort [field]` | Sort the current section. Fields: `name`, `cmc`, `type`, `color`, `qty`, `tag`, `category`, `power`, `toughness`, `rarity`, `price`. No field uses the `sort_order` setting (default `cmc`). `:sort!` reverses |
 | `:%sort name` | Sort the entire deck alphabetically |
 | `:s/old/new/[flags]` | Substitute. Flags: `g` (all), `i` (case-insensitive) |
 | `:%s/Bolt/Helix/g` | Substitute across the deck |
@@ -39,6 +39,49 @@ Examples:
 |---------|-------------|
 | `:find pattern` | Jump to the next card matching `pattern` (also bound to `/`) |
 | `:search query` | Open the card database search overlay |
+
+## Categories & layout
+
+Categories are user-defined purpose labels — one per card (`@ramp`,
+`@draw`, `@wincon`). The layout commands regroup the whole mainboard
+under either card-type headers or `// @category` headers; each card
+keeps its `@category` token, so toggling back and forth is lossless.
+
+| Command | Description |
+|---------|-------------|
+| `:category name` (alias `:cat`) | Set the category on the current line (or range). Tab-completes in the `gc` prompt |
+| `:category!` | Clear the category from the line/range |
+| `:categories` (alias `:cats`) | List categories with counts; `:categories name` lists that category's cards |
+| `:layout type` | Regroup mainboard by card type (`// Creatures`, …) |
+| `:layout category` | Regroup by category (`// @ramp`, …); uncategorized cards group last |
+| `:layout` | Toggle between the two (also the `gl` key) |
+
+In-group card order follows the `sort_order` setting
+(`:set sort_order=cmc` by default).
+
+## Splits & EDHREC
+
+The editor supports one companion pane beside (`:vsplit`) or below
+(`:split`) the main deck view. It shows either another deck read-only —
+compare a netdeck or an old version while editing — or EDHREC
+recommendations for the deck's commander. `Ss` switches focus into the
+pane (`j`/`k` scroll or select, `h`/`l` switch tabs, `Esc` returns).
+
+| Command | Description |
+|---------|-------------|
+| `:vsplit deck` (alias `:vsp`, `:vs`) | Open another deck file side by side (read-only) |
+| `:split deck` (alias `:sp`, `:hsplit`) | Same, stacked below |
+| `:close` (alias `:only`) | Close the companion pane |
+| `:edhrec [type]` (alias `:rec`) | EDHREC recommendations for the commander(s) on the deck's `CMD:` lines |
+
+`:edhrec` is Commander-only: the deck must declare `// Format: commander`
+(or no format) and have a `CMD:` line; partner pairs use both names. The
+pane has one tab per card type (Top, Creatures, Instants, Sorceries,
+Artifacts, Enchantments, Planeswalkers, Battles, Lands) — the optional
+argument jumps straight to one (`:edhrec creatures`). Each row shows the
+inclusion rate and synergy score; `✓` marks cards already in the deck,
+and `Enter` adds the selected card to the matching type section.
+Responses are cached for 7 days under the XDG cache directory.
 
 ## Tags
 
@@ -102,7 +145,7 @@ by id. Note that merge and rebase results are normalized on write
 | Command | Description |
 |---------|-------------|
 | `:stats` | Toggle the mana-curve / type / color / price panel |
-| `:validate` | Check 60-card minimum, 4-of rule, sideboard limits |
+| `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact 100 cards, singleton, no sideboard, legendary commander, ≤2 partners, color identity) |
 
 ## Configuration
 
@@ -110,6 +153,10 @@ by id. Note that merge and rebase results are normalized on write
 |---------|-------------|
 | `:config` | Open the settings screen |
 | `:set key=value` | Set an editor option for this session |
+
+Card data auto-syncs in the background when the local database is
+missing or older than a week (`:set noautosync` turns this off; the
+`vimtg sync` CLI command always works manually).
 
 ## Help
 

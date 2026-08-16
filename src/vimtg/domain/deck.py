@@ -19,6 +19,9 @@ class DeckEntry:
     quantity: int
     card_name: str
     section: DeckSection
+    # Single purpose label (@ramp) driving the category layout; ""
+    # means uncategorized. Distinct from tags, which are a set.
+    category: str = ""
     tags: frozenset[str] = frozenset()
     comment: str = ""
     # 1-based source line when parsed from text; None for entries

@@ -13,7 +13,8 @@ Each line is one of:
 |------|---------|---------|
 | Metadata | `// key: value` | `// Deck: Burn` |
 | Section header | `// header text` | `// Creatures` |
-| Card entry | `[N] CardName [#tag …] [// comment]` | `4 Lightning Bolt  #removal  // core` |
+| Category header | `// @name` | `// @ramp` |
+| Card entry | `[N] CardName [@category] [#tag …] [// comment]` | `4 Lightning Bolt  @removal  #burn  // core` |
 | Sideboard entry | `SB: [N] CardName [#tag …] [// comment]` | `SB: 2 Rest in Peace` |
 | Blank | (empty) | |
 
@@ -42,9 +43,10 @@ Unknown keys are preserved on save.
 
 ## Sections
 
-Any `// text` line that isn't a recognized metadata key is treated as a
-section header. Sections are purely visual — they affect rendering and the
-`{` / `}` motions but have no semantic meaning.
+A line matching a known header word (`// Creatures`, `// Lands`, …) or the
+category form `// @name` is a section header. Sections are purely visual —
+they affect rendering and the `{` / `}` motions but have no semantic
+meaning. Any other `// text` line is a freeform comment.
 
 ```
 // Creatures
@@ -55,18 +57,31 @@ section header. Sections are purely visual — they affect rendering and the
 4 Lightning Bolt
 ```
 
+## Categories
+
+`N CardName [@category]`
+
+A card may carry at most one `@category` token — a user-defined purpose
+label (`@ramp`, `@draw`, `@wincon`) that drives the category layout.
+`:layout category` regroups the mainboard under `// @name` headers;
+`:layout type` regroups by card type while each card keeps its token, so
+toggling is lossless. Set with `gc` / `:cat name`, clear with `gC` /
+`:cat!`. Names are lowercase: letters, digits, hyphens, 1–32 chars.
+
 ## Cards
 
-`N CardName [#tag …]`
+`N CardName [@category] [#tag …]`
 
 - `N` is the quantity. If omitted, vimtg assumes `1` on parse and writes it
   back explicitly.
 - `CardName` is the canonical Scryfall name. Double-faced cards use `//` as
   the separator (`Bonecrusher Giant // Stomp`).
-- Tags follow the name and are space-separated `#word` tokens. They are
+- The optional `@category` token follows the name after two spaces.
+- Tags follow and are space-separated `#word` tokens. They are
   stored deck-locally and never sent to Scryfall.
 - An inline comment may follow, introduced by two spaces and `//`
-  (`4 Bolt  #burn  // best card`). Canonical order is name, tags, comment.
+  (`4 Bolt  @removal  #burn  // best card`). Canonical order is name,
+  category, tags, comment.
   The two-space delimiter keeps double-faced names (`Fire // Ice`, single
   spaces) unambiguous. Add or edit a comment with `A` in the editor.
 

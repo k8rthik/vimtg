@@ -41,6 +41,24 @@ VISUAL MODE
   d/y           Delete/yank selection
   Escape        Exit visual
 
+CATEGORIES
+  gc            Set category on current card (Tab completes)
+  gC            Clear category
+  gl            Toggle layout: by type / by category
+  :cat name     Set category (range supported)
+  :layout       Regroup deck (type|category; no arg toggles)
+
+SPLITS & EDHREC
+  Sv / Sh       Open a vertical / horizontal split (prompts for deck)
+  Sr            EDHREC recommendations for the commander (:edhrec)
+  Ss            Switch pane focus (in a pane: j/k move, h/l tabs,
+                Enter adds the selected card, Esc returns)
+  Sc            Close the split
+  :vsplit deck  View another deck side by side (read-only)
+  :split deck   Same, stacked below
+  :edhrec       EDHREC panel — tabs per card type
+  :close        Close the companion pane
+
 TAGS
   ta            Add tag to current card
   tr            Remove tag
@@ -55,12 +73,16 @@ COMMANDS
   :q            Quit (:q! force)
   :wq / :x      Save and quit
   :home         Return to greeter (:home! discards changes)
-  :sort [field] Sort by name/qty/cmc/type/color/tag
+  :sort [field] Sort by cmc/name/qty/type/color/tag/category/
+                power/toughness/rarity/price (default: sort_order)
   :s/old/new/g  Substitute across deck
   :g/pat/d      Delete matching cards
   :find pattern Jump to matching card
   :stats        Deck statistics
   :validate     Check format legality (uses // Format:)
+  :cat name     Set card category (:cat! clears)
+  :categories   List categories with counts
+  :layout       Toggle type/category layout
   :tag name     Add tag (range supported)
   :untag name   Remove tag (:untag! clears all)
   :tags         List tags with counts
@@ -91,9 +113,38 @@ COMMAND_HELP: dict[str, str] = {
     "sort": (
         ":sort [field]  Sort cards in current section\n"
         "\n"
-        "Fields: name (default), qty, cmc, type, color, tag\n"
+        "Fields: name, qty, cmc, type, color, tag, category,\n"
+        "power, toughness, rarity, price\n"
+        "Without a field, the sort_order setting decides (default cmc)\n"
         ":sort!  reverse order\n"
         ":5,10sort  sort specific range"
+    ),
+    "category": (
+        ":category name  Set the card's category (alias :cat)\n"
+        "\n"
+        "A category is one purpose label per card (@ramp, @draw,\n"
+        "@wincon) driving the category layout (:layout).\n"
+        "\n"
+        ":cat ramp          categorize current card @ramp\n"
+        ":5,10cat draw      categorize lines 5-10\n"
+        ":cat!              clear category\n"
+        ":cat               show current card's category\n"
+        "\n"
+        "Keys: gc set (Tab completes), gC clear."
+    ),
+    "categories": (
+        ":categories  List categories with counts (alias :cats)\n"
+        "\n"
+        ":categories ramp   list cards in @ramp"
+    ),
+    "layout": (
+        ":layout [type|category]  Regroup the deck's sections\n"
+        "\n"
+        "type      group under // Creatures, // Instants, ...\n"
+        "category  group under // @ramp, // @draw, ... headers\n"
+        "No argument toggles (also the gl key). Cards keep their\n"
+        "@category token, so toggling is lossless. In-group order\n"
+        "follows the sort_order setting."
     ),
     "s": (
         ":s/old/new/[flags]  Substitute text\n"
@@ -222,6 +273,31 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "unmap": ":unmap key  Remove a key remapping",
     "home": ":home  Return to the greeter (:home! discards changes)",
+    "vsplit": (
+        ":vsplit deck-file  Open another deck beside this one (alias :vsp, :vs)\n"
+        "\n"
+        "The companion pane is read-only — compare a netdeck or an old\n"
+        "version while editing. Ss switches pane focus (j/k scroll,\n"
+        "Esc returns), Sc / :close closes it."
+    ),
+    "split": (
+        ":split deck-file  Open another deck below this one (alias :sp, :hsplit)\n"
+        "\n"
+        "Horizontal variant of :vsplit — same keys: Ss switch, :close close."
+    ),
+    "close": ":close  Close the companion pane (alias :only; also the Sc key)",
+    "edhrec": (
+        ":edhrec [type]  EDHREC recommendations for the commander (alias :rec)\n"
+        "\n"
+        "Commander decks only: uses the CMD: line(s), partner pairs\n"
+        "included. Opens a side pane with one tab per card type;\n"
+        "the optional argument jumps to a tab (creature, instant,\n"
+        "sorcery, artifact, enchantment, planeswalker, battle, land).\n"
+        "\n"
+        "In the pane: j/k select, h/l switch tabs, Enter adds the\n"
+        "card to the deck, Esc returns to the editor. ✓ marks cards\n"
+        "already in the deck. Results are cached for 7 days."
+    ),
 }
 
 

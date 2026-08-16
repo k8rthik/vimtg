@@ -10,6 +10,14 @@ VALID_FORMATS = frozenset({
     "commander", "pauper", "brawl", "historic",
 })
 
+# Default in-group ordering for :sort and layout regrouping. Mirrors
+# editor.sort_keys.SORT_FIELDS (kept literal here so config stays
+# import-light and dependency-free).
+VALID_SORT_ORDERS = frozenset({
+    "name", "qty", "cmc", "type", "color", "tag", "category",
+    "power", "toughness", "rarity", "price",
+})
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -27,8 +35,11 @@ class Settings:
     # Editor
     auto_sort: bool = True
     confirm_quit: bool = True
+    sort_order: str = "cmc"
     # VCS
     auto_snapshot: bool = True
+    # Sync
+    auto_sync_cards: bool = True
 
 
 def validate_settings(settings: Settings) -> list[str]:
@@ -40,6 +51,8 @@ def validate_settings(settings: Settings) -> list[str]:
         errors.append(f"search_limit must be 1-500, got {settings.search_limit}")
     if settings.default_format not in VALID_FORMATS:
         errors.append(f"Invalid default_format: {settings.default_format}")
+    if settings.sort_order not in VALID_SORT_ORDERS:
+        errors.append(f"Invalid sort_order: {settings.sort_order}")
     return errors
 
 
@@ -85,7 +98,9 @@ def load_settings() -> Settings:
         default_format=_get("default_format", str),  # type: ignore[arg-type]
         auto_sort=_get("auto_sort", bool),  # type: ignore[arg-type]
         confirm_quit=_get("confirm_quit", bool),  # type: ignore[arg-type]
+        sort_order=_get("sort_order", str),  # type: ignore[arg-type]
         auto_snapshot=_get("auto_snapshot", bool),  # type: ignore[arg-type]
+        auto_sync_cards=_get("auto_sync_cards", bool),  # type: ignore[arg-type]
     )
 
     # Replace out-of-range values with defaults, field by field
@@ -96,6 +111,8 @@ def load_settings() -> Settings:
         replacements["search_limit"] = defaults.search_limit
     if settings.default_format not in VALID_FORMATS:
         replacements["default_format"] = defaults.default_format
+    if settings.sort_order not in VALID_SORT_ORDERS:
+        replacements["sort_order"] = defaults.sort_order
     if replacements:
         settings = replace(settings, **replacements)  # type: ignore[arg-type]
     return settings

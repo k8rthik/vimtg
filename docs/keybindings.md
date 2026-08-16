@@ -76,6 +76,37 @@ Prefix any operator with `"x` to use named register `x`:
 | `>` `<` | Indent / dedent (tag indentation only) |
 | `Escape` | Exit |
 
+## Splits & EDHREC
+
+One companion pane can sit beside or below the editor, showing another
+deck (read-only) or EDHREC recommendations (see
+[commands.md](./commands.md)).
+
+| Key | Action |
+|-----|--------|
+| `Sv` | Open a **v**ertical split — prompts `:vsplit ` for a deck file |
+| `Sh` | Open a **h**orizontal split — prompts `:split ` |
+| `Sr` | EDHREC **r**ecommendations for the commander (runs `:edhrec`) |
+| `Ss` | **S**witch focus between editor and pane |
+| `Sc` | **C**lose the pane |
+
+While the pane is focused: `j`/`k` scroll (or select a recommendation),
+`Ctrl-D`/`Ctrl-U` page, `g`/`G` jump top/bottom, `h`/`l` switch EDHREC
+tabs, `Enter` adds the selected recommendation to the deck, and `Esc`
+returns to the editor. Any editing key falls through to the editor and
+refocuses it.
+
+## Categories
+
+Each card can carry one `@category` purpose label (see
+[deck-format.md](./deck-format.md)).
+
+| Key | Action |
+|-----|--------|
+| `gc` | Prompt for category, set on current card (or visual range). The prompt ghost-completes from this deck's categories, previously used names, and common presets; `Tab` accepts |
+| `gC` | Clear the card's category |
+| `gl` | Toggle layout: group by card type / by category |
+
 ## Tags
 
 Tags are deck-level annotations (`#core`, `#flex`, `#budget`). Each card line

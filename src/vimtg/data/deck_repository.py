@@ -6,6 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
+from vimtg.domain.categories import format_inline_category
 from vimtg.domain.deck import (
     CommentLine,
     Deck,
@@ -31,7 +32,7 @@ from vimtg.domain.deck_lines import (
 from vimtg.domain.deck_lines import (
     clamp_quantity,
     format_inline_comment,
-    parse_card_suffix,
+    parse_card_parts,
 )
 from vimtg.domain.tags import format_inline_tags
 
@@ -82,11 +83,14 @@ def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
     for pattern, section in _ENTRY_PATTERNS:
         match = pattern.match(line)
         if match:
-            name, card_tags, comment = parse_card_suffix(match.group(2).strip())
+            name, category, card_tags, comment = parse_card_parts(
+                match.group(2).strip()
+            )
             return DeckEntry(
                 quantity=clamp_quantity(int(match.group(1))),
                 card_name=name,
                 section=section,
+                category=category,
                 tags=card_tags,
                 comment=comment,
                 line_number=line_number,
@@ -191,8 +195,10 @@ def serialize_deck(deck: Deck) -> str:
             lines.append("")
 
         for entry in section_entries:
-            suffix = format_inline_tags(entry.tags) + format_inline_comment(
-                entry.comment
+            suffix = (
+                format_inline_category(entry.category)
+                + format_inline_tags(entry.tags)
+                + format_inline_comment(entry.comment)
             )
             if section == DeckSection.SIDEBOARD:
                 lines.append(f"SB: {entry.quantity} {entry.card_name}{suffix}")

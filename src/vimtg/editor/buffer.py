@@ -13,9 +13,16 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from vimtg.domain.categories import (
+    format_inline_category,
+    parse_category_header,
+    parse_inline_category,
+    strip_inline_category,
+)
 from vimtg.domain.deck_lines import (
     CARD_PATTERN,
     CMD_PATTERN,
+    CMP_PATTERN,
     MB_PATTERN,
     SB_PATTERN,
     clamp_quantity,
@@ -34,6 +41,7 @@ class LineType(Enum):
     SIDEBOARD_ENTRY = "sideboard"
     MAYBEBOARD_ENTRY = "maybeboard"
     COMMANDER_ENTRY = "commander"
+    COMPANION_ENTRY = "companion"
     BLANK = "blank"
     METADATA = "metadata"
 
@@ -43,16 +51,19 @@ SECTION_HEADERS = frozenset({
     "Enchantments", "Enchantment", "Artifacts", "Artifact",
     "Planeswalkers", "Planeswalker", "Instants", "Instant",
     "Sorceries", "Sorcery", "Mainboard", "Maybeboard",
-    "Other", "Commander", "Companion",
+    "Other", "Commander", "Companion", "Uncategorized",
 })
 
 _CARD_PATTERN = CARD_PATTERN
 _SB_PATTERN = SB_PATTERN
 _MB_PATTERN = MB_PATTERN
 _CMD_PATTERN = CMD_PATTERN
+_CMP_PATTERN = CMP_PATTERN
 # Splits a card line into (prefix+leading-ws, quantity, rest) so the quantity
 # can be replaced in place without disturbing the prefix, name, or tags.
-_QUANTITY_SUB = re.compile(r"^(\s*(?:SB:|MB:|CMD:)?\s*)(\d+)(\s.*)$", re.DOTALL)
+_QUANTITY_SUB = re.compile(
+    r"^(\s*(?:SB:|MB:|CMD:|CMP:)?\s*)(\d+)(\s.*)$", re.DOTALL
+)
 
 
 @dataclass(frozen=True)
@@ -71,6 +82,10 @@ def classify_line(text: str) -> LineType:
             return LineType.METADATA
         if stripped[2:].strip() in SECTION_HEADERS:
             return LineType.SECTION_HEADER
+        # "// @name" — a user-defined category header. The @ marker
+        # keeps prose comments from classifying as sections.
+        if parse_category_header(stripped) is not None:
+            return LineType.SECTION_HEADER
         return LineType.COMMENT
     if _SB_PATTERN.match(stripped):
         return LineType.SIDEBOARD_ENTRY
@@ -78,6 +93,8 @@ def classify_line(text: str) -> LineType:
         return LineType.MAYBEBOARD_ENTRY
     if _CMD_PATTERN.match(stripped):
         return LineType.COMMANDER_ENTRY
+    if _CMP_PATTERN.match(stripped):
+        return LineType.COMPANION_ENTRY
     if _CARD_PATTERN.match(stripped):
         return LineType.CARD_ENTRY
     return LineType.COMMENT
@@ -88,10 +105,13 @@ CARD_LINE_TYPES = frozenset({
     LineType.SIDEBOARD_ENTRY,
     LineType.MAYBEBOARD_ENTRY,
     LineType.COMMANDER_ENTRY,
+    LineType.COMPANION_ENTRY,
 })
 _CARD_LINE_TYPES = CARD_LINE_TYPES
 
-_CARD_PATTERNS = (_CARD_PATTERN, _SB_PATTERN, _MB_PATTERN, _CMD_PATTERN)
+_CARD_PATTERNS = (
+    _CARD_PATTERN, _SB_PATTERN, _MB_PATTERN, _CMD_PATTERN, _CMP_PATTERN,
+)
 
 
 class Buffer:
@@ -296,6 +316,56 @@ class Buffer:
         """Return new Buffer with tag removed from the card at line."""
         existing = self.tags_at(line)
         return self.set_tags(line, existing - {tag.lower()})
+
+    # ── Category operations ──────────────────────────────────────────
+
+    def category_at(self, line: int) -> str:
+        """Category of a card line ('' for none / non-card lines)."""
+        if not self.is_card_line(line):
+            return ""
+        # Split the comment off first — '@word' inside a comment is prose
+        base, _ = split_inline_comment(self._lines[line].text)
+        return parse_inline_category(base)
+
+    def set_category(self, line: int, category: str) -> Buffer:
+        """Return new Buffer with the card's category replaced.
+
+        An empty category removes the token. Tags and the inline
+        comment are preserved in canonical order (name @cat #tags //).
+        Non-card lines are unchanged.
+        """
+        if not self.is_card_line(line):
+            return self
+        base, comment = split_inline_comment(self._lines[line].text)
+        tags = self.tags_at(line)
+        # Category first, then tags — stripping in this order also
+        # normalizes a non-canonical '#tags  @cat' suffix.
+        name_part = strip_inline_tags(strip_inline_category(base)).rstrip()
+        new_text = (
+            name_part
+            + format_inline_category(category.lower() if category else "")
+            + format_inline_tags(tags)
+            + format_inline_comment(comment)
+        )
+        return self.set_line(line, new_text)
+
+    def all_categories(self) -> frozenset[str]:
+        """Collect all unique categories across card lines."""
+        cats: set[str] = set()
+        for i in range(self.line_count()):
+            cat = self.category_at(i)
+            if cat:
+                cats.add(cat)
+        return frozenset(cats)
+
+    def category_counts(self) -> dict[str, int]:
+        """Count how many card lines carry each category."""
+        counts: dict[str, int] = {}
+        for i in range(self.line_count()):
+            cat = self.category_at(i)
+            if cat:
+                counts[cat] = counts.get(cat, 0) + 1
+        return counts
 
     def all_tags(self) -> frozenset[str]:
         """Collect all unique tags across every card line in the buffer."""

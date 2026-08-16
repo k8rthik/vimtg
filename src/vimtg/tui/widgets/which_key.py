@@ -41,6 +41,7 @@ NORMAL_HINTS = {
         ("Ctrl-R", "redo"),
         ("v/V", "visual mode"),
         ("q{a-z}", "record macro"),
+        ("S", "splits/EDHREC"),
     ],
 }
 
@@ -54,7 +55,10 @@ PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
         ("y}", "yank section"), ("yG", "yank to end"),
     ],
     "c": [("cc", "change line"), ("cw", "change to next card")],
-    "g": [("gg", "go to top")],
+    "g": [
+        ("gg", "go to top"), ("gc", "set category"),
+        ("gC", "clear category"), ("gl", "toggle layout"),
+    ],
     "[": [("[[", "prev section header")],
     "]": [("]]", "next section header")],
     "\"": [("\"a-z", "named register"), ("\"0", "yank register"), ("\"1-9", "delete history")],
@@ -65,6 +69,10 @@ PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
         ("ma-z", "set mark"),
     ],
     "'": [("'a-z", "jump to mark")],
+    "S": [
+        ("Sv", "vertical split"), ("Sh", "horizontal split"),
+        ("Sr", "EDHREC recs"), ("Ss", "switch pane"), ("Sc", "close split"),
+    ],
     "t": [
         ("ta", "add tag"), ("tr", "remove tag"), ("tt", "toggle tag"),
         ("tf", "filter by tag"), ("tl", "list tags"), ("tc", "clear tags"),

@@ -33,6 +33,25 @@ BASIC_LANDS = frozenset({
 })
 
 
+# Conventional plural section labels for the type-based layout
+SECTION_LABELS: dict[str, str] = {
+    "Creature": "Creatures",
+    "Planeswalker": "Planeswalkers",
+    "Instant": "Instants",
+    "Sorcery": "Sorceries",
+    "Enchantment": "Enchantments",
+    "Artifact": "Artifacts",
+    "Land": "Lands",
+}
+
+
+def type_section_label(ptype: str | None) -> str:
+    """Plural section label for a primary type ('Other' when unknown)."""
+    if ptype is None:
+        return "Other"
+    return SECTION_LABELS.get(ptype, "Other")
+
+
 def primary_type(type_line: str) -> str | None:
     """Return the first matching primary type from a card's front face."""
     front = type_line.split("—")[0].split("//")[0].strip()

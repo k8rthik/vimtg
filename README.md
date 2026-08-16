@@ -24,7 +24,8 @@ git clone https://github.com/k8rthik/vimtg.git
 cd vimtg
 pip install -e .
 
-vimtg sync               # download card database (~35 MB, one-time)
+vimtg sync               # download card database (~25 MB; the TUI also
+                         # auto-syncs in the background when data is stale)
 vimtg edit burn.deck      # open a deck
 vimtg                     # or launch the greeter
 ```
@@ -66,6 +67,8 @@ Sections are comments. Sideboard lines start with `SB:`. Metadata goes at the to
 **Vim, for real** — Normal, Insert, Visual, Command modes. Motions (`w`, `b`, `{`, `}`), operators (`d`, `y`, `c`), text objects, dot repeat, macros, named registers. If your fingers know vim, they know vimtg.
 
 **Offline card search** — Type `o` to open insert mode and start searching. Fuzzy matching against a local SQLite FTS5 index. Card details, oracle text, and prices shown inline as you browse results.
+
+**Categories** — Organize by purpose, not just card type. Label cards `@ramp`, `@draw`, `@wincon` (`gc`, with Tab completion), then flip the whole deck between a type layout and a category layout with `gl` or `:layout`. In-group order follows `:set sort_order` (mana value by default).
 
 **Tags** — Annotate cards with `#core`, `#flex`, `#budget`, whatever you want. Filter your view with `:filter core+flex`, jump between tagged cards with `tn`/`tp`, rename tags across the deck with `:retag`.
 
@@ -120,6 +123,17 @@ Sections are comments. Sideboard lines start with `SB:`. Metadata goes at the to
 </details>
 
 <details>
+<summary><strong>Categories</strong></summary>
+
+| Key | Action |
+|-----|--------|
+| `gc` | Set category (Tab completes) |
+| `gC` | Clear category |
+| `gl` | Toggle type / category layout |
+
+</details>
+
+<details>
 <summary><strong>Tags</strong></summary>
 
 | Key | Action |
@@ -146,10 +160,12 @@ Type `:` to enter command mode. Tab-completion is built in.
 | `:w` | Save deck |
 | `:q` | Quit (`:q!` to force) |
 | `:wq` | Save and quit |
-| `:sort [field]` | Sort by name, cmc, type, color, qty, or tag |
+| `:sort [field]` | Sort by cmc, name, type, color, qty, tag, category, power, toughness, rarity, or price |
 | `:%s/old/new/g` | Substitute across deck |
 | `:g/pattern/d` | Delete matching cards |
 | `:find pattern` | Jump to matching card |
+| `:cat name` | Set card category (`:cat!` clears) |
+| `:layout` | Toggle type / category layout |
 | `:tag name` | Add tag (`:5,10tag` for range) |
 | `:untag name` | Remove tag (`:untag!` clears all) |
 | `:tags` | List tags with counts |
@@ -173,6 +189,8 @@ vimtg                             # greeter screen
 vimtg edit [file]                 # open editor
 vimtg new "Deck Name" -f modern   # create new deck
 vimtg sync                        # download/update card database
+                                  # (the TUI auto-syncs when missing/stale;
+                                  #  disable with :set noautosync)
 vimtg search "lightning bolt"     # search cards
 vimtg validate deck.deck          # check legality
 vimtg info deck.deck              # deck summary

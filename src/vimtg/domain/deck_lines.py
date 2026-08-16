@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import re
 
+from vimtg.domain.categories import (
+    parse_inline_category,
+    strip_inline_category,
+)
 from vimtg.domain.tags import parse_inline_tags, strip_inline_tags
 
 # A deck line is one of:
@@ -16,10 +20,12 @@ from vimtg.domain.tags import parse_inline_tags, strip_inline_tags
 #   SB: N Card Name        (sideboard)
 #   MB: N Card Name        (maybeboard)
 #   CMD: N Card Name       (commander)
+#   CMP: N Card Name       (companion)
 CARD_PATTERN = re.compile(r"^\s*(\d+)\s+(.+)$")
 SB_PATTERN = re.compile(r"^SB:\s*(\d+)\s+(.+)$")
 MB_PATTERN = re.compile(r"^MB:\s*(\d+)\s+(.+)$")
 CMD_PATTERN = re.compile(r"^CMD:\s*(\d+)\s+(.+)$")
+CMP_PATTERN = re.compile(r"^CMP:\s*(\d+)\s+(.+)$")
 
 METADATA_KEYS = frozenset(
     {"Deck", "Format", "Author", "Description", "Source", "Tags"}
@@ -86,16 +92,31 @@ def format_inline_comment(comment: str) -> str:
     return f"  // {comment}" if comment else ""
 
 
+def parse_card_parts(
+    raw_name: str,
+) -> tuple[str, str, frozenset[str], str]:
+    """Decompose a card line's name portion into (name, category, tags, comment).
+
+    Canonical order on a line is 'Name  @category  #tags  // comment'.
+    The comment is split off first — '#word' or '@word' inside a
+    comment is prose, not a token. The category is stripped before the
+    tags so a non-canonical '#tags  @category' order still parses.
+    """
+    base, comment = split_inline_comment(raw_name)
+    category = parse_inline_category(base)
+    base = strip_inline_category(base)
+    tags = parse_inline_tags(base)
+    name = strip_inline_tags(base).strip()
+    return name, category, tags, comment
+
+
 def parse_card_suffix(raw_name: str) -> tuple[str, frozenset[str], str]:
     """Decompose a card line's name portion into (name, tags, comment).
 
-    Canonical order on a line is 'Name  #tags  // comment', so the
-    comment is split off first — '#word' inside a comment is prose,
-    not a tag.
+    Convenience wrapper around parse_card_parts for callers that do not
+    need the category (the name still has any '@category' stripped).
     """
-    base, comment = split_inline_comment(raw_name)
-    tags = parse_inline_tags(base)
-    name = strip_inline_tags(base).strip()
+    name, _, tags, comment = parse_card_parts(raw_name)
     return name, tags, comment
 
 # Sanity bound on parsed quantities: a hand-typed extra digit (or a

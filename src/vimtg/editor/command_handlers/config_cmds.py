@@ -18,6 +18,7 @@ _BOOL_ALIASES: dict[str, str] = {
     "whichkey": "show_which_key",
     "autoexpand": "auto_expand",
     "autosort": "auto_sort",
+    "autosync": "auto_sync_cards",
     "prices": "show_prices",
     "confirmquit": "confirm_quit",
 }

@@ -9,6 +9,7 @@ from textual.widgets import Static
 from vimtg.domain.card import Card
 from vimtg.tui.deck_renderer import format_mana
 from vimtg.tui.theme import COLORS
+from vimtg.tui.widgets.scrolling import compute_scroll_offset
 
 _MAX_VISIBLE = 10
 _SCROLLOFF = 2
@@ -23,25 +24,8 @@ def _compute_scroll_offset(
     viewport: int = _MAX_VISIBLE,
     scrolloff: int = _SCROLLOFF,
 ) -> int:
-    """Compute scroll offset to keep selected within viewport with scrolloff.
-
-    Pure function — returns a new offset value without mutation.
-    """
-    if total <= viewport:
-        return 0
-
-    max_offset = total - viewport
-    offset = current_offset
-
-    # Scrolling down: selection too close to bottom of viewport
-    if selected > offset + viewport - 1 - scrolloff:
-        offset = selected - viewport + 1 + scrolloff
-
-    # Scrolling up: selection too close to top of viewport
-    if selected < offset + scrolloff:
-        offset = selected - scrolloff
-
-    return max(0, min(offset, max_offset))
+    """Scroll offset keeping selected visible (shared math in scrolling.py)."""
+    return compute_scroll_offset(selected, current_offset, total, viewport, scrolloff)
 
 
 class SearchResults(Static):

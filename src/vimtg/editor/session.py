@@ -14,17 +14,33 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from vimtg.config.category_history import load_category_history, record_category
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
+from vimtg.domain.categories import (
+    CATEGORY_NAME_RE,
+    complete_category,
+    completion_candidates,
+)
 from vimtg.domain.deck_lines import split_metadata_prefix
 from vimtg.domain.tags import TagFilter, format_tag_summary
 from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.category_ops import (
+    clear_category_in_range,
+    set_category_in_range,
+)
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
 from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.dot_repeat import DotRepeat, RepeatableAction
 from vimtg.editor.keymap import ParsedAction
+from vimtg.editor.layout import (
+    LAYOUT_CATEGORY,
+    LAYOUT_TYPE,
+    detect_layout,
+    regroup_buffer,
+)
 from vimtg.editor.macros import MacroRecorder
 from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
@@ -39,6 +55,8 @@ from vimtg.editor.operators import (
     resolve_line_range,
 )
 from vimtg.editor.registers import RegisterStore
+from vimtg.editor.sort_keys import SORT_FIELDS
+from vimtg.editor.splits import EdhrecOpen, SplitOpen
 from vimtg.editor.tag_ops import (
     add_tags_in_range,
     remove_tags_in_range,
@@ -83,6 +101,8 @@ class EditorState:
     line_edit_prefix: str = ""
     tag_input_action: str = ""
     tag_filter: TagFilter | None = None
+    # Ordered completion pool for category input, built on entry
+    category_candidates: tuple[str, ...] = ()
     remapper: Any = None  # KeyRemapper, passed through to :map/:unmap
 
 
@@ -123,6 +143,13 @@ class HandlerResult:
     enter_comment_input: bool = False
     comment_prefill: str = ""
     replay_keys: tuple[str, ...] = ()  # macro playback via the key pipeline
+    # Companion pane (splits / EDHREC)
+    split_open: SplitOpen | None = None
+    split_close: bool = False
+    edhrec_open: EdhrecOpen | None = None
+    focus_next_pane: bool = False
+    command_prefill: str = ""  # pre-typed text when entering command mode
+    run_ex_command: str = ""  # execute an ex command as if typed
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -283,6 +310,9 @@ def handle_command(
             vcs_switch_branch=ctx.vcs_switch_branch,
             vcs_merge_target=ctx.vcs_merge_target,
             vcs_rebase_target=ctx.vcs_rebase_target,
+            split_open=ctx.split_open,
+            split_close=ctx.split_close,
+            edhrec_open=ctx.edhrec_open,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)
@@ -393,11 +423,29 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             return HandlerResult(
                 command_message=f"Mark '{mark_name}' not set",
             )
+    elif key in ("Sv", "Sh", "Ss", "Sc", "Sr"):
+        return _handle_split_key(key)
+    elif key in ("gc", "gC", "gl"):
+        return _handle_category_action(state, key[1])
     elif key.startswith("t") and len(key) == 2:
         return _handle_tag_action(state, key[1])
     elif key == "A":
         return _handle_comment_action(state)
     return HandlerResult()
+
+
+def _handle_split_key(key: str) -> HandlerResult:
+    """Dispatch S sub-key: v/h open a split prompt, s switch, c close,
+    r EDHREC recommendations."""
+    if key == "Sv":
+        return HandlerResult(enter_command=True, command_prefill="vsplit ")
+    if key == "Sh":
+        return HandlerResult(enter_command=True, command_prefill="split ")
+    if key == "Ss":
+        return HandlerResult(focus_next_pane=True)
+    if key == "Sc":
+        return HandlerResult(split_close=True)
+    return HandlerResult(run_ex_command="edhrec")
 
 
 def _handle_comment_action(state: EditorState) -> HandlerResult:
@@ -431,6 +479,81 @@ def handle_comment_input_special(
             message = "Comment removed" if not text else "Comment set"
         return HandlerResult(exit_to_normal=True, command_message=message)
     return HandlerResult()
+
+
+def _handle_category_action(state: EditorState, sub_key: str) -> HandlerResult:
+    """Dispatch g sub-key: c (set category), C (clear), l (toggle layout)."""
+    if sub_key == "c":
+        state.tag_input_action = "category"
+        state.insert_submode = InsertSubmode.TAG_INPUT
+        state.category_candidates = completion_candidates(
+            state.buffer.category_counts(), load_category_history()
+        )
+        return HandlerResult(
+            enter_tag_input=True,
+            tag_prompt="category: ",
+        )
+    if sub_key == "C":
+        row = state.cursor.row
+        if state.visual_anchor is not None:
+            start = min(state.visual_anchor, row)
+            end = max(state.visual_anchor, row)
+            state.visual_anchor = None
+        else:
+            start = end = row
+        state.buffer, count = clear_category_in_range(state.buffer, start, end)
+        if count:
+            state.modified = True
+            state.history.record(state.buffer, "clear category")
+            return HandlerResult(
+                exit_to_normal=True,
+                command_message=f"Cleared category from {count} card(s)",
+            )
+        return HandlerResult(
+            exit_to_normal=True, command_message="No category to clear"
+        )
+    if sub_key == "l":
+        return _toggle_layout(state)
+    return HandlerResult()
+
+
+def _toggle_layout(state: EditorState) -> HandlerResult:
+    """gl — regroup the buffer between type and category layouts."""
+    mode = (
+        LAYOUT_TYPE
+        if detect_layout(state.buffer) == LAYOUT_CATEGORY
+        else LAYOUT_CATEGORY
+    )
+    if mode == LAYOUT_TYPE and not state.resolved_cards:
+        return HandlerResult(
+            command_message="E: Card data not available for type layout",
+            error=True,
+        )
+    order_field = state.settings.sort_order
+    if order_field not in SORT_FIELDS:
+        order_field = "name"
+    cursor_text = state.buffer.get_line(state.cursor.row).text
+    state.buffer = regroup_buffer(
+        state.buffer,
+        mode,
+        state.resolved_cards,
+        order_field,
+        price_source=state.settings.price_source,
+    )
+    new_row = state.cursor.row
+    if cursor_text.strip():
+        for i in range(state.buffer.line_count()):
+            if state.buffer.get_line(i).text == cursor_text:
+                new_row = i
+                break
+    state.cursor = state.cursor.move_to(
+        min(new_row, max(0, state.buffer.line_count() - 1)), 0
+    )
+    state.modified = True
+    state.history.record(state.buffer, f"layout by {mode}")
+    return HandlerResult(
+        command_message=f"Layout: by {mode} (ordered by {order_field})"
+    )
 
 
 def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
@@ -486,11 +609,28 @@ def _jump_to_tagged(state: EditorState, forward: bool) -> HandlerResult:
 
 
 def handle_tag_input_special(state: EditorState, action: ParsedAction) -> HandlerResult:
-    """Process tag-input mode keys (typing tag name, enter to confirm)."""
+    """Process tag-input mode keys (typing tag name, enter to confirm).
+
+    Category input additionally ghosts the best completion (deck
+    categories, then cross-deck history, then presets); Tab accepts it.
+    """
     key = action.action
     text = action.text or ""
+    is_category = state.tag_input_action == "category"
 
-    if key in ("char", "backspace", "delete", "cursor_move"):
+    if key in ("char", "backspace", "delete"):
+        if is_category:
+            ghost = complete_category(text, state.category_candidates)
+            return HandlerResult(command_ghost=ghost)
+        return HandlerResult()
+
+    if key == "cursor_move":
+        return HandlerResult()
+
+    if key == "tab" and is_category:
+        ghost = complete_category(text, state.category_candidates)
+        if ghost:
+            return HandlerResult(command_accept=ghost, command_ghost="")
         return HandlerResult()
 
     if key == "enter" and text.strip():
@@ -550,6 +690,23 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
             state.modified = True
             state.history.record(state.buffer, f"tag toggle #{tag}")
         return f"#{tag}: +{added} -{removed}"
+
+    if action == "category":
+        name = text.lstrip("@").lower()
+        if not CATEGORY_NAME_RE.match(name):
+            return (
+                f"E: Invalid category: '{name}' "
+                "(letters, digits, hyphens; 1-32 chars)"
+            )
+        state.buffer, count = set_category_in_range(
+            state.buffer, start, end, name
+        )
+        if count:
+            state.modified = True
+            state.history.record(state.buffer, f"category @{name}")
+            record_category(name)
+            return f"Categorized {count} card(s) as @{name}"
+        return "No card lines"
 
     if action == "f":
         from vimtg.domain.tags import parse_tag_filter

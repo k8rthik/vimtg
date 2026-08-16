@@ -15,6 +15,9 @@ from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.cursor import Cursor
 from vimtg.tui.deck_renderer import render_line
+from vimtg.tui.widgets.scrolling import compute_scroll_offset
+
+_SCROLLOFF = 3
 
 
 class DeckView(Static):
@@ -31,12 +34,36 @@ class DeckView(Static):
     tag_filter: reactive[TagFilter | None] = reactive(None)
     line_errors: reactive[dict[int, ValidationError]] = reactive(dict)
 
+    # Buffer-line scroll offset; follows the cursor. Expansion lines
+    # under the cursor row may still clip at the very bottom edge —
+    # windowing is by buffer line, which keeps the math simple.
+    _scroll_offset: int = 0
+
+    def _visible_range(self) -> tuple[int, int]:
+        """The [start, end) buffer-line window for the current viewport.
+
+        An unmounted widget (or one taller than its content) renders
+        everything, preserving offscreen render() behavior in tests.
+        """
+        assert self.buffer is not None
+        total = self.buffer.line_count()
+        viewport = self.size.height
+        if viewport <= 0 or total <= viewport:
+            self._scroll_offset = 0
+            return 0, total
+        row = min(self.cursor.row, total - 1)
+        self._scroll_offset = compute_scroll_offset(
+            row, self._scroll_offset, total, viewport, _SCROLLOFF
+        )
+        return self._scroll_offset, min(self._scroll_offset + viewport, total)
+
     def render(self) -> Text:
         if self.buffer is None:
             return Text("No deck loaded", style="dim")
 
+        start, end = self._visible_range()
         output = Text()
-        for i in range(self.buffer.line_count()):
+        for i in range(start, end):
             dimmed = (
                 self.tag_filter is not None
                 and self.buffer.is_card_line(i)

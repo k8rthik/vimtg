@@ -72,6 +72,14 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
         "bool", group="Editor",
     ),
     ConfigOption(
+        "sort_order", "Sort Order", "Default order for :sort and :layout",
+        "choice", (
+            "cmc", "name", "qty", "type", "color", "tag", "category",
+            "power", "toughness", "rarity", "price",
+        ),
+        group="Editor",
+    ),
+    ConfigOption(
         "search_limit", "Search Limit", "Max search results",
         "int", min_val=10, max_val=500, group="Editor",
     ),
@@ -89,6 +97,11 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
     ),
     ConfigOption(
         "auto_snapshot", "Auto Snapshot", "Snapshot on :w save",
+        "bool", group="Editor",
+    ),
+    ConfigOption(
+        "auto_sync_cards", "Auto Sync Cards",
+        "Download card data in background when missing or stale",
         "bool", group="Editor",
     ),
     ConfigOption(

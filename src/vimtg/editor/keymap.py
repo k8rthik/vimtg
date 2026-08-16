@@ -52,8 +52,12 @@ MODE_SWITCHES: dict[str, str] = {
     "/": "SEARCH",
 }
 SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "A"})
-MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@"})
+MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@", "S"})
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
+# g{c,C,l} — category set/clear and layout toggle (gg stays a motion)
+_G_SUB_KEYS = frozenset({"c", "C", "l"})
+# S{v,h,s,c,r} — split panes: vertical/horizontal, switch, close, EDHREC
+_SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r"})
 
 
 def _apply_text_edit(
@@ -214,6 +218,16 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
+            # S{v,h,s,c,r} — split panes and EDHREC recommendations
+            if self._multi_key_prefix == "S" and key in _SPLIT_SUB_KEYS:
+                action = ParsedAction("special", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # g{c,C,l} — category operations and layout toggle
+            if self._multi_key_prefix == "g" and key in _G_SUB_KEYS:
+                action = ParsedAction("special", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
             # t{a,r,t,f,l,c,n,p} — tag operations
             if self._multi_key_prefix == "t" and key in _TAG_SUB_KEYS:
                 action = ParsedAction("special", full_key, count, self._register)
@@ -339,6 +353,11 @@ class KeyMap:
     def _feed_visual(self, key: str) -> tuple[KeyResult, ParsedAction | None]:
         if key == "escape":
             return KeyResult.COMPLETE, ParsedAction("mode_switch", "escape")
+        # Mid-sequence (pending g/t/m prefix): the next key belongs to
+        # that sequence, not to the visual operators — 'gc' must not
+        # read its 'c' as change.
+        if self._state != _State.IDLE:
+            return self._feed_normal(key)
         if key in ("d", "y", "c"):
             return KeyResult.COMPLETE, ParsedAction("operator", key)
         if key == ":":

@@ -7,22 +7,31 @@ Creates services, loads a deck file, and pushes the appropriate screen:
 
 from __future__ import annotations
 
+import os
+import sqlite3
 from pathlib import Path
 
+import httpx
 from textual.app import App
 
-from vimtg.config.paths import db_path
+from vimtg.config.paths import cache_dir, db_path
 from vimtg.config.settings import Settings, load_settings
 from vimtg.config.settings_writer import save_settings
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
+from vimtg.data.scryfall_sync import ScryfallSync, sync_is_due
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers import register_all_commands
 from vimtg.editor.commands import CommandRegistry
 from vimtg.services.deck_service import scaffold_missing_metadata
 from vimtg.services.search_service import SearchService
 from vimtg.tui.theme import COLORS
+
+# How often a long-lived session re-checks whether cards are stale.
+# Staleness itself is MAX_AGE_DAYS in scryfall_sync — this only bounds
+# how quickly a running app notices.
+AUTO_SYNC_CHECK_SECONDS = 3600
 
 
 class VimTGApp(App[None]):
@@ -32,7 +41,10 @@ class VimTGApp(App[None]):
 
     CSS = f"""
     Screen {{ layout: vertical; }}
-    #deck-view {{ height: 1fr; }}
+    #editor-area {{ height: 1fr; layout: horizontal; }}
+    #deck-view {{ width: 1fr; height: 1fr; }}
+    #deck-view-2 {{ width: 1fr; height: 1fr; }}
+    #edhrec-panel {{ width: 1fr; height: 1fr; }}
     #search-results {{ height: auto; max-height: 20; dock: bottom; }}
     #help-panel {{ height: auto; max-height: 24; dock: bottom; }}
     #which-key {{ height: auto; max-height: 6; dock: bottom; }}
@@ -66,6 +78,10 @@ class VimTGApp(App[None]):
             self.open_deck(self._deck_path)
         else:
             self.show_greeter()
+        self._maybe_auto_sync()
+        # Long-lived sessions re-check staleness periodically; the
+        # worker group is exclusive so checks can never overlap.
+        self.set_interval(AUTO_SYNC_CHECK_SECONDS, self._maybe_auto_sync)
 
     def on_unmount(self) -> None:
         """Release the database connection when the app shuts down."""
@@ -89,6 +105,80 @@ class VimTGApp(App[None]):
             db_file.parent.mkdir(parents=True, exist_ok=True)
             self._db = Database(db_file)
             self._db.initialize()
+
+    # ── Background card sync ─────────────────────────────────────
+
+    def _maybe_auto_sync(self) -> None:
+        """Start a background card sync when data is missing or stale.
+
+        Gated by the auto_sync_cards setting and the VIMTG_NO_AUTOSYNC
+        environment variable (set by the test suite so app tests never
+        touch the network).
+        """
+        if os.environ.get("VIMTG_NO_AUTOSYNC"):
+            return
+        if not self._settings.auto_sync_cards:
+            return
+        if self._card_repo is not None and not sync_is_due(self._card_repo):
+            return
+        first_run = self._card_repo is None or self._card_repo.count() == 0
+        if first_run:
+            self.notify(
+                "Downloading card database in background...",
+                title="Card sync",
+            )
+        self._start_auto_sync()
+
+    def _start_auto_sync(self) -> None:
+        self.run_worker(
+            self._auto_sync_worker,
+            thread=True,
+            group="card-sync",
+            exclusive=True,
+            description="Scryfall card sync",
+        )
+
+    def _auto_sync_worker(self) -> None:
+        """Sync on a worker thread using its own DB connection.
+
+        WAL mode allows this writer to run alongside the UI thread's
+        reads; sharing one sqlite3 connection across threads would not
+        be safe.
+        """
+        db = Database(db_path())
+        try:
+            db.initialize()
+            syncer = ScryfallSync(
+                card_repo=CardRepository(db), cache_dir=cache_dir()
+            )
+            count = syncer.sync()
+        except (httpx.HTTPError, RuntimeError, OSError, sqlite3.Error) as exc:
+            self.call_from_thread(
+                self.notify,
+                f"Card sync failed: {exc}",
+                title="Card sync",
+                severity="warning",
+            )
+            return
+        finally:
+            db.close()
+        self.call_from_thread(self._finish_auto_sync, count)
+
+    def _finish_auto_sync(self, count: int) -> None:
+        """Adopt freshly synced card data on the UI thread."""
+        from vimtg.tui.screens.main_screen import MainScreen
+
+        if self._card_repo is None and self._db is not None:
+            self._card_repo = CardRepository(self._db)
+            self._search_svc = SearchService(card_repo=self._card_repo)
+        screen = self.screen
+        if (
+            isinstance(screen, MainScreen)
+            and self._card_repo is not None
+            and self._search_svc is not None
+        ):
+            screen.attach_card_repo(self._card_repo, self._search_svc)
+        self.notify(f"Card database updated ({count} cards)", title="Card sync")
 
     def show_greeter(self) -> None:
         """Public navigation: open the greeter screen."""

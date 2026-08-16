@@ -183,6 +183,11 @@ def _render_card_line(
         type_short = card.type_line.split("\u2014")[0].strip()[:20]
         t.append(f"  {type_short}", style="dim")
 
+    # Render inline category
+    category = buf.category_at(line_idx)
+    if category:
+        t.append(f"  @{category}", style=f"dim {COLORS['category']}")
+
     # Render inline tags
     tags = buf.tags_at(line_idx)
     if tags:
