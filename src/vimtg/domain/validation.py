@@ -72,6 +72,8 @@ def validate_deck(
                     )
                 )
 
+    errors.extend(_check_companion(deck, lookup))
+
     rules = get_format_rules(fmt)
     if rules is None:
         if fmt.strip():
@@ -278,13 +280,59 @@ def _check_sideboard(
     return []
 
 
+def _check_companion(
+    deck: Deck, lookup: dict[str, Card]
+) -> list[ValidationError]:
+    """Companion zone rules — format-agnostic, like the zone itself.
+
+    At most one companion at quantity 1; a resolved card must actually
+    have the Companion ability (warning — keyword data can lag). The
+    zone sits outside the deck, so nothing here touches deck size.
+    """
+    companions = deck.companions()
+    if not companions:
+        return []
+    errors: list[ValidationError] = []
+    for entry in companions:
+        if entry.quantity != 1:
+            errors.append(
+                ValidationError(
+                    "error",
+                    f"Companion {entry.card_name}: quantity must be 1",
+                    line_number=entry.line_number,
+                )
+            )
+    if len(companions) > 1:
+        errors.append(
+            ValidationError(
+                "error",
+                f"Deck has {len(companions)} companions (maximum 1)",
+            )
+        )
+    for entry in companions:
+        card = lookup.get(entry.card_name.lower())
+        if card is not None and not _has_companion_ability(card):
+            errors.append(
+                ValidationError(
+                    "warning",
+                    f"{entry.card_name} is not a companion",
+                    line_number=entry.line_number,
+                )
+            )
+    return errors
+
+
+def _has_companion_ability(card: Card) -> bool:
+    if any(k.lower() == "companion" for k in card.keywords):
+        return True
+    return card.oracle_text.lower().startswith("companion —")
+
+
 def _check_commander(
     deck: Deck, lookup: dict[str, Card], rules: FormatRules
 ) -> list[ValidationError]:
     """Commander presence, count, legendary status, and color identity."""
-    commanders = [
-        e for e in deck.entries if e.section == DeckSection.COMMANDER
-    ]
+    commanders = deck.commanders()
     if not commanders:
         return [
             ValidationError(

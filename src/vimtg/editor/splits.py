@@ -1,6 +1,6 @@
 """Split-view requests — the pure model behind :vsplit / :split / :edhrec.
 
-The editor supports one companion pane beside (or below) the main deck
+The editor supports one split pane beside (or below) the main deck
 view, showing either another deck read-only or EDHREC recommendations.
 Handlers describe what to open with these frozen dataclasses; the TUI
 layer owns the actual widgets.
@@ -24,7 +24,7 @@ class SplitDirection(Enum):
 
 @dataclass(frozen=True)
 class SplitOpen:
-    """Request to open another deck file in the companion pane."""
+    """Request to open another deck file in the split pane."""
 
     direction: SplitDirection
     path: Path

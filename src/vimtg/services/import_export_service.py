@@ -216,7 +216,11 @@ class ImportExportService:
             if not line:
                 continue
             low = line.lower()
-            if low in ("deck", "companion"):
+            if low == "deck":
+                section = DeckSection.MAIN
+                continue
+            if low == "companion":
+                section = DeckSection.COMPANION
                 continue
             if low == "sideboard":
                 section = DeckSection.SIDEBOARD
@@ -240,7 +244,14 @@ class ImportExportService:
         return f"{e.quantity} {e.card_name}"
 
     def _export_arena(self, deck: Deck, resolved: dict[str, Card]) -> str:
-        lines: list[str] = ["Deck"]
+        lines: list[str] = []
+        if deck.companions():
+            lines.append("Companion")
+            lines.extend(
+                self._arena_entry(e, resolved) for e in deck.companions()
+            )
+            lines.append("")
+        lines.append("Deck")
         lines.extend(self._arena_entry(e, resolved) for e in deck.mainboard())
         if deck.sideboard():
             lines.append("")

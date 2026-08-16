@@ -1,13 +1,12 @@
 """Split-view commands: :vsplit, :split, :close, :edhrec.
 
 TUI-agnostic: zero Textual imports. Handlers only describe what should
-open via EditorContext; MainScreen owns the companion pane widgets.
+open via EditorContext; MainScreen owns the split-pane widgets.
 """
 
 from __future__ import annotations
 
 from vimtg.data.deck_repository import parse_deck_text
-from vimtg.domain.deck import DeckSection
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -88,7 +87,7 @@ def cmd_split(
 def cmd_close(
     buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:close — close the companion pane (alias :only)."""
+    """:close — close the split pane (alias :only)."""
     ctx.split_close = True
     return buf, cursor
 
@@ -125,11 +124,7 @@ def cmd_edhrec(
         )
         return buf, cursor
 
-    commanders = tuple(
-        entry.card_name
-        for entry in deck.entries
-        if entry.section == DeckSection.COMMANDER
-    )
+    commanders = tuple(entry.card_name for entry in deck.commanders())
     if not commanders:
         ctx.fail("No commander (add a CMD: line first)")
         return buf, cursor

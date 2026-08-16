@@ -79,7 +79,7 @@ async def test_edhrec_opens_panel_with_tabs(tmp_path: Path) -> None:
             panel = await _open_edhrec(pilot, app)
             assert panel.display is True
             assert panel.page is _PAGE
-            comp = screen._companion
+            comp = screen._split_pane
             assert comp is not None
             assert comp.kind == "edhrec"
             assert comp.focused is True  # keys drive the panel immediately
@@ -154,7 +154,7 @@ async def test_edhrec_requires_commander(tmp_path: Path) -> None:
             cl = screen.query_one("#command-line", CommandLine)
             assert cl.error
             assert "No commander" in cl.message
-            assert screen._companion is None
+            assert screen._split_pane is None
 
 
 @pytest.mark.asyncio
@@ -183,5 +183,5 @@ async def test_sr_key_opens_edhrec(tmp_path: Path) -> None:
             await pilot.press("S", "r")
             await app.workers.wait_for_complete()
             await pilot.pause()
-            assert screen._companion is not None
-            assert screen._companion.kind == "edhrec"
+            assert screen._split_pane is not None
+            assert screen._split_pane.kind == "edhrec"

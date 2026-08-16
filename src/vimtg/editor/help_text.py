@@ -15,7 +15,7 @@ NAVIGATION
   {/}           Prev/next section
   [[/]]         Prev/next section header
   Ctrl-D/U      Half page down/up
-  m{a-z}        Set mark (s/m/d are taken by zone moves)
+  m{a-z}        Set mark (s/m/d/c/p are taken by zone moves)
   '{a-z}        Jump to mark
 
 EDITING
@@ -31,6 +31,7 @@ EDITING
   +/-           Increment/decrement quantity
   ms/mm/md      Move card to sideboard/maybeboard/main deck
                 (all copies; 2ms moves just 2)
+  mc/mp         Move card to commander (CMD:) / companion (CMP:)
   .             Repeat last change
   u / Ctrl-R    Undo / redo
   q{a-z} / q    Record macro / stop recording
@@ -57,7 +58,7 @@ SPLITS & EDHREC
   :vsplit deck  View another deck side by side (read-only)
   :split deck   Same, stacked below
   :edhrec       EDHREC panel — tabs per card type
-  :close        Close the companion pane
+  :close        Close the split pane
 
 TAGS
   ta            Add tag to current card
@@ -276,7 +277,7 @@ COMMAND_HELP: dict[str, str] = {
     "vsplit": (
         ":vsplit deck-file  Open another deck beside this one (alias :vsp, :vs)\n"
         "\n"
-        "The companion pane is read-only — compare a netdeck or an old\n"
+        "The split pane is read-only — compare a netdeck or an old\n"
         "version while editing. Ss switches pane focus (j/k scroll,\n"
         "Esc returns), Sc / :close closes it."
     ),
@@ -285,7 +286,7 @@ COMMAND_HELP: dict[str, str] = {
         "\n"
         "Horizontal variant of :vsplit — same keys: Ss switch, :close close."
     ),
-    "close": ":close  Close the companion pane (alias :only; also the Sc key)",
+    "close": ":close  Close the split pane (alias :only; also the Sc key)",
     "edhrec": (
         ":edhrec [type]  EDHREC recommendations for the commander (alias :rec)\n"
         "\n"

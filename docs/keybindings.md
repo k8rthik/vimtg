@@ -48,6 +48,8 @@ flagged otherwise.
 | `+` | Increment quantity |
 | `-` | Decrement quantity (deletes the line at 0) |
 | `x` | Delete card at cursor |
+| `ms` / `mm` / `md` | Move card to **s**ideboard / **m**aybeboard / main **d**eck (all copies; `2ms` splits off 2) |
+| `mc` / `mp` | Move card to **c**ommander (`CMD:`) / com**p**anion (`CMP:`) |
 | `.` | Repeat last change (dot repeat) |
 | `u` | Undo |
 | `Ctrl-R` | Redo |
@@ -78,7 +80,7 @@ Prefix any operator with `"x` to use named register `x`:
 
 ## Splits & EDHREC
 
-One companion pane can sit beside or below the editor, showing another
+One split pane can sit beside or below the editor, showing another
 deck (read-only) or EDHREC recommendations (see
 [commands.md](./commands.md)).
 
@@ -127,7 +129,7 @@ holds a frozen set of them.
 
 | Key | Action |
 |-----|--------|
-| `m{a-z}` | Set mark |
+| `m{a-z}` | Set mark (`s`/`m`/`d`/`c`/`p` are taken by zone moves) |
 | `'{a-z}` | Jump to mark |
 
 ## Macros

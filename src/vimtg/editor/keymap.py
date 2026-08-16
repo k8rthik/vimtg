@@ -203,10 +203,11 @@ class KeyMap:
                 action = ParsedAction("motion", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # m{s,m,d} — move card to sideboard/maybeboard/main deck.
-            # Count 0 is the "no count given" sentinel (like G): a bare
-            # move takes every copy, "3ms" splits off 3.
-            if self._multi_key_prefix == "m" and key in ("s", "m", "d"):
+            # m{s,m,d,c,p} — move card to sideboard/maybeboard/main deck/
+            # commander/companion. Count 0 is the "no count given"
+            # sentinel (like G): a bare move takes every copy, "3ms"
+            # splits off 3.
+            if self._multi_key_prefix == "m" and key in ("s", "m", "d", "c", "p"):
                 explicit_count = int(self._count_str) if self._count_str else 0
                 action = ParsedAction(
                     "special", full_key, explicit_count, self._register

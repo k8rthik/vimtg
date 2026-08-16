@@ -64,6 +64,18 @@ class Deck:
             e for e in self.entries if e.section == DeckSection.SIDEBOARD
         )
 
+    def commanders(self) -> tuple[DeckEntry, ...]:
+        """Entries in the command zone (CMD: lines)."""
+        return tuple(
+            e for e in self.entries if e.section == DeckSection.COMMANDER
+        )
+
+    def companions(self) -> tuple[DeckEntry, ...]:
+        """Entries in the companion zone (CMP: lines) — at most one is legal."""
+        return tuple(
+            e for e in self.entries if e.section == DeckSection.COMPANION
+        )
+
     def maybeboard(self) -> tuple[DeckEntry, ...]:
         return tuple(
             e for e in self.entries if e.section == DeckSection.MAYBEBOARD

@@ -21,6 +21,9 @@ from vimtg.domain.deck_lines import (
     CMD_PATTERN as _COMMANDER_PATTERN,
 )
 from vimtg.domain.deck_lines import (
+    CMP_PATTERN as _COMPANION_PATTERN,
+)
+from vimtg.domain.deck_lines import (
     MB_PATTERN as _MAYBEBOARD_PATTERN,
 )
 from vimtg.domain.deck_lines import (
@@ -74,6 +77,7 @@ _ENTRY_PATTERNS = (
     (_SIDEBOARD_PATTERN, DeckSection.SIDEBOARD),
     (_MAYBEBOARD_PATTERN, DeckSection.MAYBEBOARD),
     (_COMMANDER_PATTERN, DeckSection.COMMANDER),
+    (_COMPANION_PATTERN, DeckSection.COMPANION),
     (_MAINBOARD_PATTERN, DeckSection.MAIN),
 )
 
@@ -106,6 +110,7 @@ def parse_deck_text(text: str) -> Deck:
       // Key: Value becomes metadata.
     - SB: N CardName -> sideboard entry.
     - CMD: N CardName -> commander entry.
+    - CMP: N CardName -> companion entry.
     - N CardName -> mainboard entry.
     - Blank/invalid lines are skipped gracefully.
     """
@@ -153,6 +158,7 @@ def serialize_deck(deck: Deck) -> str:
     - Mainboard entries grouped first.
     - Sideboard entries with SB: prefix.
     - Commander entries with CMD: prefix.
+    - Companion entry with CMP: prefix.
     """
     lines: list[str] = []
 
@@ -206,6 +212,8 @@ def serialize_deck(deck: Deck) -> str:
                 lines.append(f"MB: {entry.quantity} {entry.card_name}{suffix}")
             elif section == DeckSection.COMMANDER:
                 lines.append(f"CMD: {entry.quantity} {entry.card_name}{suffix}")
+            elif section == DeckSection.COMPANION:
+                lines.append(f"CMP: {entry.quantity} {entry.card_name}{suffix}")
             else:
                 lines.append(f"{entry.quantity} {entry.card_name}{suffix}")
 

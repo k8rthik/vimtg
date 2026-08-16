@@ -113,8 +113,8 @@ def _card_type_section(type_line: str) -> str:
 
 
 @dataclass
-class _CompanionPane:
-    """State of the companion split pane (second deck or EDHREC)."""
+class _SplitPane:
+    """State of the split pane (second deck or EDHREC)."""
 
     kind: str  # "deck" | "edhrec"
     direction: SplitDirection
@@ -170,7 +170,7 @@ class MainScreen(Screen[None]):
         # mutated, on change), so cursor-only keys cost one comparison
         self._lint_key: tuple[Buffer, dict[str, Card], str] | None = None
         self._lint_resolved_names: frozenset[str] = frozenset()
-        self._companion: _CompanionPane | None = None
+        self._split_pane: _SplitPane | None = None
         # Deck card names for the EDHREC ✓ marks, cached by buffer identity
         self._deck_names: frozenset[str] = frozenset()
         self._deck_names_key: Buffer | None = None
@@ -238,22 +238,22 @@ class MainScreen(Screen[None]):
         Shared by live keypresses, macro replay, and mapping expansion
         (expanded keys pass resolve=False so mappings don't re-resolve).
         """
-        # Companion pane focused: navigation keys drive the pane; ':' and
+        # Split pane focused: navigation keys drive the pane; ':' and
         # 'S' sequences pass through; any other key refocuses the editor
         # and is handled normally.
         if (
             resolve
             and not self._replaying
-            and self._companion is not None
-            and self._companion.focused
+            and self._split_pane is not None
+            and self._split_pane.focused
             and self._state.mode_mgr.is_normal()
             and not self.keymap.awaiting_more_keys
         ):
-            if self._handle_companion_key(key):
+            if self._handle_split_pane_key(key):
                 self._sync_widgets()
                 return
             if key not in (":", "S"):
-                self._companion.focused = False
+                self._split_pane.focused = False
                 self._sync_pane_focus()
         # A bare 'q' only stops recording in NORMAL mode with no pending
         # sequence — in INSERT/COMMAND modes (or mid-sequence) it is a
@@ -640,20 +640,20 @@ class MainScreen(Screen[None]):
         if hr:
             self._apply_handler_result(hr)
 
-    def _companion_widget(self) -> DeckView | EdhrecPanel:
-        if self._companion is not None and self._companion.kind == "edhrec":
+    def _split_pane_widget(self) -> DeckView | EdhrecPanel:
+        if self._split_pane is not None and self._split_pane.kind == "edhrec":
             return self.query_one("#edhrec-panel", EdhrecPanel)
         return self.query_one("#deck-view-2", DeckView)
 
     def _apply_split_layout(self) -> None:
-        """Show the companion widget in the requested direction."""
-        comp = self._companion
+        """Show the split-pane widget in the requested direction."""
+        comp = self._split_pane
         if comp is None:
             return
         area = self.query_one("#editor-area", Container)
         side_by_side = comp.direction is SplitDirection.VERTICAL
         area.styles.layout = "horizontal" if side_by_side else "vertical"
-        show = self._companion_widget()
+        show = self._split_pane_widget()
         for widget in (
             self.query_one("#deck-view-2", DeckView),
             self.query_one("#edhrec-panel", EdhrecPanel),
@@ -663,10 +663,10 @@ class MainScreen(Screen[None]):
 
     def _sync_pane_focus(self) -> None:
         """Reflect which pane is active: separator color + panel state."""
-        comp = self._companion
+        comp = self._split_pane
         if comp is None:
             return
-        widget = self._companion_widget()
+        widget = self._split_pane_widget()
         color = COLORS["focus"] if comp.focused else COLORS["comment"]
         if comp.direction is SplitDirection.VERTICAL:
             widget.styles.border_left = ("solid", color)
@@ -686,7 +686,7 @@ class MainScreen(Screen[None]):
             return
         buf = Buffer.from_text(text)
         resolved = resolve_cards(buf, self.card_repo) if self.card_repo else {}
-        self._companion = _CompanionPane(
+        self._split_pane = _SplitPane(
             kind="deck", direction=spec.direction,
             path=spec.path, buffer=buf, resolved=resolved,
         )
@@ -697,7 +697,7 @@ class MainScreen(Screen[None]):
 
     def _open_edhrec(self, req: EdhrecOpen) -> None:
         # Focus starts on the panel so j/k/h/l work immediately
-        self._companion = _CompanionPane(
+        self._split_pane = _SplitPane(
             kind="edhrec", direction=req.direction, focused=True,
         )
         self._apply_split_layout()
@@ -724,14 +724,14 @@ class MainScreen(Screen[None]):
         self.app.call_from_thread(self._edhrec_loaded, page, initial_tab)
 
     def _edhrec_failed(self, message: str) -> None:
-        if self._companion is None or self._companion.kind != "edhrec":
+        if self._split_pane is None or self._split_pane.kind != "edhrec":
             return  # pane was closed while the fetch ran
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         panel.status = f"E: {message}"
         panel.status_error = True
 
     def _edhrec_loaded(self, page: EdhrecPage, initial_tab: str) -> None:
-        if self._companion is None or self._companion.kind != "edhrec":
+        if self._split_pane is None or self._split_pane.kind != "edhrec":
             return  # pane was closed while the fetch ran
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         panel.status = ""
@@ -742,34 +742,34 @@ class MainScreen(Screen[None]):
 
     def _close_split(self) -> None:
         cl = self.query_one("#command-line", CommandLine)
-        if self._companion is None:
+        if self._split_pane is None:
             cl.set_message("E: No split open", error=True)
             return
-        self._companion = None
+        self._split_pane = None
         self.query_one("#deck-view-2", DeckView).display = False
         self.query_one("#edhrec-panel", EdhrecPanel).display = False
 
     def _toggle_pane_focus(self) -> None:
         cl = self.query_one("#command-line", CommandLine)
-        if self._companion is None:
+        if self._split_pane is None:
             cl.set_message("E: No split open (Sv/Sh or :vsplit)", error=True)
             return
-        self._companion.focused = not self._companion.focused
+        self._split_pane.focused = not self._split_pane.focused
         self._sync_pane_focus()
 
-    def _handle_companion_key(self, key: str) -> bool:
-        """Drive the focused companion pane; True when the key was consumed."""
-        comp = self._companion
+    def _handle_split_pane_key(self, key: str) -> bool:
+        """Drive the focused split pane; True when the key was consumed."""
+        comp = self._split_pane
         assert comp is not None
         if key == "escape":
             comp.focused = False
             self._sync_pane_focus()
             return True
         if comp.kind == "deck":
-            return self._companion_deck_key(comp, key)
-        return self._companion_edhrec_key(key)
+            return self._split_deck_key(comp, key)
+        return self._split_edhrec_key(key)
 
-    def _companion_deck_key(self, comp: _CompanionPane, key: str) -> bool:
+    def _split_deck_key(self, comp: _SplitPane, key: str) -> bool:
         if comp.buffer is None:
             return False
         last = comp.buffer.line_count() - 1
@@ -790,7 +790,7 @@ class MainScreen(Screen[None]):
             return False
         return True
 
-    def _companion_edhrec_key(self, key: str) -> bool:
+    def _split_edhrec_key(self, key: str) -> bool:
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         if key in ("j", "down"):
             panel.select_next()
@@ -1305,7 +1305,7 @@ class MainScreen(Screen[None]):
         dv.tag_filter = s.tag_filter
         dv.line_errors = self._lint.line_errors
 
-        comp = self._companion
+        comp = self._split_pane
         if comp is not None:
             if comp.kind == "deck" and comp.buffer is not None:
                 dv2 = self.query_one("#deck-view-2", DeckView)

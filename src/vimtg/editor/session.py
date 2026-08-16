@@ -403,9 +403,9 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
                 command_message=f"Nothing recorded in @{key[1]}"
             )
         return HandlerResult(replay_keys=keys * count)
-    elif key in ("ms", "mm", "md"):
-        # Zone moves shadow marks s/m/d; action.count is read raw because
-        # 0 means "no count given" — move every copy (see keymap).
+    elif key in ("ms", "mm", "md", "mc", "mp"):
+        # Zone moves shadow marks s/m/d/c/p; action.count is read raw
+        # because 0 means "no count given" — move every copy (see keymap).
         return _move_card_to_zone(state, key, action.count)
     elif key.startswith("m") and len(key) == 2:
         mark_name = key[1]
@@ -725,11 +725,13 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
     return ""
 
 
-# ms/mm/md → the zone (line type) each move key targets
+# ms/mm/md/mc/mp → the zone (line type) each move key targets
 ZONE_TARGETS: dict[str, LineType] = {
     "md": LineType.CARD_ENTRY,
     "ms": LineType.SIDEBOARD_ENTRY,
     "mm": LineType.MAYBEBOARD_ENTRY,
+    "mc": LineType.COMMANDER_ENTRY,
+    "mp": LineType.COMPANION_ENTRY,
 }
 
 

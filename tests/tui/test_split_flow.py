@@ -44,8 +44,8 @@ async def test_vsplit_shows_second_deck(tmp_path: Path) -> None:
 
         await _type_command(pilot, f":vsplit {other}")
         assert dv2.display is True
-        assert screen._companion is not None
-        assert screen._companion.direction is SplitDirection.VERTICAL
+        assert screen._split_pane is not None
+        assert screen._split_pane.direction is SplitDirection.VERTICAL
         assert dv2.buffer is not None
         assert "4 Opt" in dv2.buffer.to_text()
         # Main buffer untouched
@@ -60,8 +60,8 @@ async def test_split_is_horizontal(tmp_path: Path) -> None:
     async with app.run_test() as pilot:
         screen = _main_screen(app)
         await _type_command(pilot, f":split {other}")
-        assert screen._companion is not None
-        assert screen._companion.direction is SplitDirection.HORIZONTAL
+        assert screen._split_pane is not None
+        assert screen._split_pane.direction is SplitDirection.HORIZONTAL
 
 
 @pytest.mark.asyncio
@@ -74,7 +74,7 @@ async def test_missing_file_reports_error(tmp_path: Path) -> None:
         cl = screen.query_one("#command-line", CommandLine)
         assert cl.error
         assert "not found" in cl.message
-        assert screen._companion is None
+        assert screen._split_pane is None
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_close_hides_pane(tmp_path: Path) -> None:
         screen = _main_screen(app)
         await _type_command(pilot, f":vsplit {other}")
         await _type_command(pilot, ":close")
-        assert screen._companion is None
+        assert screen._split_pane is None
         assert screen.query_one("#deck-view-2", DeckView).display is False
 
 
@@ -100,7 +100,7 @@ async def test_ss_switches_focus_and_j_scrolls_companion(
     async with app.run_test() as pilot:
         screen = _main_screen(app)
         await _type_command(pilot, f":vsplit {other}")
-        comp = screen._companion
+        comp = screen._split_pane
         assert comp is not None and comp.focused is False
 
         main_row = screen._state.cursor.row
@@ -127,9 +127,9 @@ async def test_sc_closes_split(tmp_path: Path) -> None:
     async with app.run_test() as pilot:
         screen = _main_screen(app)
         await _type_command(pilot, f":vsplit {other}")
-        assert screen._companion is not None
+        assert screen._split_pane is not None
         await pilot.press("S", "c")
-        assert screen._companion is None
+        assert screen._split_pane is None
 
 
 @pytest.mark.asyncio

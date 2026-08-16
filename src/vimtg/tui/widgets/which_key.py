@@ -66,6 +66,7 @@ PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
     "@": [("@a-z", "play macro"), ("@@", "replay last")],
     "m": [
         ("ms", "→ sideboard"), ("mm", "→ maybeboard"), ("md", "→ main deck"),
+        ("mc", "→ commander"), ("mp", "→ companion"),
         ("ma-z", "set mark"),
     ],
     "'": [("'a-z", "jump to mark")],

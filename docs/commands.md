@@ -61,7 +61,7 @@ In-group card order follows the `sort_order` setting
 
 ## Splits & EDHREC
 
-The editor supports one companion pane beside (`:vsplit`) or below
+The editor supports one split pane beside (`:vsplit`) or below
 (`:split`) the main deck view. It shows either another deck read-only —
 compare a netdeck or an old version while editing — or EDHREC
 recommendations for the deck's commander. `Ss` switches focus into the
@@ -71,7 +71,7 @@ pane (`j`/`k` scroll or select, `h`/`l` switch tabs, `Esc` returns).
 |---------|-------------|
 | `:vsplit deck` (alias `:vsp`, `:vs`) | Open another deck file side by side (read-only) |
 | `:split deck` (alias `:sp`, `:hsplit`) | Same, stacked below |
-| `:close` (alias `:only`) | Close the companion pane |
+| `:close` (alias `:only`) | Close the split pane |
 | `:edhrec [type]` (alias `:rec`) | EDHREC recommendations for the commander(s) on the deck's `CMD:` lines |
 
 `:edhrec` is Commander-only: the deck must declare `// Format: commander`

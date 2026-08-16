@@ -167,18 +167,30 @@ def decrement_quantity(
 # ── Zone moves (ms/mm/md) ────────────────────────────────────────────
 
 ZONE_LABELS = {
+    LineType.COMMANDER_ENTRY: "commander",
+    LineType.COMPANION_ENTRY: "companion",
     LineType.CARD_ENTRY: "main deck",
     LineType.SIDEBOARD_ENTRY: "sideboard",
     LineType.MAYBEBOARD_ENTRY: "maybeboard",
 }
 _ZONE_PREFIXES = {
+    LineType.COMMANDER_ENTRY: "CMD: ",
+    LineType.COMPANION_ENTRY: "CMP: ",
     LineType.CARD_ENTRY: "",
     LineType.SIDEBOARD_ENTRY: "SB: ",
     LineType.MAYBEBOARD_ENTRY: "MB: ",
 }
 # Zones whose blocks come after this zone in the canonical file layout
-# (main deck, then sideboard, then maybeboard).
+# (commander, companion, main deck, sideboard, maybeboard).
 _ZONE_SUCCESSORS = {
+    LineType.COMMANDER_ENTRY: (
+        LineType.COMPANION_ENTRY, LineType.CARD_ENTRY,
+        LineType.SIDEBOARD_ENTRY, LineType.MAYBEBOARD_ENTRY,
+    ),
+    LineType.COMPANION_ENTRY: (
+        LineType.CARD_ENTRY,
+        LineType.SIDEBOARD_ENTRY, LineType.MAYBEBOARD_ENTRY,
+    ),
     LineType.CARD_ENTRY: (LineType.SIDEBOARD_ENTRY, LineType.MAYBEBOARD_ENTRY),
     LineType.SIDEBOARD_ENTRY: (LineType.MAYBEBOARD_ENTRY,),
     LineType.MAYBEBOARD_ENTRY: (),
@@ -221,7 +233,11 @@ def _zone_insert_row(buffer: Buffer, zone: LineType) -> int:
         return last + 1
     for i in range(buffer.line_count()):
         if buffer.get_line(i).line_type in _ZONE_SUCCESSORS[zone]:
-            while i > 0 and buffer.get_line(i - 1).line_type == LineType.BLANK:
+            # Step back over the block's own header and separator so the
+            # new zone line lands before the block, not inside it.
+            while i > 0 and buffer.get_line(i - 1).line_type in (
+                LineType.BLANK, LineType.SECTION_HEADER,
+            ):
                 i -= 1
             return i
     return buffer.line_count()

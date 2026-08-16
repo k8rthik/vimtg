@@ -16,6 +16,9 @@ Each line is one of:
 | Category header | `// @name` | `// @ramp` |
 | Card entry | `[N] CardName [@category] [#tag …] [// comment]` | `4 Lightning Bolt  @removal  #burn  // core` |
 | Sideboard entry | `SB: [N] CardName [#tag …] [// comment]` | `SB: 2 Rest in Peace` |
+| Maybeboard entry | `MB: [N] CardName …` | `MB: 1 Opt` |
+| Commander entry | `CMD: [N] CardName …` | `CMD: 1 Atraxa, Praetors' Voice` |
+| Companion entry | `CMP: [N] CardName …` | `CMP: 1 Lurrus of the Dream-Den` |
 | Blank | (empty) | |
 
 ## Metadata keys
@@ -97,6 +100,21 @@ SB: 3 Kor Firewalker
 
 A `// Sideboard` header is conventional but not required — the `SB:` prefix
 is what counts.
+
+## Other zones
+
+The same prefix convention covers the remaining zones:
+
+- `MB:` — maybeboard, a scratchpad outside the deck (never counted
+  toward deck size or copy limits; legality issues are warnings).
+- `CMD:` — the command zone. Commander entries count toward the
+  format's exact 100 and the singleton rule; at most two (partners),
+  quantity 1 each.
+- `CMP:` — the companion slot. At most one, quantity 1, outside the
+  deck proper; the card must actually have the Companion ability.
+
+In the editor, `ms`/`mm`/`md`/`mc`/`mp` move the cursor card between
+zones.
 
 ## Round-trip fidelity
 

@@ -69,8 +69,8 @@ def regroup_buffer(
     them (their positions inside the list are not preserved — same
     normalization :import and merge already apply). Mainboard cards
     are regrouped under fresh section headers and ordered by
-    `order_field` within each group. Commander, sideboard, and
-    maybeboard cards keep their zones as trailing blocks.
+    `order_field` within each group. Commander, companion, sideboard,
+    and maybeboard cards keep their zones as separate blocks.
     """
     if mode not in LAYOUT_MODES:
         raise ValueError(f"Unknown layout mode: {mode}")
@@ -79,6 +79,7 @@ def regroup_buffer(
     comments: list[str] = []
     zone_lines: dict[LineType, list[BufferLine]] = {
         LineType.COMMANDER_ENTRY: [],
+        LineType.COMPANION_ENTRY: [],
         LineType.CARD_ENTRY: [],
         LineType.SIDEBOARD_ENTRY: [],
         LineType.MAYBEBOARD_ENTRY: [],
@@ -118,6 +119,11 @@ def regroup_buffer(
         _pad(out)
         out.append("// Commander")
         out.extend(bl.text for bl in zone_lines[LineType.COMMANDER_ENTRY])
+
+    if zone_lines[LineType.COMPANION_ENTRY]:
+        _pad(out)
+        out.append("// Companion")
+        out.extend(bl.text for bl in zone_lines[LineType.COMPANION_ENTRY])
 
     for header, group in groups:
         if not group:

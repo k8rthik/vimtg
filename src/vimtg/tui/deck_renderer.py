@@ -122,6 +122,7 @@ def render_line(
     elif bl.line_type in (
         LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY,
         LineType.MAYBEBOARD_ENTRY, LineType.COMMANDER_ENTRY,
+        LineType.COMPANION_ENTRY,
     ):
         lines.extend(_render_card_line(
             line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
@@ -173,6 +174,8 @@ def _render_card_line(
         t.append("MB: ", style=COLORS["maybeboard"])
     elif bl.line_type == LineType.COMMANDER_ENTRY:
         t.append("CMD: ", style=COLORS["sideboard"])
+    elif bl.line_type == LineType.COMPANION_ENTRY:
+        t.append("CMP: ", style=COLORS["companion"])
 
     t.append(f"{qty or '?':<4}", style=COLORS["quantity"])
     name_str = card_name or bl.text.strip()

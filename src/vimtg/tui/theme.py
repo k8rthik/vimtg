@@ -15,6 +15,7 @@ COLORS: dict[str, str] = {
     "mana_colorless": "#9399b2",
     "sideboard": "#f9e2af",
     "maybeboard": "#b4befe",
+    "companion": "#f5c2e7",
     "expansion": "#6c7086",
     "mode_normal": "#a6e3a1",
     "mode_insert": "#89b4fa",
