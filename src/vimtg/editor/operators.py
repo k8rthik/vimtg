@@ -14,6 +14,7 @@ from vimtg.domain.deck_lines import (
     CARD_PATTERN,
     format_inline_comment,
     parse_zone_header,
+    zone_running_context,
 )
 from vimtg.domain.tags import format_inline_tags
 from vimtg.editor.buffer import Buffer, LineType
@@ -41,6 +42,13 @@ def resolve_line_range(
     if motion is None:  # doubled operator: dd, yy, cc
         end = min(cursor.row + count - 1, buffer.line_count() - 1)
         return (cursor.row, end)
+    # j/k operate on raw lines (vim: dj = exactly two lines). The
+    # cursor motions skip blanks, which would silently widen the range
+    # across a blank onto the next section or zone-block header.
+    if motion == "j":
+        return (cursor.row, min(cursor.row + count, buffer.line_count() - 1))
+    if motion == "k":
+        return (max(cursor.row - count, 0), cursor.row)
     motion_fn = MOTION_REGISTRY.get(motion)
     if motion_fn is None:
         return (cursor.row, cursor.row)
@@ -284,8 +292,10 @@ def _insert_zone_line(
     )
     row = _zone_insert_row(buffer, zone)
     if row == buffer.line_count() and row > 0:
-        prev_type = buffer.get_line(row - 1).line_type
-        if prev_type not in (LineType.BLANK, zone):
+        prev = buffer.get_line(row - 1)
+        if prev.line_type not in (LineType.BLANK, zone) and (
+            parse_zone_header(prev.text) != tag
+        ):
             buffer = buffer.insert_line(row, "")
             row += 1
     if not has_entries and not has_header:
@@ -297,16 +307,25 @@ def _insert_zone_line(
 
 
 def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
-    """Prefix or indent `body` to match the insertion point's style."""
+    """Prefix or indent `body` to match the insertion point's style.
+
+    Inside the zone's own block the line is bare and indented. Inside a
+    FOREIGN open block the explicit prefix is kept but indented — an
+    unindented line there would terminate that block and rezone the
+    lines after it.
+    """
     if row > 0:
         prev = buffer.get_line(row - 1)
-        in_block = parse_zone_header(prev.text) == _ZONE_TAGS[zone] or (
+        in_own_block = parse_zone_header(prev.text) == _ZONE_TAGS[zone] or (
             prev.line_type == zone
             and prev.text[:1].isspace()
             and CARD_PATTERN.match(prev.text) is not None
         )
-        if in_block:
+        if in_own_block:
             return f"{_BLOCK_INDENT}{body}"
+        texts = [buffer.get_line(i).text for i in range(buffer.line_count())]
+        if zone_running_context(texts, min(row, len(texts))) is not None:
+            return f"{_BLOCK_INDENT}{_ZONE_PREFIXES[zone]}{body}"
     return f"{_ZONE_PREFIXES[zone]}{body}"
 
 

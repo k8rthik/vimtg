@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from vimtg.domain.card import Card
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
+from vimtg.domain.deck_lines import clamp_quantity
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -41,7 +42,7 @@ def _row_quantity(row: Mapping[str, str | None]) -> int:
         qty = int(str(raw).strip())
     except ValueError:
         return 1
-    return qty if qty > 0 else 1
+    return clamp_quantity(qty) if qty > 0 else 1
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,13 @@ class ImportExportService:
         - Fallback -> MTGO
         """
         if "// Deck:" in text or text.lstrip().startswith("//"):
+            return DeckFormat.VIMTG
+        # Native zone markers (prefix lines or block headers) — without
+        # this, a comment-less native deck detects as MTGO and its
+        # SB:/CMD: lines are silently dropped on import
+        if re.search(
+            r"^\s*(SB|MB|CMD|CMP|DCK):", text, re.MULTILINE | re.IGNORECASE
+        ):
             return DeckFormat.VIMTG
         if re.search(r"\([A-Z0-9]{3,5}\)\s+\d+", text):
             return DeckFormat.ARENA
@@ -188,7 +196,11 @@ class ImportExportService:
             m = re.match(r"^(\d+)\s+(.+)$", line)
             if m:
                 entries.append(
-                    DeckEntry(int(m.group(1)), m.group(2).strip(), section)
+                    DeckEntry(
+                        clamp_quantity(int(m.group(1))),
+                        m.group(2).strip(),
+                        section,
+                    )
                 )
         return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
 
@@ -196,10 +208,14 @@ class ImportExportService:
         lines: list[str] = []
         for e in deck.mainboard():
             lines.append(f"{e.quantity} {e.card_name}")
-        if deck.sideboard():
+        # MTGO's text form has no command zone — its convention parks
+        # the commander (and companion) in the sideboard, which also
+        # keeps them from being silently dropped on conversion
+        side = deck.commanders() + deck.companions() + deck.sideboard()
+        if side:
             lines.append("")
             lines.append("Sideboard")
-            for e in deck.sideboard():
+            for e in side:
                 lines.append(f"{e.quantity} {e.card_name}")
         return "\n".join(lines) + "\n"
 
@@ -231,7 +247,11 @@ class ImportExportService:
             m = re.match(r"^(\d+)\s+(.+?)(?:\s+\([A-Za-z0-9]{3,5}\)\s*\d*)?$", line)
             if m:
                 entries.append(
-                    DeckEntry(int(m.group(1)), m.group(2).strip(), section)
+                    DeckEntry(
+                        clamp_quantity(int(m.group(1))),
+                        m.group(2).strip(),
+                        section,
+                    )
                 )
         return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
 
@@ -245,6 +265,12 @@ class ImportExportService:
 
     def _export_arena(self, deck: Deck, resolved: dict[str, Card]) -> str:
         lines: list[str] = []
+        if deck.commanders():
+            lines.append("Commander")
+            lines.extend(
+                self._arena_entry(e, resolved) for e in deck.commanders()
+            )
+            lines.append("")
         if deck.companions():
             lines.append("Companion")
             lines.extend(
@@ -275,6 +301,10 @@ class ImportExportService:
                 section = DeckSection.SIDEBOARD
             elif "maybe" in section_str:
                 section = DeckSection.MAYBEBOARD
+            elif "commander" in section_str:
+                section = DeckSection.COMMANDER
+            elif "companion" in section_str:
+                section = DeckSection.COMPANION
             else:
                 section = DeckSection.MAIN
             if name:
@@ -294,6 +324,10 @@ class ImportExportService:
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["Count", "Name", "Edition", "Collector Number", "Section"])
+        for e in deck.commanders():
+            writer.writerow(self._moxfield_row(e, resolved, "commander"))
+        for e in deck.companions():
+            writer.writerow(self._moxfield_row(e, resolved, "companion"))
         for e in deck.mainboard():
             writer.writerow(self._moxfield_row(e, resolved, "mainboard"))
         for e in deck.sideboard():
@@ -321,5 +355,10 @@ class ImportExportService:
         writer = csv.writer(output)
         writer.writerow(["Quantity", "Name"])
         for e in deck.entries:
+            # Maybeboard is a scratchpad outside the deck — flattening
+            # it into a sectionless list would merge it into the deck
+            # proper on re-import
+            if e.section == DeckSection.MAYBEBOARD:
+                continue
             writer.writerow([e.quantity, e.card_name])
         return output.getvalue()

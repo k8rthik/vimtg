@@ -10,7 +10,11 @@ TUI-agnostic: no Textual imports.
 
 from __future__ import annotations
 
-from vimtg.domain.deck_lines import parse_zone_header
+from vimtg.domain.deck_lines import (
+    apply_zone_effect,
+    parse_zone_header,
+    zone_context_effect,
+)
 from vimtg.editor.buffer import (
     Buffer,
     LineType,
@@ -56,6 +60,22 @@ def normalize_sections(buffer: Buffer) -> Buffer:
     return Buffer.from_text("\n".join(padded) + "\n")
 
 
+def _would_capture_cards(
+    lines: list[tuple[str, LineType]], header_row: int
+) -> bool:
+    """True when dropping the block-terminating header at `header_row`
+    would extend the open zone block over an indented bare card line,
+    silently rezoning it."""
+    from vimtg.domain.deck_lines import CARD_PATTERN
+
+    for text, _ in lines[header_row + 1:]:
+        if zone_context_effect(text) != "keep":
+            return False  # another terminator closes the block first
+        if text[:1].isspace() and CARD_PATTERN.match(text) is not None:
+            return True
+    return False
+
+
 def _drop_empty_headers(
     lines: list[tuple[str, LineType]],
 ) -> list[tuple[str, LineType]]:
@@ -63,18 +83,28 @@ def _drop_empty_headers(
 
     Zone-aware: a '// Creature' header is only occupied by mainboard
     cards — a CMD:/SB: line sitting where the section's cards used to
-    be does not keep it alive.
+    be does not keep it alive. Blank lines and comments between the
+    header and its cards are looked through, and a header that is
+    terminating an open zone block above it is never dropped (removing
+    it would extend that block over the following lines).
     """
+    running: str | None = None
     to_delete: set[int] = set()
     for i, (text, line_type) in enumerate(lines):
+        terminates_block = (
+            running is not None and zone_context_effect(text) == "clear"
+        )
+        running = apply_zone_effect(zone_context_effect(text), running)
         if line_type != LineType.SECTION_HEADER:
             continue
         expected = _expected_card_type(text)
         if expected is None:
             continue  # bare zone block header — structural, keep
+        if terminates_block and _would_capture_cards(lines, i):
+            continue  # dropping it would swallow lines into the block
         has_cards = False
         for _, next_type in lines[i + 1:]:
-            if next_type == LineType.BLANK:
+            if next_type in (LineType.BLANK, LineType.COMMENT):
                 continue
             if next_type == expected:
                 has_cards = True

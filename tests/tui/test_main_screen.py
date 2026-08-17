@@ -166,9 +166,16 @@ class TestCleanupEmptySections:
         s._cleanup_empty_sections()
         assert s._state.cursor.row < s._state.buffer.line_count()
 
-    def test_section_followed_by_comment_is_empty(self) -> None:
-        # A header whose next non-blank line is a comment counts as empty.
+    def test_section_with_comment_before_cards_is_kept(self) -> None:
+        # A comment between a header and its cards does not make the
+        # section empty (dropping the header here destroyed real decks)
         result = self._cleaned("// Creatures\n// just a note\n4 Goblin Guide\n")
+        assert "// Creatures" in result
+
+    def test_section_with_comment_and_no_cards_is_dropped(self) -> None:
+        result = self._cleaned(
+            "// Creatures\n// just a note\n\n// Lands\n20 Mountain\n"
+        )
         assert "// Creatures" not in result
 
     def test_idempotent(self) -> None:
@@ -389,11 +396,13 @@ async def test_confirm_insert_duplicate_preserves_prefix_and_tags(wired_repo) ->
         guide = wired_repo.get_by_name("Goblin Guide")
         scr._update_search_results([guide])
         scr._confirm_insert()
+        # The add flow targets the mainboard: the sideboard copy must
+        # NOT be incremented — a new mainboard line is added instead
+        text = scr._state.buffer.to_text()
+        assert "SB: 2 Goblin Guide  #aggro" in text
         line = scr._find_card_line("Goblin Guide")
-        assert line is not None
-        text = scr._state.buffer.get_line(line).text
-        assert text.startswith("SB: 3 Goblin Guide")
-        assert "#aggro" in text
+        assert line is not None  # mainboard-only lookup finds the new line
+        assert "1 Goblin Guide" in scr._state.buffer.get_line(line).text
 
 
 @pytest.mark.asyncio

@@ -80,9 +80,34 @@ def matches_filter(tags: frozenset[str], filt: TagFilter) -> bool:
     return not (filt.any_of and not filt.any_of & tags)
 
 
+def _tag_suffix_index(text: str) -> int | None:
+    """Start index of a valid trailing tag suffix ('  #tag1 #tag2').
+
+    Parsing and stripping MUST agree on what counts as tags: a '#word'
+    embedded in the name (or a suffix mixing tags with prose) is not a
+    tag suffix — extracting tags there while leaving the text intact
+    made parse→serialize append a duplicate suffix on every round-trip.
+    """
+    stripped = text.lstrip()
+    if stripped.startswith("#") and _TAG_TOKEN.sub("", stripped).strip() == "":
+        return len(text) - len(stripped)  # the text IS a tag list
+    idx = text.find("  #")
+    if idx == -1:
+        return None
+    suffix = text[idx + 2:]
+    if _TAG_TOKEN.sub("", suffix).strip() == "":
+        return idx
+    return None
+
+
 def parse_inline_tags(text: str) -> frozenset[str]:
-    """Extract #tag tokens from a string, returning lowercase frozenset."""
-    return frozenset(m.group(1).lower() for m in _TAG_TOKEN.finditer(text))
+    """Extract the #tag tokens of a valid trailing tag suffix."""
+    idx = _tag_suffix_index(text)
+    if idx is None:
+        return frozenset()
+    return frozenset(
+        m.group(1).lower() for m in _TAG_TOKEN.finditer(text[idx:])
+    )
 
 
 def strip_inline_tags(text: str) -> str:
@@ -90,14 +115,8 @@ def strip_inline_tags(text: str) -> str:
 
     Only strips tags after a two-space delimiter to avoid false positives.
     """
-    idx = text.find("  #")
-    if idx == -1:
-        return text
-    # Verify everything after the two-space delimiter is valid tags
-    suffix = text[idx + 2:]
-    if _TAG_TOKEN.sub("", suffix).strip() == "":
-        return text[:idx]
-    return text
+    idx = _tag_suffix_index(text)
+    return text if idx is None else text[:idx]
 
 
 def format_inline_tags(tags: frozenset[str]) -> str:

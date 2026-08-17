@@ -21,6 +21,11 @@ def compute_scroll_offset(
     if total <= viewport:
         return 0
 
+    # A scrolloff at or above half the viewport makes the two
+    # adjustments fight and can push the selection out of the window
+    # entirely (a 3-row pane with scrolloff 3 hides the cursor).
+    scrolloff = min(scrolloff, max(0, (viewport - 1) // 2))
+
     max_offset = total - viewport
     offset = current_offset
 

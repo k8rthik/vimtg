@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from vimtg.domain.card_types import BASIC_LANDS
+from vimtg.domain.card_types import is_basic_land
 from vimtg.domain.deck import Deck, DeckEntry, DeckSection
 from vimtg.domain.formats import FormatRules, get_format_rules
 
@@ -107,24 +107,40 @@ def _lowercase_lookup(
 
 
 def _counted_copies(deck: Deck) -> dict[str, int]:
-    """Total copies per card name across mainboard, sideboard, commander."""
+    """Total copies per card name across mainboard, sideboard, commander.
+
+    Keyed by lowercase name: card resolution is case-insensitive, so
+    '4 Lightning Bolt' + '4 lightning bolt' is 8 copies of one card,
+    not two clean playsets.
+    """
     combined: dict[str, int] = {}
     for entry in deck.entries:
         if entry.section in _COPY_SECTIONS:
-            combined[entry.card_name] = (
-                combined.get(entry.card_name, 0) + entry.quantity
-            )
+            key = entry.card_name.lower()
+            combined[key] = combined.get(key, 0) + entry.quantity
     return combined
+
+
+def _display_names(deck: Deck) -> dict[str, str]:
+    """First-seen original spelling per lowercase card name, for messages."""
+    names: dict[str, str] = {}
+    for entry in deck.entries:
+        names.setdefault(entry.card_name.lower(), entry.card_name)
+    return names
 
 
 def _generic_checks(deck: Deck) -> list[ValidationError]:
     """Format-agnostic rules: 4-of, 60-card minimum, 15-card sideboard."""
     errors: list[ValidationError] = []
 
+    display = _display_names(deck)
     for name, qty in _counted_copies(deck).items():
-        if qty > 4 and name not in BASIC_LANDS:
+        if qty > 4 and not is_basic_land(name):
             errors.append(
-                ValidationError("warning", f"More than 4 copies of {name}")
+                ValidationError(
+                    "warning",
+                    f"More than 4 copies of {display.get(name, name)}",
+                )
             )
 
     main_count = sum(e.quantity for e in deck.mainboard())
@@ -184,7 +200,7 @@ def _check_legality(
         elif (
             status == "restricted"
             and entry.section in _COPY_SECTIONS
-            and copies.get(entry.card_name, 0) > 1
+            and copies.get(entry.card_name.lower(), 0) > 1
         ):
             errors.append(
                 ValidationError(
@@ -204,7 +220,7 @@ def _check_copy_limit(
     over = {
         name
         for name, qty in copies.items()
-        if qty > rules.copy_limit and name not in BASIC_LANDS
+        if qty > rules.copy_limit and not is_basic_land(name)
     }
     if not over:
         return []
@@ -212,12 +228,12 @@ def _check_copy_limit(
     return [
         ValidationError(
             "error",
-            f"{entry.card_name}: {copies[entry.card_name]} copies "
+            f"{entry.card_name}: {copies[entry.card_name.lower()]} copies "
             f"(max {rules.copy_limit} {limit_word} in {rules.name})",
             line_number=entry.line_number,
         )
         for entry in deck.entries
-        if entry.card_name in over and entry.section in _COPY_SECTIONS
+        if entry.card_name.lower() in over and entry.section in _COPY_SECTIONS
     ]
 
 

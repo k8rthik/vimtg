@@ -8,7 +8,13 @@ regrouper so ordering means the same thing everywhere.
 
 from __future__ import annotations
 
-from vimtg.editor.buffer import CARD_LINE_TYPES, Buffer, BufferLine, classify_line
+from vimtg.editor.buffer import (
+    CARD_LINE_TYPES,
+    Buffer,
+    BufferLine,
+    LineType,
+    classify_lines,
+)
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
@@ -86,41 +92,45 @@ def cmd_sort(
         ctx.message = "No card lines to sort"
         return buffer, cursor
 
-    # Sort the card entries
+    # Sort per zone: a range can span zone boundaries (an indented
+    # commander line next to an SB: prefix line), and reordering across
+    # them would move lines past a block terminator, changing zones.
+    # Each card slot keeps its original zone; entries sort within it.
     card_data = ctx.resolved_cards or {}
     price_source = getattr(ctx.settings, "price_source", "usd") or "usd"
-    sorted_cards = sorted(
-        [bl for _, bl in card_entries],
-        key=lambda bl: extract_sort_key(
-            bl, sort_field, card_data, price_source=price_source
-        ),
-        reverse=cmd.bang,
-    )
+    by_zone: dict[LineType, list[BufferLine]] = {}
+    for _, bl in card_entries:
+        by_zone.setdefault(bl.line_type, []).append(bl)
+    sorted_by_zone = {
+        zone: sorted(
+            entries,
+            key=lambda bl: extract_sort_key(
+                bl, sort_field, card_data, price_source=price_source
+            ),
+            reverse=cmd.bang,
+        )
+        for zone, entries in by_zone.items()
+    }
+    zone_idx = dict.fromkeys(sorted_by_zone, 0)
 
     # Reassemble: anchored lines stay, card slots get sorted entries
     result: list[BufferLine] = []
-    card_idx = 0
-    for offset in range(len(region)):
+    for offset, bl in enumerate(region):
         if offset in anchored:
             result.append(anchored[offset])
         else:
-            result.append(sorted_cards[card_idx])
-            card_idx += 1
+            zone = bl.line_type
+            result.append(sorted_by_zone[zone][zone_idx[zone]])
+            zone_idx[zone] += 1
 
-    # Build new lines tuple
-    new_lines = (
-        tuple(lines[:start])
-        + tuple(result)
-        + tuple(lines[end + 1 :])
-    )
-    new_buffer = Buffer(
-        tuple(
-            BufferLine(text=bl.text, line_type=classify_line(bl.text))
-            for bl in new_lines
-        )
-    )
+    # Rebuild with zone-block context — per-line classification would
+    # demote indented block cards to mainboard in the live session
+    new_texts = [bl.text for bl in lines[:start]]
+    new_texts += [bl.text for bl in result]
+    new_texts += [bl.text for bl in lines[end + 1:]]
+    new_buffer = Buffer(classify_lines(new_texts))
 
-    count = len(sorted_cards)
+    count = len(card_entries)
     ctx.message = f"Sorted {count} card{'s' if count != 1 else ''} by {sort_field}"
     return new_buffer, cursor
 

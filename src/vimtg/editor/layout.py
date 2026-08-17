@@ -126,6 +126,12 @@ def regroup_buffer(
         tag: str, label: str, entries: list[BufferLine], sort: bool
     ) -> None:
         if not entries:
+            # An empty block header is a structural declaration (like a
+            # scaffolded CMD:) — regrouping must not delete it when
+            # section cleanup deliberately preserves it
+            if tag in block_tags:
+                _pad(out)
+                out.append(f"{tag}:")
             return
         ordered = sort_group(entries) if sort else entries
         _pad(out)
@@ -140,7 +146,7 @@ def regroup_buffer(
     emit_zone("CMP", "Companion", zone_lines[LineType.COMPANION_ENTRY], False)
 
     dck_block = "DCK" in block_tags
-    if dck_block and any(group for _, group in groups):
+    if dck_block:
         _pad(out)
         out.append("DCK:")
     for header, group in groups:

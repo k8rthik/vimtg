@@ -125,10 +125,11 @@ def _matched_indent(buf: Buffer, row: int) -> str:
             continue
         if parse_zone_header(bl.text) is not None:
             return "    "
-        if buf.is_card_line(i) or bl.line_type == LineType.SECTION_HEADER:
-            # Cards sit at the same depth as their section header
-            return bl.text[: len(bl.text) - len(bl.text.lstrip())]
-        return ""
+        if bl.line_type == LineType.METADATA:
+            return ""
+        # Cards, headers, and comments all sit at their block's depth —
+        # an unindented insert after '    // note' would close the block
+        return bl.text[: len(bl.text) - len(bl.text.lstrip())]
     return ""
 
 
@@ -191,6 +192,9 @@ class MainScreen(Screen[None]):
         self._lint_key: tuple[Buffer, dict[str, Card], str] | None = None
         self._lint_resolved_names: frozenset[str] = frozenset()
         self._split_pane: _SplitPane | None = None
+        # Bumped on every :edhrec so a stale fetch can't overwrite a
+        # newer result (results deliver via call_from_thread)
+        self._edhrec_generation = 0
         # Deck card names for the EDHREC ✓ marks, cached by buffer identity
         self._deck_names: frozenset[str] = frozenset()
         self._deck_names_key: Buffer | None = None
@@ -260,10 +264,10 @@ class MainScreen(Screen[None]):
         """
         # Split pane focused: navigation keys drive the pane; ':' and
         # 'S' sequences pass through; any other key refocuses the editor
-        # and is handled normally.
+        # and is handled normally. Applies during macro replay too, so
+        # replayed keys hit the same routing they were recorded under.
         if (
             resolve
-            and not self._replaying
             and self._split_pane is not None
             and self._split_pane.focused
             and self._state.mode_mgr.is_normal()
@@ -488,6 +492,9 @@ class MainScreen(Screen[None]):
             s.mode_mgr.transition(Mode.COMMAND)
             self.keymap.set_mode(Mode.COMMAND)
             self.keymap.reset_text()
+            # A previous session's completion must not survive into a
+            # fresh prompt — Tab would accept it over the current text
+            s.cmd_completion = None
             cl = self.query_one("#command-line", CommandLine)
             cl.show(":")
             if hr.command_prefill:
@@ -740,30 +747,45 @@ class MainScreen(Screen[None]):
             return
         names = " + ".join(req.commanders)
         panel.status = f"Fetching EDHREC recommendations for {names}..."
-        self._run_edhrec_fetch(req.commanders, req.initial_tab)
+        self._edhrec_generation += 1
+        self._run_edhrec_fetch(
+            req.commanders, req.initial_tab, self._edhrec_generation
+        )
 
     @work(thread=True)
     def _run_edhrec_fetch(
-        self, commanders: tuple[str, ...], initial_tab: str
+        self, commanders: tuple[str, ...], initial_tab: str, generation: int
     ) -> None:
         client = EdhrecClient(cache_dir=cache_dir())
         try:
             page = client.fetch(commanders)
         except EdhrecError as exc:
-            self.app.call_from_thread(self._edhrec_failed, str(exc))
+            self.app.call_from_thread(self._edhrec_failed, str(exc), generation)
             return
-        self.app.call_from_thread(self._edhrec_loaded, page, initial_tab)
+        self.app.call_from_thread(
+            self._edhrec_loaded, page, initial_tab, generation
+        )
 
-    def _edhrec_failed(self, message: str) -> None:
-        if self._split_pane is None or self._split_pane.kind != "edhrec":
-            return  # pane was closed while the fetch ran
+    def _edhrec_stale(self, generation: int) -> bool:
+        """True when the pane closed or a newer :edhrec superseded this fetch."""
+        return (
+            self._split_pane is None
+            or self._split_pane.kind != "edhrec"
+            or generation != self._edhrec_generation
+        )
+
+    def _edhrec_failed(self, message: str, generation: int) -> None:
+        if self._edhrec_stale(generation):
+            return
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         panel.status = f"E: {message}"
         panel.status_error = True
 
-    def _edhrec_loaded(self, page: EdhrecPage, initial_tab: str) -> None:
-        if self._split_pane is None or self._split_pane.kind != "edhrec":
-            return  # pane was closed while the fetch ran
+    def _edhrec_loaded(
+        self, page: EdhrecPage, initial_tab: str, generation: int
+    ) -> None:
+        if self._edhrec_stale(generation):
+            return
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         panel.status = ""
         panel.page = page
@@ -1200,10 +1222,20 @@ class MainScreen(Screen[None]):
             cl.set_message(f"E: Auto-snapshot failed: {exc}", error=True)
 
     def _find_card_line(self, card_name: str) -> int | None:
-        """Find existing line with this card name (for duplicate detection)."""
+        """Find an existing MAINBOARD line with this card name.
+
+        Duplicate detection for the add-card flows, which target the
+        mainboard — a sideboard/commander copy must not be incremented
+        in place of adding the requested mainboard card.
+        """
+        from vimtg.editor.buffer import LineType
+
         buf = self._state.buffer
         for i in range(buf.line_count()):
-            if buf.card_name_at(i) == card_name:
+            if (
+                buf.get_line(i).line_type == LineType.CARD_ENTRY
+                and buf.card_name_at(i) == card_name
+            ):
                 return i
         return None
 
@@ -1287,8 +1319,11 @@ class MainScreen(Screen[None]):
             deck = parse_deck_text(self._state.buffer.to_text())
             fmt = effective_format(deck, settings.default_format)
             if fmt and get_format_rules(fmt) is not None:
+                # Restricted cards are playable (1 copy) — hiding them
+                # from search would make vintage staples unfindable
                 results = [
-                    c for c in results if c.legalities.get(fmt) == "legal"
+                    c for c in results
+                    if c.legalities.get(fmt) in ("legal", "restricted")
                 ]
             self.app.call_from_thread(self._update_search_results, results)
 

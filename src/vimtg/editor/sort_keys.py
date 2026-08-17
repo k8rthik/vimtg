@@ -17,6 +17,7 @@ from vimtg.domain.card_types import TYPE_ORDER, primary_type
 from vimtg.domain.deck_lines import (
     CARD_PATTERN,
     CMD_PATTERN,
+    CMP_PATTERN,
     MB_PATTERN,
     SB_PATTERN,
     parse_card_parts,
@@ -136,7 +137,7 @@ def extract_sort_key(
 
 def match_card_line(text: str):  # type: ignore[no-untyped-def]
     """Match a card line against the shared deck-line grammar."""
-    for pattern in (SB_PATTERN, MB_PATTERN, CMD_PATTERN, CARD_PATTERN):
+    for pattern in (SB_PATTERN, MB_PATTERN, CMD_PATTERN, CMP_PATTERN, CARD_PATTERN):
         m = pattern.match(text)
         if m:
             return m

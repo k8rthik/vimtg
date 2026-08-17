@@ -57,10 +57,13 @@ class EdhrecCard:
 
     @property
     def inclusion_pct(self) -> float:
-        """Share of eligible decks running this card, in percent."""
+        """Share of eligible decks running this card, in percent.
+
+        Clamped to [0, 100] — the site's counters occasionally disagree.
+        """
         if self.potential_decks <= 0:
             return 0.0
-        return 100.0 * self.num_decks / self.potential_decks
+        return min(100.0, max(0.0, 100.0 * self.num_decks / self.potential_decks))
 
 
 @dataclass(frozen=True)
@@ -86,14 +89,24 @@ def commander_slug(names: Sequence[str]) -> str:
     dropped, spaces hyphenated; partner pairs join both slugs with a
     hyphen. Split/double-faced names use the front face only.
     """
-    parts = [_slugify_one(name) for name in names if name.strip()]
+    parts = [
+        slug for name in names if (slug := _slugify_one(name))
+    ]
     if not parts:
         raise EdhrecError("No commander name to look up")
     return "-".join(parts)
 
 
+# Letters NFKD cannot decompose to ASCII — fold them explicitly so
+# 'Ætherling' becomes 'aetherling', not 'therling'.
+_SPECIAL_LETTERS = str.maketrans({
+    "Æ": "Ae", "æ": "ae", "Œ": "Oe", "œ": "oe",
+    "ß": "ss", "Ø": "O", "ø": "o", "Đ": "D", "đ": "d",
+})
+
+
 def _slugify_one(name: str) -> str:
-    front_face = name.split("//")[0]
+    front_face = name.split("//")[0].translate(_SPECIAL_LETTERS)
     folded = unicodedata.normalize("NFKD", front_face)
     ascii_name = folded.encode("ascii", "ignore").decode("ascii")
     # Apostrophes vanish entirely (K'rrik → krrik); any other run of
@@ -163,7 +176,9 @@ def _parse_cardview(view: object) -> EdhrecCard | None:
 
 
 def _as_int(value: object) -> int:
-    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+    if isinstance(value, int) and not isinstance(value, bool):
+        return max(0, value)
+    return 0
 
 
 def _as_float(value: object) -> float:
@@ -217,7 +232,11 @@ class EdhrecClient:
         data = self._read_cache(slug)
         if data is None:
             data = self._fetch_remote(slug, fallback)
+            page = parse_page(data, commander_fallback=fallback)
+            # Cache only a payload that parsed — a 200 with an unusable
+            # body must not poison the cache and replay the failure
             self._write_cache(slug, data)
+            return page
         return parse_page(data, commander_fallback=fallback)
 
     def _fetch_remote(self, slug: str, display_name: str) -> object:

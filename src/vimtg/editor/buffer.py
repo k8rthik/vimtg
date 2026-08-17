@@ -160,10 +160,16 @@ class Buffer:
 
     @staticmethod
     def from_text(text: str) -> Buffer:
-        """Parse raw deck text into a classified Buffer."""
+        """Parse raw deck text into a classified Buffer.
+
+        Empty text yields a single blank line so to_text()'s trailing
+        newline round-trips (a 0-line buffer could not honor it).
+        """
         raw_lines = text.split("\n")
         if raw_lines and raw_lines[-1] == "":
             raw_lines = raw_lines[:-1]
+        if not raw_lines:
+            raw_lines = [""]
         return Buffer(classify_lines(raw_lines))
 
     def to_text(self) -> str:
@@ -339,13 +345,11 @@ class Buffer:
         """Extract the tag set from a card line. Returns empty set for non-card lines."""
         if not self.is_card_line(line):
             return frozenset()
-        # Split the comment off first — '#word' inside a comment is prose
+        # Split the comment off first — '#word' inside a comment is prose.
+        # Strip the category so a non-canonical '#tags  @cat' order still
+        # leaves a valid trailing tag suffix for parse_inline_tags.
         base, _ = split_inline_comment(self._lines[line].text)
-        # Only parse tags after the two-space delimiter
-        idx = base.find("  #")
-        if idx == -1:
-            return frozenset()
-        return parse_inline_tags(base[idx:])
+        return parse_inline_tags(strip_inline_category(base))
 
     def set_tags(self, line: int, tags: frozenset[str]) -> Buffer:
         """Return new Buffer with the tag suffix on line replaced.

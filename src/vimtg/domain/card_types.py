@@ -18,6 +18,11 @@ PRIMARY_TYPES: tuple[str, ...] = (
 
 TYPE_ORDER: dict[str, int] = {t: i for i, t in enumerate(PRIMARY_TYPES)}
 
+def is_basic_land(name: str) -> bool:
+    """Case-insensitive basic-land check ('forest' is still a Forest)."""
+    return name.lower() in _BASIC_LANDS_LOWER
+
+
 BASIC_LANDS = frozenset({
     "Plains",
     "Island",
@@ -31,6 +36,8 @@ BASIC_LANDS = frozenset({
     "Snow-Covered Mountain",
     "Snow-Covered Forest",
 })
+
+_BASIC_LANDS_LOWER = frozenset(name.lower() for name in BASIC_LANDS)
 
 
 # Conventional plural section labels for the type-based layout

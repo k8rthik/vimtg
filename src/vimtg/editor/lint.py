@@ -43,14 +43,19 @@ def effective_format(deck: Deck, default_format: str) -> str:
 
 
 def _format_metadata_row(buffer: Buffer) -> int | None:
-    """Row of the '// Format:' metadata line, or None."""
+    """Row of the '// Format:' metadata line, or None.
+
+    With duplicate Format lines the parser honors the LAST one, so the
+    warning must anchor there too.
+    """
     from vimtg.domain.deck_lines import match_metadata
 
+    row: int | None = None
     for i in range(buffer.line_count()):
         meta = match_metadata(buffer.get_line(i).text)
         if meta is not None and meta[0] == "Format":
-            return i
-    return None
+            row = i
+    return row
 
 
 def lint_buffer(

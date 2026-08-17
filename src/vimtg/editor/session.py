@@ -348,10 +348,20 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         # original line stranded inside the block on counted puts.
         first_insert_row = state.cursor.row + (0 if key == "P" else 1)
         for _ in range(count):
+            prev_count = state.buffer.line_count()
             state.buffer, state.cursor = put_lines(
                 state.buffer, state.cursor, state.registers, action.register,
                 above=(key == "P"),
             )
+            # put_lines leaves the cursor on the FIRST pasted row; a
+            # counted put-below must continue after the pasted block, or
+            # the next iteration interleaves inside it (First,First,
+            # Second...). Put-above stacks correctly from the first row.
+            pasted = state.buffer.line_count() - prev_count
+            if key == "p" and pasted > 1:
+                state.cursor = state.cursor.move_to(
+                    state.cursor.row + pasted - 1, 0
+                )
         inserted = state.buffer.line_count() - before
         if inserted > 0:
             state.marks = state.marks.update_for_insert(first_insert_row, inserted)
@@ -778,10 +788,16 @@ def _replay_dot(state: EditorState, count_override: int | None = None) -> None:
             for _ in range(count):
                 _delete_card_at_cursor(state)
         else:
+            affected = resolve_line_range(
+                last.operator, last.motion, state.cursor, state.buffer, count,
+            )
             result = execute_operator(
                 last.operator, last.motion, state.cursor, state.buffer,
                 count, state.registers, last.register,
             )
+            # Deletes must shift marks exactly like the live operator did
+            if result.buffer.line_count() < state.buffer.line_count():
+                state.marks = state.marks.update_for_delete(*affected)
             state.buffer = result.buffer
             state.cursor = result.cursor
             state.registers = result.registers

@@ -80,8 +80,9 @@ class TestBufferFromText:
 
     def test_empty_buffer(self) -> None:
         buf = Buffer.from_text("")
-        # Empty text should produce at least 0 lines (no crash)
-        assert buf.line_count() == 0
+        # Empty text yields one blank line so to_text() round-trips
+        assert buf.line_count() == 1
+        assert Buffer.from_text(buf.to_text()).line_count() == 1
 
     def test_single_line(self) -> None:
         buf = Buffer.from_text("4 Lightning Bolt\n")
