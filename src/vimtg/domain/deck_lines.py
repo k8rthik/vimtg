@@ -77,6 +77,48 @@ def zone_block_contexts(raw_lines: Sequence[str]) -> list[str | None]:
         contexts.append(None)
     return contexts
 
+
+def zone_running_context(raw_lines: Sequence[str], row: int) -> str | None:
+    """The zone-block state entering `row`: the open block's tag, or None."""
+    current: str | None = None
+    for raw in raw_lines[:row]:
+        current = apply_zone_effect(zone_context_effect(raw), current)
+    return current
+
+
+def zone_context_at(raw_lines: Sequence[str], row: int) -> str | None:
+    """zone_block_contexts(raw_lines)[row], scanning only up to `row`."""
+    raw = raw_lines[row]
+    if not raw.strip() or parse_zone_header(raw) is not None:
+        return None
+    if not raw[:1].isspace():
+        return None
+    return zone_running_context(raw_lines, row)
+
+
+def zone_context_effect(text: str) -> str:
+    """How a line changes the running zone-block context for the lines
+    after it: 'set:<TAG>' (a block header), 'clear' (unindented
+    non-blank), or 'keep' (blank or indented)."""
+    stripped = text.strip()
+    if not stripped:
+        return "keep"
+    tag = parse_zone_header(text)
+    if tag is not None:
+        return f"set:{tag}"
+    return "keep" if text[:1].isspace() else "clear"
+
+
+def apply_zone_effect(effect: str, incoming: str | None) -> str | None:
+    """The zone-block state after a line with `effect`, given the state
+    entering it. Lets editors decide whether an edit can change the
+    context of any following line."""
+    if effect == "keep":
+        return incoming
+    if effect == "clear":
+        return None
+    return effect.removeprefix("set:")
+
 METADATA_KEYS = frozenset(
     {"Deck", "Format", "Author", "Description", "Source", "Tags"}
 )

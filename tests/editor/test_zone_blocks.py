@@ -67,6 +67,29 @@ class TestBufferClassification:
         edited = buf.set_line(0, "// gone")
         assert edited.get_line(1).line_type is LineType.CARD_ENTRY
 
+    def test_deleting_the_header_demotes_block_cards(self):
+        buf = Buffer.from_text("CMD:\n    1 Thrasios\n    1 Tymna\n")
+        buf, _ = buf.delete_lines(0, 0)
+        assert buf.get_line(0).line_type is LineType.CARD_ENTRY
+        assert buf.get_line(1).line_type is LineType.CARD_ENTRY
+
+    def test_inserting_unindented_card_splits_the_block(self):
+        buf = Buffer.from_text("CMD:\n    1 Thrasios\n    1 Tymna\n")
+        buf = buf.insert_line(2, "1 Cultivate")
+        assert buf.get_line(1).line_type is LineType.COMMANDER_ENTRY
+        assert buf.get_line(2).line_type is LineType.CARD_ENTRY
+        assert buf.get_line(3).line_type is LineType.CARD_ENTRY  # demoted
+
+    def test_inserting_indented_card_joins_the_block(self):
+        buf = Buffer.from_text("CMD:\n    1 Thrasios\n")
+        buf = buf.insert_line(2, "    1 Tymna")
+        assert buf.get_line(2).line_type is LineType.COMMANDER_ENTRY
+
+    def test_deleting_block_member_keeps_the_rest(self):
+        buf = Buffer.from_text("CMD:\n    1 Thrasios\n    1 Tymna\n")
+        buf, _ = buf.delete_lines(1, 1)
+        assert buf.get_line(1).line_type is LineType.COMMANDER_ENTRY
+
     def test_quantity_edit_keeps_indentation(self):
         buf = Buffer.from_text("CMD:\n    1 Atraxa\n")
         buf = buf.set_quantity(1, 2)

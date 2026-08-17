@@ -26,6 +26,7 @@ from vimtg.domain.deck_lines import (
     CMP_PATTERN,
     MB_PATTERN,
     SB_PATTERN,
+    apply_zone_effect,
     clamp_quantity,
     format_inline_comment,
     match_metadata,
@@ -33,6 +34,9 @@ from vimtg.domain.deck_lines import (
     parse_zone_header,
     split_inline_comment,
     zone_block_contexts,
+    zone_context_at,
+    zone_context_effect,
+    zone_running_context,
 )
 from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
 
@@ -186,21 +190,47 @@ class Buffer:
     def _texts(self) -> list[str]:
         return [bl.text for bl in self._lines]
 
+    @staticmethod
+    def _classify_one(texts: Sequence[str], n: int) -> BufferLine:
+        """Classify one row with its zone-block context."""
+        text = texts[n]
+        line_type = classify_line(text)
+        if line_type == LineType.CARD_ENTRY:
+            ctx = zone_context_at(texts, n)
+            if ctx is not None:
+                line_type = _ZONE_TAG_TYPES[ctx]
+        return BufferLine(text=text, line_type=line_type)
+
     def set_line(self, n: int, text: str) -> Buffer:
         """Return new Buffer with line n replaced.
 
-        Reclassifies the whole buffer: an edit can open or close a zone
-        block, changing the zone of the indented lines beneath it.
+        An edit can open or close a zone block, changing the zone of the
+        indented lines beneath it; only such edits pay for a full
+        reclassification. Edits that leave the outgoing block context
+        unchanged (the common case) reclassify one row.
         """
         texts = self._texts()
+        old_text = texts[n]
         texts[n] = text
-        return Buffer(classify_lines(texts))
+        incoming = zone_running_context(texts, n)
+        out_old = apply_zone_effect(zone_context_effect(old_text), incoming)
+        out_new = apply_zone_effect(zone_context_effect(text), incoming)
+        if out_old != out_new:
+            return Buffer(classify_lines(texts))
+        new_lines = list(self._lines)
+        new_lines[n] = self._classify_one(texts, n)
+        return Buffer(tuple(new_lines))
 
     def insert_line(self, n: int, text: str) -> Buffer:
         """Return new Buffer with a line inserted at position n."""
         texts = self._texts()
         texts.insert(n, text)
-        return Buffer(classify_lines(texts))
+        incoming = zone_running_context(texts, n)
+        if apply_zone_effect(zone_context_effect(text), incoming) != incoming:
+            return Buffer(classify_lines(texts))
+        new_lines = list(self._lines)
+        new_lines.insert(n, self._classify_one(texts, n))
+        return Buffer(tuple(new_lines))
 
     def delete_lines(self, start: int, end: int) -> tuple[Buffer, tuple[str, ...]]:
         """Delete lines [start, end] inclusive. Returns (new_buffer, deleted_texts).
@@ -214,9 +244,16 @@ class Buffer:
         if start > end:
             return self, ()
         deleted = tuple(self._lines[i].text for i in range(start, end + 1))
+        if len(self._lines) == len(deleted):
+            return Buffer((BufferLine(text="", line_type=LineType.BLANK),)), deleted
+        incoming = zone_running_context(self._texts(), start)
+        outgoing = incoming
+        for text in deleted:
+            outgoing = apply_zone_effect(zone_context_effect(text), outgoing)
+        if outgoing == incoming:
+            remaining_lines = self._lines[:start] + self._lines[end + 1:]
+            return Buffer(remaining_lines), deleted
         remaining = self._texts()[:start] + self._texts()[end + 1:]
-        if not remaining:
-            remaining = [""]
         return Buffer(classify_lines(remaining)), deleted
 
     def append_line(self, text: str) -> Buffer:
