@@ -29,7 +29,29 @@ def _make_card_repo() -> CardRepository:
     return CardRepository(db)
 
 
-@click.group(invoke_without_command=True)
+class _DeckFileGroup(click.Group):
+    """Vim-style invocation: `vimtg burn.deck` opens the editor.
+
+    A first token that is not a subcommand but is an existing file (or
+    ends in .deck — a new deck to be created on :w) routes to `edit`.
+    Anything else still errors as an unknown command.
+    """
+
+    def resolve_command(
+        self, ctx: click.Context, args: list[str]
+    ) -> tuple[str | None, click.Command | None, list[str]]:
+        try:
+            return super().resolve_command(ctx, args)
+        except click.UsageError:
+            token = args[0]
+            if Path(token).is_file() or token.endswith(".deck"):
+                cmd = self.get_command(ctx, "edit")
+                assert cmd is not None
+                return "edit", cmd, args
+            raise
+
+
+@click.group(cls=_DeckFileGroup, invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="vimtg")
 @click.pass_context
 def main(ctx: click.Context) -> None:

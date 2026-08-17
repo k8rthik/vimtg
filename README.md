@@ -26,7 +26,7 @@ pip install -e .
 
 vimtg sync               # download card database (~25 MB; the TUI also
                          # auto-syncs in the background when data is stale)
-vimtg edit burn.deck      # open a deck
+vimtg burn.deck           # open a deck (vim-style; `vimtg edit` also works)
 vimtg                     # or launch the greeter
 ```
 

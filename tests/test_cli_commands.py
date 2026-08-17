@@ -281,3 +281,41 @@ def test_validate_line_numbers_in_output(
     deck_file.write_text("// Deck: X\n0 Bolt\n", encoding="utf-8")
     result = runner.invoke(main, ["validate", str(deck_file)])
     assert "q.deck:2:" in result.output
+
+
+class TestDeckFileFallback:
+    """`vimtg burn.deck` opens the editor, vim-style."""
+
+    def test_existing_deck_file_routes_to_edit(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        deck = tmp_path / "burn.deck"
+        deck.write_text("4 Lightning Bolt\n")
+        launched = MagicMock()
+        monkeypatch.setattr(cli, "_launch_editor", launched)
+        result = runner.invoke(main, [str(deck)])
+        assert result.exit_code == 0
+        launched.assert_called_once_with(str(deck))
+
+    def test_new_deck_path_routes_to_edit(
+        self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        launched = MagicMock()
+        monkeypatch.setattr(cli, "_launch_editor", launched)
+        result = runner.invoke(main, [str(tmp_path / "brand-new.deck")])
+        assert result.exit_code == 0
+        launched.assert_called_once()
+
+    def test_unknown_command_still_errors(self, runner: CliRunner) -> None:
+        result = runner.invoke(main, ["snc"])
+        assert result.exit_code != 0
+        assert "No such command" in result.output
+
+    def test_real_subcommands_unaffected(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        deck = tmp_path / "x.deck"
+        deck.write_text("// Deck: X\n4 Bolt\n56 Mountain\n")
+        result = runner.invoke(main, ["info", str(deck)])
+        assert result.exit_code == 0
+        assert "Mainboard" in result.output
