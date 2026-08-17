@@ -68,10 +68,12 @@ class TestZoneMoves:
 
 
 class TestNormalization:
-    def test_empty_dck_header_is_dropped(self):
+    def test_empty_dck_header_is_kept(self):
+        # Zone block headers are structural declarations (a new deck's
+        # body starts empty) — cleanup never drops them
         buf = Buffer.from_text("DCK:\n\n// Sideboard\nSB: 1 Opt\n")
         cleaned = normalize_sections(buf)
-        assert "DCK:" not in cleaned.to_text()
+        assert "DCK:" in cleaned.to_text()
 
     def test_dck_header_with_cards_is_kept(self):
         buf = Buffer.from_text("DCK:\n    4 Shock\n")

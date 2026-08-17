@@ -67,12 +67,15 @@ class TestKeymapZoneMoves:
 
 
 class TestMoveToCommander:
-    def test_move_converts_to_cmd_line(self):
+    def test_move_opens_cmd_block(self):
         buf = Buffer.from_text("1 Atraxa\n1 Forest\n")
         result = move_to_zone(buf, Cursor(row=0), LineType.COMMANDER_ENTRY)
         assert result.moved
-        text = result.buffer.to_text()
-        assert "CMD: 1 Atraxa" in text
+        lines = result.buffer.to_text().splitlines()
+        assert lines.index("CMD:") + 1 == lines.index("    1 Atraxa")
+        assert result.buffer.get_line(
+            lines.index("    1 Atraxa")
+        ).line_type is LineType.COMMANDER_ENTRY
         assert "commander" in result.message
 
     def test_new_commander_block_lands_before_first_section(self):
@@ -81,7 +84,8 @@ class TestMoveToCommander:
         )
         result = move_to_zone(buf, Cursor(row=3), LineType.COMMANDER_ENTRY)
         lines = result.buffer.to_text().splitlines()
-        cmd_row = lines.index("CMD: 1 Atraxa")
+        cmd_row = lines.index("CMD:")
+        assert lines[cmd_row + 1] == "    1 Atraxa"
         header_row = lines.index("// Creatures")
         assert cmd_row < header_row  # before the block, not inside it
 
@@ -100,11 +104,14 @@ class TestMoveToCommander:
 
 
 class TestMoveToCompanion:
-    def test_move_converts_to_cmp_line(self):
+    def test_move_opens_cmp_block(self):
         buf = Buffer.from_text("1 Lurrus of the Dream-Den\n1 Forest\n")
         result = move_to_zone(buf, Cursor(row=0), LineType.COMPANION_ENTRY)
         assert result.moved
-        assert "CMP: 1 Lurrus of the Dream-Den" in result.buffer.to_text()
+        lines = result.buffer.to_text().splitlines()
+        assert lines.index("CMP:") + 1 == lines.index(
+            "    1 Lurrus of the Dream-Den"
+        )
         assert "companion" in result.message
 
     def test_companion_block_lands_after_commander(self):
@@ -113,14 +120,16 @@ class TestMoveToCompanion:
         lines = [
             line for line in result.buffer.to_text().splitlines() if line
         ]
-        assert lines.index("CMD: 1 Atraxa") < lines.index("CMP: 1 Lurrus")
-        assert lines.index("CMP: 1 Lurrus") < lines.index("1 Forest")
+        assert lines.index("CMD: 1 Atraxa") < lines.index("CMP:")
+        assert lines.index("CMP:") + 1 == lines.index("    1 Lurrus")
+        assert lines.index("    1 Lurrus") < lines.index("1 Forest")
 
     def test_count_splits_copies(self):
         buf = Buffer.from_text("4 Mishra's Bauble\n")
         result = move_to_zone(
             buf, Cursor(row=0), LineType.COMPANION_ENTRY, count=1
         )
-        text = result.buffer.to_text()
-        assert "3 Mishra's Bauble" in text
-        assert "CMP: 1 Mishra's Bauble" in text
+        lines = result.buffer.to_text().splitlines()
+        assert "3 Mishra's Bauble" in lines
+        assert "CMP:" in lines
+        assert "    1 Mishra's Bauble" in lines

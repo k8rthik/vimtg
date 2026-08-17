@@ -24,7 +24,10 @@ from vimtg.data.scryfall_sync import ScryfallSync, sync_is_due
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers import register_all_commands
 from vimtg.editor.commands import CommandRegistry
-from vimtg.services.deck_service import scaffold_missing_metadata
+from vimtg.services.deck_service import (
+    scaffold_deck_body,
+    scaffold_missing_metadata,
+)
 from vimtg.services.search_service import SearchService
 from vimtg.tui.theme import COLORS
 
@@ -201,9 +204,9 @@ class VimTGApp(App[None]):
                 return
             # Scaffold only fills the buffer — modified stays False, so
             # merely viewing a deck never forces a save.
-            text = scaffold_missing_metadata(text)
+            text = scaffold_deck_body(scaffold_missing_metadata(text))
         else:
-            text = scaffold_missing_metadata("")
+            text = scaffold_deck_body(scaffold_missing_metadata(""))
 
         buffer = Buffer.from_text(text)
         save_fn = self._deck_repo.save if self._deck_repo else None

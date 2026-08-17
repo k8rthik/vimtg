@@ -220,6 +220,8 @@ class ZoneMoveResult:
     # buffer, row added in the new buffer (None when only quantities changed).
     deleted_row: int | None = None
     inserted_row: int | None = None
+    # Lines added at inserted_row (2 when a new zone block was opened)
+    inserted_count: int = 1
 
 
 def _find_zone_entry(
@@ -262,22 +264,36 @@ def _zone_insert_row(buffer: Buffer, zone: LineType) -> int:
 
 def _insert_zone_line(
     buffer: Buffer, zone: LineType, body: str
-) -> tuple[Buffer, int]:
+) -> tuple[Buffer, int, int]:
     """Insert a new zone line ('body' = 'N Name…' without prefix) into
-    its zone block, opening a new blank-separated block at the end of
-    the buffer when the zone has no lines yet.
+    its zone block. Returns (buffer, card_row, lines_inserted).
 
-    Inside a Python-style zone block the line is written indented and
-    bare, matching the block's style; elsewhere it gets the SB:/CMD:
-    prefix."""
+    A zone with no lines and no block header yet opens as a Python-style
+    block — 'CMD:' with the card indented beneath it. Inside an existing
+    block the line is written indented to match; next to prefix-style
+    entries it gets the SB:/CMD: prefix.
+    """
+    tag = _ZONE_TAGS[zone]
+    has_entries = any(
+        buffer.get_line(i).line_type == zone
+        for i in range(buffer.line_count())
+    )
+    has_header = any(
+        parse_zone_header(buffer.get_line(i).text) == tag
+        for i in range(buffer.line_count())
+    )
     row = _zone_insert_row(buffer, zone)
     if row == buffer.line_count() and row > 0:
         prev_type = buffer.get_line(row - 1).line_type
         if prev_type not in (LineType.BLANK, zone):
             buffer = buffer.insert_line(row, "")
             row += 1
+    if not has_entries and not has_header:
+        buffer = buffer.insert_line(row, f"{tag}:")
+        buffer = buffer.insert_line(row + 1, f"{_BLOCK_INDENT}{body}")
+        return buffer, row + 1, 2
     text = _zone_line_text(buffer, row, zone, body)
-    return buffer.insert_line(row, text), row
+    return buffer.insert_line(row, text), row, 1
 
 
 def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
@@ -325,6 +341,7 @@ def move_to_zone(
     new_buf = buffer
     deleted_row: int | None = None
     inserted_row: int | None = None
+    inserted_count = 1
     merge_row = _find_zone_entry(new_buf, name, target, exclude=row)
     if merge_row is not None:
         existing_qty = new_buf.quantity_at(merge_row) or 0
@@ -348,7 +365,9 @@ def move_to_zone(
         else:
             new_buf, _ = new_buf.delete_lines(row, row)
             deleted_row = row
-        new_buf, dest_row = _insert_zone_line(new_buf, target, body)
+        new_buf, dest_row, inserted_count = _insert_zone_line(
+            new_buf, target, body
+        )
         inserted_row = dest_row
 
     new_cursor = cursor.move_to(
@@ -360,4 +379,5 @@ def move_to_zone(
     return ZoneMoveResult(
         new_buf, new_cursor, message, moved=True,
         deleted_row=deleted_row, inserted_row=inserted_row,
+        inserted_count=inserted_count,
     )

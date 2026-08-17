@@ -143,10 +143,16 @@ Block rules, Python-like:
 - An explicit prefix always wins: `SB: 1 Duress` is sideboard even
   inside a `CMD:` block.
 
-Zone moves (`ms`/`mm`/`md`/`mc`/`mp`) and card inserts write indented
-lines when they land inside a block, prefixed lines elsewhere. Layout
-regrouping (`:layout`, `gl`) and export normalize block-style lines back
-to prefix style.
+Block style is the default: new decks scaffold a `DCK:` body (plus a
+`CMD:` block for commander decks), a zone move that creates a brand-new
+zone opens it as a block, and auto-sorted inserts create their
+`// Creature`-style type headers indented inside the `DCK:` block. Zone
+moves and card inserts match the style of where they land — indented
+inside blocks, prefixed next to prefix-style entries. Layout regrouping
+(`:layout`, `gl`) preserves each zone's style; export normalizes to
+prefix style. Bare zone headers are structural declarations and are
+never removed by section cleanup (derived type/category headers are
+still dropped when their zone's cards leave).
 
 ## Round-trip fidelity
 

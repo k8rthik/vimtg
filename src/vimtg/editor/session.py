@@ -753,7 +753,9 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
             result.deleted_row, result.deleted_row
         )
     if result.inserted_row is not None:
-        state.marks = state.marks.update_for_insert(result.inserted_row, 1)
+        state.marks = state.marks.update_for_insert(
+            result.inserted_row, result.inserted_count
+        )
     state.buffer = result.buffer
     state.cursor = result.cursor
     state.modified = True

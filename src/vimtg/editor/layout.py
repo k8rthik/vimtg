@@ -19,6 +19,7 @@ from vimtg.domain.categories import (
     format_category_header,
     parse_category_header,
 )
+from vimtg.domain.deck_lines import parse_zone_header
 from vimtg.editor.buffer import Buffer, BufferLine, LineType
 from vimtg.editor.sort_keys import extract_card_name, extract_sort_key
 
@@ -70,13 +71,16 @@ def regroup_buffer(
     normalization :import and merge already apply). Mainboard cards
     are regrouped under fresh section headers and ordered by
     `order_field` within each group. Commander, companion, sideboard,
-    and maybeboard cards keep their zones as separate blocks.
+    and maybeboard cards keep their zones as separate blocks, and each
+    zone keeps its style: a Python-style block ('CMD:' with indented
+    cards) stays a block, prefix lines stay prefixed.
     """
     if mode not in LAYOUT_MODES:
         raise ValueError(f"Unknown layout mode: {mode}")
 
     metadata: list[str] = []
     comments: list[str] = []
+    block_tags: set[str] = set()
     zone_lines: dict[LineType, list[BufferLine]] = {
         LineType.COMMANDER_ENTRY: [],
         LineType.COMPANION_ENTRY: [],
@@ -87,7 +91,10 @@ def regroup_buffer(
 
     for i in range(buffer.line_count()):
         bl = buffer.get_line(i)
-        if bl.line_type == LineType.METADATA:
+        tag = parse_zone_header(bl.text)
+        if tag is not None:
+            block_tags.add(tag)
+        elif bl.line_type == LineType.METADATA:
             metadata.append(bl.text)
         elif bl.line_type == LineType.COMMENT:
             comments.append(bl.text)
@@ -115,44 +122,40 @@ def regroup_buffer(
         _pad(out)
         out.extend(comments)
 
-    if zone_lines[LineType.COMMANDER_ENTRY]:
+    def emit_zone(
+        tag: str, label: str, entries: list[BufferLine], sort: bool
+    ) -> None:
+        if not entries:
+            return
+        ordered = sort_group(entries) if sort else entries
         _pad(out)
-        out.append("// Commander")
-        out.extend(
-            _prefixed(bl.text, "CMD: ")
-            for bl in zone_lines[LineType.COMMANDER_ENTRY]
-        )
+        if tag in block_tags:
+            out.append(f"{tag}:")
+            out.extend(f"    {_bare(bl.text, tag)}" for bl in ordered)
+        else:
+            out.append(f"// {label}")
+            out.extend(_prefixed(bl.text, f"{tag}: ") for bl in ordered)
 
-    if zone_lines[LineType.COMPANION_ENTRY]:
+    emit_zone("CMD", "Commander", zone_lines[LineType.COMMANDER_ENTRY], False)
+    emit_zone("CMP", "Companion", zone_lines[LineType.COMPANION_ENTRY], False)
+
+    dck_block = "DCK" in block_tags
+    if dck_block and any(group for _, group in groups):
         _pad(out)
-        out.append("// Companion")
-        out.extend(
-            _prefixed(bl.text, "CMP: ")
-            for bl in zone_lines[LineType.COMPANION_ENTRY]
-        )
-
+        out.append("DCK:")
     for header, group in groups:
         if not group:
             continue
         _pad(out)
-        out.append(header)
-        out.extend(bl.text for bl in sort_group(group))
-
-    if zone_lines[LineType.SIDEBOARD_ENTRY]:
-        _pad(out)
-        out.append("// Sideboard")
+        indent = "    " if dck_block else ""
+        out.append(f"{indent}{header}")
         out.extend(
-            _prefixed(bl.text, "SB: ")
-            for bl in sort_group(zone_lines[LineType.SIDEBOARD_ENTRY])
+            f"{indent}{bl.text.strip()}" if indent else bl.text
+            for bl in sort_group(group)
         )
 
-    if zone_lines[LineType.MAYBEBOARD_ENTRY]:
-        _pad(out)
-        out.append("// Maybeboard")
-        out.extend(
-            _prefixed(bl.text, "MB: ")
-            for bl in sort_group(zone_lines[LineType.MAYBEBOARD_ENTRY])
-        )
+    emit_zone("SB", "Sideboard", zone_lines[LineType.SIDEBOARD_ENTRY], True)
+    emit_zone("MB", "Maybeboard", zone_lines[LineType.MAYBEBOARD_ENTRY], True)
 
     return Buffer.from_text("\n".join(out) + "\n")
 
@@ -174,6 +177,14 @@ def _prefixed(text: str, prefix: str) -> str:
     if stripped.upper().startswith(prefix.strip().upper()):
         return stripped
     return f"{prefix}{stripped}"
+
+
+def _bare(text: str, tag: str) -> str:
+    """Strip a zone line to bare form for emission inside its block."""
+    stripped = text.strip()
+    if stripped.upper().startswith(f"{tag}:"):
+        stripped = stripped[len(tag) + 1:].lstrip()
+    return stripped
 
 
 def _group_by_type(

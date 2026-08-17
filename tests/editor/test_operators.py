@@ -301,8 +301,8 @@ class TestMoveToZone:
             buf, _make_cursor(row=1), LineType.MAYBEBOARD_ENTRY
         )
         lines = self._lines(result.buffer)
-        # Blank-separated block at the end of the buffer
-        assert lines[-2:] == ["", "MB: 2 Goblin Guide"]
+        # Blank-separated Python-style block at the end of the buffer
+        assert lines[-3:] == ["", "MB:", "    2 Goblin Guide"]
 
     def test_move_sideboard_card_to_main(self) -> None:
         buf = _make_buffer()
@@ -323,7 +323,7 @@ class TestMoveToZone:
         result = move_to_zone(
             buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY
         )
-        assert "SB: 4 Lightning Bolt  #burn  // never cut" in self._lines(
+        assert "    4 Lightning Bolt  #burn  // never cut" in self._lines(
             result.buffer
         )
 

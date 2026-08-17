@@ -544,19 +544,22 @@ class TestZoneMoves:
         state = _state(row=1)  # "4 Goblin Guide"
         result = handle_normal_special(state, _act("ms", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
-        assert "SB: 4 Goblin Guide" in lines
+        # A brand-new zone opens as a Python-style block
+        assert "SB:" in lines
+        assert "    4 Goblin Guide" in lines
         assert "4 Goblin Guide" not in lines
         assert state.modified
         assert "Moved 4x Goblin Guide to sideboard" in result.command_message
         # Cursor follows the card
-        assert state.cursor.row == lines.index("SB: 4 Goblin Guide")
+        assert state.cursor.row == lines.index("    4 Goblin Guide")
 
     def test_counted_ms_splits_entry(self) -> None:
         state = _state(row=1)
         handle_normal_special(state, _act("ms", count=1))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert "3 Goblin Guide" in lines
-        assert "SB: 1 Goblin Guide" in lines
+        assert "    1 Goblin Guide" in lines
+        assert "SB:" in lines
 
     def test_md_moves_sideboard_card_back(self) -> None:
         state = _state("4 Goblin Guide\n\nSB: 2 Eidolon of the Great Revel\n", row=2)
@@ -569,7 +572,8 @@ class TestZoneMoves:
         state = _state(row=1)
         handle_normal_special(state, _act("mm", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
-        assert "MB: 4 Goblin Guide" in lines
+        assert "MB:" in lines
+        assert "    4 Goblin Guide" in lines
 
     def test_ms_does_not_set_mark(self) -> None:
         state = _state(row=1)
@@ -600,7 +604,8 @@ class TestZoneMoves:
         ))
         handle_normal_special(state, _act("."))
         lines = [bl.text for bl in state.buffer.get_lines()]
-        assert "SB: 4 Monastery Swiftspear" in lines
+        # Second move joins the SB: block the first one opened
+        assert "    4 Monastery Swiftspear" in lines
 
     def test_noop_on_comment_line_reports_error(self) -> None:
         state = _state(row=0)  # "// Creatures"

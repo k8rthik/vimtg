@@ -125,7 +125,8 @@ def _matched_indent(buf: Buffer, row: int) -> str:
             continue
         if parse_zone_header(bl.text) is not None:
             return "    "
-        if buf.is_card_line(i):
+        if buf.is_card_line(i) or bl.line_type == LineType.SECTION_HEADER:
+            # Cards sit at the same depth as their section header
             return bl.text[: len(bl.text) - len(bl.text.lstrip())]
         return ""
     return ""
@@ -1210,14 +1211,17 @@ class MainScreen(Screen[None]):
         """Find the right row to insert a card based on its primary type.
 
         Uses singular type names: "Creature", "Instant", "Sorcery", etc.
-        Creates the section header if it doesn't exist, with blank line separation.
+        Creates the section header if it doesn't exist — indented inside
+        the DCK: block when the deck uses one, blank-separated at the
+        top level otherwise.
         Returns (buffer, insert_row) — buffer may have new section header lines.
         """
+        from vimtg.domain.deck_lines import parse_zone_header
         from vimtg.editor.buffer import LineType
 
         section_name = _card_type_section(card.type_line)
 
-        # Look for existing section header
+        # Look for existing section header (indented headers included)
         for i in range(buf.line_count()):
             bl = buf.get_line(i)
             if bl.line_type == LineType.SECTION_HEADER and section_name in bl.text:
@@ -1226,7 +1230,34 @@ class MainScreen(Screen[None]):
                     insert_at += 1
                 return buf, insert_at
 
-        # No matching section — create one before sideboard or at end
+        # No matching section. Deck using a DCK: block gets the new
+        # section indented inside it, after the block's current content.
+        dck_row = next(
+            (
+                i for i in range(buf.line_count())
+                if parse_zone_header(buf.get_line(i).text) == "DCK"
+            ),
+            None,
+        )
+        if dck_row is not None:
+            insert_at = dck_row + 1
+            i = dck_row + 1
+            while i < buf.line_count():
+                bl = buf.get_line(i)
+                if bl.line_type == LineType.BLANK:
+                    i += 1
+                    continue
+                in_block = bl.text[:1].isspace() and bl.line_type in (
+                    LineType.CARD_ENTRY, LineType.SECTION_HEADER,
+                )
+                if not in_block:
+                    break
+                insert_at = i + 1
+                i += 1
+            buf = buf.insert_line(insert_at, f"    // {section_name}")
+            return buf, insert_at + 1
+
+        # Legacy layout — create the section before sideboard or at end
         insert_at = buf.line_count()
         for i in range(buf.line_count()):
             bl = buf.get_line(i)

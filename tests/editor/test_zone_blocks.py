@@ -150,10 +150,11 @@ class TestZoneMovesIntoBlocks:
         assert lines[1] == "    1 Atraxa"
         assert result.buffer.get_line(1).line_type is LineType.COMMANDER_ENTRY
 
-    def test_mc_without_block_still_writes_prefix_style(self):
+    def test_mc_without_block_opens_one(self):
         buf = Buffer.from_text("1 Atraxa\n1 Forest\n")
         result = move_to_zone(buf, Cursor(row=0), LineType.COMMANDER_ENTRY)
-        assert "CMD: 1 Atraxa" in result.buffer.to_text()
+        lines = result.buffer.to_text().splitlines()
+        assert lines.index("CMD:") + 1 == lines.index("    1 Atraxa")
 
 
 class TestLayoutRegroup:
@@ -162,9 +163,11 @@ class TestLayoutRegroup:
 
         buf = Buffer.from_text(_BLOCK_PARTNERS)
         regrouped = regroup_buffer(buf, LAYOUT_CATEGORY)
-        text = regrouped.to_text()
-        assert "CMD: 1 Thrasios, Triton Hero" in text
-        assert "CMD: 1 Tymna the Weaver" in text
+        lines = regrouped.to_text().splitlines()
+        # Block style is preserved through the regroup
+        assert "CMD:" in lines
+        assert "    1 Thrasios, Triton Hero" in lines
+        assert "    1 Tymna the Weaver" in lines
         commanders = [
             i for i in range(regrouped.line_count())
             if regrouped.get_line(i).line_type is LineType.COMMANDER_ENTRY

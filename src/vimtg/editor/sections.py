@@ -10,12 +10,34 @@ TUI-agnostic: no Textual imports.
 
 from __future__ import annotations
 
+from vimtg.domain.deck_lines import parse_zone_header
 from vimtg.editor.buffer import (
-    CARD_LINE_TYPES,
     Buffer,
     LineType,
     classify_line,
 )
+
+# Text section headers whose cards live in a non-main zone; every other
+# header ("// Creatures", "// @ramp", ...) labels mainboard cards.
+_LABEL_ZONE_TYPES: dict[str, LineType] = {
+    "Sideboard": LineType.SIDEBOARD_ENTRY,
+    "Maybeboard": LineType.MAYBEBOARD_ENTRY,
+    "Commander": LineType.COMMANDER_ENTRY,
+    "Companion": LineType.COMPANION_ENTRY,
+}
+
+
+def _expected_card_type(header_text: str) -> LineType | None:
+    """The card LineType a header's section is made of.
+
+    None for bare zone block headers ('DCK:', 'CMD:', ...) — those are
+    structural zone declarations, not derived groupings, and are never
+    auto-dropped.
+    """
+    if parse_zone_header(header_text) is not None:
+        return None
+    label = header_text.strip().removeprefix("//").strip()
+    return _LABEL_ZONE_TYPES.get(label, LineType.CARD_ENTRY)
 
 
 def normalize_sections(buffer: Buffer) -> Buffer:
@@ -37,16 +59,24 @@ def normalize_sections(buffer: Buffer) -> Buffer:
 def _drop_empty_headers(
     lines: list[tuple[str, LineType]],
 ) -> list[tuple[str, LineType]]:
-    """Drop section headers with no card lines before the next section."""
+    """Drop section headers with no card lines before the next section.
+
+    Zone-aware: a '// Creature' header is only occupied by mainboard
+    cards — a CMD:/SB: line sitting where the section's cards used to
+    be does not keep it alive.
+    """
     to_delete: set[int] = set()
-    for i, (_, line_type) in enumerate(lines):
+    for i, (text, line_type) in enumerate(lines):
         if line_type != LineType.SECTION_HEADER:
             continue
+        expected = _expected_card_type(text)
+        if expected is None:
+            continue  # bare zone block header — structural, keep
         has_cards = False
         for _, next_type in lines[i + 1:]:
             if next_type == LineType.BLANK:
                 continue
-            if next_type in CARD_LINE_TYPES:
+            if next_type == expected:
                 has_cards = True
             break
         if not has_cards:

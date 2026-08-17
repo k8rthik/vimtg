@@ -54,6 +54,33 @@ def scaffold_missing_metadata(text: str) -> str:
     return "\n".join(new_lines)
 
 
+def scaffold_deck_body(text: str) -> str:
+    """Give a deck with no cards its zone structure: a 'DCK:' block, and
+    a 'CMD:' block first when the deck declares the commander format.
+
+    Decks that already have any cards or zone headers are returned
+    unchanged (same object) — existing files are never restructured.
+    """
+    from vimtg.domain.deck_lines import parse_zone_header
+
+    lines = text.split("\n")
+    if any(parse_zone_header(line) is not None for line in lines):
+        return text
+    deck = parse_deck_text(text)
+    if deck.entries:
+        return text
+
+    blocks: list[str] = []
+    if deck.metadata.format.strip().lower() in ("commander", "brawl"):
+        blocks.extend(["CMD:", ""])
+    blocks.append("DCK:")
+
+    out = text.rstrip("\n")
+    if out:
+        return out + "\n\n" + "\n".join(blocks) + "\n"
+    return "\n".join(blocks) + "\n"
+
+
 class DeckService:
     """Stateless service for deck operations.
 
@@ -88,10 +115,10 @@ class DeckService:
             lines.append(f"// Author: {author}")
         lines.append("// Tags:")
         lines.append("")
-        lines.append("// Mainboard")
-        lines.append("")
-        lines.append("// Sideboard")
-        lines.append("")
+        if fmt.strip().lower() in ("commander", "brawl"):
+            lines.append("CMD:")
+            lines.append("")
+        lines.append("DCK:")
         return "\n".join(lines) + "\n"
 
     def resolve_cards(
