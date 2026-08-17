@@ -132,6 +132,45 @@ _ZONE_TAG_TYPES: dict[str, LineType] = {
     "MB": LineType.MAYBEBOARD_ENTRY,
 }
 
+# Text section headers whose cards live in a non-main zone; every other
+# header ("// Creatures", "// @ramp", ...) labels mainboard cards.
+LABEL_ZONE_TYPES: dict[str, LineType] = {
+    "Sideboard": LineType.SIDEBOARD_ENTRY,
+    "Maybeboard": LineType.MAYBEBOARD_ENTRY,
+    "Commander": LineType.COMMANDER_ENTRY,
+    "Companion": LineType.COMPANION_ENTRY,
+}
+
+
+def insertion_zone(buffer: Buffer, row: int) -> LineType:
+    """The zone a card inserted at `row` should join, cursor-style.
+
+    Priority: the enclosing zone block's running context, then the zone
+    of the nearest content line above (a zone card line, or a labeled
+    zone header like '// Sideboard'). Blanks and comments are looked
+    through; metadata, type/category headers, and the top of the file
+    mean mainboard.
+    """
+    texts = [bl.text for bl in buffer.get_lines()]
+    if texts:
+        tag = zone_running_context(texts, min(row, len(texts) - 1))
+        if tag is not None:
+            return _ZONE_TAG_TYPES[tag]
+    for i in range(min(row, buffer.line_count()) - 1, -1, -1):
+        bl = buffer.get_line(i)
+        if bl.line_type in (LineType.BLANK, LineType.COMMENT):
+            continue
+        if bl.line_type in CARD_LINE_TYPES:
+            return bl.line_type
+        if bl.line_type == LineType.SECTION_HEADER:
+            header_tag = parse_zone_header(bl.text)
+            if header_tag is not None:
+                return _ZONE_TAG_TYPES[header_tag]
+            label = bl.text.strip().removeprefix("//").strip()
+            return LABEL_ZONE_TYPES.get(label, LineType.CARD_ENTRY)
+        return LineType.CARD_ENTRY  # metadata / top of file
+    return LineType.CARD_ENTRY
+
 
 def classify_lines(texts: Sequence[str]) -> tuple[BufferLine, ...]:
     """Classify lines with zone-block context.

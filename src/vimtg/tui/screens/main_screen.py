@@ -26,7 +26,7 @@ from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.domain.card_types import primary_type
 from vimtg.domain.formats import get_format_rules
-from vimtg.editor.buffer import Buffer
+from vimtg.editor.buffer import Buffer, LineType, insertion_zone
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
@@ -597,6 +597,21 @@ class MainScreen(Screen[None]):
             elif len(query) < 2:
                 sr.display = False
 
+    def _write_zone_card(self, name: str, zone: LineType) -> None:
+        """Replace the opened blank line with a card in `zone`'s style.
+
+        Inside a zone block the line is written indented bare; among
+        prefix-style entries it gets the SB:/CMD: prefix.
+        """
+        from vimtg.editor.operators import ZONE_PREFIXES
+
+        s = self._state
+        indent = _matched_indent(s.buffer, s.cursor.row)
+        text = (
+            f"{indent}1 {name}" if indent else f"{ZONE_PREFIXES[zone]}1 {name}"
+        )
+        s.buffer = s.buffer.set_line(s.cursor.row, text)
+
     def _delete_blank_cursor_line(self) -> bool:
         """Delete the cursor line if blank (the leftover from an 'o' insert).
 
@@ -614,13 +629,21 @@ class MainScreen(Screen[None]):
         card = sr.get_selected()
         if card:
             s = self._state
+            # The cursor's zone decides where the card goes: opening a
+            # line inside the CMD:/SB: block (or among prefix lines of a
+            # zone) adds the card to THAT zone
+            zone = insertion_zone(s.buffer, s.cursor.row)
             # Check for duplicate — increment quantity instead of adding new line
-            duplicate_line = self._find_card_line(card.name)
+            duplicate_line = self._find_card_line(card.name, zone)
             if duplicate_line is not None:
                 qty = s.buffer.quantity_at(duplicate_line) or 0
                 s.buffer = s.buffer.set_quantity(duplicate_line, qty + 1)
                 self._delete_blank_cursor_line()
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
+            elif zone != LineType.CARD_ENTRY:
+                # Non-main zones aren't type-grouped: the card lands
+                # exactly where opened, in the zone's own style
+                self._write_zone_card(card.name, zone)
             elif not s.settings.auto_sort:
                 # auto_sort off: card goes exactly where the user opened it
                 indent = _matched_indent(s.buffer, s.cursor.row)
@@ -650,7 +673,16 @@ class MainScreen(Screen[None]):
             s.history.record(s.buffer, f"added {card.name}")
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
-            cl.set_message(f"Added {card.name}  (+/- to change qty, dd to remove)")
+            from vimtg.editor.operators import ZONE_LABELS
+
+            zone_note = (
+                f" to {ZONE_LABELS[zone]}"
+                if zone != LineType.CARD_ENTRY
+                else ""
+            )
+            cl.set_message(
+                f"Added {card.name}{zone_note}  (+/- to change qty, dd to remove)"
+            )
         else:
             # No card selected — clean up blank line from 'o'
             s = self._state
@@ -1221,19 +1253,20 @@ class MainScreen(Screen[None]):
             cl = self.query_one("#command-line", CommandLine)
             cl.set_message(f"E: Auto-snapshot failed: {exc}", error=True)
 
-    def _find_card_line(self, card_name: str) -> int | None:
-        """Find an existing MAINBOARD line with this card name.
+    def _find_card_line(
+        self, card_name: str, zone: LineType | None = None
+    ) -> int | None:
+        """Find an existing line with this card name in `zone`.
 
-        Duplicate detection for the add-card flows, which target the
-        mainboard — a sideboard/commander copy must not be incremented
-        in place of adding the requested mainboard card.
+        Duplicate detection is zone-scoped: adding a card where the
+        cursor is must increment a copy in THAT zone, never one in
+        another zone. Defaults to the mainboard.
         """
-        from vimtg.editor.buffer import LineType
-
+        target = zone if zone is not None else LineType.CARD_ENTRY
         buf = self._state.buffer
         for i in range(buf.line_count()):
             if (
-                buf.get_line(i).line_type == LineType.CARD_ENTRY
+                buf.get_line(i).line_type == target
                 and buf.card_name_at(i) == card_name
             ):
                 return i

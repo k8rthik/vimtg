@@ -8,7 +8,7 @@ flagged otherwise.
 | Key | From → To | Notes |
 |-----|-----------|-------|
 | `i` | normal → line-edit | Edit the current line in place; on `// Key:` metadata lines only the value is editable |
-| `o` | normal → insert | Open a card-search prompt below the cursor |
+| `o` | normal → insert | Open a card-search prompt below the cursor. The added card joins the zone under the cursor: inside a `CMD:`/`SB:` block (or among prefix lines) it lands there in matching style; in the mainboard it auto-sorts into its type section |
 | `O` | normal → insert | Open a card-search prompt above the cursor |
 | `a` | normal → insert | Like `o`, but appends to the same section |
 | `:` | normal → command | Ex command line |

@@ -23,7 +23,9 @@ EDITING
                 (on // Key: metadata lines, edits just the value;
                 the // Format: value Tab-completes known formats)
   A             Add/edit card comment (empty removes)
-  o/O           Add card (new line below / above)
+  o/O           Add card (new line below / above; the card joins
+                the zone under the cursor — CMD:/SB: block or
+                prefix lines add there, mainboard auto-sorts)
   dd            Delete card line
   x             Delete card line (into register)
   yy            Yank (copy) card line

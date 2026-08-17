@@ -396,13 +396,12 @@ async def test_confirm_insert_duplicate_preserves_prefix_and_tags(wired_repo) ->
         guide = wired_repo.get_by_name("Goblin Guide")
         scr._update_search_results([guide])
         scr._confirm_insert()
-        # The add flow targets the mainboard: the sideboard copy must
-        # NOT be incremented — a new mainboard line is added instead
+        # The cursor sits in the sideboard, so the add targets the
+        # sideboard: the existing SB copy increments (prefix and tags
+        # preserved) and no mainboard copy appears
         text = scr._state.buffer.to_text()
-        assert "SB: 2 Goblin Guide  #aggro" in text
-        line = scr._find_card_line("Goblin Guide")
-        assert line is not None  # mainboard-only lookup finds the new line
-        assert "1 Goblin Guide" in scr._state.buffer.get_line(line).text
+        assert "SB: 3 Goblin Guide  #aggro" in text
+        assert scr._find_card_line("Goblin Guide") is None  # no mainboard copy
 
 
 @pytest.mark.asyncio

@@ -185,7 +185,7 @@ ZONE_LABELS = {
     LineType.SIDEBOARD_ENTRY: "sideboard",
     LineType.MAYBEBOARD_ENTRY: "maybeboard",
 }
-_ZONE_PREFIXES = {
+ZONE_PREFIXES = {
     LineType.COMMANDER_ENTRY: "CMD: ",
     LineType.COMPANION_ENTRY: "CMP: ",
     LineType.CARD_ENTRY: "",
@@ -325,8 +325,8 @@ def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
             return f"{_BLOCK_INDENT}{body}"
         texts = [buffer.get_line(i).text for i in range(buffer.line_count())]
         if zone_running_context(texts, min(row, len(texts))) is not None:
-            return f"{_BLOCK_INDENT}{_ZONE_PREFIXES[zone]}{body}"
-    return f"{_ZONE_PREFIXES[zone]}{body}"
+            return f"{_BLOCK_INDENT}{ZONE_PREFIXES[zone]}{body}"
+    return f"{ZONE_PREFIXES[zone]}{body}"
 
 
 def move_to_zone(

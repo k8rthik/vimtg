@@ -16,19 +16,11 @@ from vimtg.domain.deck_lines import (
     zone_context_effect,
 )
 from vimtg.editor.buffer import (
+    LABEL_ZONE_TYPES,
     Buffer,
     LineType,
     classify_line,
 )
-
-# Text section headers whose cards live in a non-main zone; every other
-# header ("// Creatures", "// @ramp", ...) labels mainboard cards.
-_LABEL_ZONE_TYPES: dict[str, LineType] = {
-    "Sideboard": LineType.SIDEBOARD_ENTRY,
-    "Maybeboard": LineType.MAYBEBOARD_ENTRY,
-    "Commander": LineType.COMMANDER_ENTRY,
-    "Companion": LineType.COMPANION_ENTRY,
-}
 
 
 def _expected_card_type(header_text: str) -> LineType | None:
@@ -41,7 +33,7 @@ def _expected_card_type(header_text: str) -> LineType | None:
     if parse_zone_header(header_text) is not None:
         return None
     label = header_text.strip().removeprefix("//").strip()
-    return _LABEL_ZONE_TYPES.get(label, LineType.CARD_ENTRY)
+    return LABEL_ZONE_TYPES.get(label, LineType.CARD_ENTRY)
 
 
 def normalize_sections(buffer: Buffer) -> Buffer:
