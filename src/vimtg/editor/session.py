@@ -945,12 +945,27 @@ def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
 
 
 def _apply_insert_variant(state: EditorState, variant: str) -> None:
-    """Apply buffer changes for insert mode variants (o, O)."""
+    """Apply buffer changes for insert mode variants (o, O).
+
+    On a metadata line ('// Deck:', '// Format:', ...) both o and O
+    open the line below the whole block instead — a card line must
+    never split the metadata header.
+    """
+    row = state.cursor.row
+    if state.buffer.get_line(row).line_type == LineType.METADATA:
+        while (
+            row < state.buffer.line_count()
+            and state.buffer.get_line(row).line_type == LineType.METADATA
+        ):
+            row += 1
+        state.buffer = state.buffer.insert_line(row, "")
+        state.cursor = state.cursor.move_to(row, 0)
+        return
     if variant == "o":
-        state.buffer = state.buffer.insert_line(state.cursor.row + 1, "")
-        state.cursor = state.cursor.move_to(state.cursor.row + 1, 0)
+        state.buffer = state.buffer.insert_line(row + 1, "")
+        state.cursor = state.cursor.move_to(row + 1, 0)
     elif variant == "O":
-        state.buffer = state.buffer.insert_line(state.cursor.row, "")
+        state.buffer = state.buffer.insert_line(row, "")
 
 
 def _delete_card_at_cursor(state: EditorState) -> None:
