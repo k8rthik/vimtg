@@ -20,7 +20,8 @@ NAVIGATION
 
 EDITING
   i             Edit current line as plain text
-                (on // Key: metadata lines, edits just the value)
+                (on // Key: metadata lines, edits just the value;
+                the // Format: value Tab-completes known formats)
   A             Add/edit card comment (empty removes)
   o/O           Add card (new line below / above)
   dd            Delete card line

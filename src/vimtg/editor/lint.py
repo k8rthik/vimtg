@@ -42,6 +42,17 @@ def effective_format(deck: Deck, default_format: str) -> str:
     return (deck.metadata.format or default_format).strip().lower()
 
 
+def _format_metadata_row(buffer: Buffer) -> int | None:
+    """Row of the '// Format:' metadata line, or None."""
+    from vimtg.domain.deck_lines import match_metadata
+
+    for i in range(buffer.line_count()):
+        meta = match_metadata(buffer.get_line(i).text)
+        if meta is not None and meta[0] == "Format":
+            return i
+    return None
+
+
 def lint_buffer(
     buffer: Buffer,
     resolved: dict[str, Card],
@@ -60,11 +71,22 @@ def lint_buffer(
 
     line_errors: dict[int, ValidationError] = {}
     deck_errors: list[ValidationError] = []
+    fmt_row = _format_metadata_row(buffer)
     for err in errors:
         if err.line_number is None:
-            deck_errors.append(err)
-            continue
-        row = err.line_number - 1
+            # The unknown-format warning belongs on the '// Format:'
+            # line itself — a gutter sign the user actually sees.
+            if err.message.startswith("Unknown format") and fmt_row is not None:
+                err = ValidationError(
+                    level=err.level, message=err.message,
+                    line_number=fmt_row + 1,
+                )
+                row = fmt_row
+            else:
+                deck_errors.append(err)
+                continue
+        else:
+            row = err.line_number - 1
         existing = line_errors.get(row)
         # Worst issue wins the row: error beats warning, first wins ties
         if existing is None or (

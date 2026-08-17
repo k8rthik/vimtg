@@ -51,3 +51,8 @@ FORMAT_RULES: dict[str, FormatRules] = {
 def get_format_rules(fmt: str) -> FormatRules | None:
     """Rules for a format name (case-insensitive); None for ''/unknown."""
     return FORMAT_RULES.get(fmt.strip().lower())
+
+
+def known_formats() -> tuple[str, ...]:
+    """Format names with configured legality rules, sorted."""
+    return tuple(sorted(FORMAT_RULES))

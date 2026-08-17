@@ -376,7 +376,14 @@ class MainScreen(Screen[None]):
             if s.insert_submode == InsertSubmode.LINE_EDIT:
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
-                return handle_line_edit_special(s, action)
+                hr = handle_line_edit_special(s, action)
+                # The // Format: line ghost-completes known formats
+                if hr.command_accept:
+                    cl.text = hr.command_accept
+                    cl.cursor_pos = len(hr.command_accept)
+                    self.keymap.set_insert_text(hr.command_accept)
+                cl.ghost = hr.command_ghost
+                return hr
             cl.cursor_pos = (
                 action.cursor_pos if action.cursor_pos is not None else len(action.text or "")
             )

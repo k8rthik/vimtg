@@ -29,7 +29,7 @@ Recognized at the top of the file:
 | Key | Meaning |
 |-----|---------|
 | `Deck` | Deck name (used in greeter, history) |
-| `Format` | Format name (`modern`, `legacy`, `commander`, …) |
+| `Format` | Format name (`modern`, `legacy`, `commander`, …). Editing the value with `i` ghost-completes the formats with legality rules (Tab accepts); an unrecognized format gets a gutter warning on the line — the deck still works, but legality checking is off |
 | `Author` | Optional |
 | `Source` | Optional (URL or provenance note) |
 | `Tags` | Deck-level tags, comma-separated |

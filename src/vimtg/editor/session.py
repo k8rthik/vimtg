@@ -24,6 +24,7 @@ from vimtg.domain.categories import (
     completion_candidates,
 )
 from vimtg.domain.deck_lines import split_metadata_prefix
+from vimtg.domain.formats import get_format_rules, known_formats
 from vimtg.domain.tags import TagFilter, format_tag_summary
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.category_ops import (
@@ -812,18 +813,60 @@ def handle_insert_special(state: EditorState, action: ParsedAction) -> HandlerRe
     return HandlerResult()
 
 
+def _is_format_line_edit(prefix: str) -> bool:
+    """True when the locked line-edit prefix is the '// Format: ' key."""
+    return prefix.strip().lower().replace(" ", "").startswith("//format:")
+
+
+def _format_ghost(value: str) -> str:
+    """First known format completing `value` ('' when none or exact)."""
+    typed = value.strip().lower()
+    if not typed:
+        return ""
+    for fmt in known_formats():
+        if fmt.startswith(typed) and fmt != typed:
+            return fmt
+    return ""
+
+
+def _unknown_format_notice(value: str) -> str:
+    """Warning text for a format with no legality rules ('' when fine)."""
+    typed = value.strip().lower()
+    if not typed or get_format_rules(typed) is not None:
+        return ""
+    return (
+        f"Unknown format '{typed}' — no legality checking "
+        f"(known: {', '.join(known_formats())})"
+    )
+
+
 def handle_line_edit_special(state: EditorState, action: ParsedAction) -> HandlerResult:
-    """Process line-edit insert-mode keys (typing updates buffer line in real-time)."""
+    """Process line-edit insert-mode keys (typing updates buffer line in real-time).
+
+    On the '// Format:' metadata line the value ghost-completes from the
+    formats with legality rules (Tab accepts), and confirming an unknown
+    format warns that legality checking is off for it.
+    """
     key = action.action
     text = action.text or ""
     row = state.line_edit_row
     prefix = state.line_edit_prefix
+    format_line = _is_format_line_edit(prefix)
     if key in ("char", "backspace", "delete"):
         if row is not None and row < state.buffer.line_count():
             state.buffer = state.buffer.set_line(row, prefix + text)
+        if format_line:
+            return HandlerResult(command_ghost=_format_ghost(text))
         return HandlerResult()
     if key == "cursor_move":
         return HandlerResult()
+    if key == "tab" and format_line:
+        accepted = _format_ghost(text)
+        if not accepted:
+            return HandlerResult()
+        if row is not None and row < state.buffer.line_count():
+            state.buffer = state.buffer.set_line(row, prefix + accepted)
+        return HandlerResult(command_accept=accepted)
     if key == "enter":
         # Confirm: record history, clear original (signals "confirmed, don't restore")
         if row is not None:
@@ -838,7 +881,8 @@ def handle_line_edit_special(state: EditorState, action: ParsedAction) -> Handle
         state.line_edit_original = None
         state.line_edit_row = None
         state.insert_submode = InsertSubmode.CARD_SEARCH
-        return HandlerResult(exit_to_normal=True)
+        message = _unknown_format_notice(text) if format_line else ""
+        return HandlerResult(exit_to_normal=True, command_message=message)
     return HandlerResult()
 
 
