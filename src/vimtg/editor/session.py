@@ -746,23 +746,26 @@ ZONE_TARGETS: dict[str, LineType] = {
 }
 
 
-def _main_type_section(state: EditorState) -> str | None:
-    """Type section for the cursor's card when md should group by type.
+def _main_placement(state: EditorState) -> tuple[str | None, bool]:
+    """(type section, join-uncategorized) for an md into the mainboard.
 
-    None when the deck is category-grouped, auto-sort is off, or the
-    card is unresolved — the move then appends to the zone's end.
+    A type-grouped deck yields the resolved card's section; a
+    category-grouped deck yields the uncategorized flag — the card has
+    no category yet, so it goes with the other category-less cards.
+    (None, False) — auto-sort off, or card unresolved in a type-grouped
+    deck — appends to the zone's end instead.
     """
     from vimtg.domain.card_types import primary_type
 
     if not state.settings.auto_sort:
-        return None
+        return None, False
     if detect_layout(state.buffer) == LAYOUT_CATEGORY:
-        return None
+        return None, True
     name = state.buffer.card_name_at(state.cursor.row)
     card = state.resolved_cards.get(name) if name else None
     if card is None:
-        return None
-    return primary_type(card.type_line) or "Other"
+        return None, False
+    return primary_type(card.type_line) or "Other", False
 
 
 def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResult:
@@ -770,16 +773,18 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
 
     count == 0 moves every copy; a positive count splits that many off.
     A move into a type-grouped mainboard lands in the card's own type
-    section (created if missing), not at the bottom of the zone.
+    section (created if missing); into a category-grouped mainboard it
+    joins the uncategorized cards — never the bottom of the zone.
     """
     target = ZONE_TARGETS[key]
-    section = (
-        _main_type_section(state)
+    section, uncategorized = (
+        _main_placement(state)
         if target == LineType.CARD_ENTRY
-        else None
+        else (None, False)
     )
     result = move_to_zone(
-        state.buffer, state.cursor, target, count, main_section=section
+        state.buffer, state.cursor, target, count,
+        main_section=section, uncategorized=uncategorized,
     )
     if not result.moved:
         return HandlerResult(

@@ -396,6 +396,62 @@ class TestMoveToZone:
             lines.index("3 Unholy Heat") + 1
         )
 
+    def test_move_to_main_uncategorized_lands_at_top_of_block(self) -> None:
+        """In a category-grouped deck, md puts the card with the
+        category-less cards at the top of the DCK: block, not at the
+        bottom of the last category section."""
+        buf = Buffer.from_text(
+            "DCK:\n"
+            "\n"
+            "    // @removal\n"
+            "    1 Shock @removal\n"
+            "\n"
+            "SB: 1 Annul\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=5), LineType.CARD_ENTRY,
+            uncategorized=True,
+        )
+        lines = self._lines(result.buffer)
+        assert lines[lines.index("DCK:") + 1] == "    1 Annul"
+        assert result.cursor.row == lines.index("    1 Annul")
+        assert "SB: 1 Annul" not in lines
+
+    def test_move_to_main_joins_existing_uncategorized_section(self) -> None:
+        buf = Buffer.from_text(
+            "// @removal\n"
+            "1 Shock @removal\n"
+            "\n"
+            "// Uncategorized\n"
+            "1 Opt\n"
+            "\n"
+            "SB: 1 Annul\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=6), LineType.CARD_ENTRY,
+            uncategorized=True,
+        )
+        lines = self._lines(result.buffer)
+        assert lines.index("1 Annul") == lines.index("1 Opt") + 1
+        assert result.cursor.row == lines.index("1 Annul")
+
+    def test_move_to_main_uncategorized_legacy_is_normalize_stable(self) -> None:
+        """Top-of-mainboard placement in a headerless-block deck must
+        blank-separate the card from the category header below it, or
+        the normalize pass shifts rows on the next sync."""
+        from vimtg.editor.sections import normalize_sections
+
+        buf = Buffer.from_text(
+            "// @removal\n1 Shock @removal\n\nSB: 1 Annul\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=3), LineType.CARD_ENTRY,
+            uncategorized=True,
+        )
+        lines = self._lines(result.buffer)
+        assert lines[0] == "1 Annul"
+        assert normalize_sections(result.buffer) is result.buffer
+
     def test_move_to_main_with_section_still_merges_duplicates(self) -> None:
         buf = Buffer.from_text(
             "// Instant\n1 Shock\n\nSB: 2 Shock\n"

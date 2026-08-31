@@ -108,6 +108,58 @@ def type_section_insert_row(
     return buf, insert_at + 1
 
 
+def uncategorized_insert_row(buf: Buffer) -> tuple[Buffer, int]:
+    """Row where a category-less mainboard card belongs in a
+    category-grouped deck: with the other uncategorized cards.
+
+    Joins the existing '// Uncategorized' section when one exists, else
+    lands at the top of the DCK: block (above the first category
+    section), else at the top of a headerless-block mainboard. Like
+    type_section_insert_row, the result is normalize-stable: a blank
+    separator is written where the card would otherwise sit directly
+    against a following section header.
+    Returns (buffer, insert_row) — buffer may have a new blank line.
+    """
+    from vimtg.domain.categories import UNCATEGORIZED_LABEL
+
+    for i in range(buf.line_count()):
+        bl = buf.get_line(i)
+        if (
+            bl.line_type == LineType.SECTION_HEADER
+            and bl.text.strip().removeprefix("//").strip()
+            == UNCATEGORIZED_LABEL
+        ):
+            insert_at = i + 1
+            while insert_at < buf.line_count() and buf.is_card_line(insert_at):
+                insert_at += 1
+            return buf, insert_at
+
+    dck_row = next(
+        (
+            i for i in range(buf.line_count())
+            if parse_zone_header(buf.get_line(i).text) == "DCK"
+        ),
+        None,
+    )
+    if dck_row is not None:
+        insert_at = dck_row + 1
+    else:
+        insert_at = next(
+            (
+                i for i in range(buf.line_count())
+                if buf.get_line(i).line_type
+                in (LineType.SECTION_HEADER, LineType.CARD_ENTRY)
+            ),
+            buf.line_count(),
+        )
+    if (
+        insert_at < buf.line_count()
+        and buf.get_line(insert_at).line_type == LineType.SECTION_HEADER
+    ):
+        buf = buf.insert_line(insert_at, "")
+    return buf, insert_at
+
+
 def _expected_card_type(header_text: str) -> LineType | None:
     """The card LineType a header's section is made of.
 

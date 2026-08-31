@@ -331,7 +331,7 @@ def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
 
 def move_to_zone(
     buffer: Buffer, cursor: Cursor, target: LineType, count: int = 0,
-    main_section: str | None = None,
+    main_section: str | None = None, uncategorized: bool = False,
 ) -> ZoneMoveResult:
     """ms/mm/md — move the card at the cursor to another zone.
 
@@ -339,10 +339,13 @@ def move_to_zone(
     splits the entry, leaving the remainder behind. If the target zone
     already holds the card, quantities merge and tags union.
 
-    `main_section` (md only): the type section the card belongs to in a
-    type-grouped mainboard ("Instant", "Creature", ...). When given, a
-    fresh mainboard line is placed in that section — created if missing
-    — instead of appended after the zone's last entry.
+    md placement in a grouped mainboard (both default to appending
+    after the zone's last entry when unset):
+    - `main_section`: the type section the card belongs to in a
+      type-grouped deck ("Instant", "Creature", ...) — the line lands
+      in that section, created if missing.
+    - `uncategorized`: category-grouped deck — the line lands with the
+      category-less cards (their section, else the top of the block).
     """
     row = cursor.row
     if not buffer.is_card_line(row):
@@ -390,19 +393,29 @@ def move_to_zone(
         else:
             new_buf, _ = new_buf.delete_lines(row, row)
             deleted_row = row
-        if target == LineType.CARD_ENTRY and main_section:
+        if target == LineType.CARD_ENTRY and (main_section or uncategorized):
             from vimtg.editor.sections import (
                 matched_indent,
                 type_section_insert_row,
+                uncategorized_insert_row,
             )
 
             before = new_buf.line_count()
-            new_buf, dest_row = type_section_insert_row(new_buf, main_section)
-            header_lines = new_buf.line_count() - before
+            if main_section:
+                # Blank + header go in ABOVE the returned row
+                new_buf, dest_row = type_section_insert_row(
+                    new_buf, main_section
+                )
+                first_new = dest_row - (new_buf.line_count() - before)
+            else:
+                # A separator blank (if any) ends up BELOW the card
+                new_buf, dest_row = uncategorized_insert_row(new_buf)
+                first_new = dest_row
+            extra_lines = new_buf.line_count() - before
             indent = matched_indent(new_buf, dest_row)
             new_buf = new_buf.insert_line(dest_row, f"{indent}{body}")
-            inserted_row = dest_row - header_lines
-            inserted_count = header_lines + 1
+            inserted_row = first_new
+            inserted_count = extra_lines + 1
         else:
             new_buf, dest_row, inserted_count = _insert_zone_line(
                 new_buf, target, body

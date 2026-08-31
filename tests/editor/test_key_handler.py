@@ -585,20 +585,32 @@ class TestZoneMoves:
         assert lines.index("1 Annul") == lines.index("1 Shock") + 1
         assert state.cursor.row == lines.index("1 Annul")
 
-    def test_md_ignores_type_sections_in_category_layout(self) -> None:
-        """A category-grouped deck must not sprout type headers on md."""
+    def test_md_in_category_layout_goes_with_uncategorized(self) -> None:
+        """A category-grouped deck must not sprout type headers on md —
+        the card joins the category-less cards at the top of the block."""
 
         class _C:
             type_line = "Instant"
 
         state = _state(
-            "// @removal\n1 Shock @removal\n\nSB: 1 Annul\n", row=3
+            "DCK:\n\n    // @removal\n    1 Shock @removal\n\nSB: 1 Annul\n",
+            row=5,
         )
         state.resolved_cards = {"Annul": _C()}  # type: ignore[dict-item]
         handle_normal_special(state, _act("md", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
-        assert "// Instant" not in lines
-        assert "1 Annul" in lines
+        assert "    // Instant" not in lines
+        assert lines[lines.index("DCK:") + 1] == "    1 Annul"
+        assert state.cursor.row == lines.index("    1 Annul")
+
+    def test_md_in_category_layout_works_without_card_data(self) -> None:
+        """Uncategorized placement needs no resolved card."""
+        state = _state(
+            "// @removal\n1 Shock @removal\n\nSB: 1 Annul\n", row=3
+        )
+        handle_normal_special(state, _act("md", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert lines[0] == "1 Annul"
 
     def test_mm_moves_to_maybeboard(self) -> None:
         state = _state(row=1)
