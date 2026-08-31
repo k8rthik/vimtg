@@ -96,3 +96,22 @@ async def test_url_import_failure_shows_error(tmp_path: Path) -> None:
             cl = screen.query_one("#command-line", CommandLine)
             assert "404" in cl.message
             assert "4 Goblin Guide" in screen._state.buffer.to_text()
+
+
+@pytest.mark.asyncio
+async def test_open_deck_with_initial_text_starts_modified(tmp_path: Path) -> None:
+    """The greeter's import hands open_deck buffer text with no file —
+    the editor must open on it, marked modified so :q warns."""
+    import os
+
+    os.chdir(tmp_path)
+    app = VimTGApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.open_deck(initial_text="// Deck: Imported\n\n4 Lightning Bolt\n")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, MainScreen)
+        assert "4 Lightning Bolt" in screen._state.buffer.to_text()
+        assert screen._state.modified
+        assert screen.file_path is None

@@ -191,11 +191,20 @@ class VimTGApp(App[None]):
         recent = self._find_recent_decks()
         self.push_screen(GreeterScreen(recent_files=recent))
 
-    def open_deck(self, file_path: Path | None = None) -> None:
-        """Public navigation: open a deck (or an empty buffer) in the editor."""
+    def open_deck(
+        self, file_path: Path | None = None, initial_text: str | None = None
+    ) -> None:
+        """Public navigation: open a deck (or an empty buffer) in the editor.
+
+        `initial_text` seeds the buffer with content that has no file
+        yet (the greeter's import flow) — the buffer opens modified so
+        quitting warns about the unsaved deck.
+        """
         from vimtg.tui.screens.main_screen import MainScreen
 
-        if file_path and file_path.exists():
+        if initial_text is not None:
+            text = scaffold_deck_body(scaffold_missing_metadata(initial_text))
+        elif file_path and file_path.exists():
             try:
                 text = file_path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
@@ -211,18 +220,19 @@ class VimTGApp(App[None]):
 
         buffer = Buffer.from_text(text)
         save_fn = self._deck_repo.save if self._deck_repo else None
-        self.push_screen(
-            MainScreen(
-                buffer=buffer,
-                file_path=file_path,
-                registry=self._cmd_registry,
-                search_service=self._search_svc,
-                card_repo=self._card_repo,
-                save_fn=save_fn,
-                settings=self._settings,
-                db=self._db,
-            )
+        screen = MainScreen(
+            buffer=buffer,
+            file_path=file_path,
+            registry=self._cmd_registry,
+            search_service=self._search_svc,
+            card_repo=self._card_repo,
+            save_fn=save_fn,
+            settings=self._settings,
+            db=self._db,
         )
+        if initial_text is not None:
+            screen._state.modified = True
+        self.push_screen(screen)
 
     def _find_recent_decks(self) -> list[Path]:
         """Find .deck files in current directory, newest first."""

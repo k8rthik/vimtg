@@ -13,11 +13,17 @@ from pathlib import Path
 from rich.text import Text
 from textual import work
 from textual.app import ComposeResult
-from textual.events import Key
+from textual.events import Key, Paste
 from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg import __version__
+from vimtg.services.deck_sources import (
+    DeckSourceError,
+    fetch_deck,
+    is_deck_url,
+    stamped_deck,
+)
 from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
 
@@ -33,6 +39,7 @@ LOGO_LINES = [
 ACTIONS = [
     ("n", "New deck"),
     ("e", "Open file"),
+    ("i", "Import deck"),
     ("s", "Sync cards"),
     ("r", "Recent files"),
     ("?", "Help"),
@@ -50,6 +57,7 @@ class GreeterMode(Enum):
     HELP = "help"
     FILES = "files"
     RECENT = "recent"
+    IMPORT = "import"
 
 
 class GreeterView(Static):
@@ -66,6 +74,7 @@ class GreeterView(Static):
         self._mode = GreeterMode.MENU
         self._cursor = 0
         self._status = ""
+        self._input = ""  # import prompt text (path or URL)
 
     def render(self) -> Text:
         if self._mode == GreeterMode.HELP:
@@ -74,6 +83,8 @@ class GreeterView(Static):
             return self._render_file_list(self._all_files, "Open File")
         if self._mode == GreeterMode.RECENT:
             return self._render_file_list(self._recent, "Recent Files")
+        if self._mode == GreeterMode.IMPORT:
+            return self._render_import()
         return self._render_menu()
 
     # -- Render methods ------------------------------------------------
@@ -125,6 +136,34 @@ class GreeterView(Static):
 
         t.append("\n")
         t.append("  Press Escape or q to return\n", style=_DIM)
+        return t
+
+    def _render_import(self) -> Text:
+        t = Text()
+        t.append("  Import Deck\n", style=f"bold {COLORS['mana_blue']}")
+        t.append("  " + "-" * 40 + "\n\n", style=_DIM)
+        t.append("  Paste a deck URL or type a file path:\n\n", style="")
+        t.append("  > ", style=f"bold {COLORS['quantity']}")
+        t.append(self._input)
+        t.append("▏\n\n", style=_DIM)
+        t.append(
+            "  URLs: Moxfield, Archidekt, ManaBox, Deckstats,\n"
+            "        TappedOut, MTGGoldfish\n",
+            style=_DIM,
+        )
+        t.append(
+            "  Files: vimtg, MTGO text/.dek, Arena, Moxfield/Archidekt CSV\n",
+            style=_DIM,
+        )
+        t.append("\n")
+        if self._status:
+            style = (
+                f"bold {COLORS['error']}"
+                if self._status.startswith("E:")
+                else f"bold {COLORS['mana_green']}"
+            )
+            t.append(f"  {self._status}\n\n", style=style)
+        t.append("  Enter import  Escape back\n", style=_DIM)
         return t
 
     def _render_file_list(self, files: list[Path], title: str) -> Text:
@@ -224,6 +263,8 @@ class GreeterScreen(Screen[None]):
             self._handle_menu_key(key, gv)
         elif gv._mode == GreeterMode.HELP:
             self._handle_help_key(key, gv)
+        elif gv._mode == GreeterMode.IMPORT:
+            self._handle_import_key(key, gv)
         elif gv._mode in (GreeterMode.FILES, GreeterMode.RECENT):
             file_list = (
                 self._all_files
@@ -237,6 +278,11 @@ class GreeterScreen(Screen[None]):
             self._open_editor(file_path=None)
         elif key == "e":
             gv.set_mode(GreeterMode.FILES)
+            gv.refresh()
+        elif key == "i":
+            gv.set_mode(GreeterMode.IMPORT)
+            gv._input = ""
+            gv._status = ""
             gv.refresh()
         elif key == "s":
             self._run_sync()
@@ -255,6 +301,29 @@ class GreeterScreen(Screen[None]):
         if key in ("escape", "q", "?"):
             gv.set_mode(GreeterMode.MENU)
             gv.refresh()
+
+    def _handle_import_key(self, key: str, gv: GreeterView) -> None:
+        if key == "escape":
+            gv.set_mode(GreeterMode.MENU)
+            gv._status = ""
+            gv.refresh()
+        elif key == "enter":
+            self._run_import(gv._input.strip())
+        elif key == "backspace":
+            gv._input = gv._input[:-1]
+            gv.refresh()
+        elif len(key) == 1 and key.isprintable():
+            gv._input += key
+            gv.refresh()
+
+    def on_paste(self, event: Paste) -> None:
+        """Pasting a deck URL into the import prompt must not be typed
+        out key by key — terminals deliver it as one Paste event."""
+        gv = self.query_one(GreeterView)
+        if gv._mode != GreeterMode.IMPORT:
+            return
+        gv._input += " ".join(event.text.split())
+        gv.refresh()
 
     def _handle_file_list_key(
         self,
@@ -285,12 +354,77 @@ class GreeterScreen(Screen[None]):
                 gv._cursor = len(file_list) - 1
             gv.refresh()
 
-    def _open_editor(self, file_path: Path | None) -> None:
+    def _open_editor(
+        self, file_path: Path | None, initial_text: str | None = None
+    ) -> None:
         app = self.app
         self.app.pop_screen()
         open_deck = getattr(app, "open_deck", None)
         if callable(open_deck):  # duck-typed: hosts expose open_deck
-            open_deck(file_path)
+            if initial_text is not None:
+                open_deck(file_path, initial_text=initial_text)
+            else:
+                open_deck(file_path)
+
+    # -- Import (file or deck-site URL) ---------------------------------
+
+    def _run_import(self, source: str) -> None:
+        gv = self.query_one(GreeterView)
+        if not source:
+            gv._status = "E: Enter a file path or deck URL"
+            gv.refresh()
+            return
+        if is_deck_url(source):
+            gv._status = "Fetching deck..."
+            gv.refresh()
+            self._import_worker(source)
+            return
+        self._import_file(source, gv)
+
+    def _import_file(self, source: str, gv: GreeterView) -> None:
+        """Local files parse synchronously — no network, no worker."""
+        from vimtg.services.import_export_service import (
+            DeckFormat,
+            ImportExportService,
+        )
+
+        path = Path(source).expanduser()
+        if not path.is_file():
+            gv._status = f"E: File not found: {source}"
+            gv.refresh()
+            return
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            gv._status = f"E: Cannot read {path.name}: {exc}"
+            gv.refresh()
+            return
+        service = ImportExportService()
+        deck = service.import_deck(text)
+        self._open_editor(None, service.export_deck(deck, DeckFormat.VIMTG))
+
+    @work(thread=True)
+    def _import_worker(self, url: str) -> None:
+        """URL fetches run off the event loop, like the card sync."""
+        from vimtg.services.import_export_service import (
+            DeckFormat,
+            ImportExportService,
+        )
+
+        try:
+            remote = fetch_deck(url)
+        except DeckSourceError as exc:
+            self.app.call_from_thread(self._import_failed, str(exc))
+            return
+        text = ImportExportService().export_deck(
+            stamped_deck(remote, url), DeckFormat.VIMTG
+        )
+        self.app.call_from_thread(self._open_editor, None, text)
+
+    def _import_failed(self, message: str) -> None:
+        gv = self.query_one(GreeterView)
+        gv._status = f"E: {message}"
+        gv.refresh()
 
     def _run_sync(self) -> None:
         """Kick off card sync in a worker thread — the ~150 MB download

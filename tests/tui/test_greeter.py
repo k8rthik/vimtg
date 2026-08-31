@@ -218,13 +218,15 @@ class _HostApp(App[None]):
     def __init__(self, screen: GreeterScreen) -> None:
         super().__init__()
         self._target = screen
-        self.launched: list[Path | None] = []
+        self.launched: list[tuple[Path | None, str | None]] = []
 
     def on_mount(self) -> None:
         self.push_screen(self._target)
 
-    def open_deck(self, file_path: Path | None = None) -> None:
-        self.launched.append(file_path)
+    def open_deck(
+        self, file_path: Path | None = None, initial_text: str | None = None
+    ) -> None:
+        self.launched.append((file_path, initial_text))
 
 
 def _make_decks(directory: Path, names: list[str]) -> list[Path]:
@@ -272,7 +274,7 @@ async def test_files_mode_navigation_and_open(
         await pilot.press("g")
         assert gv._cursor == 0
         await pilot.press("enter")
-        assert app.launched and app.launched[0] is not None
+        assert app.launched and app.launched[0][0] is not None
 
 
 @pytest.mark.asyncio
@@ -299,7 +301,7 @@ async def test_new_opens_editor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("n")
-        assert app.launched == [None]
+        assert app.launched == [(None, None)]
 
 
 @pytest.mark.asyncio
@@ -313,7 +315,7 @@ async def test_recent_digit_opens_recent_file(
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("1")
-        assert app.launched == [recent[0]]
+        assert app.launched == [(recent[0], None)]
 
 
 @pytest.mark.asyncio
@@ -368,3 +370,170 @@ async def test_run_sync_handles_failure(
         await pilot.pause()
         gv = screen.query_one(GreeterView)
         assert "Sync failed" in gv._status
+
+
+# ---------------------------------------------------------------------------
+# Import mode
+# ---------------------------------------------------------------------------
+
+
+class TestRenderImport:
+    def test_render_import_prompt(self) -> None:
+        gv = GreeterView()
+        gv.set_mode(GreeterMode.IMPORT)
+        gv._input = "https://moxfield.com/decks/abc"
+        text = gv.render().plain
+        assert "Import Deck" in text
+        assert "https://moxfield.com/decks/abc" in text
+
+    def test_menu_lists_import_action(self) -> None:
+        gv = GreeterView()
+        text = gv.render().plain
+        assert "[i]" in text
+        assert "Import deck" in text
+
+
+@pytest.mark.asyncio
+async def test_import_mode_typing_and_escape(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("i")
+        assert gv._mode == GreeterMode.IMPORT
+        for ch in "a.txt":
+            await pilot.press(ch)
+        assert gv._input == "a.txt"
+        await pilot.press("backspace")
+        assert gv._input == "a.tx"
+        await pilot.press("escape")
+        assert gv._mode == GreeterMode.MENU
+
+
+@pytest.mark.asyncio
+async def test_import_mode_paste(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from textual import events
+
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("i")
+        screen.on_paste(events.Paste("https://moxfield.com/decks/abc\n"))
+        assert gv._input == "https://moxfield.com/decks/abc"
+
+
+@pytest.mark.asyncio
+async def test_import_url_opens_editor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from unittest.mock import patch
+
+    from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
+    from vimtg.services.deck_sources import RemoteDeck
+
+    monkeypatch.chdir(tmp_path)
+    remote = RemoteDeck(
+        name="Mono Red",
+        deck=Deck(
+            metadata=DeckMetadata(),
+            entries=(DeckEntry(4, "Lightning Bolt", DeckSection.MAIN),),
+            comments=(),
+        ),
+    )
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    with patch(
+        "vimtg.tui.screens.greeter.fetch_deck", return_value=remote
+    ):
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("i")
+            gv = screen.query_one(GreeterView)
+            gv._input = "https://moxfield.com/decks/abc"
+            await pilot.press("enter")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+    assert len(app.launched) == 1
+    path, text = app.launched[0]
+    assert path is None
+    assert "4 Lightning Bolt" in text
+    assert "// Deck: Mono Red" in text
+    assert "// Source: https://moxfield.com/decks/abc" in text
+
+
+@pytest.mark.asyncio
+async def test_import_file_opens_editor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    listing = tmp_path / "list.txt"
+    listing.write_text("4 Goblin Guide\nSideboard\n2 Duress\n", encoding="utf-8")
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("i")
+        gv._input = str(listing)
+        await pilot.press("enter")
+        await pilot.pause()
+    assert len(app.launched) == 1
+    path, text = app.launched[0]
+    assert path is None
+    assert "4 Goblin Guide" in text
+    assert "SB: 2 Duress" in text
+
+
+@pytest.mark.asyncio
+async def test_import_url_failure_shows_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from unittest.mock import patch
+
+    from vimtg.services.deck_sources import DeckSourceError
+
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    with patch(
+        "vimtg.tui.screens.greeter.fetch_deck",
+        side_effect=DeckSourceError("HTTP 404"),
+    ):
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            gv = screen.query_one(GreeterView)
+            await pilot.press("i")
+            gv._input = "https://moxfield.com/decks/gone"
+            await pilot.press("enter")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert "404" in gv._status
+            assert gv._mode == GreeterMode.IMPORT  # stays for a retry
+    assert app.launched == []
+
+
+@pytest.mark.asyncio
+async def test_import_missing_file_shows_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("i")
+        gv._input = "nope.txt"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert "not found" in gv._status.lower()
+    assert app.launched == []

@@ -850,22 +850,14 @@ class MainScreen(Screen[None]):
     ) -> None:
         if generation != self._import_generation:
             return
-        from dataclasses import replace
-
+        from vimtg.services.deck_sources import stamped_deck
         from vimtg.services.import_export_service import (
             DeckFormat,
             ImportExportService,
         )
 
         s = self._state
-        # The URL is remembered as // Source: so the deck knows where
-        # it came from; the remote title becomes // Deck:
-        deck = replace(
-            remote.deck,
-            metadata=replace(
-                remote.deck.metadata, name=remote.name, source=url
-            ),
-        )
+        deck = stamped_deck(remote, url)
         service = ImportExportService(card_repo=self.card_repo)
         s.buffer = Buffer.from_text(service.export_deck(deck, DeckFormat.VIMTG))
         s.cursor = Cursor()

@@ -60,6 +60,17 @@ class RemoteDeck:
     deck: Deck
 
 
+def stamped_deck(remote: RemoteDeck, url: str) -> Deck:
+    """The fetched deck with provenance stamped into its metadata: the
+    remote title becomes // Deck: and the URL is kept as // Source:."""
+    from dataclasses import replace
+
+    return replace(
+        remote.deck,
+        metadata=replace(remote.deck.metadata, name=remote.name, source=url),
+    )
+
+
 def is_deck_url(source: str) -> bool:
     """True for any http(s) URL — fetch_deck decides whether the host
     is supported, so a typo'd host errors instead of being read as a
