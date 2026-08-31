@@ -448,3 +448,59 @@ class TestMalformedCsvRows:
         names = [e.card_name for e in deck.entries]
         assert "Lightning Bolt" in names
         assert "Goblin Guide" in names
+
+
+class TestMtgoDek:
+    """MTGO's native .dek XML export."""
+
+    _DEK = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<Deck xmlns:xsd="http://www.w3.org/2001/XMLSchema">\n'
+        "  <NetDeckID>0</NetDeckID>\n"
+        '  <Cards CatID="12345" Quantity="4" Sideboard="false" '
+        'Name="Lightning Bolt" />\n'
+        '  <Cards CatID="12346" Quantity="20" Sideboard="false" '
+        'Name="Mountain" />\n'
+        '  <Cards CatID="12347" Quantity="2" Sideboard="true" '
+        'Name="Rest in Peace" />\n'
+        "</Deck>\n"
+    )
+
+    def test_detect_dek_xml(self) -> None:
+        assert _svc().detect_format(self._DEK) == DeckFormat.MTGO_DEK
+
+    def test_import_dek(self) -> None:
+        deck = _svc().import_deck(self._DEK)
+        by_zone = {
+            (e.section, e.card_name): e.quantity for e in deck.entries
+        }
+        assert by_zone[(DeckSection.MAIN, "Lightning Bolt")] == 4
+        assert by_zone[(DeckSection.MAIN, "Mountain")] == 20
+        assert by_zone[(DeckSection.SIDEBOARD, "Rest in Peace")] == 2
+
+    def test_import_malformed_xml_yields_empty_deck(self) -> None:
+        deck = _svc().import_deck("<?xml version='1.0'?><Deck><Cards", None)
+        # Forced through the dek path via detection on valid prefix
+        deck = _svc().import_deck(
+            "<?xml version='1.0'?><Deck><Cards", DeckFormat.MTGO_DEK
+        )
+        assert deck.entries == ()
+
+    def test_export_dek(self) -> None:
+        deck = Deck(
+            metadata=DeckMetadata(),
+            entries=(
+                DeckEntry(4, "Lightning Bolt", DeckSection.MAIN),
+                DeckEntry(2, "Rest in Peace", DeckSection.SIDEBOARD),
+            ),
+            comments=(),
+        )
+        out = _svc().export_deck(deck, DeckFormat.MTGO_DEK)
+        assert 'Quantity="4"' in out and 'Name="Lightning Bolt"' in out
+        assert 'Sideboard="true"' in out
+        # Round-trips
+        again = _svc().import_deck(out)
+        assert {(e.section, e.card_name, e.quantity) for e in again.entries} == {
+            (DeckSection.MAIN, "Lightning Bolt", 4),
+            (DeckSection.SIDEBOARD, "Rest in Peace", 2),
+        }

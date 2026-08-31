@@ -152,6 +152,7 @@ class HandlerResult:
     split_close: bool = False
     edhrec_open: EdhrecOpen | None = None
     analytics_open: AnalyticsOpen | None = None
+    import_url: str = ""  # deck-site URL to fetch asynchronously
     focus_next_pane: bool = False
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
@@ -324,6 +325,7 @@ def handle_command(
             split_close=ctx.split_close,
             edhrec_open=ctx.edhrec_open,
             analytics_open=ctx.analytics_open,
+            import_url=ctx.import_url,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)

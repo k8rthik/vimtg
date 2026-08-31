@@ -258,3 +258,27 @@ class TestImportResolution:
         assert "W100" not in ctx.message
         assert "Imported 4 cards" in ctx.message
         path.unlink()
+
+
+class TestImportUrl:
+    def test_url_arg_requests_fetch(self) -> None:
+        buffer = Buffer.from_text("4 Lightning Bolt\n")
+        ctx = EditorContext()
+        cmd = ParsedCommand(
+            name="import", args="https://moxfield.com/decks/abc123"
+        )
+        result_buf, _ = cmd_import(buffer, Cursor(), cmd, ctx)
+        assert ctx.import_url == "https://moxfield.com/decks/abc123"
+        assert not ctx.error
+        assert result_buf is buffer  # fetch is async; buffer untouched here
+
+    def test_file_path_still_reads_file(self) -> None:
+        buffer = Buffer.from_text("4 Lightning Bolt\n")
+        ctx = EditorContext()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "list.txt"
+            path.write_text("4 Goblin Guide\n", encoding="utf-8")
+            cmd = ParsedCommand(name="import", args=str(path))
+            cmd_import(buffer, Cursor(), cmd, ctx)
+        assert ctx.import_url == ""
+        assert "Imported" in ctx.message

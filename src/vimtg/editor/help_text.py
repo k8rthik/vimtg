@@ -97,8 +97,9 @@ COMMANDS
   :dtag/:duntag Add/remove deck-level tags
   :filter expr  Filter view by tag (+ AND, | OR, - NOT)
   :retag /a/b/  Rename tag across deck
-  :export fmt   Export (arena/mtgo/moxfield/archidekt/vimtg)
-  :import file  Import deck (auto-detects format)
+  :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/vimtg)
+  :import src   Import deck from a file (auto-detects format) or a
+                Moxfield / Archidekt / ManaBox deck URL
   :clipboard    Copy deck to system clipboard (default arena)
   :set opt=val  Change a setting (:set shows all)
   :config       Open the settings screen
@@ -171,7 +172,16 @@ COMMAND_HELP: dict[str, str] = {
         ":export format [file]  Export deck "
         "(arena/mtgo/moxfield/archidekt/vimtg)"
     ),
-    "import": ":import file  Import deck (auto-detects format, replaces buffer)",
+    "import": (
+        ":import <file|url>  Import a deck (replaces buffer, undoable)\n"
+        "\n"
+        "Files auto-detect their format: vimtg, MTGO, Arena (MTGA),\n"
+        "Moxfield CSV, Archidekt CSV. A Moxfield, Archidekt, or\n"
+        "ManaBox deck URL fetches the list from the site: commander,\n"
+        "companion, sideboard, and maybeboard land in their own zones,\n"
+        "Archidekt user categories become @categories, and the URL is\n"
+        "remembered as // Source:."
+    ),
     "clipboard": (
         ":clipboard [format]  Copy deck to system clipboard via OSC52\n"
         "\n"

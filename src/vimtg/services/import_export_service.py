@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 class DeckFormat(Enum):
     VIMTG = "vimtg"
     MTGO = "mtgo"
+    MTGO_DEK = "dek"  # MTGO's native .dek XML file
     ARENA = "arena"
     MOXFIELD = "moxfield"
     ARCHIDEKT = "archidekt"
@@ -80,7 +81,10 @@ class ImportExportService:
           - Otherwise -> ARCHIDEKT
         - Fallback -> MTGO
         """
-        if "// Deck:" in text or text.lstrip().startswith("//"):
+        stripped = text.lstrip()
+        if stripped.startswith(("<?xml", "<Deck")):
+            return DeckFormat.MTGO_DEK
+        if "// Deck:" in text or stripped.startswith("//"):
             return DeckFormat.VIMTG
         # Native zone markers (prefix lines or block headers) — without
         # this, a comment-less native deck detects as MTGO and its
@@ -114,6 +118,8 @@ class ImportExportService:
                 return parse_deck_text(text)
             case DeckFormat.MTGO:
                 return self._import_mtgo(text)
+            case DeckFormat.MTGO_DEK:
+                return self._import_mtgo_dek(text)
             case DeckFormat.ARENA:
                 return self._import_arena(text)
             case DeckFormat.MOXFIELD:
@@ -135,6 +141,8 @@ class ImportExportService:
                 return serialize_deck(deck)
             case DeckFormat.MTGO:
                 return self._export_mtgo(deck)
+            case DeckFormat.MTGO_DEK:
+                return self._export_mtgo_dek(deck)
             case DeckFormat.ARENA:
                 return self._export_arena(deck, resolved or {})
             case DeckFormat.MOXFIELD:
@@ -217,6 +225,59 @@ class ImportExportService:
             lines.append("Sideboard")
             for e in side:
                 lines.append(f"{e.quantity} {e.card_name}")
+        return "\n".join(lines) + "\n"
+
+    # ------------------------------------------------------------------
+    # MTGO .dek (XML)
+    # ------------------------------------------------------------------
+
+    def _import_mtgo_dek(self, text: str) -> Deck:
+        """Parse MTGO's native .dek XML: <Cards Quantity Sideboard Name/>.
+
+        Malformed XML degrades to an empty deck rather than raising —
+        import reports 0 cards and the user's buffer stays intact.
+        """
+        import xml.etree.ElementTree as ET
+
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError:
+            return Deck(metadata=DeckMetadata(), entries=(), comments=())
+        entries: list[DeckEntry] = []
+        for node in root.iter("Cards"):
+            name = (node.get("Name") or "").strip()
+            try:
+                qty = int(node.get("Quantity") or 0)
+            except ValueError:
+                qty = 0
+            if not name or qty <= 0:
+                continue
+            in_side = (node.get("Sideboard") or "").lower() == "true"
+            section = DeckSection.SIDEBOARD if in_side else DeckSection.MAIN
+            entries.append(DeckEntry(clamp_quantity(qty), name, section))
+        return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
+
+    def _export_mtgo_dek(self, deck: Deck) -> str:
+        """Serialize to MTGO's .dek XML. Like the text export, commander
+        and companion park in the sideboard so nothing is dropped."""
+        from xml.sax.saxutils import quoteattr
+
+        lines = [
+            '<?xml version="1.0" encoding="utf-8"?>',
+            "<Deck>",
+            "  <NetDeckID>0</NetDeckID>",
+            "  <PreconstructedDeckID>0</PreconstructedDeckID>",
+        ]
+        side = deck.commanders() + deck.companions() + deck.sideboard()
+        for entry, in_side in [(e, False) for e in deck.mainboard()] + [
+            (e, True) for e in side
+        ]:
+            flag = "true" if in_side else "false"
+            lines.append(
+                f'  <Cards Quantity="{entry.quantity}" Sideboard="{flag}" '
+                f"Name={quoteattr(entry.card_name)} />"
+            )
+        lines.append("</Deck>")
         return "\n".join(lines) + "\n"
 
     # ------------------------------------------------------------------

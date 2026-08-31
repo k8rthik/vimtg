@@ -21,7 +21,9 @@ from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
 _FORMAT_MAP: dict[str, DeckFormat] = {
     "arena": DeckFormat.ARENA,
+    "mtga": DeckFormat.ARENA,
     "mtgo": DeckFormat.MTGO,
+    "dek": DeckFormat.MTGO_DEK,
     "moxfield": DeckFormat.MOXFIELD,
     "archidekt": DeckFormat.ARCHIDEKT,
     "vimtg": DeckFormat.VIMTG,
@@ -37,13 +39,13 @@ def cmd_export(
     """:export <format> [file] — Export deck to another format."""
     parts = cmd.args.strip().split(maxsplit=1)
     if not parts:
-        ctx.fail("Usage: :export <arena|mtgo|moxfield|archidekt|vimtg> [file]")
+        ctx.fail("Usage: :export <arena|mtgo|dek|moxfield|archidekt|vimtg> [file]")
         return buffer, cursor
 
     fmt_name = parts[0].lower()
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
-        ctx.fail(f"Unknown format: {fmt_name}. Use arena, mtgo, moxfield, archidekt, or vimtg")
+        ctx.fail(f"Unknown format: {fmt_name}. Use arena, mtgo, dek, moxfield, archidekt, or vimtg")
         return buffer, cursor
 
     deck = parse_deck_text(buffer.to_text())
@@ -73,10 +75,21 @@ def cmd_import(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:import <file> — Import deck from file (auto-detects format)."""
+    """:import <file|url> — Import a deck from a file or deck-site URL.
+
+    Files parse synchronously (format auto-detected). A Moxfield,
+    Archidekt, or ManaBox URL is fetched asynchronously by the TUI —
+    the handler only records the request.
+    """
     file_arg = cmd.args.strip()
     if not file_arg:
-        ctx.fail("Usage: :import <file>")
+        ctx.fail("Usage: :import <file|deck-url>")
+        return buffer, cursor
+
+    from vimtg.services.deck_sources import is_deck_url
+
+    if is_deck_url(file_arg):
+        ctx.import_url = file_arg
         return buffer, cursor
 
     in_path = Path(file_arg)
@@ -123,7 +136,7 @@ def cmd_clipboard(
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
         ctx.message = (
-            f"E: Unknown format: {fmt_name}. Use arena, mtgo, moxfield, archidekt, or vimtg"
+            f"E: Unknown format: {fmt_name}. Use arena, mtgo, dek, moxfield, archidekt, or vimtg"
         )
         ctx.error = True
         return buffer, cursor

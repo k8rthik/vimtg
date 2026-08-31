@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from textual import work
 from textual.app import ComposeResult
@@ -72,6 +73,11 @@ from vimtg.editor.splits import (
     EdhrecOpen,
     SplitDirection,
     SplitOpen,
+)
+from vimtg.services.deck_sources import (
+    DeckSourceError,
+    RemoteDeck,
+    fetch_deck,
 )
 from vimtg.services.edhrec import EdhrecClient, EdhrecError, EdhrecPage
 from vimtg.services.history_service import HistoryService
@@ -220,6 +226,9 @@ class MainScreen(Screen[None]):
         self._deck_names_key: Buffer | None = None
         # Analytics pane recompute cache, keyed like lint (identity)
         self._analytics_key: tuple[Buffer, dict[str, Card]] | None = None
+        # Bumped per :import <url> so a stale fetch can't clobber a
+        # newer one (results deliver via call_from_thread)
+        self._import_generation = 0
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -595,6 +604,8 @@ class MainScreen(Screen[None]):
             self._open_edhrec(hr.edhrec_open)
         if hr.analytics_open is not None:
             self._open_analytics(hr.analytics_open)
+        if hr.import_url:
+            self._start_url_import(hr.import_url)
         if hr.focus_next_pane:
             self._toggle_pane_focus()
         if hr.run_ex_command:
@@ -803,6 +814,75 @@ class MainScreen(Screen[None]):
         cl.set_message(
             f"Split: {spec.path.name}  (Ss switch pane, :close to close)"
         )
+
+    def _start_url_import(self, url: str) -> None:
+        """:import <url> — fetch a Moxfield/Archidekt/ManaBox deck off
+        the UI thread, then replace the buffer with the result."""
+        host = urlparse(url).hostname or url
+        self.query_one("#command-line", CommandLine).set_message(
+            f"Fetching deck from {host}..."
+        )
+        self._import_generation += 1
+        self._run_url_import(url, self._import_generation)
+
+    @work(thread=True)
+    def _run_url_import(self, url: str, generation: int) -> None:
+        try:
+            remote = fetch_deck(url)
+        except DeckSourceError as exc:
+            self.app.call_from_thread(
+                self._url_import_failed, str(exc), generation
+            )
+            return
+        self.app.call_from_thread(
+            self._url_import_loaded, remote, url, generation
+        )
+
+    def _url_import_failed(self, message: str, generation: int) -> None:
+        if generation != self._import_generation:
+            return
+        self.query_one("#command-line", CommandLine).set_message(
+            f"E: {message}", error=True
+        )
+
+    def _url_import_loaded(
+        self, remote: RemoteDeck, url: str, generation: int
+    ) -> None:
+        if generation != self._import_generation:
+            return
+        from dataclasses import replace
+
+        from vimtg.services.import_export_service import (
+            DeckFormat,
+            ImportExportService,
+        )
+
+        s = self._state
+        # The URL is remembered as // Source: so the deck knows where
+        # it came from; the remote title becomes // Deck:
+        deck = replace(
+            remote.deck,
+            metadata=replace(
+                remote.deck.metadata, name=remote.name, source=url
+            ),
+        )
+        service = ImportExportService(card_repo=self.card_repo)
+        s.buffer = Buffer.from_text(service.export_deck(deck, DeckFormat.VIMTG))
+        s.cursor = Cursor()
+        s.modified = True
+        s.history.record(s.buffer, f"import {remote.name or url}")
+        if self.card_repo:
+            s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
+        message = f"Imported {deck.total_cards()} cards"
+        if remote.name:
+            message += f" — {remote.name}"
+        resolution = service.resolve_cards(deck)
+        if resolution.unresolved:
+            from vimtg.domain.errors import CardsNotFoundWarning
+
+            message += f" | {CardsNotFoundWarning(len(resolution.unresolved))}"
+        self.query_one("#command-line", CommandLine).set_message(message)
+        self._sync_widgets()
 
     def _open_analytics(self, req: AnalyticsOpen) -> None:
         # Focus stays in the editor: the pane is a live readout that
