@@ -158,3 +158,15 @@ class TestResolveDeckPath:
         monkeypatch.chdir(tmp_path)
         (tmp_path / "b.deck").write_text("x")
         assert resolve_deck_path("b.deck", None) == tmp_path / "b.deck"
+
+
+class TestAnalyticsCommand:
+    def test_analytics_sets_open_request(self):
+        ctx = _run("analytics")
+        assert not ctx.error
+        assert ctx.analytics_open is not None
+        assert ctx.analytics_open.direction is SplitDirection.VERTICAL
+
+    def test_ana_alias(self):
+        ctx = _run("ana")
+        assert ctx.analytics_open is not None

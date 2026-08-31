@@ -294,3 +294,90 @@ class TestComputeStats:
         ))
         stats = compute_stats(deck, card_map)
         assert stats.unique_cards == 2
+
+
+# --- zone_counts / category_counts ---
+
+
+class TestZoneAndCategoryCounts:
+    def test_zone_counts_sums_quantities(self) -> None:
+        from vimtg.domain.analytics import zone_counts
+
+        deck = _make_deck((
+            _entry(4, "Lightning Bolt"),
+            _entry(20, "Mountain"),
+            _entry(3, "Rest in Peace", DeckSection.SIDEBOARD),
+            _entry(1, "Fire // Ice", DeckSection.MAYBEBOARD),
+        ))
+        counts = zone_counts(deck)
+        assert counts[DeckSection.MAIN] == 24
+        assert counts[DeckSection.SIDEBOARD] == 3
+        assert counts[DeckSection.MAYBEBOARD] == 1
+        assert counts[DeckSection.COMMANDER] == 0
+
+    def test_category_counts_mainboard_only(self) -> None:
+        from vimtg.domain.analytics import category_counts
+
+        deck = _make_deck((
+            DeckEntry(4, "Lightning Bolt", DeckSection.MAIN, category="removal"),
+            DeckEntry(2, "Lava Spike", DeckSection.MAIN, category="removal"),
+            DeckEntry(4, "Goblin Guide", DeckSection.MAIN, category="aggro"),
+            DeckEntry(20, "Mountain", DeckSection.MAIN),
+            DeckEntry(3, "Rest in Peace", DeckSection.SIDEBOARD, category="hate"),
+        ))
+        counts = category_counts(deck)
+        assert counts == {"removal": 6, "aggro": 4, "": 20}
+
+
+# --- compute_mana_base ---
+
+
+class TestComputeManaBase:
+    def _deck(self) -> Deck:
+        return _make_deck((
+            _entry(4, "Goblin Guide"),          # {R} t1
+            _entry(4, "Eidolon of the Great Revel"),  # {R}{R} t2
+            _entry(2, "Rest in Peace"),         # {1}{W} t2
+            _entry(20, "Mountain"),             # R source
+            _entry(2, "Sacred Foundry"),        # R+W source
+        ))  # 32 mainboard cards
+
+    def test_sources_counted_from_land_identity(self, card_map: dict[str, Card]) -> None:
+        from vimtg.domain.analytics import compute_mana_base
+        from vimtg.domain.card import Color
+
+        check = compute_mana_base(self._deck(), card_map)
+        by_color = {r.color: r for r in check.requirements}
+        assert by_color[Color.RED].sources == 22   # 20 Mountain + 2 Foundry
+        assert by_color[Color.WHITE].sources == 2  # Foundry only
+        assert check.total_lands == 22
+
+    def test_needed_scales_karsten_by_deck_size(self, card_map: dict[str, Card]) -> None:
+        from vimtg.domain.analytics import compute_mana_base
+        from vimtg.domain.card import Color
+
+        check = compute_mana_base(self._deck(), card_map)
+        by_color = {r.color: r for r in check.requirements}
+        # Toughest R card: Eidolon {R}{R} on t2 -> 20 sources in a
+        # 60-card deck, scaled to the 32-card mainboard: round(20*32/60)
+        assert by_color[Color.RED].needed == 11
+        assert by_color[Color.RED].satisfied
+        # Rest in Peace {1}{W} t2 -> 13 scaled: round(13*32/60) = 7
+        assert by_color[Color.WHITE].needed == 7
+        assert not by_color[Color.WHITE].satisfied
+
+    def test_pip_totals(self, card_map: dict[str, Card]) -> None:
+        from vimtg.domain.analytics import compute_mana_base
+        from vimtg.domain.card import Color
+
+        check = compute_mana_base(self._deck(), card_map)
+        by_color = {r.color: r for r in check.requirements}
+        assert by_color[Color.RED].pips == 12   # 4x{R} + 4x{R}{R}
+        assert by_color[Color.WHITE].pips == 2
+
+    def test_empty_or_unresolved_deck(self) -> None:
+        from vimtg.domain.analytics import compute_mana_base
+
+        check = compute_mana_base(_make_deck(()), {})
+        assert check.requirements == ()
+        assert check.total_lands == 0

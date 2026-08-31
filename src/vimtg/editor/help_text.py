@@ -53,15 +53,18 @@ CATEGORIES
   :cat name     Set category (range supported)
   :layout       Regroup deck (type|category; no arg toggles)
 
-SPLITS & EDHREC
+SPLITS, EDHREC & ANALYTICS
   Sv / Sh       Open a vertical / horizontal split (prompts for deck)
   Sr            EDHREC recommendations for the commander (:edhrec)
+  Sa            Live analytics pane (:analytics)
   Ss            Switch pane focus (in a pane: j/k move, h/l tabs,
                 Enter adds the selected card, Esc returns)
   Sc            Close the split
   :vsplit deck  View another deck side by side (read-only)
   :split deck   Same, stacked below
   :edhrec       EDHREC panel — tabs per card type
+  :analytics    Curve, counts per type/zone/category, mana base,
+                draw odds — follows the cursor, updates as you edit
   :close        Close the split pane
 
 TAGS
@@ -302,6 +305,18 @@ COMMAND_HELP: dict[str, str] = {
         "In the pane: j/k select, h/l switch tabs, Enter adds the\n"
         "card to the deck, Esc returns to the editor. ✓ marks cards\n"
         "already in the deck. Results are cached for 7 days."
+    ),
+    "analytics": (
+        ":analytics  Live deck-analytics pane (alias :ana; also the Sa key)\n"
+        "\n"
+        "Mana curve, card counts per type / zone / category, a\n"
+        "mana-base check (colored sources vs pip requirements, a\n"
+        "Karsten-style heuristic scaled to deck size), and draw\n"
+        "odds. The odds line follows the cursor: put it on a card\n"
+        "to see the chance of drawing one by the opener or turn 3.\n"
+        "Everything recomputes as the deck is edited.\n"
+        "\n"
+        "Ss focuses the pane (j/k scroll, Esc back); :close closes."
     ),
 }
 

@@ -36,7 +36,7 @@ class TestKeymapSplitSequences:
         assert action is None
 
     def test_split_sub_keys_complete_as_specials(self):
-        for sub in ("v", "h", "s", "c", "r"):
+        for sub in ("v", "h", "s", "c", "r", "a"):
             km = KeyMap()
             km.feed("S")
             result, action = km.feed(sub)
@@ -82,3 +82,7 @@ class TestSplitKeyHandlers:
     def test_sr_runs_edhrec_command(self):
         hr = self._handle("Sr")
         assert hr.run_ex_command == "edhrec"
+
+    def test_sa_runs_analytics_command(self):
+        hr = self._handle("Sa")
+        assert hr.run_ex_command == "analytics"

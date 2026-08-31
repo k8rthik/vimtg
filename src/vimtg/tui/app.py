@@ -48,6 +48,7 @@ class VimTGApp(App[None]):
     #deck-view {{ width: 1fr; height: 1fr; }}
     #deck-view-2 {{ width: 1fr; height: 1fr; }}
     #edhrec-panel {{ width: 1fr; height: 1fr; }}
+    #analytics-panel {{ width: 1fr; height: 1fr; }}
     #search-results {{ height: auto; max-height: 20; dock: bottom; }}
     #help-panel {{ height: auto; max-height: 24; dock: bottom; }}
     #which-key {{ height: auto; max-height: 6; dock: bottom; }}

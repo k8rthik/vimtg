@@ -16,6 +16,7 @@ from vimtg.editor.commands import (
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.lint import effective_format
 from vimtg.editor.splits import (
+    AnalyticsOpen,
     EdhrecOpen,
     SplitDirection,
     SplitOpen,
@@ -133,9 +134,22 @@ def cmd_edhrec(
     return buf, cursor
 
 
+def cmd_analytics(
+    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:analytics — live deck-analytics pane beside the deck.
+
+    Curve, type/zone/category counts, mana-base check, and draw odds
+    that follow the cursor's card; updates as the deck is edited.
+    """
+    ctx.analytics_open = AnalyticsOpen()
+    return buf, cursor
+
+
 def register_split_commands(registry: CommandRegistry) -> None:
-    """Register the split-view and EDHREC ex commands."""
+    """Register the split-view, EDHREC, and analytics ex commands."""
     registry.register("vsplit", cmd_vsplit, aliases=["vsp", "vs"])
     registry.register("split", cmd_split, aliases=["sp", "hsplit"])
     registry.register("close", cmd_close, aliases=["only"])
     registry.register("edhrec", cmd_edhrec, aliases=["rec"])
+    registry.register("analytics", cmd_analytics, aliases=["ana"])

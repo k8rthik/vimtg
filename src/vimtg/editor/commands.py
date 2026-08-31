@@ -187,6 +187,7 @@ class EditorContext:
     split_open: Any = None
     split_close: bool = False
     edhrec_open: Any = None
+    analytics_open: Any = None
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""

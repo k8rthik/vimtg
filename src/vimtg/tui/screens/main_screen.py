@@ -67,11 +67,20 @@ from vimtg.editor.session import (
     handle_tag_input_special,
     resolve_cards,
 )
-from vimtg.editor.splits import EdhrecOpen, SplitDirection, SplitOpen
+from vimtg.editor.splits import (
+    AnalyticsOpen,
+    EdhrecOpen,
+    SplitDirection,
+    SplitOpen,
+)
 from vimtg.services.edhrec import EdhrecClient, EdhrecError, EdhrecPage
 from vimtg.services.history_service import HistoryService
 from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
+from vimtg.tui.widgets.analytics_panel import (
+    AnalyticsPanel,
+    build_analytics_data,
+)
 from vimtg.tui.widgets.command_line import GENERIC_HINT, CommandLine
 from vimtg.tui.widgets.deck_view import DeckView
 from vimtg.tui.widgets.edhrec_panel import EdhrecPanel
@@ -148,7 +157,7 @@ def _remapped_row(old_buf: Buffer, new_buf: Buffer, row: int) -> int:
 class _SplitPane:
     """State of the split pane (second deck or EDHREC)."""
 
-    kind: str  # "deck" | "edhrec"
+    kind: str  # "deck" | "edhrec" | "analytics"
     direction: SplitDirection
     focused: bool = False
     path: Path | None = None
@@ -209,12 +218,15 @@ class MainScreen(Screen[None]):
         # Deck card names for the EDHREC ✓ marks, cached by buffer identity
         self._deck_names: frozenset[str] = frozenset()
         self._deck_names_key: Buffer | None = None
+        # Analytics pane recompute cache, keyed like lint (identity)
+        self._analytics_key: tuple[Buffer, dict[str, Card]] | None = None
 
     def compose(self) -> ComposeResult:
         yield Container(
             DeckView(id="deck-view"),
             DeckView(id="deck-view-2"),
             EdhrecPanel(id="edhrec-panel"),
+            AnalyticsPanel(id="analytics-panel"),
             id="editor-area",
         )
         yield SearchResults(id="search-results")
@@ -230,6 +242,7 @@ class MainScreen(Screen[None]):
         self.query_one("#which-key", WhichKey).display = False
         self.query_one("#deck-view-2", DeckView).display = False
         self.query_one("#edhrec-panel", EdhrecPanel).display = False
+        self.query_one("#analytics-panel", AnalyticsPanel).display = False
 
         if self.card_repo:
             self._state.resolved_cards = resolve_cards(
@@ -580,6 +593,8 @@ class MainScreen(Screen[None]):
             self._open_split_deck(hr.split_open)
         if hr.edhrec_open is not None:
             self._open_edhrec(hr.edhrec_open)
+        if hr.analytics_open is not None:
+            self._open_analytics(hr.analytics_open)
         if hr.focus_next_pane:
             self._toggle_pane_focus()
         if hr.run_ex_command:
@@ -729,9 +744,11 @@ class MainScreen(Screen[None]):
         if hr:
             self._apply_handler_result(hr)
 
-    def _split_pane_widget(self) -> DeckView | EdhrecPanel:
+    def _split_pane_widget(self) -> DeckView | EdhrecPanel | AnalyticsPanel:
         if self._split_pane is not None and self._split_pane.kind == "edhrec":
             return self.query_one("#edhrec-panel", EdhrecPanel)
+        if self._split_pane is not None and self._split_pane.kind == "analytics":
+            return self.query_one("#analytics-panel", AnalyticsPanel)
         return self.query_one("#deck-view-2", DeckView)
 
     def _apply_split_layout(self) -> None:
@@ -746,6 +763,7 @@ class MainScreen(Screen[None]):
         for widget in (
             self.query_one("#deck-view-2", DeckView),
             self.query_one("#edhrec-panel", EdhrecPanel),
+            self.query_one("#analytics-panel", AnalyticsPanel),
         ):
             widget.display = widget is show
         self._sync_pane_focus()
@@ -765,6 +783,8 @@ class MainScreen(Screen[None]):
             widget.styles.border_left = None
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         panel.focused_panel = comp.kind == "edhrec" and comp.focused
+        ap = self.query_one("#analytics-panel", AnalyticsPanel)
+        ap.focused_panel = comp.kind == "analytics" and comp.focused
 
     def _open_split_deck(self, spec: SplitOpen) -> None:
         cl = self.query_one("#command-line", CommandLine)
@@ -782,6 +802,19 @@ class MainScreen(Screen[None]):
         self._apply_split_layout()
         cl.set_message(
             f"Split: {spec.path.name}  (Ss switch pane, :close to close)"
+        )
+
+    def _open_analytics(self, req: AnalyticsOpen) -> None:
+        # Focus stays in the editor: the pane is a live readout that
+        # updates as the deck is edited, not a list to navigate
+        self._split_pane = _SplitPane(
+            kind="analytics", direction=req.direction,
+        )
+        self._analytics_key = None  # force a fresh compute
+        self._apply_split_layout()
+        self._sync_widgets()
+        self.query_one("#command-line", CommandLine).set_message(
+            "Analytics pane open  (Ss focus to scroll, :close to close)"
         )
 
     def _open_edhrec(self, req: EdhrecOpen) -> None:
@@ -852,6 +885,7 @@ class MainScreen(Screen[None]):
         self._split_pane = None
         self.query_one("#deck-view-2", DeckView).display = False
         self.query_one("#edhrec-panel", EdhrecPanel).display = False
+        self.query_one("#analytics-panel", AnalyticsPanel).display = False
 
     def _toggle_pane_focus(self) -> None:
         cl = self.query_one("#command-line", CommandLine)
@@ -871,7 +905,19 @@ class MainScreen(Screen[None]):
             return True
         if comp.kind == "deck":
             return self._split_deck_key(comp, key)
+        if comp.kind == "analytics":
+            return self._split_analytics_key(key)
         return self._split_edhrec_key(key)
+
+    def _split_analytics_key(self, key: str) -> bool:
+        panel = self.query_one("#analytics-panel", AnalyticsPanel)
+        if key in ("j", "down"):
+            panel.scroll_line_down()
+        elif key in ("k", "up"):
+            panel.scroll_line_up()
+        else:
+            return False
+        return True
 
     def _split_deck_key(self, comp: _SplitPane, key: str) -> bool:
         if comp.buffer is None:
@@ -1351,6 +1397,34 @@ class MainScreen(Screen[None]):
         s.modified = True
         s.history.amend(cleaned)
 
+    def _sync_analytics_pane(self) -> None:
+        """Feed the analytics pane: recompute on buffer/resolution
+        change (identity compare, like lint), cursor odds every sync."""
+        s = self._state
+        panel = self.query_one("#analytics-panel", AnalyticsPanel)
+        key = self._analytics_key
+        if (
+            key is None
+            or key[0] is not s.buffer
+            or key[1] is not s.resolved_cards
+        ):
+            deck = parse_deck_text(s.buffer.to_text())
+            panel.data = build_analytics_data(
+                deck, s.resolved_cards, s.settings.price_source
+            )
+            self._analytics_key = (s.buffer, s.resolved_cards)
+        # Draw odds follow the cursor — mainboard cards only (the odds
+        # population is the mainboard)
+        row = s.cursor.row
+        name = s.buffer.card_name_at(row)
+        if (
+            name is not None
+            and s.buffer.get_line(row).line_type == LineType.CARD_ENTRY
+        ):
+            panel.cursor_card = (name, s.buffer.quantity_at(row) or 0)
+        else:
+            panel.cursor_card = None
+
     def _update_lint(self) -> None:
         """Recompute validation for the deck view gutter when inputs change.
 
@@ -1421,6 +1495,8 @@ class MainScreen(Screen[None]):
                     self._deck_names_key = s.buffer
                 panel = self.query_one("#edhrec-panel", EdhrecPanel)
                 panel.deck_names = self._deck_names
+            elif comp.kind == "analytics":
+                self._sync_analytics_pane()
 
         sr = self.query_one("#search-results", SearchResults)
         sr.price_source = price_src

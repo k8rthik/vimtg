@@ -39,6 +39,13 @@ class EdhrecOpen:
     initial_tab: str = ""
 
 
+@dataclass(frozen=True)
+class AnalyticsOpen:
+    """Request to open the live deck-analytics pane."""
+
+    direction: SplitDirection = SplitDirection.VERTICAL
+
+
 def resolve_deck_path(arg: str, current_file: Path | None) -> Path | None:
     """Resolve a user-supplied deck path for a split.
 

@@ -57,7 +57,7 @@ from vimtg.editor.operators import (
 )
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.sort_keys import SORT_FIELDS
-from vimtg.editor.splits import EdhrecOpen, SplitOpen
+from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen
 from vimtg.editor.tag_ops import (
     add_tags_in_range,
     remove_tags_in_range,
@@ -151,6 +151,7 @@ class HandlerResult:
     split_open: SplitOpen | None = None
     split_close: bool = False
     edhrec_open: EdhrecOpen | None = None
+    analytics_open: AnalyticsOpen | None = None
     focus_next_pane: bool = False
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
@@ -322,6 +323,7 @@ def handle_command(
             split_open=ctx.split_open,
             split_close=ctx.split_close,
             edhrec_open=ctx.edhrec_open,
+            analytics_open=ctx.analytics_open,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)
@@ -442,7 +444,7 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             return HandlerResult(
                 command_message=f"Mark '{mark_name}' not set",
             )
-    elif key in ("Sv", "Sh", "Ss", "Sc", "Sr"):
+    elif key in ("Sv", "Sh", "Ss", "Sc", "Sr", "Sa"):
         return _handle_split_key(key)
     elif key in ("gc", "gC", "gl"):
         return _handle_category_action(state, key[1])
@@ -455,7 +457,7 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
 
 def _handle_split_key(key: str) -> HandlerResult:
     """Dispatch S sub-key: v/h open a split prompt, s switch, c close,
-    r EDHREC recommendations."""
+    r EDHREC recommendations, a analytics."""
     if key == "Sv":
         return HandlerResult(enter_command=True, command_prefill="vsplit ")
     if key == "Sh":
@@ -464,6 +466,8 @@ def _handle_split_key(key: str) -> HandlerResult:
         return HandlerResult(focus_next_pane=True)
     if key == "Sc":
         return HandlerResult(split_close=True)
+    if key == "Sa":
+        return HandlerResult(run_ex_command="analytics")
     return HandlerResult(run_ex_command="edhrec")
 
 

@@ -17,6 +17,16 @@ _KARSTEN_DENSITY_SCALE = 2.5  # scales the nonland-density term
 _MIN_LANDS = 20
 _MAX_LANDS = 28
 
+# Colored sources needed to cast a card with N pips of one color on
+# turn T reliably, in a 60-card deck (Frank Karsten's tables,
+# simplified: turn = the card's CMC). Scaled by mainboard size.
+_KARSTEN_SOURCE_TABLE: dict[int, dict[int, int]] = {
+    1: {1: 14, 2: 13, 3: 12, 4: 11, 5: 10, 6: 9, 7: 8},
+    2: {2: 20, 3: 18, 4: 16, 5: 15, 6: 14, 7: 13},
+    3: {3: 23, 4: 20, 5: 19, 6: 18, 7: 16},
+}
+_KARSTEN_BASELINE_DECK = 60
+
 
 @dataclass(frozen=True)
 class ManaCurve:
@@ -67,6 +77,103 @@ class DeckStats:
     type_breakdown: TypeBreakdown
     total_price_usd: float | None
     recommended_lands: int
+
+
+@dataclass(frozen=True)
+class ColorRequirement:
+    """One color's mana-base health: pips asked vs sources available."""
+
+    color: Color
+    pips: int  # total pips of this color across nonland mainboard cards
+    sources: int  # lands whose color identity produces it
+    needed: int  # Karsten-scaled sources for the deck's toughest card
+
+    @property
+    def satisfied(self) -> bool:
+        return self.sources >= self.needed
+
+
+@dataclass(frozen=True)
+class ManaBaseCheck:
+    """Per-color source counts vs requirements, WUBRG order."""
+
+    requirements: tuple[ColorRequirement, ...]
+    total_lands: int
+
+
+def zone_counts(deck: Deck) -> dict[DeckSection, int]:
+    """Card quantities per zone; every zone present (0 when empty)."""
+    counts = {section: 0 for section in DeckSection}
+    for entry in deck.entries:
+        counts[entry.section] += entry.quantity
+    return counts
+
+
+def category_counts(deck: Deck) -> dict[str, int]:
+    """Mainboard card quantities per @category ('' = uncategorized)."""
+    counts: dict[str, int] = {}
+    for entry in deck.entries:
+        if entry.section != DeckSection.MAIN:
+            continue
+        counts[entry.category] = counts.get(entry.category, 0) + entry.quantity
+    return counts
+
+
+def _karsten_needed(pips: int, cmc: float, mainboard_count: int) -> int:
+    """Sources needed for `pips` pips on turn=CMC, scaled to deck size."""
+    row = _KARSTEN_SOURCE_TABLE[min(pips, 3)]
+    turn = min(max(int(cmc), min(row)), max(row))
+    return round(row[turn] * mainboard_count / _KARSTEN_BASELINE_DECK)
+
+
+def compute_mana_base(
+    deck: Deck, resolved_cards: dict[str, Card]
+) -> ManaBaseCheck:
+    """Colored sources vs pip requirements for the mainboard.
+
+    A land counts as a source for every color in its color identity —
+    a proxy for produced mana that is right for nearly all lands.
+    The per-color requirement is the deck's most demanding card under
+    the Karsten table, scaled by mainboard size.
+    """
+    main_entries = [e for e in deck.entries if e.section == DeckSection.MAIN]
+    mainboard_count = sum(e.quantity for e in main_entries)
+    pips_by_color: dict[Color, int] = {}
+    needed_by_color: dict[Color, int] = {}
+    sources_by_color: dict[Color, int] = {}
+    total_lands = 0
+
+    for entry in main_entries:
+        card = resolved_cards.get(entry.card_name)
+        if card is None:
+            continue
+        if card.is_land:
+            total_lands += entry.quantity
+            for color in card.color_identity:
+                sources_by_color[color] = (
+                    sources_by_color.get(color, 0) + entry.quantity
+                )
+            continue
+        for color, pips in count_mana_pips(card.mana_cost).items():
+            pips_by_color[color] = (
+                pips_by_color.get(color, 0) + pips * entry.quantity
+            )
+            needed = _karsten_needed(pips, card.cmc, mainboard_count)
+            needed_by_color[color] = max(
+                needed_by_color.get(color, 0), needed
+            )
+
+    requirements = tuple(
+        ColorRequirement(
+            color=color,
+            pips=pips_by_color[color],
+            sources=sources_by_color.get(color, 0),
+            needed=needed_by_color.get(color, 0),
+        )
+        for color in Color
+        if color in pips_by_color
+    )
+    return ManaBaseCheck(requirements=requirements, total_lands=total_lands)
 
 
 def count_mana_pips(mana_cost: str) -> dict[Color, int]:

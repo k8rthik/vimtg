@@ -57,7 +57,7 @@ _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion)
 _G_SUB_KEYS = frozenset({"c", "C", "l"})
 # S{v,h,s,c,r} — split panes: vertical/horizontal, switch, close, EDHREC
-_SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r"})
+_SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r", "a"})
 
 
 def _apply_text_edit(
