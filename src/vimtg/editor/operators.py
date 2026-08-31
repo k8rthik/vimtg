@@ -402,19 +402,16 @@ def move_to_zone(
 
             before = new_buf.line_count()
             if main_section:
-                # Blank + header go in ABOVE the returned row
                 new_buf, dest_row = type_section_insert_row(
                     new_buf, main_section
                 )
-                first_new = dest_row - (new_buf.line_count() - before)
             else:
-                # A separator blank (if any) ends up BELOW the card
                 new_buf, dest_row = uncategorized_insert_row(new_buf)
-                first_new = dest_row
+            # Any new blank + header lines sit just above the card row
             extra_lines = new_buf.line_count() - before
             indent = matched_indent(new_buf, dest_row)
             new_buf = new_buf.insert_line(dest_row, f"{indent}{body}")
-            inserted_row = first_new
+            inserted_row = dest_row - extra_lines
             inserted_count = extra_lines + 1
         else:
             new_buf, dest_row, inserted_count = _insert_zone_line(

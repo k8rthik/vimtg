@@ -587,7 +587,7 @@ class TestZoneMoves:
 
     def test_md_in_category_layout_goes_with_uncategorized(self) -> None:
         """A category-grouped deck must not sprout type headers on md —
-        the card joins the category-less cards at the top of the block."""
+        the card lands in the '// Uncategorized' section gl would make."""
 
         class _C:
             type_line = "Instant"
@@ -600,8 +600,9 @@ class TestZoneMoves:
         handle_normal_special(state, _act("md", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert "    // Instant" not in lines
-        assert lines[lines.index("DCK:") + 1] == "    1 Annul"
-        assert state.cursor.row == lines.index("    1 Annul")
+        header_idx = lines.index("    // Uncategorized")
+        assert lines[header_idx + 1] == "    1 Annul"
+        assert state.cursor.row == header_idx + 1
 
     def test_md_in_category_layout_works_without_card_data(self) -> None:
         """Uncategorized placement needs no resolved card."""
@@ -610,7 +611,7 @@ class TestZoneMoves:
         )
         handle_normal_special(state, _act("md", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
-        assert lines[0] == "1 Annul"
+        assert lines[lines.index("// Uncategorized") + 1] == "1 Annul"
 
     def test_mm_moves_to_maybeboard(self) -> None:
         state = _state(row=1)

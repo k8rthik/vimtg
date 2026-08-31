@@ -61,8 +61,14 @@ def type_section_insert_row(
                 insert_at += 1
             return buf, insert_at
 
-    # No matching section. Deck using a DCK: block gets the new
-    # section indented inside it, after the block's current content.
+    return _create_section_row(buf, section_name)
+
+
+def _create_section_row(buf: Buffer, section_name: str) -> tuple[Buffer, int]:
+    """Create a '// section_name' header and return the card row under
+    it — indented inside the DCK: block when the deck uses one (after
+    the block's current content), blank-separated before the sideboard
+    or at the end otherwise."""
     dck_row = next(
         (
             i for i in range(buf.line_count())
@@ -112,13 +118,11 @@ def uncategorized_insert_row(buf: Buffer) -> tuple[Buffer, int]:
     """Row where a category-less mainboard card belongs in a
     category-grouped deck: with the other uncategorized cards.
 
-    Joins the existing '// Uncategorized' section when one exists, else
-    lands at the top of the DCK: block (above the first category
-    section), else at the top of a headerless-block mainboard. Like
-    type_section_insert_row, the result is normalize-stable: a blank
-    separator is written where the card would otherwise sit directly
-    against a following section header.
-    Returns (buffer, insert_row) — buffer may have a new blank line.
+    Joins the existing '// Uncategorized' section when one exists —
+    matched exactly, so a '// @Uncategorized' category header can never
+    silently categorize the card — else creates the same trailing
+    section a gl regroup emits. Normalize-stable like the type path.
+    Returns (buffer, insert_row) — buffer may have new header lines.
     """
     from vimtg.domain.categories import UNCATEGORIZED_LABEL
 
@@ -134,30 +138,7 @@ def uncategorized_insert_row(buf: Buffer) -> tuple[Buffer, int]:
                 insert_at += 1
             return buf, insert_at
 
-    dck_row = next(
-        (
-            i for i in range(buf.line_count())
-            if parse_zone_header(buf.get_line(i).text) == "DCK"
-        ),
-        None,
-    )
-    if dck_row is not None:
-        insert_at = dck_row + 1
-    else:
-        insert_at = next(
-            (
-                i for i in range(buf.line_count())
-                if buf.get_line(i).line_type
-                in (LineType.SECTION_HEADER, LineType.CARD_ENTRY)
-            ),
-            buf.line_count(),
-        )
-    if (
-        insert_at < buf.line_count()
-        and buf.get_line(insert_at).line_type == LineType.SECTION_HEADER
-    ):
-        buf = buf.insert_line(insert_at, "")
-    return buf, insert_at
+    return _create_section_row(buf, UNCATEGORIZED_LABEL)
 
 
 def _expected_card_type(header_text: str) -> LineType | None:
