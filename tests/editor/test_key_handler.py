@@ -138,6 +138,27 @@ class TestHandleModeSwitch:
         hr = handle_mode_switch(st, _act("O", action_type="mode_switch"))
         assert hr.enter_insert is True
 
+    def test_counted_o_sets_insert_quantity(self) -> None:
+        """4o opens a card search whose confirmed card gets 4 copies."""
+        st = _state(row=1)
+        handle_mode_switch(st, _act("o", action_type="mode_switch", count=4))
+        assert st.insert_quantity == 4
+
+    def test_bare_o_resets_insert_quantity(self) -> None:
+        st = _state(row=1)
+        st.insert_quantity = 4
+        handle_mode_switch(st, _act("o", action_type="mode_switch"))
+        assert st.insert_quantity == 1
+
+    def test_change_operator_resets_insert_quantity(self) -> None:
+        """cc enters card search too — its count means lines, never
+        copies, so a stale 4o quantity must not leak into it."""
+        st = _state(row=1)
+        st.insert_quantity = 4
+        hr = handle_operator(st, _act("cc", action_type="operator"))
+        assert hr.enter_insert is True
+        assert st.insert_quantity == 1
+
     def test_colon_enters_command(self) -> None:
         st = _state()
         assert handle_mode_switch(st, _act(":", action_type="mode_switch")).enter_command

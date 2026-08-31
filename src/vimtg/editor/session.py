@@ -96,6 +96,9 @@ class EditorState:
     dot_repeat: DotRepeat = field(default_factory=DotRepeat)
     marks: MarkStore = field(default_factory=MarkStore)
     visual_anchor: int | None = None
+    # Copies the next confirmed card insert writes ('4o' -> 4); every
+    # entry into card search sets it, so it can never go stale
+    insert_quantity: int = 1
     insert_submode: InsertSubmode = InsertSubmode.CARD_SEARCH
     line_edit_original: str | None = None
     line_edit_row: int | None = None
@@ -209,6 +212,8 @@ def handle_operator(state: EditorState, action: ParsedAction) -> HandlerResult:
         register=action.register,
     ))
     if result.enter_insert:
+        # 'c' enters card search; its count means lines, not copies
+        state.insert_quantity = 1
         return HandlerResult(enter_insert=True)
     # Exit visual mode after operation
     if state.mode_mgr.current in (Mode.VISUAL, Mode.VISUAL_LINE):
@@ -243,6 +248,9 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
             state.line_edit_prefix = ""
         return HandlerResult(enter_line_edit=True)
     if key in ("o", "O"):
+        # Vim-style count as copies: 4o opens a card search whose
+        # confirmed card is added as '4 <name>'
+        state.insert_quantity = max(1, action.count)
         _apply_insert_variant(state, key)
         return HandlerResult(enter_insert=True)
     if key == ":":

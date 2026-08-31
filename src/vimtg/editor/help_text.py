@@ -25,7 +25,8 @@ EDITING
   A             Add/edit card comment (empty removes)
   o/O           Add card (new line below / above; the card joins
                 the zone under the cursor — CMD:/SB: block or
-                prefix lines add there, mainboard auto-sorts)
+                prefix lines add there, mainboard auto-sorts;
+                a count sets copies: 4o adds 4 of the card)
   dd            Delete card line
   x             Delete card line (into register)
   yy            Yank (copy) card line

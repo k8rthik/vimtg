@@ -608,7 +608,7 @@ class MainScreen(Screen[None]):
             elif len(query) < 2:
                 sr.display = False
 
-    def _write_zone_card(self, name: str, zone: LineType) -> None:
+    def _write_zone_card(self, name: str, zone: LineType, qty: int) -> None:
         """Replace the opened blank line with a card in `zone`'s style.
 
         Inside a zone block the line is written indented bare; among
@@ -619,7 +619,9 @@ class MainScreen(Screen[None]):
         s = self._state
         indent = _matched_indent(s.buffer, s.cursor.row)
         text = (
-            f"{indent}1 {name}" if indent else f"{ZONE_PREFIXES[zone]}1 {name}"
+            f"{indent}{qty} {name}"
+            if indent
+            else f"{ZONE_PREFIXES[zone]}{qty} {name}"
         )
         s.buffer = s.buffer.set_line(s.cursor.row, text)
 
@@ -640,6 +642,10 @@ class MainScreen(Screen[None]):
         card = sr.get_selected()
         if card:
             s = self._state
+            # Copies to write, from the count on the o/O that opened
+            # the search ('4o'); consumed so it never leaks forward
+            copies = s.insert_quantity
+            s.insert_quantity = 1
             # The cursor's zone decides where the card goes: opening a
             # line inside the CMD:/SB: block (or among prefix lines of a
             # zone) adds the card to THAT zone
@@ -648,23 +654,23 @@ class MainScreen(Screen[None]):
             duplicate_line = self._find_card_line(card.name, zone)
             if duplicate_line is not None:
                 qty = s.buffer.quantity_at(duplicate_line) or 0
-                s.buffer = s.buffer.set_quantity(duplicate_line, qty + 1)
+                s.buffer = s.buffer.set_quantity(duplicate_line, qty + copies)
                 if self._delete_blank_cursor_line() and duplicate_line > s.cursor.row:
                     duplicate_line -= 1
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
             elif zone != LineType.CARD_ENTRY:
                 # Non-main zones aren't type-grouped: the card lands
                 # exactly where opened, in the zone's own style
-                self._write_zone_card(card.name, zone)
+                self._write_zone_card(card.name, zone, copies)
             elif not s.settings.auto_sort:
                 # auto_sort off: card goes exactly where the user opened it
                 indent = _matched_indent(s.buffer, s.cursor.row)
-                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}1 {card.name}")
+                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}{copies} {card.name}")
             elif detect_layout(s.buffer) == LAYOUT_CATEGORY:
                 # Category layout: stay where opened, inherit the
                 # enclosing '// @name' section's category
                 indent = _matched_indent(s.buffer, s.cursor.row)
-                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}1 {card.name}")
+                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}{copies} {card.name}")
                 category = enclosing_category(s.buffer, s.cursor.row)
                 if category:
                     s.buffer = s.buffer.set_category(s.cursor.row, category)
@@ -677,7 +683,9 @@ class MainScreen(Screen[None]):
                 if insert_row is None:
                     insert_row = s.buffer.line_count()
                 indent = _matched_indent(s.buffer, insert_row)
-                s.buffer = s.buffer.insert_line(insert_row, f"{indent}1 {card.name}")
+                s.buffer = s.buffer.insert_line(
+                    insert_row, f"{indent}{copies} {card.name}"
+                )
                 s.cursor = s.cursor.move_to(insert_row, 0)
             s.modified = True
             s.history.record(s.buffer, f"added {card.name}")
@@ -690,8 +698,9 @@ class MainScreen(Screen[None]):
                 if zone != LineType.CARD_ENTRY
                 else ""
             )
+            added = f"{copies}x {card.name}" if copies > 1 else card.name
             cl.set_message(
-                f"Added {card.name}{zone_note}  (+/- to change qty, dd to remove)"
+                f"Added {added}{zone_note}  (+/- to change qty, dd to remove)"
             )
         else:
             # No card selected — clean up blank line from 'o'

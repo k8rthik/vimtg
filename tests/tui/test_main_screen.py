@@ -479,6 +479,43 @@ async def test_confirm_insert_duplicate_below_blank_keeps_cursor(wired_repo) -> 
 
 
 @pytest.mark.asyncio
+async def test_confirm_insert_counted_quantity(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    """4o then a confirmed card writes '4 <card>', and the quantity is
+    consumed — the next plain insert is back to 1 copy."""
+    scr = _wired_screen(wired_repo)
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.buffer = scr._state.buffer.insert_line(2, "")
+        scr._state.cursor = Cursor(row=2)
+        scr._state.insert_quantity = 4
+        bolt = wired_repo.get_by_name("Lightning Bolt")
+        scr._update_search_results([bolt])
+        scr._confirm_insert()
+        line = scr._find_card_line("Lightning Bolt")
+        assert line is not None
+        assert scr._state.buffer.quantity_at(line) == 4
+        assert scr._state.insert_quantity == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_insert_counted_duplicate_adds_quantity(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    scr = _wired_screen(wired_repo)  # holds "4 Goblin Guide"
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.buffer = scr._state.buffer.insert_line(2, "")
+        scr._state.cursor = Cursor(row=2)
+        scr._state.insert_quantity = 4
+        guide = wired_repo.get_by_name("Goblin Guide")
+        scr._update_search_results([guide])
+        scr._confirm_insert()
+        line = scr._find_card_line("Goblin Guide")
+        assert line is not None
+        assert scr._state.buffer.quantity_at(line) == 8  # 4 -> 8
+
+
+@pytest.mark.asyncio
 async def test_confirm_insert_no_selection_cleans_blank(wired_repo) -> None:  # type: ignore[no-untyped-def]
     scr = _wired_screen(wired_repo)
     app = _Host(scr)
