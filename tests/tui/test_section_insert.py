@@ -161,6 +161,42 @@ class TestFindTypeSectionRow:
         assert row == 2  # after existing cards
 
 
+class TestNewSectionNormalizeStable:
+    """A section created by an insert must already be in normalized form
+    (blank-padded header), or the next normalize pass shifts every line
+    below it and the cursor ends up on the header instead of the card."""
+
+    def test_dck_block_new_section_is_normalize_stable(self) -> None:
+        from vimtg.editor.sections import normalize_sections
+
+        buf = _buf_from_lines(
+            "DCK:",
+            "",
+            "    // Creature",
+            "    1 Llanowar Elves",
+            "",
+            "SB: 1 Duress",
+        )
+        card = _make_card(name="Shock", type_line="Instant")
+        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        assert row is not None
+        new_buf = new_buf.insert_line(row, "    1 Shock")
+        assert normalize_sections(new_buf) is new_buf
+
+    def test_legacy_new_section_is_normalize_stable(self) -> None:
+        from vimtg.editor.sections import normalize_sections
+
+        buf = _buf_from_lines(
+            "// Creature",
+            "1 Llanowar Elves",
+        )
+        card = _make_card(name="Shock", type_line="Instant")
+        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        assert row is not None
+        new_buf = new_buf.insert_line(row, "1 Shock")
+        assert normalize_sections(new_buf) is new_buf
+
+
 def _find_empty_section_indices(buf: Buffer) -> list[int]:
     """Return indices of section headers the real normalizer would drop."""
     from vimtg.editor.sections import _drop_empty_headers

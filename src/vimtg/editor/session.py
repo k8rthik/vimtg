@@ -746,13 +746,41 @@ ZONE_TARGETS: dict[str, LineType] = {
 }
 
 
+def _main_type_section(state: EditorState) -> str | None:
+    """Type section for the cursor's card when md should group by type.
+
+    None when the deck is category-grouped, auto-sort is off, or the
+    card is unresolved — the move then appends to the zone's end.
+    """
+    from vimtg.domain.card_types import primary_type
+
+    if not state.settings.auto_sort:
+        return None
+    if detect_layout(state.buffer) == LAYOUT_CATEGORY:
+        return None
+    name = state.buffer.card_name_at(state.cursor.row)
+    card = state.resolved_cards.get(name) if name else None
+    if card is None:
+        return None
+    return primary_type(card.type_line) or "Other"
+
+
 def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResult:
     """ms/mm/md — move the card at the cursor to another zone.
 
     count == 0 moves every copy; a positive count splits that many off.
+    A move into a type-grouped mainboard lands in the card's own type
+    section (created if missing), not at the bottom of the zone.
     """
     target = ZONE_TARGETS[key]
-    result = move_to_zone(state.buffer, state.cursor, target, count)
+    section = (
+        _main_type_section(state)
+        if target == LineType.CARD_ENTRY
+        else None
+    )
+    result = move_to_zone(
+        state.buffer, state.cursor, target, count, main_section=section
+    )
     if not result.moved:
         return HandlerResult(
             command_message=result.message,

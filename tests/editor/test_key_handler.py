@@ -568,6 +568,38 @@ class TestZoneMoves:
         assert "2 Eidolon of the Great Revel" in lines
         assert "SB: 2 Eidolon of the Great Revel" not in lines
 
+    def test_md_places_resolved_card_in_type_section(self) -> None:
+        """md on a sideboard card whose type is known lands it in the
+        matching type section, not at the bottom of the mainboard."""
+
+        class _C:
+            type_line = "Instant"
+
+        state = _state(
+            "// Instant\n1 Shock\n\n// Land\n4 Island\n\nSB: 1 Annul\n",
+            row=6,
+        )
+        state.resolved_cards = {"Annul": _C()}  # type: ignore[dict-item]
+        handle_normal_special(state, _act("md", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert lines.index("1 Annul") == lines.index("1 Shock") + 1
+        assert state.cursor.row == lines.index("1 Annul")
+
+    def test_md_ignores_type_sections_in_category_layout(self) -> None:
+        """A category-grouped deck must not sprout type headers on md."""
+
+        class _C:
+            type_line = "Instant"
+
+        state = _state(
+            "// @removal\n1 Shock @removal\n\nSB: 1 Annul\n", row=3
+        )
+        state.resolved_cards = {"Annul": _C()}  # type: ignore[dict-item]
+        handle_normal_special(state, _act("md", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert "// Instant" not in lines
+        assert "1 Annul" in lines
+
     def test_mm_moves_to_maybeboard(self) -> None:
         state = _state(row=1)
         handle_normal_special(state, _act("mm", count=0))

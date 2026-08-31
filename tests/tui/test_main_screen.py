@@ -405,6 +405,80 @@ async def test_confirm_insert_duplicate_preserves_prefix_and_tags(wired_repo) ->
 
 
 @pytest.mark.asyncio
+async def test_confirm_insert_new_section_cursor_stays_on_card(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    """Adding a card that creates a new type section must leave the
+    cursor on the card, not on the '// Instant' header — even after the
+    normalize pass that pads a blank line before the new header."""
+    scr = _wired_screen(wired_repo)  # "// Creatures\n4 Goblin Guide\n"
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.buffer = scr._state.buffer.insert_line(2, "")  # 'o'
+        scr._state.cursor = Cursor(row=2)
+        bolt = wired_repo.get_by_name("Lightning Bolt")
+        scr._update_search_results([bolt])
+        scr._confirm_insert()
+        scr._cleanup_empty_sections()  # what _sync_widgets runs next
+        row = scr._state.cursor.row
+        assert "Lightning Bolt" in scr._state.buffer.get_line(row).text
+
+
+@pytest.mark.asyncio
+async def test_confirm_insert_new_section_cursor_in_dck_block(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+
+    scr = MainScreen(
+        buffer=Buffer.from_text(
+            "DCK:\n\n    // Creature\n    4 Goblin Guide\n\nSB: 2 Rest in Peace\n"
+        ),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=wired_repo),
+        card_repo=wired_repo,
+    )
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.buffer = scr._state.buffer.insert_line(4, "")  # 'o' on last card
+        scr._state.cursor = Cursor(row=4)
+        bolt = wired_repo.get_by_name("Lightning Bolt")
+        scr._update_search_results([bolt])
+        scr._confirm_insert()
+        scr._cleanup_empty_sections()
+        row = scr._state.cursor.row
+        assert "Lightning Bolt" in scr._state.buffer.get_line(row).text
+        # The new section landed inside the block, indented
+        assert scr._state.buffer.get_line(row).text.startswith("    ")
+
+
+@pytest.mark.asyncio
+async def test_confirm_insert_duplicate_below_blank_keeps_cursor(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    """Incrementing a duplicate that sits BELOW the 'o' blank line must
+    land the cursor on that card, not one line past it."""
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+
+    scr = MainScreen(
+        buffer=Buffer.from_text(
+            "// Creatures\n\n4 Goblin Guide\n4 Lightning Bolt\n"
+        ),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=wired_repo),
+        card_repo=wired_repo,
+    )
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr._state.cursor = Cursor(row=1)  # the blank, above the duplicate
+        guide = wired_repo.get_by_name("Goblin Guide")
+        scr._update_search_results([guide])
+        scr._confirm_insert()
+        row = scr._state.cursor.row
+        assert "Goblin Guide" in scr._state.buffer.get_line(row).text
+        assert scr._state.buffer.quantity_at(row) == 5
+
+
+@pytest.mark.asyncio
 async def test_confirm_insert_no_selection_cleans_blank(wired_repo) -> None:  # type: ignore[no-untyped-def]
     scr = _wired_screen(wired_repo)
     app = _Host(scr)

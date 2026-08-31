@@ -344,3 +344,66 @@ class TestMoveToZone:
         )
         assert not result.moved
         assert "Already in sideboard" in result.message
+
+    def test_move_to_main_lands_in_type_section(self) -> None:
+        """md with a known type places the card in its type section,
+        not at the bottom of the mainboard (the last section)."""
+        buf = Buffer.from_text(
+            "DCK:\n"
+            "\n"
+            "    // Instant\n"
+            "    1 Shock\n"
+            "\n"
+            "    // Land\n"
+            "    4 Island\n"
+            "\n"
+            "SB: 1 Annul\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=8), LineType.CARD_ENTRY,
+            main_section="Instant",
+        )
+        lines = self._lines(result.buffer)
+        assert "    1 Annul" in lines
+        assert lines.index("    1 Annul") == lines.index("    1 Shock") + 1
+        assert result.cursor.row == lines.index("    1 Annul")
+        assert "SB: 1 Annul" not in lines
+
+    def test_move_to_main_creates_type_section(self) -> None:
+        buf = Buffer.from_text(
+            "// Instant\n1 Shock\n\nSB: 2 Llanowar Elves\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=3), LineType.CARD_ENTRY,
+            main_section="Creature",
+        )
+        lines = self._lines(result.buffer)
+        header_idx = lines.index("// Creature")
+        assert lines[header_idx + 1] == "2 Llanowar Elves"
+        assert result.cursor.row == header_idx + 1
+        assert "SB: 2 Llanowar Elves" not in lines
+
+    def test_move_to_main_without_section_appends(self) -> None:
+        """No main_section (unresolved card / auto_sort off) keeps the
+        old append-to-zone-end behavior."""
+        buf = _make_buffer()
+        sb_row = self._lines(buf).index("SB: 2 Engineered Explosives")
+        result = move_to_zone(
+            buf, _make_cursor(row=sb_row), LineType.CARD_ENTRY
+        )
+        lines = self._lines(result.buffer)
+        assert lines.index("2 Engineered Explosives") == (
+            lines.index("3 Unholy Heat") + 1
+        )
+
+    def test_move_to_main_with_section_still_merges_duplicates(self) -> None:
+        buf = Buffer.from_text(
+            "// Instant\n1 Shock\n\nSB: 2 Shock\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=3), LineType.CARD_ENTRY,
+            main_section="Instant",
+        )
+        lines = self._lines(result.buffer)
+        assert "3 Shock" in lines
+        assert "SB: 2 Shock" not in lines

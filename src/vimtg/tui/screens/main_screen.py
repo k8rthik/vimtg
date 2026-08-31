@@ -45,7 +45,11 @@ from vimtg.editor.lint import (
 )
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
-from vimtg.editor.sections import normalize_sections
+from vimtg.editor.sections import (
+    matched_indent,
+    normalize_sections,
+    type_section_insert_row,
+)
 from vimtg.editor.session import (
     EditorState,
     HandlerResult,
@@ -113,24 +117,31 @@ def _card_type_section(type_line: str) -> str:
     return primary_type(type_line) or "Other"
 
 
-def _matched_indent(buf: Buffer, row: int) -> str:
-    """Indentation for a card inserted at `row`, matching the enclosing
-    Python-style zone block (an unindented line would terminate it)."""
-    from vimtg.domain.deck_lines import parse_zone_header
-    from vimtg.editor.buffer import LineType
+_matched_indent = matched_indent
 
-    for i in range(row - 1, -1, -1):
-        bl = buf.get_line(i)
-        if bl.line_type == LineType.BLANK:
-            continue
-        if parse_zone_header(bl.text) is not None:
-            return "    "
-        if bl.line_type == LineType.METADATA:
-            return ""
-        # Cards, headers, and comments all sit at their block's depth —
-        # an unindented insert after '    // note' would close the block
-        return bl.text[: len(bl.text) - len(bl.text.lstrip())]
-    return ""
+
+def _remapped_row(old_buf: Buffer, new_buf: Buffer, row: int) -> int:
+    """Row of `old_buf[row]`'s line after normalization rewrote the buffer.
+
+    Normalization inserts/removes blanks and drops empty headers but
+    never edits or reorders the surviving lines, so the cursor line is
+    refound by matching its text occurrence count. Falls back to the
+    old row (clamped by the caller) for blank or dropped lines."""
+    if row >= old_buf.line_count():
+        return row
+    text = old_buf.get_line(row).text
+    if not text.strip():
+        return row
+    nth = sum(
+        1 for i in range(row + 1) if old_buf.get_line(i).text == text
+    )
+    seen = 0
+    for i in range(new_buf.line_count()):
+        if new_buf.get_line(i).text == text:
+            seen += 1
+            if seen == nth:
+                return i
+    return row
 
 
 @dataclass
@@ -638,7 +649,8 @@ class MainScreen(Screen[None]):
             if duplicate_line is not None:
                 qty = s.buffer.quantity_at(duplicate_line) or 0
                 s.buffer = s.buffer.set_quantity(duplicate_line, qty + 1)
-                self._delete_blank_cursor_line()
+                if self._delete_blank_cursor_line() and duplicate_line > s.cursor.row:
+                    duplicate_line -= 1
                 s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
             elif zone != LineType.CARD_ENTRY:
                 # Non-main zones aren't type-grouped: the card lands
@@ -657,18 +669,16 @@ class MainScreen(Screen[None]):
                 if category:
                     s.buffer = s.buffer.set_category(s.cursor.row, category)
             else:
-                # Find or create the right type section, then insert there
+                # Remove the blank line 'o' opened BEFORE the section
+                # math — creating a header can shift rows past the
+                # cursor, leaving a stale row for the blank's deletion
+                self._delete_blank_cursor_line()
                 s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
-                if insert_row is not None and insert_row != s.cursor.row:
-                    # Remove the blank line 'o' inserted and place card in correct section
-                    if self._delete_blank_cursor_line() and insert_row > s.cursor.row:
-                        insert_row -= 1
-                    indent = _matched_indent(s.buffer, insert_row)
-                    s.buffer = s.buffer.insert_line(insert_row, f"{indent}1 {card.name}")
-                    s.cursor = s.cursor.move_to(insert_row, 0)
-                else:
-                    indent = _matched_indent(s.buffer, s.cursor.row)
-                    s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}1 {card.name}")
+                if insert_row is None:
+                    insert_row = s.buffer.line_count()
+                indent = _matched_indent(s.buffer, insert_row)
+                s.buffer = s.buffer.insert_line(insert_row, f"{indent}1 {card.name}")
+                s.cursor = s.cursor.move_to(insert_row, 0)
             s.modified = True
             s.history.record(s.buffer, f"added {card.name}")
             if self.card_repo:
@@ -1276,67 +1286,9 @@ class MainScreen(Screen[None]):
         """Find the right row to insert a card based on its primary type.
 
         Uses singular type names: "Creature", "Instant", "Sorcery", etc.
-        Creates the section header if it doesn't exist — indented inside
-        the DCK: block when the deck uses one, blank-separated at the
-        top level otherwise.
         Returns (buffer, insert_row) — buffer may have new section header lines.
         """
-        from vimtg.domain.deck_lines import parse_zone_header
-        from vimtg.editor.buffer import LineType
-
-        section_name = _card_type_section(card.type_line)
-
-        # Look for existing section header (indented headers included)
-        for i in range(buf.line_count()):
-            bl = buf.get_line(i)
-            if bl.line_type == LineType.SECTION_HEADER and section_name in bl.text:
-                insert_at = i + 1
-                while insert_at < buf.line_count() and buf.is_card_line(insert_at):
-                    insert_at += 1
-                return buf, insert_at
-
-        # No matching section. Deck using a DCK: block gets the new
-        # section indented inside it, after the block's current content.
-        dck_row = next(
-            (
-                i for i in range(buf.line_count())
-                if parse_zone_header(buf.get_line(i).text) == "DCK"
-            ),
-            None,
-        )
-        if dck_row is not None:
-            insert_at = dck_row + 1
-            i = dck_row + 1
-            while i < buf.line_count():
-                bl = buf.get_line(i)
-                if bl.line_type == LineType.BLANK:
-                    i += 1
-                    continue
-                in_block = bl.text[:1].isspace() and bl.line_type in (
-                    LineType.CARD_ENTRY, LineType.SECTION_HEADER,
-                )
-                if not in_block:
-                    break
-                insert_at = i + 1
-                i += 1
-            buf = buf.insert_line(insert_at, f"    // {section_name}")
-            return buf, insert_at + 1
-
-        # Legacy layout — create the section before sideboard or at end
-        insert_at = buf.line_count()
-        for i in range(buf.line_count()):
-            bl = buf.get_line(i)
-            if bl.line_type == LineType.SIDEBOARD_ENTRY:
-                insert_at = i
-                break
-
-        # Add blank line separator if previous line is content
-        if insert_at > 0 and buf.get_line(insert_at - 1).line_type != LineType.BLANK:
-            buf = buf.insert_line(insert_at, "")
-            insert_at += 1
-
-        buf = buf.insert_line(insert_at, f"// {section_name}")
-        return buf, insert_at + 1
+        return type_section_insert_row(buf, _card_type_section(card.type_line))
 
     @work(thread=True)
     def _run_search(self, query: str) -> None:
@@ -1384,8 +1336,9 @@ class MainScreen(Screen[None]):
         cleaned = normalize_sections(s.buffer)
         if cleaned is s.buffer:
             return
+        new_row = _remapped_row(s.buffer, cleaned, s.cursor.row)
         s.buffer = cleaned
-        s.cursor = s.cursor.clamp(cleaned.line_count() - 1)
+        s.cursor = s.cursor.move_to(new_row).clamp(cleaned.line_count() - 1)
         s.modified = True
         s.history.amend(cleaned)
 

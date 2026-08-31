@@ -330,13 +330,19 @@ def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
 
 
 def move_to_zone(
-    buffer: Buffer, cursor: Cursor, target: LineType, count: int = 0
+    buffer: Buffer, cursor: Cursor, target: LineType, count: int = 0,
+    main_section: str | None = None,
 ) -> ZoneMoveResult:
     """ms/mm/md — move the card at the cursor to another zone.
 
     count == 0 (no count given) moves every copy; 0 < count < quantity
     splits the entry, leaving the remainder behind. If the target zone
     already holds the card, quantities merge and tags union.
+
+    `main_section` (md only): the type section the card belongs to in a
+    type-grouped mainboard ("Instant", "Creature", ...). When given, a
+    fresh mainboard line is placed in that section — created if missing
+    — instead of appended after the zone's last entry.
     """
     row = cursor.row
     if not buffer.is_card_line(row):
@@ -384,10 +390,24 @@ def move_to_zone(
         else:
             new_buf, _ = new_buf.delete_lines(row, row)
             deleted_row = row
-        new_buf, dest_row, inserted_count = _insert_zone_line(
-            new_buf, target, body
-        )
-        inserted_row = dest_row
+        if target == LineType.CARD_ENTRY and main_section:
+            from vimtg.editor.sections import (
+                matched_indent,
+                type_section_insert_row,
+            )
+
+            before = new_buf.line_count()
+            new_buf, dest_row = type_section_insert_row(new_buf, main_section)
+            header_lines = new_buf.line_count() - before
+            indent = matched_indent(new_buf, dest_row)
+            new_buf = new_buf.insert_line(dest_row, f"{indent}{body}")
+            inserted_row = dest_row - header_lines
+            inserted_count = header_lines + 1
+        else:
+            new_buf, dest_row, inserted_count = _insert_zone_line(
+                new_buf, target, body
+            )
+            inserted_row = dest_row
 
     new_cursor = cursor.move_to(
         max(0, min(dest_row, new_buf.line_count() - 1)), 0
