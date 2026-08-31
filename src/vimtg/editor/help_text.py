@@ -99,7 +99,8 @@ COMMANDS
   :retag /a/b/  Rename tag across deck
   :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/vimtg)
   :import src   Import deck from a file (auto-detects format) or a
-                Moxfield / Archidekt / ManaBox deck URL
+                deck URL (Moxfield, Archidekt, ManaBox, Deckstats,
+                TappedOut, MTGGoldfish)
   :clipboard    Copy deck to system clipboard (default arena)
   :set opt=val  Change a setting (:set shows all)
   :config       Open the settings screen
@@ -175,9 +176,10 @@ COMMAND_HELP: dict[str, str] = {
     "import": (
         ":import <file|url>  Import a deck (replaces buffer, undoable)\n"
         "\n"
-        "Files auto-detect their format: vimtg, MTGO, Arena (MTGA),\n"
-        "Moxfield CSV, Archidekt CSV. A Moxfield, Archidekt, or\n"
-        "ManaBox deck URL fetches the list from the site: commander,\n"
+        "Files auto-detect their format: vimtg, MTGO text or .dek,\n"
+        "Arena (MTGA), Moxfield CSV, Archidekt CSV. A deck URL from\n"
+        "Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or\n"
+        "MTGGoldfish fetches the list from the site: commander,\n"
         "companion, sideboard, and maybeboard land in their own zones,\n"
         "Archidekt user categories become @categories, and the URL is\n"
         "remembered as // Source:."

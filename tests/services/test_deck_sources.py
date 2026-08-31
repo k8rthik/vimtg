@@ -277,3 +277,175 @@ class TestFetchNetwork:
         )
         with pytest.raises(DeckSourceError, match="404"):
             fetch_deck("https://archidekt.com/decks/12345")
+
+
+# ── Shared text-list parser (deckstats/tappedout/goldfish) ─────────
+
+
+class TestParseDecklistText:
+    def test_basic_zones_and_prefixes(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        remote = parse_decklist_text(
+            "//Main\n"
+            "1 Atraxa, Praetors' Voice #!Commander\n"
+            "4 Cultivate\n"
+            "//Lands (24)\n"          # grouping header — not a zone
+            "24 Forest\n"
+            "//Sideboard\n"
+            "SB: 2 Duress\n"
+            "3 Naturalize\n",          # zone carried from the header
+            name="Atraxa",
+        )
+        assert remote.name == "Atraxa"
+        by_zone = {
+            (e.section, e.card_name): e.quantity for e in remote.deck.entries
+        }
+        assert by_zone[(DeckSection.COMMANDER, "Atraxa, Praetors' Voice")] == 1
+        assert by_zone[(DeckSection.MAIN, "Cultivate")] == 4
+        assert by_zone[(DeckSection.MAIN, "Forest")] == 24
+        assert by_zone[(DeckSection.SIDEBOARD, "Duress")] == 2
+        assert by_zone[(DeckSection.SIDEBOARD, "Naturalize")] == 3
+
+    def test_arena_style_set_suffix_stripped(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        remote = parse_decklist_text("4 Lightning Bolt (STA) 42\n", name="")
+        assert remote.deck.entries[0].card_name == "Lightning Bolt"
+
+    def test_x_quantity_and_hash_comment(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        remote = parse_decklist_text(
+            "4x Lightning Bolt # burn them all\n", name=""
+        )
+        entry = remote.deck.entries[0]
+        assert (entry.card_name, entry.quantity) == ("Lightning Bolt", 4)
+
+    def test_blank_line_splits_sideboard_when_asked(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        text = "4 Lightning Bolt\n20 Mountain\n\n2 Duress\n"
+        remote = parse_decklist_text(text, name="", blank_splits=True)
+        by_zone = {
+            (e.section, e.card_name): e.quantity for e in remote.deck.entries
+        }
+        assert by_zone[(DeckSection.MAIN, "Mountain")] == 20
+        assert by_zone[(DeckSection.SIDEBOARD, "Duress")] == 2
+
+    def test_blank_lines_neutral_by_default(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        text = "4 Lightning Bolt\n\n20 Mountain\n"
+        remote = parse_decklist_text(text, name="")
+        assert all(
+            e.section == DeckSection.MAIN for e in remote.deck.entries
+        )
+
+    def test_zone_word_headers(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        text = (
+            "Commander\n1 Krenko, Mob Boss\n"
+            "Deck\n4 Lightning Bolt\n"
+            "Sideboard:\n2 Duress\n"
+            "Maybeboard\n1 Opt\n"
+        )
+        remote = parse_decklist_text(text, name="")
+        by_zone = {
+            (e.section, e.card_name): e.quantity for e in remote.deck.entries
+        }
+        assert (DeckSection.COMMANDER, "Krenko, Mob Boss") in by_zone
+        assert (DeckSection.MAIN, "Lightning Bolt") in by_zone
+        assert (DeckSection.SIDEBOARD, "Duress") in by_zone
+        assert (DeckSection.MAYBEBOARD, "Opt") in by_zone
+
+
+# ── Deckstats / TappedOut / MTGGoldfish dispatch ───────────────────
+
+
+class TestNewSourceDispatch:
+    def test_deckstats_fetch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import vimtg.services.deck_sources as ds
+
+        payload = {
+            "success": True,
+            "name": "Atraxa Superfriends",
+            "list": "//Main\n1 Atraxa, Praetors' Voice #!Commander\n4 Cultivate\n",
+        }
+        seen = {}
+
+        def fake_get(url: str, **kwargs: object) -> _Resp:
+            seen["url"] = url
+            return _Resp(payload)
+
+        monkeypatch.setattr(ds.httpx, "get", fake_get)
+        remote = fetch_deck("https://deckstats.net/decks/12345/678900-atraxa")
+        assert "api.php" in seen["url"]
+        assert "owner_id=12345" in seen["url"]
+        assert "id=678900" in seen["url"]
+        assert remote.name == "Atraxa Superfriends"
+        commanders = [
+            e for e in remote.deck.entries
+            if e.section == DeckSection.COMMANDER
+        ]
+        assert commanders[0].card_name == "Atraxa, Praetors' Voice"
+
+    def test_tappedout_fetch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import vimtg.services.deck_sources as ds
+
+        class _TextResp:
+            status_code = 200
+            text = "4 Lightning Bolt\nSB: 2 Duress\n"
+
+            def json(self) -> object:
+                raise ValueError
+
+        seen = {}
+
+        def fake_get(url: str, **kwargs: object) -> _TextResp:
+            seen["url"] = url
+            return _TextResp()
+
+        monkeypatch.setattr(ds.httpx, "get", fake_get)
+        remote = fetch_deck("https://tappedout.net/mtg-decks/krenko-mob-boss/")
+        assert seen["url"].endswith("?fmt=dec")
+        assert remote.name == "krenko mob boss"
+        by_zone = {
+            (e.section, e.card_name): e.quantity for e in remote.deck.entries
+        }
+        assert by_zone[(DeckSection.MAIN, "Lightning Bolt")] == 4
+        assert by_zone[(DeckSection.SIDEBOARD, "Duress")] == 2
+
+    def test_mtggoldfish_fetch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import vimtg.services.deck_sources as ds
+
+        class _TextResp:
+            status_code = 200
+            text = "4 Lightning Bolt\n20 Mountain\n\n2 Duress\n"
+
+            def json(self) -> object:
+                raise ValueError
+
+        seen = {}
+
+        def fake_get(url: str, **kwargs: object) -> _TextResp:
+            seen["url"] = url
+            return _TextResp()
+
+        monkeypatch.setattr(ds.httpx, "get", fake_get)
+        remote = fetch_deck("https://www.mtggoldfish.com/deck/6543210#paper")
+        assert "deck/download/6543210" in seen["url"]
+        by_zone = {
+            (e.section, e.card_name): e.quantity for e in remote.deck.entries
+        }
+        assert by_zone[(DeckSection.MAIN, "Mountain")] == 20
+        assert by_zone[(DeckSection.SIDEBOARD, "Duress")] == 2
+
+    def test_bad_deckstats_url(self) -> None:
+        with pytest.raises(DeckSourceError, match="deck id"):
+            fetch_deck("https://deckstats.net/decks/folder/")
+
+    def test_bad_goldfish_url(self) -> None:
+        with pytest.raises(DeckSourceError, match="deck id"):
+            fetch_deck("https://www.mtggoldfish.com/metagame/modern")

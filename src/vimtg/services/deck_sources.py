@@ -1,9 +1,12 @@
-"""Online decklist sources: Moxfield, Archidekt, and ManaBox URLs.
+"""Online decklist sources: Moxfield, Archidekt, ManaBox, Deckstats,
+TappedOut, and MTGGoldfish URLs.
 
-Ported from cod-sync's source fetchers and adapted to vimtg's richer
-deck model: where Cockatrice folds everything into main/side, vimtg
-keeps commander, companion, and maybeboard as real zones, and an
-Archidekt user category survives as the card's inline @category.
+The JSON-API fetchers are ported from cod-sync and adapted to vimtg's
+richer deck model: where Cockatrice folds everything into main/side,
+vimtg keeps commander, companion, and maybeboard as real zones, and an
+Archidekt user category survives as the card's inline @category. The
+text-shaped sources (Deckstats' api.php list, TappedOut's ?fmt=dec,
+MTGGoldfish's /deck/download) share one tolerant decklist parser.
 
 TUI-agnostic: no Textual imports. Network access is confined to
 fetch_deck; the parse_* functions are pure and unit-testable.
@@ -31,6 +34,13 @@ _MOXFIELD_API = "https://api2.moxfield.com/v3/decks/all/"
 _MOXFIELD_ID_RE = re.compile(r"/decks/([A-Za-z0-9_-]+)")
 _ARCHIDEKT_API = "https://archidekt.com/api/decks/"
 _ARCHIDEKT_ID_RE = re.compile(r"/decks/(\d+)")
+_DECKSTATS_API = (
+    "https://deckstats.net/api.php?action=get_deck&id_type=saved"
+    "&owner_id={owner}&id={deck}&response_type=list"
+)
+_DECKSTATS_ID_RE = re.compile(r"/decks/(\d+)/(\d+)")
+_TAPPEDOUT_SLUG_RE = re.compile(r"/mtg-decks/([A-Za-z0-9_-]+)")
+_GOLDFISH_ID_RE = re.compile(r"/deck/(?:download/)?(\d+)")
 
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
@@ -72,9 +82,15 @@ def fetch_deck(url: str) -> RemoteDeck:
         return parse_archidekt(_get_json(url, f"{_ARCHIDEKT_API}{deck_id}/"))
     if "manabox.app" in host:
         return parse_manabox_page(url, _get_text(url))
+    if "deckstats.net" in host:
+        return _fetch_deckstats(url)
+    if "tappedout.net" in host:
+        return _fetch_tappedout(url)
+    if "mtggoldfish.com" in host:
+        return _fetch_mtggoldfish(url)
     raise DeckSourceError(
         f"Unsupported deck site: {host or '(no host)'} "
-        "(moxfield.com, archidekt.com, manabox.app)"
+        "(moxfield, archidekt, manabox, deckstats, tappedout, mtggoldfish)"
     )
 
 
@@ -306,3 +322,114 @@ def _astro_decode(node: Any) -> Any:
             return [_astro_decode(item) for item in payload]
         return payload
     return node
+
+
+# ── Text-shaped sources (Deckstats / TappedOut / MTGGoldfish) ──────
+
+# "4 Card", "4x Card", optional arena-style "(SET) 123" suffix.
+_TEXT_LINE_RE = re.compile(
+    r"""^\s*
+        (?:SB:\s*)?
+        (?P<qty>\d+)\s*[xX]?\s+
+        (?P<name>.+?)
+        (?:\s+\([A-Za-z0-9]{3,5}\)(?:\s+\S+)?)?
+        \s*$
+    """,
+    re.VERBOSE,
+)
+_SB_PREFIX_RE = re.compile(r"^\s*SB:", re.IGNORECASE)
+# Deckstats marks the commander with a trailing "#!Commander" pragma.
+_COMMANDER_PRAGMA_RE = re.compile(r"#!Commander\b", re.IGNORECASE)
+_ZONE_HEADERS: dict[str, DeckSection] = {
+    "deck": DeckSection.MAIN,
+    "main": DeckSection.MAIN,
+    "mainboard": DeckSection.MAIN,
+    "maindeck": DeckSection.MAIN,
+    "commander": DeckSection.COMMANDER,
+    "commanders": DeckSection.COMMANDER,
+    "companion": DeckSection.COMPANION,
+    "sideboard": DeckSection.SIDEBOARD,
+    "side": DeckSection.SIDEBOARD,
+    "sb": DeckSection.SIDEBOARD,
+    "maybeboard": DeckSection.MAYBEBOARD,
+    "maybe": DeckSection.MAYBEBOARD,
+}
+
+
+def parse_decklist_text(
+    text: str, name: str, blank_splits: bool = False
+) -> RemoteDeck:
+    """Parse a plain-text decklist into a RemoteDeck.
+
+    Understands "N Card" / "Nx Card" lines with optional arena-style
+    "(SET) 123" suffixes, SB: prefixes, Deckstats' "#!Commander" pragma
+    and trailing "# ..." comments, and zone headers as bare words or
+    "//" comments ("Sideboard", "//Main", ...). A "//" header that is
+    not a zone name (Deckstats' "//Lands (24)" groupings) is ignored.
+    `blank_splits` treats the first blank line after a card as the
+    main/sideboard divider (MTGGoldfish's download format).
+    """
+    entries: list[DeckEntry] = []
+    section = DeckSection.MAIN
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            if blank_splits and entries and section == DeckSection.MAIN:
+                section = DeckSection.SIDEBOARD
+            continue
+
+        line_section = section
+        if _SB_PREFIX_RE.match(line):
+            line_section = DeckSection.SIDEBOARD
+        elif line.startswith(("//", "#")) or not line[0].isdigit():
+            header = line.lstrip("/").strip().rstrip(":").lower()
+            zone = _ZONE_HEADERS.get(header)
+            if zone is not None:
+                section = zone
+            continue
+        if _COMMANDER_PRAGMA_RE.search(line):
+            line_section = DeckSection.COMMANDER
+        # Strip trailing "# ..." comments (the #!Commander pragma too)
+        line = line.split("#", 1)[0].rstrip()
+
+        m = _TEXT_LINE_RE.match(line)
+        if not m:
+            continue
+        card_name = m.group("name").strip()
+        qty = int(m.group("qty"))
+        if not card_name or qty <= 0:
+            continue
+        entries.append(_entry(card_name, qty, line_section))
+    return RemoteDeck(name=name, deck=_deck(entries))
+
+
+def _fetch_deckstats(url: str) -> RemoteDeck:
+    """Deckstats' api.php returns {'name': ..., 'list': <decklist text>}."""
+    m = _DECKSTATS_ID_RE.search(url)
+    if not m:
+        raise DeckSourceError(f"Could not extract Deckstats deck id from {url}")
+    data = _get_json(url, _DECKSTATS_API.format(owner=m.group(1), deck=m.group(2)))
+    listing = data.get("list")
+    if not isinstance(listing, str):
+        raise DeckSourceError(f"{url} returned an unexpected payload")
+    return parse_decklist_text(listing, name=(data.get("name") or "").strip())
+
+
+def _fetch_tappedout(url: str) -> RemoteDeck:
+    """TappedOut serves the raw .dec list at <deck-url>?fmt=dec."""
+    m = _TAPPEDOUT_SLUG_RE.search(url)
+    if not m:
+        raise DeckSourceError(f"Could not extract TappedOut deck id from {url}")
+    slug = m.group(1)
+    text = _get_text(f"https://tappedout.net/mtg-decks/{slug}/?fmt=dec")
+    return parse_decklist_text(text, name=slug.replace("-", " ").strip())
+
+
+def _fetch_mtggoldfish(url: str) -> RemoteDeck:
+    """MTGGoldfish serves plain text at /deck/download/<id> — mainboard,
+    then a blank line, then the sideboard (no headers)."""
+    m = _GOLDFISH_ID_RE.search(url)
+    if not m:
+        raise DeckSourceError(f"Could not extract MTGGoldfish deck id from {url}")
+    text = _get_text(f"https://www.mtggoldfish.com/deck/download/{m.group(1)}")
+    return parse_decklist_text(text, name="", blank_splits=True)
