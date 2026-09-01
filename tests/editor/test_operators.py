@@ -466,3 +466,53 @@ class TestMoveToZone:
         lines = self._lines(result.buffer)
         assert "3 Shock" in lines
         assert "SB: 2 Shock" not in lines
+
+
+class TestAlphabeticalZoneInsert:
+    def _lines(self, buf: Buffer) -> list[str]:
+        return [bl.text for bl in buf.get_lines()]
+
+    def test_ms_alpha_places_between_entries(self) -> None:
+        buf = Buffer.from_text(
+            "4 Lightning Bolt\n\nSB: 2 Duress\nSB: 2 Rest in Peace\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY, alpha=True
+        )
+        lines = self._lines(result.buffer)
+        assert lines.index("SB: 4 Lightning Bolt") == (
+            lines.index("SB: 2 Duress") + 1
+        )
+        assert result.cursor.row == lines.index("SB: 4 Lightning Bolt")
+
+    def test_ms_alpha_before_first(self) -> None:
+        buf = Buffer.from_text("4 Annul\n\nSB: 2 Duress\n")
+        result = move_to_zone(
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY, alpha=True
+        )
+        lines = self._lines(result.buffer)
+        assert lines.index("SB: 4 Annul") == lines.index("SB: 2 Duress") - 1
+
+    def test_default_still_appends(self) -> None:
+        buf = Buffer.from_text(
+            "4 Lightning Bolt\n\nSB: 2 Rest in Peace\nSB: 2 Duress\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY
+        )
+        lines = self._lines(result.buffer)
+        # unsorted zone untouched, new entry after the last one
+        assert lines[-3:] == [
+            "SB: 2 Rest in Peace", "SB: 2 Duress", "SB: 4 Lightning Bolt",
+        ]
+
+    def test_commander_zone_never_alphabetized(self) -> None:
+        """Partner order is meaningful — mc keeps append semantics."""
+        buf = Buffer.from_text(
+            "CMD:\n    1 Tymna the Weaver\n\n4 Annul\n"
+        )
+        result = move_to_zone(
+            buf, _make_cursor(row=3), LineType.COMMANDER_ENTRY, alpha=True
+        )
+        lines = self._lines(result.buffer)
+        assert lines.index("    4 Annul") == lines.index("    1 Tymna the Weaver") + 1

@@ -289,6 +289,18 @@ async def test_open_help_via_question_mark(tmp_path: Path) -> None:
         assert hp.display is True
 
 
+
+
+def _open_below(scr: MainScreen, row: int) -> None:
+    """Simulate pressing 'o' on `row` through the real handler, so the
+    scratch blank line carries its pending-insert state."""
+    from vimtg.editor.keymap import ParsedAction
+    from vimtg.editor.session import handle_mode_switch
+
+    scr._state.cursor = Cursor(row=row)
+    handle_mode_switch(scr._state, ParsedAction("mode_switch", "o"))
+
+
 # ── Search / insert / confirm flow (wired card repo) ───────────────
 
 
@@ -353,8 +365,7 @@ async def test_confirm_insert_adds_card_to_section(wired_repo) -> None:  # type:
     async with app.run_test() as pilot:
         await pilot.pause()
         # Open a blank line (simulate 'o') then confirm an Instant insert.
-        scr._state.buffer = scr._state.buffer.insert_line(2, "")
-        scr._state.cursor = Cursor(row=2)
+        _open_below(scr, 1)
         bolt = wired_repo.get_by_name("Lightning Bolt")
         scr._update_search_results([bolt])
         scr._confirm_insert()
@@ -367,8 +378,7 @@ async def test_confirm_insert_duplicate_increments(wired_repo) -> None:  # type:
     app = _Host(scr)
     async with app.run_test() as pilot:
         await pilot.pause()
-        scr._state.buffer = scr._state.buffer.insert_line(2, "")
-        scr._state.cursor = Cursor(row=2)
+        _open_below(scr, 1)
         guide = wired_repo.get_by_name("Goblin Guide")
         scr._update_search_results([guide])
         scr._confirm_insert()
@@ -391,8 +401,7 @@ async def test_confirm_insert_duplicate_preserves_prefix_and_tags(wired_repo) ->
     app = _Host(scr)
     async with app.run_test() as pilot:
         await pilot.pause()
-        scr._state.buffer = scr._state.buffer.insert_line(2, "")
-        scr._state.cursor = Cursor(row=2)
+        _open_below(scr, 1)
         guide = wired_repo.get_by_name("Goblin Guide")
         scr._update_search_results([guide])
         scr._confirm_insert()
@@ -413,8 +422,7 @@ async def test_confirm_insert_new_section_cursor_stays_on_card(wired_repo) -> No
     app = _Host(scr)
     async with app.run_test() as pilot:
         await pilot.pause()
-        scr._state.buffer = scr._state.buffer.insert_line(2, "")  # 'o'
-        scr._state.cursor = Cursor(row=2)
+        _open_below(scr, 1)  # 'o'
         bolt = wired_repo.get_by_name("Lightning Bolt")
         scr._update_search_results([bolt])
         scr._confirm_insert()
@@ -439,8 +447,7 @@ async def test_confirm_insert_new_section_cursor_in_dck_block(wired_repo) -> Non
     app = _Host(scr)
     async with app.run_test() as pilot:
         await pilot.pause()
-        scr._state.buffer = scr._state.buffer.insert_line(4, "")  # 'o' on last card
-        scr._state.cursor = Cursor(row=4)
+        _open_below(scr, 3)  # 'o' on last card
         bolt = wired_repo.get_by_name("Lightning Bolt")
         scr._update_search_results([bolt])
         scr._confirm_insert()
@@ -486,8 +493,7 @@ async def test_confirm_insert_counted_quantity(wired_repo) -> None:  # type: ign
     app = _Host(scr)
     async with app.run_test() as pilot:
         await pilot.pause()
-        scr._state.buffer = scr._state.buffer.insert_line(2, "")
-        scr._state.cursor = Cursor(row=2)
+        _open_below(scr, 1)
         scr._state.insert_quantity = 4
         bolt = wired_repo.get_by_name("Lightning Bolt")
         scr._update_search_results([bolt])
@@ -504,8 +510,7 @@ async def test_confirm_insert_counted_duplicate_adds_quantity(wired_repo) -> Non
     app = _Host(scr)
     async with app.run_test() as pilot:
         await pilot.pause()
-        scr._state.buffer = scr._state.buffer.insert_line(2, "")
-        scr._state.cursor = Cursor(row=2)
+        _open_below(scr, 1)
         scr._state.insert_quantity = 4
         guide = wired_repo.get_by_name("Goblin Guide")
         scr._update_search_results([guide])
@@ -521,8 +526,7 @@ async def test_confirm_insert_no_selection_cleans_blank(wired_repo) -> None:  # 
     app = _Host(scr)
     async with app.run_test() as pilot:
         await pilot.pause()
-        scr._state.buffer = scr._state.buffer.insert_line(2, "")
-        scr._state.cursor = Cursor(row=2)
+        _open_below(scr, 1)
         scr._update_search_results([])  # nothing selected
         before = scr._state.buffer.line_count()
         scr._confirm_insert()
@@ -715,3 +719,146 @@ async def test_search_filters_by_deck_declared_format(wired_repo) -> None:  # ty
         sr = scr.query_one("#search-results", SearchResults)
         # Bolt is modern-legal but not standard-legal
         assert any(c.name == "Lightning Bolt" for c in sr.results)
+
+
+@pytest.mark.asyncio
+async def test_o_escape_leaves_buffer_unchanged(tmp_path: Path) -> None:
+    """Escaping an o-opened card search must remove the scratch blank
+    line and put the cursor back where it was."""
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        row = scr._state.buffer.next_card_line(0)
+        scr._state.cursor = Cursor(row=row)
+        before = scr._state.buffer.to_text()
+        await pilot.press("o")
+        await pilot.press("escape")
+        await pilot.pause()
+        assert scr._state.buffer.to_text() == before
+        assert scr._state.cursor.row == row
+
+
+@pytest.mark.asyncio
+async def test_upper_o_escape_leaves_buffer_unchanged(tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        row = scr._state.buffer.next_card_line(0)
+        scr._state.cursor = Cursor(row=row)
+        before = scr._state.buffer.to_text()
+        await pilot.press("O")
+        await pilot.press("escape")
+        await pilot.pause()
+        assert scr._state.buffer.to_text() == before
+        assert scr._state.cursor.row == row
+
+
+@pytest.mark.asyncio
+async def test_visual_o_swaps_selection_no_newline(tmp_path: Path) -> None:
+    """2o from visual mode crashed mid-way, leaving a stray newline and
+    no insert mode. Visual o now swaps the selection ends, vim-style."""
+    from vimtg.editor.modes import Mode
+
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        s = scr._state
+        row = s.buffer.next_card_line(0)
+        s.cursor = Cursor(row=row)
+        before = s.buffer.to_text()
+        await pilot.press("v")
+        await pilot.press("j")
+        await pilot.press("2")
+        await pilot.press("o")
+        await pilot.pause()
+        assert s.buffer.to_text() == before  # no stray newline
+        assert s.mode_mgr.current == Mode.VISUAL
+        assert s.cursor.row == row  # back at the anchor end
+        assert s.visual_anchor == row + 1
+
+
+@pytest.mark.asyncio
+async def test_visual_change_enters_card_search(tmp_path: Path) -> None:
+    from vimtg.editor.modes import Mode
+
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        s = scr._state
+        row = s.buffer.next_card_line(0)
+        s.cursor = Cursor(row=row)
+        before = s.buffer.line_count()
+        await pilot.press("v")
+        await pilot.press("j")
+        await pilot.press("c")
+        await pilot.pause()
+        assert s.mode_mgr.current == Mode.INSERT  # crashed before the fix
+        assert s.buffer.line_count() == before - 2
+
+
+@pytest.mark.asyncio
+async def test_cc_confirm_does_not_overwrite_next_line(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    """cc deletes its line and re-enters card search; the confirmed
+    card must be INSERTED, never written over the following line."""
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+
+    scr = MainScreen(
+        buffer=Buffer.from_text(
+            "4 Goblin Guide\nSB: 2 Duress\nSB: 2 Rest in Peace\n"
+        ),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=wired_repo),
+        card_repo=wired_repo,
+    )
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        s = scr._state
+        s.cursor = Cursor(row=1)  # "SB: 2 Duress"
+        await pilot.press("c")
+        await pilot.press("c")
+        await pilot.pause()
+        bolt = wired_repo.get_by_name("Lightning Bolt")
+        scr._update_search_results([bolt])
+        scr._confirm_insert()
+        lines = [s.buffer.get_line(i).text for i in range(s.buffer.line_count())]
+        assert "SB: 2 Rest in Peace" in lines  # survived
+        assert any("Lightning Bolt" in ln for ln in lines)
+        assert "SB: 2 Duress" not in lines  # the changed-away line
+
+
+@pytest.mark.asyncio
+async def test_confirm_insert_sideboard_is_alphabetical(wired_repo) -> None:  # type: ignore[no-untyped-def]
+    """With auto-sort on, a card added to the sideboard keeps the zone
+    alphabetical instead of landing wherever the line was opened."""
+    from vimtg.editor.commands import CommandRegistry
+    from vimtg.services.search_service import SearchService
+
+    scr = MainScreen(
+        buffer=Buffer.from_text(
+            "4 Goblin Guide\n\nSB: 2 Duress\nSB: 2 Rest in Peace\n"
+        ),
+        registry=CommandRegistry(),
+        search_service=SearchService(card_repo=wired_repo),
+        card_repo=wired_repo,
+    )
+    app = _Host(scr)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        s = scr._state
+        s.cursor = Cursor(row=3)  # on "SB: 2 Rest in Peace"
+        await pilot.press("o")    # open below the last SB line
+        await pilot.pause()
+        bolt = wired_repo.get_by_name("Lightning Bolt")
+        scr._update_search_results([bolt])
+        scr._confirm_insert()
+        lines = [s.buffer.get_line(i).text for i in range(s.buffer.line_count())]
+        assert lines.index("SB: 1 Lightning Bolt") == (
+            lines.index("SB: 2 Duress") + 1
+        )  # D < L < R
+        assert s.cursor.row == lines.index("SB: 1 Lightning Bolt")

@@ -18,8 +18,15 @@ VALID_TRANSITIONS: dict[Mode, frozenset[Mode]] = {
         {Mode.INSERT, Mode.VISUAL, Mode.VISUAL_LINE, Mode.COMMAND, Mode.SEARCH}
     ),
     Mode.INSERT: frozenset({Mode.NORMAL}),
-    Mode.VISUAL: frozenset({Mode.NORMAL, Mode.VISUAL_LINE, Mode.COMMAND}),
-    Mode.VISUAL_LINE: frozenset({Mode.NORMAL, Mode.VISUAL, Mode.COMMAND}),
+    # INSERT and SEARCH are reachable from visual: 'c' changes the
+    # selection into a card search, '/' searches. The buffer mutates
+    # before the mode flips, so rejecting these strands half an edit.
+    Mode.VISUAL: frozenset(
+        {Mode.NORMAL, Mode.VISUAL_LINE, Mode.COMMAND, Mode.INSERT, Mode.SEARCH}
+    ),
+    Mode.VISUAL_LINE: frozenset(
+        {Mode.NORMAL, Mode.VISUAL, Mode.COMMAND, Mode.INSERT, Mode.SEARCH}
+    ),
     Mode.COMMAND: frozenset({Mode.NORMAL}),
     Mode.SEARCH: frozenset({Mode.NORMAL}),
 }

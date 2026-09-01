@@ -244,14 +244,26 @@ def _find_zone_entry(
     return None
 
 
-def _zone_insert_row(buffer: Buffer, zone: LineType) -> int:
-    """Row where a new `zone` line belongs: after the zone's last entry,
-    else right under the zone's own block header ('DCK:', 'CMD:', ...)
-    when one exists, else before the first later-zone block (and its
-    blank separator), else at the end of the buffer."""
+# Zones kept alphabetical under auto-sort. Commander/companion order is
+# meaningful (partners), and the mainboard sorts by type section instead.
+ALPHA_ZONES = frozenset({LineType.SIDEBOARD_ENTRY, LineType.MAYBEBOARD_ENTRY})
+
+
+def _zone_insert_row(
+    buffer: Buffer, zone: LineType, sort_name: str | None = None
+) -> int:
+    """Row where a new `zone` line belongs: alphabetically among the
+    zone's entries when `sort_name` is given, else after the zone's
+    last entry; else right under the zone's own block header ('DCK:',
+    'CMD:', ...) when one exists, else before the first later-zone
+    block (and its blank separator), else at the end of the buffer."""
     last = None
     for i in range(buffer.line_count()):
         if buffer.get_line(i).line_type == zone:
+            if sort_name is not None:
+                existing = buffer.card_name_at(i)
+                if existing is not None and existing.lower() > sort_name.lower():
+                    return i
             last = i
     if last is not None:
         return last + 1
@@ -270,8 +282,8 @@ def _zone_insert_row(buffer: Buffer, zone: LineType) -> int:
     return buffer.line_count()
 
 
-def _insert_zone_line(
-    buffer: Buffer, zone: LineType, body: str
+def insert_zone_line(
+    buffer: Buffer, zone: LineType, body: str, sort_name: str | None = None
 ) -> tuple[Buffer, int, int]:
     """Insert a new zone line ('body' = 'N Name…' without prefix) into
     its zone block. Returns (buffer, card_row, lines_inserted).
@@ -279,7 +291,8 @@ def _insert_zone_line(
     A zone with no lines and no block header yet opens as a Python-style
     block — 'CMD:' with the card indented beneath it. Inside an existing
     block the line is written indented to match; next to prefix-style
-    entries it gets the SB:/CMD: prefix.
+    entries it gets the SB:/CMD: prefix. `sort_name` places the line
+    alphabetically among the zone's entries.
     """
     tag = _ZONE_TAGS[zone]
     has_entries = any(
@@ -290,7 +303,7 @@ def _insert_zone_line(
         parse_zone_header(buffer.get_line(i).text) == tag
         for i in range(buffer.line_count())
     )
-    row = _zone_insert_row(buffer, zone)
+    row = _zone_insert_row(buffer, zone, sort_name)
     if row == buffer.line_count() and row > 0:
         prev = buffer.get_line(row - 1)
         if prev.line_type not in (LineType.BLANK, zone) and (
@@ -302,11 +315,11 @@ def _insert_zone_line(
         buffer = buffer.insert_line(row, f"{tag}:")
         buffer = buffer.insert_line(row + 1, f"{_BLOCK_INDENT}{body}")
         return buffer, row + 1, 2
-    text = _zone_line_text(buffer, row, zone, body)
+    text = zone_line_text(buffer, row, zone, body)
     return buffer.insert_line(row, text), row, 1
 
 
-def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
+def zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
     """Prefix or indent `body` to match the insertion point's style.
 
     Inside the zone's own block the line is bare and indented. Inside a
@@ -332,6 +345,7 @@ def _zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
 def move_to_zone(
     buffer: Buffer, cursor: Cursor, target: LineType, count: int = 0,
     main_section: str | None = None, uncategorized: bool = False,
+    alpha: bool = False,
 ) -> ZoneMoveResult:
     """ms/mm/md — move the card at the cursor to another zone.
 
@@ -346,6 +360,9 @@ def move_to_zone(
       in that section, created if missing.
     - `uncategorized`: category-grouped deck — the line lands with the
       category-less cards (their section, else the top of the block).
+    `alpha` (auto-sort): a fresh sideboard/maybeboard line is placed
+    alphabetically among the zone's entries instead of appended.
+    Commander/companion keep append order — partner order matters.
     """
     row = cursor.row
     if not buffer.is_card_line(row):
@@ -414,8 +431,9 @@ def move_to_zone(
             inserted_row = dest_row - extra_lines
             inserted_count = extra_lines + 1
         else:
-            new_buf, dest_row, inserted_count = _insert_zone_line(
-                new_buf, target, body
+            sort_name = name if alpha and target in ALPHA_ZONES else None
+            new_buf, dest_row, inserted_count = insert_zone_line(
+                new_buf, target, body, sort_name
             )
             inserted_row = dest_row
 

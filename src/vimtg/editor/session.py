@@ -76,6 +76,18 @@ class InsertSubmode(Enum):
     COMMENT_INPUT = "comment_input"
 
 
+@dataclass(frozen=True)
+class PendingInsert:
+    """The transient blank line an o/O opened for card search.
+
+    `row` is where the blank sits; `origin` is the cursor row before
+    the open, so cancelling can put the cursor back exactly.
+    """
+
+    row: int
+    origin: int
+
+
 @dataclass
 class EditorState:
     """Mutable editor state bundle passed through handlers."""
@@ -99,6 +111,10 @@ class EditorState:
     # Copies the next confirmed card insert writes ('4o' -> 4); every
     # entry into card search sets it, so it can never go stale
     insert_quantity: int = 1
+    # The scratch blank line an o/O opened for card search. Owned by
+    # the card-search flow: discarded on escape, consumed on confirm —
+    # see discard_pending_insert / take_insert_position.
+    pending_insert: PendingInsert | None = None
     insert_submode: InsertSubmode = InsertSubmode.CARD_SEARCH
     line_edit_original: str | None = None
     line_edit_row: int | None = None
@@ -250,6 +266,14 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
             state.line_edit_prefix = ""
         return HandlerResult(enter_line_edit=True)
     if key in ("o", "O"):
+        # Visual o/O swaps the selection's ends, vim-style — it must
+        # never open a line (doing so used to mutate the buffer and
+        # then crash on the VISUAL->INSERT transition)
+        if state.mode_mgr.is_visual() and state.visual_anchor is not None:
+            anchor = state.visual_anchor
+            state.visual_anchor = state.cursor.row
+            state.cursor = state.cursor.move_to(anchor, 0)
+            return HandlerResult()
         # Vim-style count as copies: 4o opens a card search whose
         # confirmed card is added as '4 <name>'
         state.insert_quantity = max(1, action.count)
@@ -799,6 +823,7 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
     result = move_to_zone(
         state.buffer, state.cursor, target, count,
         main_section=section, uncategorized=uncategorized,
+        alpha=state.settings.auto_sort,
     )
     if not result.moved:
         return HandlerResult(
@@ -1017,6 +1042,7 @@ def _apply_insert_variant(state: EditorState, variant: str) -> None:
     never split the metadata header.
     """
     row = state.cursor.row
+    origin = row
     if state.buffer.get_line(row).line_type == LineType.METADATA:
         while (
             row < state.buffer.line_count()
@@ -1025,12 +1051,50 @@ def _apply_insert_variant(state: EditorState, variant: str) -> None:
             row += 1
         state.buffer = state.buffer.insert_line(row, "")
         state.cursor = state.cursor.move_to(row, 0)
+        state.pending_insert = PendingInsert(row=row, origin=origin)
         return
     if variant == "o":
         state.buffer = state.buffer.insert_line(row + 1, "")
         state.cursor = state.cursor.move_to(row + 1, 0)
+        state.pending_insert = PendingInsert(row=row + 1, origin=origin)
     elif variant == "O":
         state.buffer = state.buffer.insert_line(row, "")
+        state.pending_insert = PendingInsert(row=row, origin=origin)
+
+
+def discard_pending_insert(state: EditorState) -> None:
+    """Cancel path: remove the scratch blank an o/O opened, if it is
+    still there and still blank, and put the cursor back on the line
+    it was opened from. No-op when nothing is pending."""
+    pend = state.pending_insert
+    state.pending_insert = None
+    if pend is None or pend.row >= state.buffer.line_count():
+        return
+    if state.buffer.get_line(pend.row).text.strip():
+        return  # gained content some other way — never delete it
+    state.buffer, _ = state.buffer.delete_lines(pend.row, pend.row)
+    last = state.buffer.line_count() - 1
+    state.cursor = state.cursor.move_to(max(0, min(pend.origin, last)), 0)
+
+
+def take_insert_position(state: EditorState) -> tuple[int, bool]:
+    """Confirm path: remove the scratch blank and return where the
+    insert was opened, as (row, scratch_removed).
+
+    With no pending scratch (cc deleted its line outright) the cursor
+    row is the place the confirmed card belongs — returned with
+    scratch_removed False so callers skip row adjustments.
+    """
+    pend = state.pending_insert
+    state.pending_insert = None
+    if (
+        pend is not None
+        and pend.row < state.buffer.line_count()
+        and not state.buffer.get_line(pend.row).text.strip()
+    ):
+        state.buffer, _ = state.buffer.delete_lines(pend.row, pend.row)
+        return pend.row, True
+    return state.cursor.row, False
 
 
 def _delete_card_at_cursor(state: EditorState) -> None:

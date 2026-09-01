@@ -175,3 +175,29 @@ class TestModeHelpers:
         assert manager.is_command() is False
         manager.transition(Mode.COMMAND)
         assert manager.is_command() is True
+
+
+class TestVisualInsertTransitions:
+    """Visual c / i / A / search legitimately enter INSERT or SEARCH —
+    the whitelist must allow them (the buffer mutates before the mode
+    flips, so a rejected transition strands a half-applied edit)."""
+
+    def test_visual_to_insert(self) -> None:
+        manager = ModeManager()
+        manager.transition(Mode.VISUAL)
+        assert manager.transition(Mode.INSERT) == Mode.INSERT
+
+    def test_visual_line_to_insert(self) -> None:
+        manager = ModeManager()
+        manager.transition(Mode.VISUAL_LINE)
+        assert manager.transition(Mode.INSERT) == Mode.INSERT
+
+    def test_visual_to_search(self) -> None:
+        manager = ModeManager()
+        manager.transition(Mode.VISUAL)
+        assert manager.transition(Mode.SEARCH) == Mode.SEARCH
+
+    def test_visual_line_to_search(self) -> None:
+        manager = ModeManager()
+        manager.transition(Mode.VISUAL_LINE)
+        assert manager.transition(Mode.SEARCH) == Mode.SEARCH

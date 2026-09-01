@@ -56,6 +56,7 @@ from vimtg.editor.session import (
     HandlerResult,
     InsertSubmode,
     count_cards,
+    discard_pending_insert,
     handle_command,
     handle_command_special,
     handle_comment_input_special,
@@ -67,6 +68,7 @@ from vimtg.editor.session import (
     handle_operator,
     handle_tag_input_special,
     resolve_cards,
+    take_insert_position,
 )
 from vimtg.editor.splits import (
     AnalyticsOpen,
@@ -454,6 +456,8 @@ class MainScreen(Screen[None]):
         s.line_edit_prefix = ""
         s.tag_input_action = ""
         s.insert_submode = InsertSubmode.CARD_SEARCH
+        # Cancelling an o/O card search takes its scratch blank with it
+        discard_pending_insert(s)
         s.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
         self.query_one("#search-results", SearchResults).display = False
@@ -501,6 +505,8 @@ class MainScreen(Screen[None]):
 
     def _apply_enter_card_search(self) -> None:
         s = self._state
+        # Entering insert from visual (the c operator) ends the selection
+        s.visual_anchor = None
         s.insert_submode = InsertSubmode.CARD_SEARCH
         s.mode_mgr.transition(Mode.INSERT)
         self.keymap.set_mode(Mode.INSERT)
@@ -634,34 +640,6 @@ class MainScreen(Screen[None]):
             elif len(query) < 2:
                 sr.display = False
 
-    def _write_zone_card(self, name: str, zone: LineType, qty: int) -> None:
-        """Replace the opened blank line with a card in `zone`'s style.
-
-        Inside a zone block the line is written indented bare; among
-        prefix-style entries it gets the SB:/CMD: prefix.
-        """
-        from vimtg.editor.operators import ZONE_PREFIXES
-
-        s = self._state
-        indent = _matched_indent(s.buffer, s.cursor.row)
-        text = (
-            f"{indent}{qty} {name}"
-            if indent
-            else f"{ZONE_PREFIXES[zone]}{qty} {name}"
-        )
-        s.buffer = s.buffer.set_line(s.cursor.row, text)
-
-    def _delete_blank_cursor_line(self) -> bool:
-        """Delete the cursor line if blank (the leftover from an 'o' insert).
-
-        Returns True when a line was removed so callers can adjust offsets.
-        """
-        s = self._state
-        if s.buffer.get_line(s.cursor.row).text.strip() == "":
-            s.buffer, _ = s.buffer.delete_lines(s.cursor.row, s.cursor.row)
-            return True
-        return False
-
     def _confirm_insert(self) -> None:
         sr = self.query_one("#search-results", SearchResults)
         cl = self.query_one("#command-line", CommandLine)
@@ -681,30 +659,38 @@ class MainScreen(Screen[None]):
             if duplicate_line is not None:
                 qty = s.buffer.quantity_at(duplicate_line) or 0
                 s.buffer = s.buffer.set_quantity(duplicate_line, qty + copies)
-                if self._delete_blank_cursor_line() and duplicate_line > s.cursor.row:
+                open_row, removed = take_insert_position(s)
+                if removed and duplicate_line > open_row:
                     duplicate_line -= 1
-                s.cursor = s.cursor.move_to(min(duplicate_line, s.buffer.line_count() - 1), 0)
+                s.cursor = s.cursor.move_to(
+                    min(duplicate_line, s.buffer.line_count() - 1), 0
+                )
             elif zone != LineType.CARD_ENTRY:
-                # Non-main zones aren't type-grouped: the card lands
-                # exactly where opened, in the zone's own style
-                self._write_zone_card(card.name, zone, copies)
+                self._insert_zone_card(card.name, zone, copies)
             elif not s.settings.auto_sort:
                 # auto_sort off: card goes exactly where the user opened it
-                indent = _matched_indent(s.buffer, s.cursor.row)
-                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}{copies} {card.name}")
+                open_row, _ = take_insert_position(s)
+                indent = _matched_indent(s.buffer, open_row)
+                s.buffer = s.buffer.insert_line(
+                    open_row, f"{indent}{copies} {card.name}"
+                )
+                s.cursor = s.cursor.move_to(open_row, 0)
             elif detect_layout(s.buffer) == LAYOUT_CATEGORY:
                 # Category layout: stay where opened, inherit the
                 # enclosing '// @name' section's category
-                indent = _matched_indent(s.buffer, s.cursor.row)
-                s.buffer = s.buffer.set_line(s.cursor.row, f"{indent}{copies} {card.name}")
-                category = enclosing_category(s.buffer, s.cursor.row)
+                open_row, _ = take_insert_position(s)
+                indent = _matched_indent(s.buffer, open_row)
+                s.buffer = s.buffer.insert_line(
+                    open_row, f"{indent}{copies} {card.name}"
+                )
+                category = enclosing_category(s.buffer, open_row)
                 if category:
-                    s.buffer = s.buffer.set_category(s.cursor.row, category)
+                    s.buffer = s.buffer.set_category(open_row, category)
+                s.cursor = s.cursor.move_to(open_row, 0)
             else:
-                # Remove the blank line 'o' opened BEFORE the section
-                # math — creating a header can shift rows past the
-                # cursor, leaving a stale row for the blank's deletion
-                self._delete_blank_cursor_line()
+                # Remove the scratch blank BEFORE the section math —
+                # creating a header can shift rows past a stale cursor
+                take_insert_position(s)
                 s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
                 if insert_row is None:
                     insert_row = s.buffer.line_count()
@@ -729,14 +715,36 @@ class MainScreen(Screen[None]):
                 f"Added {added}{zone_note}  (+/- to change qty, dd to remove)"
             )
         else:
-            # No card selected — clean up blank line from 'o'
-            s = self._state
-            if self._delete_blank_cursor_line():
-                s.cursor = s.cursor.clamp(s.buffer.line_count() - 1)
+            # No card selected — the o/O scratch blank is discarded
+            discard_pending_insert(self._state)
             cl.hide()
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
+
+    def _insert_zone_card(self, name: str, zone: LineType, qty: int) -> None:
+        """Add a card to a non-main zone. With auto-sort on, sideboard
+        and maybeboard lines stay alphabetical; otherwise (and for the
+        commander/companion zones, where order matters) the card lands
+        where the line was opened, in the zone's own style."""
+        from vimtg.editor.operators import (
+            ALPHA_ZONES,
+            insert_zone_line,
+            zone_line_text,
+        )
+
+        s = self._state
+        open_row, _ = take_insert_position(s)
+        body = f"{qty} {name}"
+        if s.settings.auto_sort and zone in ALPHA_ZONES:
+            s.buffer, dest_row, _count = insert_zone_line(
+                s.buffer, zone, body, sort_name=name
+            )
+            s.cursor = s.cursor.move_to(dest_row, 0)
+            return
+        text = zone_line_text(s.buffer, open_row, zone, body)
+        s.buffer = s.buffer.insert_line(open_row, text)
+        s.cursor = s.cursor.move_to(open_row, 0)
 
     # ── Split panes and EDHREC ───────────────────────────────────
 

@@ -678,3 +678,130 @@ class TestZoneMoves:
         result = handle_normal_special(state, _act("ms", count=0))
         assert result.error
         assert not state.modified
+
+
+class TestVisualO:
+    def test_visual_o_swaps_cursor_and_anchor(self) -> None:
+        st = _state(row=1)
+        handle_mode_switch(st, _act("v", action_type="mode_switch"))
+        st.mode_mgr.transition(Mode.VISUAL)
+        st.cursor = Cursor(row=3)
+        before_lines = st.buffer.line_count()
+        hr = handle_mode_switch(st, _act("o", action_type="mode_switch"))
+        assert st.cursor.row == 1
+        assert st.visual_anchor == 3
+        assert st.buffer.line_count() == before_lines  # no newline!
+        assert not hr.enter_insert
+        # Swapping back restores the original ends
+        handle_mode_switch(st, _act("o", action_type="mode_switch"))
+        assert st.cursor.row == 3
+        assert st.visual_anchor == 1
+
+    def test_visual_upper_o_swaps_too(self) -> None:
+        st = _state(row=1)
+        handle_mode_switch(st, _act("V", action_type="mode_switch"))
+        st.mode_mgr.transition(Mode.VISUAL_LINE)
+        st.cursor = Cursor(row=0)
+        hr = handle_mode_switch(st, _act("O", action_type="mode_switch"))
+        assert st.cursor.row == 1
+        assert st.visual_anchor == 0
+        assert not hr.enter_insert
+
+
+class TestPendingInsert:
+    def test_o_records_pending_insert(self) -> None:
+        from vimtg.editor.session import PendingInsert
+
+        st = _state(row=1)
+        handle_mode_switch(st, _act("o", action_type="mode_switch"))
+        assert st.pending_insert == PendingInsert(row=2, origin=1)
+
+    def test_upper_o_records_pending_insert(self) -> None:
+        from vimtg.editor.session import PendingInsert
+
+        st = _state(row=1)
+        handle_mode_switch(st, _act("O", action_type="mode_switch"))
+        assert st.pending_insert == PendingInsert(row=1, origin=1)
+
+    def test_discard_removes_blank_and_restores_cursor(self) -> None:
+        from vimtg.editor.session import discard_pending_insert
+
+        st = _state(row=1)
+        original = st.buffer.to_text()
+        handle_mode_switch(st, _act("o", action_type="mode_switch"))
+        discard_pending_insert(st)
+        assert st.buffer.to_text() == original
+        assert st.cursor.row == 1
+        assert st.pending_insert is None
+
+    def test_discard_after_upper_o(self) -> None:
+        from vimtg.editor.session import discard_pending_insert
+
+        st = _state(row=1)
+        original = st.buffer.to_text()
+        handle_mode_switch(st, _act("O", action_type="mode_switch"))
+        discard_pending_insert(st)
+        assert st.buffer.to_text() == original
+        assert st.cursor.row == 1
+
+    def test_discard_is_noop_without_pending(self) -> None:
+        from vimtg.editor.session import discard_pending_insert
+
+        st = _state(row=1)
+        original = st.buffer.to_text()
+        discard_pending_insert(st)
+        assert st.buffer.to_text() == original
+
+    def test_discard_keeps_line_with_content(self) -> None:
+        """If the scratch line somehow gained content, never delete it."""
+        from vimtg.editor.session import discard_pending_insert
+
+        st = _state(row=1)
+        handle_mode_switch(st, _act("o", action_type="mode_switch"))
+        st.buffer = st.buffer.set_line(2, "1 Opt")
+        discard_pending_insert(st)
+        assert "1 Opt" in st.buffer.to_text()
+
+    def test_take_insert_position_removes_scratch(self) -> None:
+        from vimtg.editor.session import take_insert_position
+
+        st = _state(row=1)
+        before = st.buffer.line_count()
+        handle_mode_switch(st, _act("o", action_type="mode_switch"))
+        row, removed = take_insert_position(st)
+        assert (row, removed) == (2, True)
+        assert st.buffer.line_count() == before
+        assert st.pending_insert is None
+
+    def test_take_falls_back_to_cursor_row(self) -> None:
+        """cc deletes its line and opens no scratch — the confirmed
+        card belongs at the cursor row."""
+        from vimtg.editor.session import take_insert_position
+
+        st = _state(row=1)
+        row, removed = take_insert_position(st)
+        assert (row, removed) == (1, False)
+
+
+class TestZoneMoveAlphabetical:
+    def test_ms_keeps_sideboard_alphabetical(self) -> None:
+        """auto_sort (the default) keeps SB: lines in name order."""
+        state = _state(
+            "4 Lightning Bolt\n\nSB: 2 Duress\nSB: 2 Rest in Peace\n", row=0
+        )
+        handle_normal_special(state, _act("ms", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert lines.index("SB: 4 Lightning Bolt") == (
+            lines.index("SB: 2 Duress") + 1
+        )
+
+    def test_ms_appends_when_auto_sort_off(self) -> None:
+        from vimtg.config.settings import Settings
+
+        state = _state(
+            "4 Lightning Bolt\n\nSB: 2 Rest in Peace\nSB: 2 Duress\n", row=0
+        )
+        state.settings = Settings(auto_sort=False)
+        handle_normal_special(state, _act("ms", count=0))
+        lines = [bl.text for bl in state.buffer.get_lines()]
+        assert lines[-1] == "SB: 4 Lightning Bolt"
