@@ -73,6 +73,7 @@ def validate_deck(
                 )
 
     errors.extend(_check_companion(deck, lookup))
+    errors.extend(_check_plans(deck, fmt))
 
     rules = get_format_rules(fmt)
     if rules is None:
@@ -90,6 +91,14 @@ def validate_deck(
     if rules.requires_commander:
         errors.extend(_check_commander(deck, lookup, rules))
     return errors
+
+
+def _check_plans(deck: Deck, fmt: str) -> list[ValidationError]:
+    """Sideboard-plan checks (imported lazily: sideboard_plan needs
+    ValidationError from this module)."""
+    from vimtg.domain.sideboard_plan import validate_plans
+
+    return validate_plans(deck, fmt if fmt.strip() else None)
 
 
 def _lowercase_lookup(

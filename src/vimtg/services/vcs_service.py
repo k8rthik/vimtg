@@ -26,6 +26,7 @@ from vimtg.domain.deck_merge import (
     merged_map_to_deck_state,
     three_way_merge,
 )
+from vimtg.domain.sideboard_plan import SideboardPlan
 from vimtg.domain.vcs import VCSBranch, VCSSnapshot, VCSStatus
 
 
@@ -53,6 +54,20 @@ def _semantic_entries(
     return tuple(
         (e.quantity, e.card_name, e.section, e.tags, e.comment)
         for e in entries
+    )
+
+
+def _semantic_plans(
+    plans: tuple[SideboardPlan, ...],
+) -> tuple[tuple[object, ...], ...]:
+    """Sideboard plans with buffer positions normalized out."""
+    return tuple(
+        (
+            p.name,
+            p.note,
+            tuple((e.sign, e.quantity, e.card_name, e.comment) for e in p.entries),
+        )
+        for p in plans
     )
 
 
@@ -698,6 +713,7 @@ class VersionControlService:
             _semantic_entries(tip_deck.entries)
             != _semantic_entries(current_deck.entries)
             or tip_deck.metadata != current_deck.metadata
+            or _semantic_plans(tip_deck.plans) != _semantic_plans(current_deck.plans)
         )
 
     def status(self, current_deck_state: str) -> VCSStatus:

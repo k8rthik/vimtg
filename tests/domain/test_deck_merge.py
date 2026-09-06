@@ -224,3 +224,20 @@ class TestCommentHandling:
         state = merged_map_to_deck_state(merged, ours)
         assert "// Deck: Burn" in state
         assert "// Format: modern" in state
+
+
+class TestPlanHandling:
+    def test_plans_survive_merge_from_ours(self) -> None:
+        ours = "4 Goblin Guide\nSB: 2 Shock\n\nVS: Tron\n    -1 Goblin Guide\n    +1 Shock\n"
+        merged = {
+            ("Goblin Guide", DeckSection.MAIN): 4,
+            ("Shock", DeckSection.SIDEBOARD): 2,
+        }
+        state = merged_map_to_deck_state(merged, ours)
+        assert "VS: Tron\n    -1 Goblin Guide\n    +1 Shock\n" in state
+
+    def test_plans_survive_apply_changes(self) -> None:
+        ours = "4 Goblin Guide\n\nVS: Tron\n    -1 Goblin Guide\n"
+        diff = compute_deck_diff("", _state("2 Shock"))
+        state = apply_card_changes(ours, diff.changes)
+        assert "VS: Tron\n    -1 Goblin Guide\n" in state
