@@ -14,6 +14,7 @@ from vimtg.domain.tags import TagFilter, matches_filter
 from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.header_counts import HeaderCount, header_counts
 from vimtg.tui.deck_renderer import render_line
 from vimtg.tui.widgets.scrolling import compute_scroll_offset
 
@@ -39,6 +40,18 @@ class DeckView(Static):
     # windowing is by buffer line, which keeps the math simple.
     _scroll_offset: int = 0
 
+    # Header count annotations, cached per Buffer — buffers are
+    # immutable, so identity is a sound cache key.
+    _counts_key: Buffer | None = None
+    _counts: dict[int, HeaderCount] = {}
+
+    def _header_counts(self) -> dict[int, HeaderCount]:
+        assert self.buffer is not None
+        if self.buffer is not self._counts_key:
+            self._counts = header_counts(self.buffer)
+            self._counts_key = self.buffer
+        return self._counts
+
     def _visible_range(self) -> tuple[int, int]:
         """The [start, end) buffer-line window for the current viewport.
 
@@ -62,6 +75,7 @@ class DeckView(Static):
             return Text("No deck loaded", style="dim")
 
         start, end = self._visible_range()
+        counts = self._header_counts()
         output = Text()
         for i in range(start, end):
             dimmed = (
@@ -79,6 +93,7 @@ class DeckView(Static):
                 dimmed=dimmed,
                 width=self.size.width or None,
                 line_error=self.line_errors.get(i),
+                header_count=counts.get(i),
             )
             for line in lines:
                 output.append(line)

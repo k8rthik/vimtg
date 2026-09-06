@@ -15,6 +15,7 @@ from rich.text import Text
 from vimtg.domain.card import Card
 from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.header_counts import HeaderCount
 from vimtg.tui.theme import COLORS
 
 MANA_COLORS: dict[str, str] = {
@@ -29,6 +30,18 @@ _MANA_RE = re.compile(r"\{([^}]+)\}")
 _CURSOR_STYLE = f"on {COLORS['cursor_bg']}"
 _COMMENT_STYLE = f"dim italic {COLORS['comment']}"
 _EXPANSION_STYLE = f"dim {COLORS['expansion']}"
+_COUNT_STYLE = f"dim {COLORS['quantity']}"
+
+
+def _count_annotation(line_type: LineType, count: HeaderCount) -> str:
+    """Visual card-total suffix for a header line — '(12)' on section
+    and zone headers, '· 60 cards' on the '// Deck:' title line, or
+    '· 60/15 cards' (main/side) when the deck has a sideboard."""
+    if line_type == LineType.METADATA:
+        if count.side:
+            return f"  · {count.main}/{count.side} cards"
+        return f"  · {count.main} cards"
+    return f"  ({count.main})"
 
 
 def _lint_sign(err: ValidationError | None) -> Text:
@@ -91,6 +104,7 @@ def render_line(
     dimmed: bool = False,
     width: int | None = None,
     line_error: ValidationError | None = None,
+    header_count: HeaderCount | None = None,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
@@ -98,7 +112,8 @@ def render_line(
     is on this card, the card is resolved, and auto_expand is on.
     `dimmed` renders the line de-emphasized (tag filter mismatch)
     and suppresses expansion. `line_error` puts a ✗/! sign in the
-    gutter.
+    gutter. `header_count` appends a card total to header lines
+    (see editor.header_counts); it is ignored on other line types.
     """
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
@@ -116,6 +131,8 @@ def render_line(
         t = Text()
         t.append(gutter)
         t.append(f"{bl.text}", style=_COMMENT_STYLE)
+        if header_count is not None and bl.line_type != LineType.COMMENT:
+            t.append(_count_annotation(bl.line_type, header_count), style=_COUNT_STYLE)
         if is_cursor:
             t.stylize(_CURSOR_STYLE)
         lines.append(t)

@@ -2,6 +2,7 @@
 
 from vimtg.domain.card import Card, Color, Prices, Rarity
 from vimtg.editor.buffer import Buffer
+from vimtg.editor.header_counts import HeaderCount
 from vimtg.tui.deck_renderer import format_mana, render_line
 
 
@@ -172,3 +173,46 @@ class TestInlineCommentRender:
         lines = render_line(0, buf, cursor_row=1, resolved={})
         assert "// best burn spell" in lines[0].plain
         assert "#burn" in lines[0].plain
+
+
+class TestHeaderCountRender:
+    def test_section_header_shows_count(self) -> None:
+        buf = Buffer.from_text("// Creatures\n4 Bear\n")
+        lines = render_line(
+            0, buf, cursor_row=1, resolved={}, header_count=HeaderCount(4)
+        )
+        assert "(4)" in lines[0].plain
+
+    def test_section_header_without_count_unannotated(self) -> None:
+        buf = Buffer.from_text("// Creatures\n4 Bear\n")
+        lines = render_line(0, buf, cursor_row=1, resolved={})
+        assert "(" not in lines[0].plain
+
+    def test_zone_header_shows_count(self) -> None:
+        buf = Buffer.from_text("DCK:\n    4 Bear\n")
+        lines = render_line(
+            0, buf, cursor_row=1, resolved={}, header_count=HeaderCount(4)
+        )
+        assert "(4)" in lines[0].plain
+
+    def test_deck_metadata_shows_cards_total(self) -> None:
+        buf = Buffer.from_text("// Deck: Test\n4 Bear\n")
+        lines = render_line(
+            0, buf, cursor_row=1, resolved={}, header_count=HeaderCount(4)
+        )
+        assert "4 cards" in lines[0].plain
+
+    def test_deck_metadata_shows_sideboard_split(self) -> None:
+        buf = Buffer.from_text("// Deck: Test\n4 Bear\nSB: 3 Duress\n")
+        lines = render_line(
+            0, buf, cursor_row=1, resolved={},
+            header_count=HeaderCount(4, side=3),
+        )
+        assert "4/3 cards" in lines[0].plain
+
+    def test_card_line_ignores_header_count(self) -> None:
+        buf = Buffer.from_text("4 Bear\n")
+        lines = render_line(
+            0, buf, cursor_row=1, resolved={}, header_count=HeaderCount(9)
+        )
+        assert "(9)" not in lines[0].plain

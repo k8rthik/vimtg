@@ -124,13 +124,14 @@ _CARD_PATTERNS = (
 )
 
 # Zone-block header tag → the LineType its indented bare card lines get
-_ZONE_TAG_TYPES: dict[str, LineType] = {
+ZONE_TAG_TYPES: dict[str, LineType] = {
     "DCK": LineType.CARD_ENTRY,
     "CMD": LineType.COMMANDER_ENTRY,
     "CMP": LineType.COMPANION_ENTRY,
     "SB": LineType.SIDEBOARD_ENTRY,
     "MB": LineType.MAYBEBOARD_ENTRY,
 }
+_ZONE_TAG_TYPES = ZONE_TAG_TYPES
 
 # Text section headers whose cards live in a non-main zone; every other
 # header ("// Creatures", "// @ramp", ...) labels mainboard cards.
