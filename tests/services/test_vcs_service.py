@@ -584,3 +584,14 @@ class TestIsDirtySemanticFallback:
     ) -> None:
         vcs.commit("// Format: modern\n\n" + STATE_V1, "initial")
         assert vcs.is_dirty("// Format: legacy\n\n" + STATE_V1) is True
+
+
+class TestIsDirtyPlans:
+    def test_plan_edit_is_dirty(self, vcs: VersionControlService) -> None:
+        with_plan = STATE_V1 + "\nVS: Tron\n    -1 Goblin Guide\n"
+        vcs.commit(with_plan, "initial")
+        assert vcs.is_dirty(with_plan.replace("-1 Goblin", "-2 Goblin")) is True
+
+    def test_new_plan_is_dirty(self, vcs: VersionControlService) -> None:
+        vcs.commit(STATE_V1, "initial")
+        assert vcs.is_dirty(STATE_V1 + "\nVS: Tron\n") is True

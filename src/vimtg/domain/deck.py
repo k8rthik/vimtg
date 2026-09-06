@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vimtg.domain.sideboard_plan import SideboardPlan
 
 
 class DeckSection(Enum):
@@ -50,6 +54,8 @@ class Deck:
     metadata: DeckMetadata
     entries: tuple[DeckEntry, ...]
     comments: tuple[CommentLine, ...]
+    # Sideboard plans ('VS:' blocks) — see domain.sideboard_plan
+    plans: tuple[SideboardPlan, ...] = ()
 
     def total_cards(self) -> int:
         return sum(e.quantity for e in self.entries)

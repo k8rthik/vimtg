@@ -237,3 +237,31 @@ class TestMaybeboard:
         assert entry.section.value == "maybeboard"
         assert entry.card_name == "Chandra"
         assert "MB: 2 Chandra  #maybe  // testing" in serialize_deck(deck)
+
+
+class TestSideboardPlans:
+    def test_vs_block_round_trip(self) -> None:
+        text = (
+            "4 Opt\nSB: 2 Duress\n\n"
+            "VS: Tron  // mull hard\n    -2 Opt  // keep 2\n    +2 Duress\n"
+        )
+        deck = parse_deck_text(text)
+        assert len(deck.plans) == 1
+        out = serialize_deck(deck)
+        assert out.endswith(
+            "\nVS: Tron  // mull hard\n    -2 Opt  // keep 2\n    +2 Duress\n"
+        )
+        reparsed = parse_deck_text(out).plans
+        assert [
+            (p.name, p.note, [(e.sign, e.quantity, e.card_name, e.comment) for e in p.entries])
+            for p in reparsed
+        ] == [("Tron", "mull hard", [("-", 2, "Opt", "keep 2"), ("+", 2, "Duress", "")])]
+
+    def test_plans_serialize_after_every_zone(self) -> None:
+        deck = parse_deck_text("VS: x\n    -1 Opt\nMB: 1 Shock\n4 Opt\n")
+        out = serialize_deck(deck)
+        assert out.index("MB: 1 Shock") < out.index("VS: x")
+
+    def test_plan_lines_are_not_comments(self) -> None:
+        deck = parse_deck_text("4 Opt\nVS: x\n    -1 Opt\n")
+        assert deck.comments == ()

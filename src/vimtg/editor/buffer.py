@@ -25,12 +25,15 @@ from vimtg.domain.deck_lines import (
     CMD_PATTERN,
     CMP_PATTERN,
     MB_PATTERN,
+    PLAN_TAG,
     SB_PATTERN,
     apply_zone_effect,
     clamp_quantity,
     format_inline_comment,
     match_metadata,
     parse_card_suffix,
+    parse_plan_entry,
+    parse_plan_header,
     parse_zone_header,
     split_inline_comment,
     zone_block_contexts,
@@ -51,6 +54,9 @@ class LineType(Enum):
     COMPANION_ENTRY = "companion"
     BLANK = "blank"
     METADATA = "metadata"
+    # Sideboard plans: 'VS: Tron' and its indented '-4 Bolt' / '+3 Moon'
+    PLAN_HEADER = "plan_header"
+    PLAN_ENTRY = "plan_entry"
 
 
 SECTION_HEADERS = frozenset({
@@ -97,6 +103,9 @@ def classify_line(text: str) -> LineType:
     # "DCK:"/"CMD:"/… — Python-style zone block header (cards sit beneath)
     if parse_zone_header(stripped) is not None:
         return LineType.SECTION_HEADER
+    # "VS: Tron" — a sideboard plan block header
+    if parse_plan_header(stripped) is not None:
+        return LineType.PLAN_HEADER
     if _SB_PATTERN.match(stripped):
         return LineType.SIDEBOARD_ENTRY
     if _MB_PATTERN.match(stripped):
@@ -155,6 +164,8 @@ def insertion_zone(buffer: Buffer, row: int) -> LineType:
     texts = [bl.text for bl in buffer.get_lines()]
     if texts:
         tag = zone_running_context(texts, min(row, len(texts) - 1))
+        if tag == PLAN_TAG:
+            return LineType.PLAN_ENTRY
         if tag is not None:
             return _ZONE_TAG_TYPES[tag]
     for i in range(min(row, buffer.line_count()) - 1, -1, -1):
@@ -173,6 +184,27 @@ def insertion_zone(buffer: Buffer, row: int) -> LineType:
     return LineType.CARD_ENTRY
 
 
+def _classify_in_block(text: str, line_type: LineType, tag: str | None) -> LineType:
+    """Apply a block context to a per-line classification.
+
+    Inside a zone block a bare card line takes the zone. Inside a plan
+    block any card-shaped line — signed ('-4 Bolt', a COMMENT on its
+    own) or unsigned ('4 Bolt', a CARD_ENTRY on its own) — is a plan
+    entry; it must never count as a mainboard card.
+    """
+    if tag is None:
+        return line_type
+    if tag == PLAN_TAG:
+        if line_type == LineType.CARD_ENTRY or (
+            line_type == LineType.COMMENT and parse_plan_entry(text) is not None
+        ):
+            return LineType.PLAN_ENTRY
+        return line_type
+    if line_type == LineType.CARD_ENTRY:
+        return _ZONE_TAG_TYPES[tag]
+    return line_type
+
+
 def classify_lines(texts: Sequence[str]) -> tuple[BufferLine, ...]:
     """Classify lines with zone-block context.
 
@@ -183,9 +215,7 @@ def classify_lines(texts: Sequence[str]) -> tuple[BufferLine, ...]:
     contexts = zone_block_contexts(texts)
     lines: list[BufferLine] = []
     for text, ctx in zip(texts, contexts, strict=True):
-        line_type = classify_line(text)
-        if ctx is not None and line_type == LineType.CARD_ENTRY:
-            line_type = _ZONE_TAG_TYPES[ctx]
+        line_type = _classify_in_block(text, classify_line(text), ctx)
         lines.append(BufferLine(text=text, line_type=line_type))
     return tuple(lines)
 
@@ -240,11 +270,9 @@ class Buffer:
     def _classify_one(texts: Sequence[str], n: int) -> BufferLine:
         """Classify one row with its zone-block context."""
         text = texts[n]
-        line_type = classify_line(text)
-        if line_type == LineType.CARD_ENTRY:
-            ctx = zone_context_at(texts, n)
-            if ctx is not None:
-                line_type = _ZONE_TAG_TYPES[ctx]
+        line_type = _classify_in_block(
+            text, classify_line(text), zone_context_at(texts, n)
+        )
         return BufferLine(text=text, line_type=line_type)
 
     def set_line(self, n: int, text: str) -> Buffer:

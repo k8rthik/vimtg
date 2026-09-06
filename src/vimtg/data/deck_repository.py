@@ -31,15 +31,19 @@ from vimtg.domain.deck_lines import (
     METADATA_PATTERN as _METADATA_PATTERN,
 )
 from vimtg.domain.deck_lines import (
-    SB_PATTERN as _SIDEBOARD_PATTERN,
-)
-from vimtg.domain.deck_lines import (
+    PLAN_TAG,
     clamp_quantity,
     format_inline_comment,
     parse_card_parts,
+    parse_plan_entry,
+    parse_plan_header_parts,
     parse_zone_header,
     zone_block_contexts,
 )
+from vimtg.domain.deck_lines import (
+    SB_PATTERN as _SIDEBOARD_PATTERN,
+)
+from vimtg.domain.sideboard_plan import PlanEntry, SideboardPlan
 from vimtg.domain.tags import format_inline_tags
 
 
@@ -135,6 +139,7 @@ def parse_deck_text(text: str) -> Deck:
     entries: list[DeckEntry] = []
     comments: list[CommentLine] = []
     metadata_lines: list[str] = []
+    plans: list[SideboardPlan] = []
 
     for line_number, raw_line in enumerate(raw_lines, start=1):
         line = raw_line.strip()
@@ -156,10 +161,30 @@ def parse_deck_text(text: str) -> Deck:
         if parse_zone_header(line) is not None:
             continue
 
+        # 'VS: name' opens a sideboard plan; its indented lines follow
+        header = parse_plan_header_parts(line)
+        if header is not None:
+            plans.append(SideboardPlan(
+                name=header[0], note=header[1], line_number=line_number,
+            ))
+            continue
+
+        block = block_contexts[line_number - 1]
+        if block == PLAN_TAG:
+            plan_entry = _parse_plan_entry_line(line, line_number)
+            if plan_entry is not None and plans:
+                plans[-1] = replace(
+                    plans[-1], entries=plans[-1].entries + (plan_entry,)
+                )
+                continue
+            # An explicitly prefixed zone line inside a plan block is
+            # still a zone card (explicit prefix wins) — fall through
+
         entry = _parse_entry_line(line, line_number)
         if entry is not None:
-            block = block_contexts[line_number - 1]
             if entry.section == DeckSection.MAIN and block is not None:
+                if block == PLAN_TAG:
+                    continue  # unsigned line handled above; never a card
                 entry = replace(entry, section=_BLOCK_SECTIONS[block])
             entries.append(entry)
 
@@ -171,6 +196,36 @@ def parse_deck_text(text: str) -> Deck:
         metadata=metadata,
         entries=tuple(entries),
         comments=tuple(comments),
+        plans=tuple(plans),
+    )
+
+
+def _parse_plan_entry_line(line: str, line_number: int) -> PlanEntry | None:
+    """Parse one '[+-]N Card  // note' plan line, or None.
+
+    Explicitly prefixed zone lines ('SB: 1 X') are not plan entries.
+    """
+    if _is_prefixed_zone_line(line):
+        return None
+    parsed = parse_plan_entry(line)
+    if parsed is None:
+        return None
+    sign, quantity, rest = parsed
+    name, _category, _tags, comment = parse_card_parts(rest)
+    return PlanEntry(
+        card_name=name,
+        quantity=clamp_quantity(quantity),
+        sign=sign,
+        comment=comment,
+        line_number=line_number,
+    )
+
+
+def _is_prefixed_zone_line(line: str) -> bool:
+    return any(
+        pattern.match(line)
+        for pattern, section in _ENTRY_PATTERNS
+        if section != DeckSection.MAIN
     )
 
 
@@ -239,6 +294,14 @@ def serialize_deck(deck: Deck) -> str:
                 lines.append(f"CMP: {entry.quantity} {entry.card_name}{suffix}")
             else:
                 lines.append(f"{entry.quantity} {entry.card_name}{suffix}")
+
+    # Sideboard plans come last, always in block style
+    for plan in deck.plans:
+        if lines:
+            lines.append("")
+        lines.append(f"VS: {plan.name}{format_inline_comment(plan.note)}")
+        for plan_entry in plan.entries:
+            lines.append(f"    {plan_entry.text()}")
 
     if lines:
         lines.append("")

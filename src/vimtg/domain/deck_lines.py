@@ -37,11 +37,63 @@ CMP_PATTERN = re.compile(r"^CMP:\s*(\d+)\s+(.+)$")
 #       1 Tymna the Weaver
 ZONE_HEADER_PATTERN = re.compile(r"^(DCK|CMD|CMP|SB|MB):\s*$", re.IGNORECASE)
 
+# A sideboard plan is a named block: "VS: Tron" followed by indented
+# signed entries — "-4 Lightning Bolt" (out of the mainboard) and
+# "+3 Alpine Moon" (in from the sideboard). The header may carry a
+# "  // note"; the name is whatever precedes it.
+PLAN_TAG = "VS"
+PLAN_HEADER_PATTERN = re.compile(r"^VS:\s*(.*)$", re.IGNORECASE)
+# Sign is optional so an unsigned line inside a plan block still parses
+# (and can be flagged) rather than silently becoming a mainboard card.
+PLAN_ENTRY_PATTERN = re.compile(r"^\s*([+-]?)\s*(\d+)\s+(.+)$")
+
 
 def parse_zone_header(text: str) -> str | None:
     """Canonical zone tag ('DCK', 'CMD', …) for a bare header line, else None."""
     m = ZONE_HEADER_PATTERN.match(text.strip())
     return m.group(1).upper() if m else None
+
+
+def parse_plan_header_parts(text: str) -> tuple[str, str] | None:
+    """(name, note) for a 'VS: name  // note' plan header, else None.
+
+    A bare 'VS:' with no name is not a header.
+    """
+    m = PLAN_HEADER_PATTERN.match(text.strip())
+    if not m:
+        return None
+    name, note = split_inline_comment(m.group(1))
+    name = name.strip()
+    return (name, note) if name else None
+
+
+def parse_plan_header(text: str) -> str | None:
+    """The matchup name of a 'VS: name' plan header line, else None."""
+    parts = parse_plan_header_parts(text)
+    return parts[0] if parts else None
+
+
+def parse_plan_entry(text: str) -> tuple[str, int, str] | None:
+    """(sign, quantity, rest) for a '[+-]N Card …' plan entry, else None.
+
+    `sign` is '+', '-', or '' when the line has none. `rest` is the raw
+    name portion (tags/comment still attached — see parse_card_parts).
+    """
+    m = PLAN_ENTRY_PATTERN.match(text.strip())
+    if not m:
+        return None
+    return m.group(1), int(m.group(2)), m.group(3).strip()
+
+
+def block_header_tag(text: str) -> str | None:
+    """Tag of the block a bare header line opens: a zone tag, PLAN_TAG
+    for a 'VS: name' plan header, or None for any other line."""
+    tag = parse_zone_header(text)
+    if tag is not None:
+        return tag
+    if parse_plan_header(text) is not None:
+        return PLAN_TAG
+    return None
 
 
 def is_deck_header(text: str) -> bool:
@@ -50,7 +102,11 @@ def is_deck_header(text: str) -> bool:
 
 
 def zone_block_contexts(raw_lines: Sequence[str]) -> list[str | None]:
-    """Per-line enclosing zone-block tag, or None outside any block.
+    """Per-line enclosing block tag, or None outside any block.
+
+    Zone blocks ('SB:') and sideboard-plan blocks ('VS: Tron', tag
+    PLAN_TAG) follow the same rules. A plan header closes any zone block
+    and vice versa, so plan entries are never pulled into a zone.
 
     Python-style rules: a bare 'ZONE:' header opens a block; indented
     lines are inside it; blank lines are neutral; any unindented
@@ -65,7 +121,7 @@ def zone_block_contexts(raw_lines: Sequence[str]) -> list[str | None]:
         if not stripped:
             contexts.append(None)
             continue
-        tag = parse_zone_header(raw)
+        tag = block_header_tag(raw)
         if tag is not None:
             current = tag
             contexts.append(None)
@@ -89,7 +145,7 @@ def zone_running_context(raw_lines: Sequence[str], row: int) -> str | None:
 def zone_context_at(raw_lines: Sequence[str], row: int) -> str | None:
     """zone_block_contexts(raw_lines)[row], scanning only up to `row`."""
     raw = raw_lines[row]
-    if not raw.strip() or parse_zone_header(raw) is not None:
+    if not raw.strip() or block_header_tag(raw) is not None:
         return None
     if not raw[:1].isspace():
         return None
@@ -103,7 +159,7 @@ def zone_context_effect(text: str) -> str:
     stripped = text.strip()
     if not stripped:
         return "keep"
-    tag = parse_zone_header(text)
+    tag = block_header_tag(text)
     if tag is not None:
         return f"set:{tag}"
     return "keep" if text[:1].isspace() else "clear"

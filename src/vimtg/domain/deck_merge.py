@@ -139,6 +139,7 @@ def merged_map_to_deck_state(
         metadata=ours_deck.metadata,
         entries=tuple(entries),
         comments=(),
+        plans=ours_deck.plans,
     )
     return serialize_deck(result_deck)
 
@@ -211,5 +212,6 @@ def apply_card_changes(state: str, changes: Sequence[CardChange]) -> str:
         metadata=deck.metadata,
         entries=tuple(entries),
         comments=(),
+        plans=deck.plans,
     )
     return serialize_deck(result_deck)
