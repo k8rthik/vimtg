@@ -107,13 +107,17 @@ def motion_prev_section(cursor: Cursor, buffer: Buffer, count: int = 1) -> Curso
     return cursor.move_to(pos, 0)
 
 
+# ]] / [[ stop on section headers and sideboard-plan headers alike
+_HEADER_TYPES = (LineType.SECTION_HEADER, LineType.PLAN_HEADER)
+
+
 def motion_section_header_next(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
     """]] — Jump forward to the next section header comment."""
     pos = cursor.row
     for _ in range(count):
         pos += 1
         while pos < buffer.line_count():
-            if buffer.get_line(pos).line_type == LineType.SECTION_HEADER:
+            if buffer.get_line(pos).line_type in _HEADER_TYPES:
                 break
             pos += 1
         if pos >= buffer.line_count():
@@ -128,7 +132,7 @@ def motion_section_header_prev(cursor: Cursor, buffer: Buffer, count: int = 1) -
     for _ in range(count):
         pos -= 1
         while pos >= 0:
-            if buffer.get_line(pos).line_type == LineType.SECTION_HEADER:
+            if buffer.get_line(pos).line_type in _HEADER_TYPES:
                 break
             pos -= 1
         if pos < 0:

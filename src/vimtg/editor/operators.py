@@ -147,9 +147,10 @@ def put_lines(
 def increment_quantity(buffer: Buffer, cursor: Cursor, count: int = 1) -> Buffer:
     """+ key: increment quantity of card at cursor line (10+ adds 10).
 
-    Preserves the SB:/CMD: prefix and any inline tags.
+    Preserves the SB:/CMD: prefix (or a plan entry's sign) and any
+    inline tags.
     """
-    if not buffer.is_card_line(cursor.row):
+    if not buffer.has_quantity(cursor.row):
         return buffer
     qty = buffer.quantity_at(cursor.row)
     if qty is None:
@@ -162,9 +163,10 @@ def decrement_quantity(
 ) -> tuple[Buffer, Cursor]:
     """- key: decrement (3- subtracts 3). Delete line if qty reaches 0.
 
-    Preserves the SB:/CMD: prefix and any inline tags.
+    Preserves the SB:/CMD: prefix (or a plan entry's sign) and any
+    inline tags.
     """
-    if not buffer.is_card_line(cursor.row):
+    if not buffer.has_quantity(cursor.row):
         return buffer, cursor
     qty = buffer.quantity_at(cursor.row)
     if qty is None:

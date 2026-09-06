@@ -16,6 +16,7 @@ REPEATABLE_TYPES: frozenset[str] = frozenset({
     "operator",
     "quantity",
     "zone",
+    "board",
 })
 
 
@@ -23,7 +24,7 @@ REPEATABLE_TYPES: frozenset[str] = frozenset({
 class RepeatableAction:
     """A single action that can be replayed with '.'."""
 
-    action_type: str  # "operator", "quantity", or "zone"
+    action_type: str  # "operator", "quantity", "zone", or "board"
     operator: str | None = None
     motion: str | None = None
     count: int = 1

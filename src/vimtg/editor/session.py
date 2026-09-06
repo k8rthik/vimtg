@@ -55,6 +55,13 @@ from vimtg.editor.operators import (
     put_lines,
     resolve_line_range,
 )
+from vimtg.editor.plan_ops import (
+    block_at,
+    board,
+    next_plan_row,
+    plan_blocks,
+    plan_label,
+)
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.sort_keys import SORT_FIELDS
 from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen
@@ -124,6 +131,8 @@ class EditorState:
     # Ordered completion pool for category input, built on entry
     category_candidates: tuple[str, ...] = ()
     remapper: Any = None  # KeyRemapper, passed through to :map/:unmap
+    # The sideboard plan mi/mo write into and the deck view annotates
+    active_plan: str | None = None
 
 
 @dataclass(frozen=True)
@@ -172,6 +181,7 @@ class HandlerResult:
     focus_next_pane: bool = False
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
+    plan_changed: bool = False  # active plan or its entries changed
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -315,12 +325,19 @@ def handle_command(
             history=state.history,
             card_repo=state.card_repo,
             remapper=state.remapper,
+            active_plan=state.active_plan,
         )
+        before = state.buffer
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
-        # Sync modified flag unconditionally (allows :w to clear it)
-        if ctx.modified and ctx.modified != state.modified:
+        # A handler that rewrote the buffer gets an undo step; the
+        # modified flag itself syncs unconditionally (allows :w to clear it)
+        if ctx.modified and state.buffer is not before:
             state.history.record(state.buffer, f":{action.text}")
         state.modified = ctx.modified
+        plan_changed = False
+        if ctx.active_plan_set:
+            state.active_plan = ctx.active_plan
+            plan_changed = True
         if ctx.settings_changed and ctx.settings is not None:
             state.settings = ctx.settings
         if ctx.resolved_cards is not None and ctx.resolved_cards is not state.resolved_cards:
@@ -350,6 +367,7 @@ def handle_command(
             edhrec_open=ctx.edhrec_open,
             analytics_open=ctx.analytics_open,
             import_url=ctx.import_url,
+            plan_changed=plan_changed,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)
@@ -454,6 +472,11 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         # Zone moves shadow marks s/m/d/c/p; action.count is read raw
         # because 0 means "no count given" — move every copy (see keymap).
         return _move_card_to_zone(state, key, action.count)
+    elif key in ("mi", "mo"):
+        # Board in/out of the active sideboard plan (shadows marks i/o)
+        return _board_card(state, key, action.count)
+    elif key in ("]v", "[v"):
+        return _jump_plan(state, forward=(key == "]v"))
     elif key.startswith("m") and len(key) == 2:
         mark_name = key[1]
         state.marks = state.marks.set(mark_name, state.cursor.row)
@@ -846,6 +869,76 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
     return HandlerResult(command_message=result.message)
 
 
+def _resolve_active_plan(state: EditorState) -> str | None:
+    """The plan mi/mo write into: the active one, else the deck's only
+    plan (activated as a side effect). None when there is no unambiguous
+    choice."""
+    if state.active_plan is not None:
+        return state.active_plan
+    blocks = plan_blocks(state.buffer)
+    if len(blocks) == 1:
+        state.active_plan = blocks[0].name
+        return blocks[0].name
+    return None
+
+
+def _board_card(state: EditorState, key: str, count: int) -> HandlerResult:
+    """mi/mo — board the cursor card in/out of the active sideboard plan.
+
+    count == 0 boards every copy; a positive count boards that many.
+    The plan block is edited in place (an undoable text edit); the
+    cursor stays on the deck card so the next mi/mo is one key away.
+    """
+    plan = _resolve_active_plan(state)
+    if plan is None:
+        if plan_blocks(state.buffer):
+            msg = "E: Several sideboard plans — :plan <matchup> or ]v to pick one"
+        else:
+            msg = "E: No sideboard plan — :plan <matchup> to start one"
+        return HandlerResult(command_message=msg, error=True)
+    result = board(
+        state.buffer, state.cursor.row, plan,
+        direction="in" if key == "mi" else "out", count=count,
+    )
+    if result.error or result.buffer is state.buffer:
+        return HandlerResult(command_message=result.message, error=result.error)
+    row = state.cursor.row
+    if result.inserted_row is not None:
+        state.marks = state.marks.update_for_insert(result.inserted_row, 1)
+        if result.inserted_row <= row:
+            row += 1
+    if result.deleted_row is not None:
+        state.marks = state.marks.update_for_delete(
+            result.deleted_row, result.deleted_row
+        )
+        if result.deleted_row < row:
+            row -= 1
+    state.buffer = result.buffer
+    state.cursor = state.cursor.move_to(row, 0)
+    state.modified = True
+    state.history.record(
+        state.buffer, "board in" if key == "mi" else "board out"
+    )
+    state.dot_repeat.record(RepeatableAction("board", operator=key, count=count))
+    return HandlerResult(command_message=result.message, plan_changed=True)
+
+
+def _jump_plan(state: EditorState, forward: bool) -> HandlerResult:
+    """]v / [v — move to the next/previous plan header and activate it."""
+    row = next_plan_row(state.buffer, state.cursor.row, forward)
+    if row is None:
+        which = "next" if forward else "previous"
+        return HandlerResult(command_message=f"No {which} sideboard plan")
+    state.cursor = state.cursor.move_to(row, 0)
+    block = block_at(state.buffer, row)
+    if block is None:
+        return HandlerResult()
+    state.active_plan = block.name
+    return HandlerResult(
+        command_message=plan_label(state.buffer, block), plan_changed=True
+    )
+
+
 def _replay_dot(state: EditorState, count_override: int | None = None) -> None:
     """Replay the last repeatable action, optionally with a new count."""
     last = state.dot_repeat.last_action
@@ -854,6 +947,9 @@ def _replay_dot(state: EditorState, count_override: int | None = None) -> None:
     count = count_override if count_override is not None else last.count
     if last.action_type == "zone" and last.operator:
         _move_card_to_zone(state, last.operator, count)
+        return
+    if last.action_type == "board" and last.operator:
+        _board_card(state, last.operator, count)
         return
     if last.action_type == "operator" and last.operator:
         if last.operator == "x":
@@ -1027,7 +1123,10 @@ def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
     not arbitrary bugs.
     """
     deck = parse_deck_text(buffer.to_text())
-    names = list(deck.unique_card_names())
+    # Plan entries name cards too — they render with mana/type and lint
+    # unknown names like any card line
+    plan_names = {e.card_name for plan in deck.plans for e in plan.entries}
+    names = list(deck.unique_card_names() | plan_names)
     try:
         return card_repo.get_by_names(names)
     except (sqlite3.Error, ValueError):

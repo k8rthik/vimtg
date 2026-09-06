@@ -189,6 +189,10 @@ class EditorContext:
     edhrec_open: Any = None
     analytics_open: Any = None
     import_url: str = ""  # deck-site URL to fetch asynchronously
+    # Active sideboard plan: seeded from editor state; active_plan_set
+    # marks that the handler changed it (to a name, or None to clear)
+    active_plan: str | None = None
+    active_plan_set: bool = False
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""

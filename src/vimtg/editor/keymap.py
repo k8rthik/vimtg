@@ -58,6 +58,9 @@ _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 _G_SUB_KEYS = frozenset({"c", "C", "l"})
 # S{v,h,s,c,r} — split panes: vertical/horizontal, switch, close, EDHREC
 _SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r", "a"})
+# m{s,m,d,c,p} — zone moves; m{i,o} — board in/out of the sideboard plan.
+# These shadow the same-lettered marks (every other m{a-z} sets a mark).
+_MOVE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
 
 
 def _apply_text_edit(
@@ -204,10 +207,11 @@ class KeyMap:
                 self.reset()
                 return KeyResult.COMPLETE, action
             # m{s,m,d,c,p} — move card to sideboard/maybeboard/main deck/
-            # commander/companion. Count 0 is the "no count given"
+            # commander/companion; m{i,o} — board the card in/out of the
+            # active sideboard plan. Count 0 is the "no count given"
             # sentinel (like G): a bare move takes every copy, "3ms"
             # splits off 3.
-            if self._multi_key_prefix == "m" and key in ("s", "m", "d", "c", "p"):
+            if self._multi_key_prefix == "m" and key in _MOVE_SUB_KEYS:
                 explicit_count = int(self._count_str) if self._count_str else 0
                 action = ParsedAction(
                     "special", full_key, explicit_count, self._register
@@ -216,6 +220,11 @@ class KeyMap:
                 return KeyResult.COMPLETE, action
             # m{a-z} — set mark, '{a-z} — jump to mark
             if self._multi_key_prefix in ("m", "'") and key.isalpha() and len(key) == 1:
+                action = ParsedAction("special", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # [v / ]v — previous / next sideboard plan (activates it)
+            if self._multi_key_prefix in ("[", "]") and key == "v":
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
