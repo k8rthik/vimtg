@@ -75,7 +75,7 @@ _CMP_PATTERN = CMP_PATTERN
 # Splits a card line into (prefix+leading-ws, quantity, rest) so the quantity
 # can be replaced in place without disturbing the prefix, name, or tags.
 _QUANTITY_SUB = re.compile(
-    r"^(\s*(?:SB:|MB:|CMD:|CMP:)?\s*)(\d+)(\s.*)$", re.DOTALL
+    r"^(\s*(?:SB:|MB:|CMD:|CMP:)?\s*[+-]?\s*)(\d+)(\s.*)$", re.DOTALL
 )
 
 
@@ -127,6 +127,11 @@ CARD_LINE_TYPES = frozenset({
     LineType.COMPANION_ENTRY,
 })
 _CARD_LINE_TYPES = CARD_LINE_TYPES
+
+# Lines that carry a leading quantity: deck cards plus plan entries.
+# Plan entries are NOT card lines — they never count toward the deck,
+# sort, or zone moves — but +/- and the name/comment accessors work.
+QUANTITY_LINE_TYPES = CARD_LINE_TYPES | {LineType.PLAN_ENTRY}
 
 _CARD_PATTERNS = (
     _CARD_PATTERN, _SB_PATTERN, _MB_PATTERN, _CMD_PATTERN, _CMP_PATTERN,
@@ -335,11 +340,15 @@ class Buffer:
         return self.insert_line(self.line_count(), text)
 
     def card_name_at(self, line: int) -> str | None:
-        """Extract card name from a card/sideboard/commander line.
+        """Extract card name from a card/sideboard/commander line, or a
+        sideboard-plan entry.
 
         Strips trailing inline tags ('  #core') and the inline comment
         ('  // note') before returning.
         """
+        if self.is_plan_entry(line):
+            parsed = parse_plan_entry(self._lines[line].text)
+            return parse_card_suffix(parsed[2])[0] if parsed else None
         if not self.is_card_line(line):
             return None
         for pattern in _CARD_PATTERNS:
@@ -349,10 +358,14 @@ class Buffer:
         return None
 
     def quantity_at(self, line: int) -> int | None:
-        """Extract quantity from a card/sideboard/commander line."""
+        """Extract quantity from a card/sideboard/commander line or a
+        sideboard-plan entry."""
         if line < 0 or line >= self.line_count():
             return None
         bl = self._lines[line]
+        if bl.line_type == LineType.PLAN_ENTRY:
+            parsed = parse_plan_entry(bl.text)
+            return clamp_quantity(parsed[1]) if parsed else None
         if bl.line_type not in _CARD_LINE_TYPES:
             return None
         for pattern in _CARD_PATTERNS:
@@ -361,13 +374,21 @@ class Buffer:
                 return clamp_quantity(int(m.group(1)))
         return None
 
+    def plan_sign_at(self, line: int) -> str | None:
+        """'-' / '+' / '' for a sideboard-plan entry; None elsewhere."""
+        if not self.is_plan_entry(line):
+            return None
+        parsed = parse_plan_entry(self._lines[line].text)
+        return parsed[0] if parsed else None
+
     def set_quantity(self, line: int, quantity: int) -> Buffer:
         """Return a new Buffer with the card quantity on `line` replaced.
 
-        Preserves the SB:/CMD: prefix, the exact card name, and any inline
-        tags — only the leading quantity number changes.
+        Preserves the SB:/CMD: prefix (or a plan entry's +/- sign), the
+        exact card name, and any inline tags — only the leading
+        quantity number changes.
         """
-        if not self.is_card_line(line):
+        if not self.has_quantity(line):
             return self
         text = self._lines[line].text
         m = _QUANTITY_SUB.match(text)
@@ -380,6 +401,16 @@ class Buffer:
         if line < 0 or line >= self.line_count():
             return False
         return self._lines[line].line_type in _CARD_LINE_TYPES
+
+    def is_plan_entry(self, line: int) -> bool:
+        """Check whether the given line index holds a sideboard-plan entry."""
+        if line < 0 or line >= self.line_count():
+            return False
+        return self._lines[line].line_type == LineType.PLAN_ENTRY
+
+    def has_quantity(self, line: int) -> bool:
+        """Card line or plan entry — anything +/- can adjust."""
+        return self.is_card_line(line) or self.is_plan_entry(line)
 
     def next_card_line(self, from_line: int) -> int | None:
         """Find the next card line after from_line, or None."""
@@ -435,17 +466,18 @@ class Buffer:
         return self.set_line(line, new_text)
 
     def comment_at(self, line: int) -> str:
-        """Inline comment on a card line ('' for none / non-card lines)."""
-        if not self.is_card_line(line):
+        """Inline comment on a card or plan line ('' for none / other lines)."""
+        if not self.has_quantity(line):
             return ""
         return split_inline_comment(self._lines[line].text)[1]
 
     def set_comment(self, line: int, comment: str) -> Buffer:
         """Return new Buffer with the inline comment on a card line replaced.
 
-        An empty comment removes the suffix. Non-card lines are unchanged.
+        An empty comment removes the suffix. Lines without a quantity
+        (headers, comments, blanks) are unchanged.
         """
-        if not self.is_card_line(line):
+        if not self.has_quantity(line):
             return self
         base, _ = split_inline_comment(self._lines[line].text)
         return self.set_line(line, base + format_inline_comment(comment))

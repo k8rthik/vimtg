@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from vimtg.domain.deck_lines import (
     apply_zone_effect,
+    block_header_tag,
     parse_zone_header,
     zone_context_effect,
 )
@@ -30,7 +31,7 @@ def matched_indent(buf: Buffer, row: int) -> str:
         bl = buf.get_line(i)
         if bl.line_type == LineType.BLANK:
             continue
-        if parse_zone_header(bl.text) is not None:
+        if block_header_tag(bl.text) is not None:
             return "    "
         if bl.line_type == LineType.METADATA:
             return ""
@@ -245,7 +246,7 @@ def _pad_before_headers(lines: list[tuple[str, LineType]]) -> list[str]:
     """Insert a blank line before each section header where missing."""
     padded: list[str] = []
     for text, line_type in lines:
-        if line_type == LineType.SECTION_HEADER and padded:
+        if line_type in (LineType.SECTION_HEADER, LineType.PLAN_HEADER) and padded:
             prev_type = classify_line(padded[-1])
             if prev_type not in (LineType.BLANK, LineType.METADATA):
                 padded.append("")

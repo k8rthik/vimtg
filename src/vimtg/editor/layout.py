@@ -73,7 +73,8 @@ def regroup_buffer(
     `order_field` within each group. Commander, companion, sideboard,
     and maybeboard cards keep their zones as separate blocks, and each
     zone keeps its style: a Python-style block ('CMD:' with indented
-    cards) stays a block, prefix lines stay prefixed.
+    cards) stays a block, prefix lines stay prefixed. Sideboard plans
+    ('VS:' blocks) are carried over byte-for-byte, after every zone.
     """
     if mode not in LAYOUT_MODES:
         raise ValueError(f"Unknown layout mode: {mode}")
@@ -89,7 +90,11 @@ def regroup_buffer(
         LineType.MAYBEBOARD_ENTRY: [],
     }
 
+    plan_tail, plan_rows = _plan_blocks_verbatim(buffer)
+
     for i in range(buffer.line_count()):
+        if i in plan_rows:
+            continue
         bl = buffer.get_line(i)
         tag = parse_zone_header(bl.text)
         if tag is not None:
@@ -163,7 +168,46 @@ def regroup_buffer(
     emit_zone("SB", "Sideboard", zone_lines[LineType.SIDEBOARD_ENTRY], True)
     emit_zone("MB", "Maybeboard", zone_lines[LineType.MAYBEBOARD_ENTRY], True)
 
+    if plan_tail:
+        _pad(out)
+        out.extend(plan_tail)
+
     return Buffer.from_text("\n".join(out) + "\n")
+
+
+def _plan_blocks_verbatim(buffer: Buffer) -> tuple[list[str], set[int]]:
+    """(lines, rows) of every 'VS:' plan block, text unchanged.
+
+    A block runs from its header through every following indented or
+    blank line (comments inside it included); trailing blanks are
+    trimmed and blocks are re-separated by one blank line.
+    """
+    tail: list[str] = []
+    rows: set[int] = set()
+    i = 0
+    count = buffer.line_count()
+    while i < count:
+        bl = buffer.get_line(i)
+        if bl.line_type != LineType.PLAN_HEADER:
+            i += 1
+            continue
+        span = [bl.text]
+        rows.add(i)
+        j = i + 1
+        while j < count:
+            nxt = buffer.get_line(j)
+            if nxt.line_type != LineType.BLANK and not nxt.text[:1].isspace():
+                break
+            span.append(nxt.text)
+            rows.add(j)
+            j += 1
+        while span and not span[-1].strip():
+            span.pop()
+        if tail:
+            tail.append("")
+        tail.extend(span)
+        i = j
+    return tail, rows
 
 
 def _pad(out: list[str]) -> None:
