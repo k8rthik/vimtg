@@ -34,6 +34,8 @@ class DeckView(Static):
     auto_expand: reactive[bool] = reactive(True)
     tag_filter: reactive[TagFilter | None] = reactive(None)
     line_errors: reactive[dict[int, ValidationError]] = reactive(dict)
+    # Row -> -N/+N of the active sideboard plan (editor.plan_ops.row_deltas)
+    plan_deltas: reactive[dict[int, int]] = reactive(dict)
 
     # Buffer-line scroll offset; follows the cursor. Expansion lines
     # under the cursor row may still clip at the very bottom edge —
@@ -94,6 +96,7 @@ class DeckView(Static):
                 width=self.size.width or None,
                 line_error=self.line_errors.get(i),
                 header_count=counts.get(i),
+                plan_delta=self.plan_deltas.get(i),
             )
             for line in lines:
                 output.append(line)
@@ -121,4 +124,7 @@ class DeckView(Static):
         _old: dict[int, ValidationError],
         _new: dict[int, ValidationError],
     ) -> None:
+        self.refresh()
+
+    def watch_plan_deltas(self, _old: dict[int, int], _new: dict[int, int]) -> None:
         self.refresh()

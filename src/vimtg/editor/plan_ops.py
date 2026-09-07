@@ -11,8 +11,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from vimtg.domain.card import Card
 from vimtg.domain.deck_lines import parse_plan_entry, parse_plan_header
 from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.command_completer import fuzzy_score
 
 PLAN_INDENT = "    "
 SIGN_OUT = "-"
@@ -121,6 +123,66 @@ def plan_label(buffer: Buffer, block: PlanBlock, sep: str = "  ") -> str:
     outs, ins = plan_totals(buffer, block)
     mark = "" if outs == ins else " !"
     return f"vs {block.name}{sep}-{outs} +{ins}{mark}"
+
+
+def row_deltas(buffer: Buffer, plan: str) -> dict[int, int]:
+    """Net copies each deck row gains or loses under `plan`, keyed by
+    buffer row — outs land on mainboard rows, ins on sideboard rows.
+    Empty when the plan does not exist. Render-time only."""
+    block = find_block(buffer, plan)
+    if block is None:
+        return {}
+    by_key: dict[tuple[str, LineType], int] = {}
+    for e in entry_lines(buffer, block):
+        if e.sign == SIGN_OUT:
+            key = (e.card_name.lower(), LineType.CARD_ENTRY)
+            by_key[key] = by_key.get(key, 0) - e.quantity
+        elif e.sign == SIGN_IN:
+            key = (e.card_name.lower(), LineType.SIDEBOARD_ENTRY)
+            by_key[key] = by_key.get(key, 0) + e.quantity
+    deltas: dict[int, int] = {}
+    for i in range(buffer.line_count()):
+        line_type = buffer.get_line(i).line_type
+        if line_type not in (LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY):
+            continue
+        name = buffer.card_name_at(i)
+        if name is None:
+            continue
+        delta = by_key.get((name.lower(), line_type))
+        if delta:
+            deltas[i] = delta
+    return deltas
+
+
+def plan_search(
+    buffer: Buffer, resolved: dict[str, Card], query: str, limit: int = 20
+) -> list[Card]:
+    """Card-search results for a line opened inside a plan block: the
+    deck's own mainboard and sideboard cards, fuzzy-matched on name.
+    Sideboard cards rank first (boarding in is the common case); a name
+    with no card data still shows up as a bare Card."""
+    seen: set[str] = set()
+    ranked: list[tuple[int, int, str]] = []
+    for zone_rank, zone in ((0, LineType.SIDEBOARD_ENTRY), (1, LineType.CARD_ENTRY)):
+        for i in range(buffer.line_count()):
+            if buffer.get_line(i).line_type != zone:
+                continue
+            name = buffer.card_name_at(i)
+            if not name or name.lower() in seen:
+                continue
+            score = fuzzy_score(query.lower(), name.lower())
+            if score is None:
+                continue
+            seen.add(name.lower())
+            ranked.append((zone_rank, score, name))
+    ranked.sort()
+    out: list[Card] = []
+    for _, _, name in ranked[:limit]:
+        card = resolved.get(name)
+        if card is None:
+            card = Card.from_scryfall({"id": f"deck:{name}", "name": name})
+        out.append(card)
+    return out
 
 
 def next_plan_row(buffer: Buffer, row: int, forward: bool) -> int | None:

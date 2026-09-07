@@ -31,17 +31,28 @@ _CURSOR_STYLE = f"on {COLORS['cursor_bg']}"
 _COMMENT_STYLE = f"dim italic {COLORS['comment']}"
 _EXPANSION_STYLE = f"dim {COLORS['expansion']}"
 _COUNT_STYLE = f"dim {COLORS['quantity']}"
+_PLAN_HEADER_STYLE = f"bold {COLORS['sideboard']}"
+_OUT_STYLE = f"bold {COLORS['error']}"
+_IN_STYLE = f"bold {COLORS['success']}"
+_UNBALANCED_STYLE = f"bold {COLORS['warning']}"
 
 
 def _count_annotation(line_type: LineType, count: HeaderCount) -> str:
     """Visual card-total suffix for a header line — '(12)' on section
-    and zone headers, '· 60 cards' on the '// Deck:' title line, or
-    '· 60/15 cards' (main/side) when the deck has a sideboard."""
+    and zone headers, '· 60 cards' on the '// Deck:' title line,
+    '· 60/15 cards' (main/side) when the deck has a sideboard, or
+    '(-4 +4)' on a sideboard-plan header."""
+    if count.plan:
+        return f"  (-{count.outs} +{count.ins})"
     if line_type == LineType.METADATA:
         if count.side:
             return f"  · {count.main}/{count.side} cards"
         return f"  · {count.main} cards"
     return f"  ({count.main})"
+
+
+def _delta_style(delta: int) -> str:
+    return _OUT_STYLE if delta < 0 else _IN_STYLE
 
 
 def _lint_sign(err: ValidationError | None) -> Text:
@@ -105,6 +116,7 @@ def render_line(
     width: int | None = None,
     line_error: ValidationError | None = None,
     header_count: HeaderCount | None = None,
+    plan_delta: int | None = None,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
@@ -114,6 +126,8 @@ def render_line(
     and suppresses expansion. `line_error` puts a ✗/! sign in the
     gutter. `header_count` appends a card total to header lines
     (see editor.header_counts); it is ignored on other line types.
+    `plan_delta` appends the active sideboard plan's -N/+N for this
+    deck card (see editor.plan_ops.row_deltas).
     """
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
@@ -136,16 +150,27 @@ def render_line(
         if is_cursor:
             t.stylize(_CURSOR_STYLE)
         lines.append(t)
+    elif bl.line_type == LineType.PLAN_HEADER:
+        t = Text()
+        t.append(gutter)
+        t.append(f"{bl.text}", style=_PLAN_HEADER_STYLE)
+        if header_count is not None:
+            t.append(_count_annotation(bl.line_type, header_count), style=_COUNT_STYLE)
+            if header_count.unbalanced:
+                t.append(" !", style=_UNBALANCED_STYLE)
+        if is_cursor:
+            t.stylize(_CURSOR_STYLE)
+        lines.append(t)
     elif bl.line_type in (
         LineType.CARD_ENTRY, LineType.SIDEBOARD_ENTRY,
         LineType.MAYBEBOARD_ENTRY, LineType.COMMANDER_ENTRY,
-        LineType.COMPANION_ENTRY,
+        LineType.COMPANION_ENTRY, LineType.PLAN_ENTRY,
     ):
         lines.extend(_render_card_line(
             line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
             show_prices=show_prices, auto_expand=auto_expand and not dimmed,
-            width=width,
+            width=width, plan_delta=plan_delta,
         ))
         if dimmed:
             for line in lines:
@@ -173,12 +198,14 @@ def _render_card_line(
     show_prices: bool = True,
     auto_expand: bool = True,
     width: int | None = None,
+    plan_delta: int | None = None,
 ) -> list[Text]:
     """Build the formatted card line and optional inline expansion."""
     bl = buf.get_line(line_idx)
     card_name = buf.card_name_at(line_idx)
     qty = buf.quantity_at(line_idx)
     card = resolved.get(card_name or "") if card_name else None
+    plan_sign = buf.plan_sign_at(line_idx)
 
     t = Text()
     if gutter:
@@ -189,7 +216,17 @@ def _render_card_line(
     # render its indentation instead of synthesizing a label; the block
     # header above already names the zone.
     stripped = bl.text.lstrip()
-    if not stripped.upper().startswith(("SB:", "MB:", "CMD:", "CMP:")):
+    if plan_sign is not None:
+        # Plan entry: indentation, then the signed count in its own cell
+        # ('-4 ' out in red, '+3 ' in in green, '?2 ' for a missing sign)
+        t.append(bl.text[: len(bl.text) - len(stripped)])
+        cell = f"{plan_sign or '?'}{qty if qty is not None else '?'}"
+        style = (
+            _delta_style(-1 if plan_sign == "-" else 1)
+            if plan_sign else _UNBALANCED_STYLE
+        )
+        t.append(f"{cell:<4}", style=style)
+    elif not stripped.upper().startswith(("SB:", "MB:", "CMD:", "CMP:")):
         t.append(bl.text[: len(bl.text) - len(stripped)])
     elif bl.line_type == LineType.SIDEBOARD_ENTRY:
         t.append("SB: ", style=COLORS["sideboard"])
@@ -200,7 +237,8 @@ def _render_card_line(
     elif bl.line_type == LineType.COMPANION_ENTRY:
         t.append("CMP: ", style=COLORS["companion"])
 
-    t.append(f"{qty or '?':<4}", style=COLORS["quantity"])
+    if plan_sign is None:
+        t.append(f"{qty or '?':<4}", style=COLORS["quantity"])
     name_str = card_name or bl.text.strip()
     t.append(f"{name_str:<26}", style="bold" if is_cursor else "")
 
@@ -208,6 +246,10 @@ def _render_card_line(
         t.append(format_mana(card.mana_cost))
         type_short = card.type_line.split("\u2014")[0].strip()[:20]
         t.append(f"  {type_short}", style="dim")
+
+    # The active sideboard plan's boarding for this deck card
+    if plan_delta:
+        t.append(f"  {plan_delta:+d}", style=_delta_style(plan_delta))
 
     # Render inline category
     category = buf.category_at(line_idx)

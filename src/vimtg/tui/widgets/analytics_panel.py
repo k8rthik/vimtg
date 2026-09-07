@@ -92,6 +92,8 @@ class AnalyticsPanel(Static):
     data: reactive[AnalyticsData | None] = reactive(None)
     cursor_card: reactive[tuple[str, int] | None] = reactive(None)
     focused_panel: reactive[bool] = reactive(False)
+    # Name of the sideboard plan the data was boarded with ('' = pre-board)
+    plan_name: reactive[str] = reactive("")
 
     _scroll_offset: int = 0
 
@@ -132,6 +134,9 @@ class AnalyticsPanel(Static):
     def _render_header(self, t: Text) -> None:
         accent = COLORS["focus"] if self.focused_panel else COLORS["comment"]
         t.append(" ANALYTICS", style=f"bold {accent}")
+        if self.plan_name:
+            t.append(f" vs {self.plan_name}", style=f"bold {COLORS['sideboard']}")
+            t.append(" (post-board)", style="dim")
         if self.data is not None:
             s = self.data.stats
             t.append(
