@@ -36,6 +36,8 @@ class StatusLine(Static):
     lint_warning_count: reactive[int] = reactive(0)
     cursor_lint: reactive[str] = reactive("")  # reason for the cursor row
     cursor_lint_level: reactive[str] = reactive("")  # "error" | "warning"
+    plan_status: reactive[str] = reactive("")  # "vs Tron -4/+4" when a plan is active
+    plan_unbalanced: reactive[bool] = reactive(False)
 
     _CURSOR_LINT_MAX = 60
 
@@ -60,6 +62,10 @@ class StatusLine(Static):
             sign = "✗" if self.cursor_lint_level == "error" else "!"
             color = COLORS["error"] if self.cursor_lint_level == "error" else COLORS["warning"]
             t.append(f"  {sign} {reason}", style=color)
+        if self.plan_status:
+            t.append(f"  {self.plan_status}", style=f"bold {COLORS['sideboard']}")
+            if self.plan_unbalanced:
+                t.append(" !", style=f"bold {COLORS['warning']}")
         if self.vcs_branch:
             t.append(f"  [{self.vcs_branch}]", style=f"bold {COLORS['mana_green']}")
             if self.vcs_snapshot_count:

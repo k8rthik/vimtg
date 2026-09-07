@@ -153,3 +153,53 @@ class TestBoardErrors:
         texts = [r.buffer.get_line(i).text for i in range(r.buffer.line_count())]
         assert "    -2 Skullcrack" in texts
         assert "    +1 Skullcrack" in texts
+
+
+class TestRowDeltas:
+    def test_deltas_land_on_the_deck_rows(self) -> None:
+        from vimtg.editor.plan_ops import row_deltas
+
+        buf = Buffer.from_text(DECK)
+        assert row_deltas(buf, "Tron") == {1: -2, 5: 1}
+
+    def test_same_card_in_both_zones(self) -> None:
+        from vimtg.editor.plan_ops import row_deltas
+
+        buf = Buffer.from_text(DECK)
+        buf = board(buf, row=2, plan="Tron", direction="out", count=0).buffer
+        buf = board(buf, row=6, plan="Tron", direction="in", count=1).buffer
+        deltas = row_deltas(buf, "Tron")
+        assert deltas[2] == -2
+        assert deltas[6] == 1
+
+    def test_unknown_plan_is_empty(self) -> None:
+        from vimtg.editor.plan_ops import row_deltas
+
+        assert row_deltas(Buffer.from_text(DECK), "Mirror") == {}
+
+
+class TestPlanSearch:
+    def test_candidates_come_from_the_deck(self) -> None:
+        from vimtg.editor.plan_ops import plan_search
+
+        buf = Buffer.from_text(DECK)
+        names = [c.name for c in plan_search(buf, {}, "sk")]
+        assert names == ["Skullcrack"]  # one result per name, not per zone
+        names = [c.name for c in plan_search(buf, {}, "al")]
+        assert names == ["Alpine Moon"]
+
+    def test_sideboard_cards_rank_first(self) -> None:
+        from vimtg.editor.plan_ops import plan_search
+
+        buf = Buffer.from_text(DECK)
+        names = [c.name for c in plan_search(buf, {}, "l")]
+        assert names.index("Alpine Moon") < names.index("Lightning Bolt")
+
+    def test_resolved_cards_are_used_when_available(self) -> None:
+        from vimtg.domain.card import Card
+        from vimtg.editor.plan_ops import plan_search
+
+        card = Card.from_scryfall({"id": "x", "name": "Alpine Moon", "mana_cost": "{R}"})
+        buf = Buffer.from_text(DECK)
+        found = plan_search(buf, {"Alpine Moon": card}, "alpine")
+        assert found[0] is card

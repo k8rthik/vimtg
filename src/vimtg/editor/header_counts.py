@@ -20,6 +20,7 @@ from vimtg.editor.buffer import (
     Buffer,
     LineType,
 )
+from vimtg.editor.plan_ops import plan_blocks, plan_totals
 
 # The zones that make up "the deck" for the '// Deck:' title total —
 # mainboard plus command-zone cards, excluding side/maybeboard.
@@ -33,10 +34,19 @@ _DECK_ZONES = (
 class HeaderCount(NamedTuple):
     """Card total for one header line. `side` is nonzero only on the
     '// Deck:' title line, where it carries the sideboard total so the
-    TUI can render the main/side split ('60/15 cards')."""
+    TUI can render the main/side split ('60/15 cards'). A 'VS:' plan
+    header sets `plan` and carries its boarding totals in `outs`/`ins`
+    instead ('(-4 +4)')."""
 
     main: int
     side: int = 0
+    outs: int = 0
+    ins: int = 0
+    plan: bool = False
+
+    @property
+    def unbalanced(self) -> bool:
+        return self.plan and self.outs != self.ins
 
 
 def _zone_totals(buf: Buffer) -> dict[LineType, int]:
@@ -79,9 +89,14 @@ def header_counts(buf: Buffer) -> dict[int, HeaderCount]:
     - The '// Deck:' metadata line carries the deck total (mainboard
       plus commander and companion) with the sideboard total in `side`;
       maybeboard cards count toward neither.
+    - 'VS:' plan headers carry their -outs/+ins totals (always present,
+      an empty plan reads '(-0 +0)').
     """
     totals = _zone_totals(buf)
     counts: dict[int, HeaderCount] = {}
+    for block in plan_blocks(buf):
+        outs, ins = plan_totals(buf, block)
+        counts[block.header_row] = HeaderCount(0, outs=outs, ins=ins, plan=True)
     for i in range(buf.line_count()):
         bl = buf.get_line(i)
         if bl.line_type == LineType.METADATA:

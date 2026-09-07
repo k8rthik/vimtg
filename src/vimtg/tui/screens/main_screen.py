@@ -27,6 +27,7 @@ from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.domain.card_types import primary_type
 from vimtg.domain.formats import get_format_rules
+from vimtg.domain.sideboard_plan import apply_plan, find_plan
 from vimtg.editor.buffer import Buffer, LineType, insertion_zone
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
@@ -45,6 +46,12 @@ from vimtg.editor.lint import (
     lint_buffer,
 )
 from vimtg.editor.modes import Mode, ModeManager
+from vimtg.editor.plan_ops import (
+    find_block,
+    plan_search,
+    plan_totals,
+    row_deltas,
+)
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.sections import (
     matched_indent,
@@ -110,6 +117,7 @@ if TYPE_CHECKING:
 
 _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
+_PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  mi/mo on a deck card boards it"
 
 _NAMED_KEYS = frozenset({
     "escape", "enter", "tab", "backspace", "delete",
@@ -126,6 +134,8 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     """Return the appropriate command-line hint for the current cursor position."""
     if buffer.is_card_line(row):
         return _CARD_HINT
+    if buffer.get_line(row).line_type in (LineType.PLAN_ENTRY, LineType.PLAN_HEADER):
+        return _PLAN_HINT
     return _GENERIC_HINT
 
 
@@ -227,7 +237,10 @@ class MainScreen(Screen[None]):
         self._deck_names: frozenset[str] = frozenset()
         self._deck_names_key: Buffer | None = None
         # Analytics pane recompute cache, keyed like lint (identity)
-        self._analytics_key: tuple[Buffer, dict[str, Card]] | None = None
+        self._analytics_key: tuple[Buffer, dict[str, Card], str | None] | None = None
+        # Active-plan row deltas for the deck view, keyed by (buffer, plan)
+        self._plan_deltas_key: tuple[Buffer, str | None] | None = None
+        self._plan_deltas_cache: dict[int, int] = {}
         # Bumped per :import <url> so a stale fetch can't clobber a
         # newer one (results deliver via call_from_thread)
         self._import_generation = 0
@@ -635,7 +648,16 @@ class MainScreen(Screen[None]):
         else:
             cl.message = ""
             cl.text = query
-            if len(query) >= 2 and self.search_service:
+            s = self._state
+            if len(query) >= 2 and insertion_zone(s.buffer, s.cursor.row) == (
+                LineType.PLAN_ENTRY
+            ):
+                # A plan line names a card the deck already has — search
+                # the deck itself, not the whole card database
+                self._update_search_results(
+                    plan_search(s.buffer, s.resolved_cards, query)
+                )
+            elif len(query) >= 2 and self.search_service:
                 self._run_search(query)
             elif len(query) < 2:
                 sr.display = False
@@ -655,8 +677,13 @@ class MainScreen(Screen[None]):
             # zone) adds the card to THAT zone
             zone = insertion_zone(s.buffer, s.cursor.row)
             # Check for duplicate — increment quantity instead of adding new line
-            duplicate_line = self._find_card_line(card.name, zone)
-            if duplicate_line is not None:
+            duplicate_line = (
+                None if zone == LineType.PLAN_ENTRY
+                else self._find_card_line(card.name, zone)
+            )
+            if zone == LineType.PLAN_ENTRY:
+                self._insert_plan_entry(card.name, copies)
+            elif duplicate_line is not None:
                 qty = s.buffer.quantity_at(duplicate_line) or 0
                 s.buffer = s.buffer.set_quantity(duplicate_line, qty + copies)
                 open_row, removed = take_insert_position(s)
@@ -707,7 +734,7 @@ class MainScreen(Screen[None]):
 
             zone_note = (
                 f" to {ZONE_LABELS[zone]}"
-                if zone != LineType.CARD_ENTRY
+                if zone not in (LineType.CARD_ENTRY, LineType.PLAN_ENTRY)
                 else ""
             )
             added = f"{copies}x {card.name}" if copies > 1 else card.name
@@ -721,6 +748,21 @@ class MainScreen(Screen[None]):
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
+
+    def _insert_plan_entry(self, name: str, qty: int) -> None:
+        """Write a signed plan line where the user opened it: '+N' for a
+        card the sideboard holds, '-N' for a mainboard card (a card in
+        neither zone gets '+' and a lint error)."""
+        s = self._state
+        open_row, _ = take_insert_position(s)
+        sign = (
+            "+" if self._find_card_line(name, LineType.SIDEBOARD_ENTRY) is not None
+            else "-" if self._find_card_line(name, LineType.CARD_ENTRY) is not None
+            else "+"
+        )
+        indent = _matched_indent(s.buffer, open_row)
+        s.buffer = s.buffer.insert_line(open_row, f"{indent}{sign}{qty} {name}")
+        s.cursor = s.cursor.move_to(open_row, 0)
 
     def _insert_zone_card(self, name: str, zone: LineType, qty: int) -> None:
         """Add a card to a non-main zone. With auto-sort on, sideboard
@@ -1487,12 +1529,18 @@ class MainScreen(Screen[None]):
             key is None
             or key[0] is not s.buffer
             or key[1] is not s.resolved_cards
+            or key[2] != s.active_plan
         ):
             deck = parse_deck_text(s.buffer.to_text())
+            # With a plan active the pane shows the post-board deck
+            plan = find_plan(deck, s.active_plan) if s.active_plan else None
+            if plan is not None:
+                deck = apply_plan(deck, plan)
+            panel.plan_name = plan.name if plan is not None else ""
             panel.data = build_analytics_data(
                 deck, s.resolved_cards, s.settings.price_source
             )
-            self._analytics_key = (s.buffer, s.resolved_cards)
+            self._analytics_key = (s.buffer, s.resolved_cards, s.active_plan)
         # Draw odds follow the cursor — mainboard cards only (the odds
         # population is the mainboard)
         row = s.cursor.row
@@ -1504,6 +1552,29 @@ class MainScreen(Screen[None]):
             panel.cursor_card = (name, s.buffer.quantity_at(row) or 0)
         else:
             panel.cursor_card = None
+
+    def _plan_deltas(self) -> dict[int, int]:
+        """Row deltas of the active plan, cached per (buffer, plan)."""
+        s = self._state
+        key = (s.buffer, s.active_plan)
+        if self._plan_deltas_key != key:
+            self._plan_deltas_cache = (
+                row_deltas(s.buffer, s.active_plan) if s.active_plan else {}
+            )
+            self._plan_deltas_key = key
+        return self._plan_deltas_cache
+
+    def _plan_status(self) -> tuple[str, bool]:
+        """('vs Tron -4/+4', unbalanced) for the status line; ('', False)
+        when no plan is active or its block is gone."""
+        s = self._state
+        if not s.active_plan:
+            return "", False
+        block = find_block(s.buffer, s.active_plan)
+        if block is None:
+            return "", False
+        outs, ins = plan_totals(s.buffer, block)
+        return f"vs {block.name} -{outs}/+{ins}", outs != ins
 
     def _update_lint(self) -> None:
         """Recompute validation for the deck view gutter when inputs change.
@@ -1552,6 +1623,7 @@ class MainScreen(Screen[None]):
         dv.auto_expand = s.settings.auto_expand
         dv.tag_filter = s.tag_filter
         dv.line_errors = self._lint.line_errors
+        dv.plan_deltas = self._plan_deltas()
 
         comp = self._split_pane
         if comp is not None:
@@ -1597,6 +1669,7 @@ class MainScreen(Screen[None]):
         cursor_err = self._lint.line_errors.get(s.cursor.row)
         sl.cursor_lint = cursor_err.message if cursor_err else ""
         sl.cursor_lint_level = cursor_err.level if cursor_err else ""
+        sl.plan_status, sl.plan_unbalanced = self._plan_status()
 
         # VCS status — a DB hiccup here must not crash the render path
         vcs = self._vcs_service  # Don't lazily init on every sync
