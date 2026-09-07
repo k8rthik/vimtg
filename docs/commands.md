@@ -145,7 +145,29 @@ by id. Note that merge and rebase results are normalized on write
 | Command | Description |
 |---------|-------------|
 | `:stats` | Toggle the mana-curve / type / color / price panel |
-| `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact 100 cards, singleton, no sideboard, legendary commander, ≤2 partners, color identity) |
+| `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact 100 cards, singleton, no sideboard, legendary commander, ≤2 partners, color identity), and sideboard-plan consistency |
+| `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base, draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck |
+
+## Sideboard plans
+
+A plan is a `VS: <matchup>` block at the end of the deck listing
+`-N Card` (out of the mainboard) and `+N Card` (in from the sideboard)
+lines — see [deck-format.md](./deck-format.md#sideboard-plans). One plan
+is *active* at a time: `mo`/`mi` write into it, deck cards show their
+`-N`/`+N`, the status line shows `vs Tron -4/+4` (with `!` when
+unbalanced), and `:analytics` boards the deck with it.
+
+| Command | Description |
+|---------|-------------|
+| `:plan <matchup>` | Activate the plan, creating its `VS:` block when new; the cursor moves to the header |
+| `:plan` | Activate the next plan (wraps) |
+| `:plan!` | Deactivate |
+| `:plans` | List every plan with its `-out +in` totals (`*` marks the active one) |
+| `:export guide [file]` | Write the plans as a Markdown sideboard guide |
+
+Inside a plan block, `o` searches the deck's own cards and writes a
+signed line (`+` for a sideboard card, `-` for a mainboard card), `+`/`-`
+adjust a line's count, and `dd` removes it.
 
 ## Configuration
 

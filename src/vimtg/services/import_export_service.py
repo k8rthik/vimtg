@@ -28,6 +28,7 @@ class DeckFormat(Enum):
     ARENA = "arena"
     MOXFIELD = "moxfield"
     ARCHIDEKT = "archidekt"
+    GUIDE = "guide"  # sideboard guide as Markdown — export only
 
 
 def _row_quantity(row: Mapping[str, str | None]) -> int:
@@ -90,7 +91,7 @@ class ImportExportService:
         # this, a comment-less native deck detects as MTGO and its
         # SB:/CMD: lines are silently dropped on import
         if re.search(
-            r"^\s*(SB|MB|CMD|CMP|DCK):", text, re.MULTILINE | re.IGNORECASE
+            r"^\s*(SB|MB|CMD|CMP|DCK|VS):", text, re.MULTILINE | re.IGNORECASE
         ):
             return DeckFormat.VIMTG
         if re.search(r"\([A-Z0-9]{3,5}\)\s+\d+", text):
@@ -126,6 +127,8 @@ class ImportExportService:
                 return self._import_moxfield(text)
             case DeckFormat.ARCHIDEKT:
                 return self._import_archidekt(text)
+            case DeckFormat.GUIDE:
+                raise ValueError("The sideboard guide is an export-only format")
 
     def export_deck(
         self,
@@ -149,6 +152,10 @@ class ImportExportService:
                 return self._export_moxfield(deck, resolved or {})
             case DeckFormat.ARCHIDEKT:
                 return self._export_archidekt(deck)
+            case DeckFormat.GUIDE:
+                from vimtg.domain.sideboard_plan import format_guide_markdown
+
+                return format_guide_markdown(deck)
 
     # ------------------------------------------------------------------
     # Card resolution

@@ -36,6 +36,9 @@ EDITING
   +/-           Increment/decrement quantity
   ms/mm/md      Move card to sideboard/maybeboard/main deck
                 (all copies; 2ms moves just 2)
+  mo / mi       Board the card out of / into the active sideboard
+                plan (all copies; 2mo boards 2)
+  ]v / [v       Next / previous sideboard plan (activates it)
   mc/mp         Move card to commander (CMD:) / companion (CMP:)
   .             Repeat last change
   u / Ctrl-R    Undo / redo
@@ -99,7 +102,9 @@ COMMANDS
   :dtag/:duntag Add/remove deck-level tags
   :filter expr  Filter view by tag (+ AND, | OR, - NOT)
   :retag /a/b/  Rename tag across deck
-  :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/vimtg)
+  :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/vimtg/guide)
+  :plan name    Activate a sideboard plan (creates its VS: block)
+  :plans        List the plans with their -out +in totals
   :import src   Import deck from a file (auto-detects format) or a
                 deck URL (Moxfield, Archidekt, ManaBox, Deckstats,
                 TappedOut, MTGGoldfish)
@@ -173,8 +178,27 @@ COMMAND_HELP: dict[str, str] = {
     "find": ":find pattern  Jump to next card matching pattern",
     "export": (
         ":export format [file]  Export deck "
-        "(arena/mtgo/moxfield/archidekt/vimtg)"
+        "(arena/mtgo/dek/moxfield/archidekt/vimtg/guide)\n"
+        "\n"
+        "guide writes the sideboard plans (VS: blocks) as a Markdown\n"
+        "guide — one section per matchup with OUT and IN lines."
     ),
+    "plan": (
+        ":plan <matchup>  Activate a sideboard plan; :plan cycles; :plan! clears\n"
+        "\n"
+        "A plan is a 'VS: <matchup>' block at the end of the deck with\n"
+        "'-N Card' (out of the mainboard) and '+N Card' (in from the\n"
+        "sideboard) lines under it. :plan creates the block when the\n"
+        "name is new and moves the cursor to it. With a plan active,\n"
+        "mo/mi on a deck card board it out/in (count = copies, bare =\n"
+        "all), deck cards show their -N/+N, the status line shows the\n"
+        "running totals, and :analytics reports the post-board deck.\n"
+        "Inside the block: o adds a card (searching the deck's own\n"
+        "cards), +/- adjust a line, dd removes it. ]v/[v jump between\n"
+        "plans. Lint flags ins that are not in the sideboard, outs not\n"
+        "in the mainboard, over-counts, and unbalanced plans."
+    ),
+    "plans": ":plans  List every sideboard plan with its -out +in totals",
     "import": (
         ":import <file|url>  Import a deck (replaces buffer, undoable)\n"
         "\n"

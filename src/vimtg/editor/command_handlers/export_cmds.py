@@ -27,6 +27,7 @@ _FORMAT_MAP: dict[str, DeckFormat] = {
     "moxfield": DeckFormat.MOXFIELD,
     "archidekt": DeckFormat.ARCHIDEKT,
     "vimtg": DeckFormat.VIMTG,
+    "guide": DeckFormat.GUIDE,  # sideboard guide (Markdown)
 }
 
 
@@ -39,13 +40,16 @@ def cmd_export(
     """:export <format> [file] — Export deck to another format."""
     parts = cmd.args.strip().split(maxsplit=1)
     if not parts:
-        ctx.fail("Usage: :export <arena|mtgo|dek|moxfield|archidekt|vimtg> [file]")
+        ctx.fail("Usage: :export <arena|mtgo|dek|moxfield|archidekt|vimtg|guide> [file]")
         return buffer, cursor
 
     fmt_name = parts[0].lower()
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
-        ctx.fail(f"Unknown format: {fmt_name}. Use arena, mtgo, dek, moxfield, archidekt, or vimtg")
+        ctx.fail(
+            f"Unknown format: {fmt_name}. "
+            "Use arena, mtgo, dek, moxfield, archidekt, vimtg, or guide"
+        )
         return buffer, cursor
 
     deck = parse_deck_text(buffer.to_text())

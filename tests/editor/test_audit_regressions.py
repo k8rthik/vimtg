@@ -211,3 +211,42 @@ class TestImportExportZones:
         svc = ImportExportService()
         deck = svc.import_deck("999999999 Mountain\n", DeckFormat.MTGO)
         assert deck.entries[0].quantity == 999
+
+
+class TestSideboardPlanExport:
+    _DECK = (
+        "// Deck: Burn\n4 Bolt\nSB: 3 Alpine Moon\n\n"
+        "VS: Tron\n    -4 Bolt\n    +3 Alpine Moon\n"
+    )
+
+    def _deck(self):
+        return parse_deck_text(self._DECK)
+
+    def test_foreign_formats_drop_plans(self):
+        svc = ImportExportService()
+        for fmt in (
+            DeckFormat.ARENA, DeckFormat.MTGO, DeckFormat.MTGO_DEK,
+            DeckFormat.MOXFIELD, DeckFormat.ARCHIDEKT,
+        ):
+            out = svc.export_deck(self._deck(), fmt)
+            assert "VS:" not in out and "Tron" not in out, fmt
+
+    def test_vimtg_export_keeps_plans(self):
+        out = ImportExportService().export_deck(self._deck(), DeckFormat.VIMTG)
+        assert "VS: Tron\n    -4 Bolt\n    +3 Alpine Moon\n" in out
+
+    def test_guide_export_is_markdown(self):
+        out = ImportExportService().export_deck(self._deck(), DeckFormat.GUIDE)
+        assert out.startswith("# Burn — sideboard guide\n")
+        assert "## vs Tron\n- OUT: 4 Bolt\n- IN: 3 Alpine Moon\n" in out
+
+    def test_guide_is_export_only(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="export-only"):
+            ImportExportService().import_deck("# x", DeckFormat.GUIDE)
+
+    def test_plan_only_marker_detects_as_vimtg(self):
+        text = "4 Bolt\n\nVS: Tron\n    -4 Bolt\n"
+        assert ImportExportService().detect_format(text) is DeckFormat.VIMTG
+        assert len(ImportExportService().import_deck(text).plans) == 1
