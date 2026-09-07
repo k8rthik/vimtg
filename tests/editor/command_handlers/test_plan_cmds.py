@@ -86,3 +86,17 @@ class TestPlans:
     def test_no_plans(self) -> None:
         ctx, _, _ = _run("plans", text="4 Opt\n")
         assert ctx.message == "No sideboard plans"
+
+
+class TestExportGuide:
+    def test_export_guide_to_file(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        out = tmp_path / "guide.md"
+        ctx, _, _ = _run(f"export guide {out}")
+        assert not ctx.error
+        text = out.read_text()
+        assert "## vs Tron" in text and "## vs Burn" in text
+
+    def test_export_guide_preview(self) -> None:
+        ctx, _, _ = _run("export guide")
+        assert not ctx.error
+        assert "guide" in ctx.message

@@ -18,6 +18,8 @@ Each line is one of:
 | Card entry | `[N] CardName [@category] [#tag …] [// comment]` | `4 Lightning Bolt  @removal  #burn  // core` |
 | Sideboard entry | `SB: [N] CardName [#tag …] [// comment]` | `SB: 2 Rest in Peace` |
 | Maybeboard entry | `MB: [N] CardName …` | `MB: 1 Opt` |
+| Plan header | `VS: matchup [// note]` | `VS: Tron` |
+| Plan entry | `[+\|-]N CardName [// comment]` (indented under `VS:`) | `-4 Lightning Bolt` |
 | Commander entry | `CMD: [N] CardName …` | `CMD: 1 Atraxa, Praetors' Voice` |
 | Companion entry | `CMP: [N] CardName …` | `CMP: 1 Lurrus of the Dream-Den` |
 | Blank | (empty) | |
@@ -154,6 +156,38 @@ prefix style. Bare zone headers are structural declarations and are
 never removed by section cleanup (derived type/category headers are
 still dropped when their zone's cards leave).
 
+## Sideboard plans
+
+A sideboard plan records how the deck boards against one matchup: a
+`VS: <matchup>` block with the cards that leave the mainboard (`-N`)
+and the cards that come in from the sideboard (`+N`), Python-style
+under the header. Plans live after the zones, at the end of the file.
+
+```
+VS: Tron
+    -4 Lightning Bolt
+    -2 Skullcrack  // keep 1 on the draw
+    +3 Alpine Moon
+    +3 Damping Sphere
+
+VS: Burn (draw)
+    -3 Eidolon of the Great Revel
+    +3 Kor Firewalker
+```
+
+- The matchup name is free text (play/draw variants are just
+  differently named plans); a `  // note` may follow it.
+- Entries are `-N Card` (out of the mainboard) or `+N Card` (in from
+  the sideboard), optionally with a `  // comment`. A line with no sign
+  is kept but flagged. Plan lines never count as deck cards.
+- Lint checks every plan: an out must be in the mainboard and an in in
+  the sideboard, never more copies than the zone holds; ins ≠ outs is a
+  warning (Yorion decks and half-written plans are allowed).
+- In the editor `:plan <matchup>` activates a plan (creating the block
+  when new), `mo`/`mi` board the cursor card out/in, `]v`/`[v` jump
+  between plans, and `:export guide` writes the plans as Markdown.
+  Older vimtg versions read a file with plans as plain comments.
+
 ## Round-trip fidelity
 
 vimtg's parser/writer round-trip:
@@ -161,6 +195,7 @@ vimtg's parser/writer round-trip:
 - Blank lines between sections
 - Card-line tag order (tags are sorted on write)
 - Sideboard placement
+- Sideboard plans (`VS:` blocks)
 - Metadata keys (unknown keys preserved)
 
 What it does **not** preserve:

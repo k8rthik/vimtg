@@ -135,7 +135,7 @@ def test_version_flag(runner: CliRunner) -> None:
 def test_help_lists_subcommands(runner: CliRunner) -> None:
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
-    for sub in ("sync", "edit", "search", "new", "validate", "convert"):
+    for sub in ("sync", "edit", "search", "new", "validate", "convert", "guide"):
         assert sub in result.output
 
 
@@ -319,3 +319,45 @@ class TestDeckFileFallback:
         result = runner.invoke(main, ["info", str(deck)])
         assert result.exit_code == 0
         assert "Mainboard" in result.output
+
+
+_PLAN_DECK = (
+    "// Deck: Burn\n// Format: modern\n\n4 Lightning Bolt\nSB: 3 Alpine Moon\n\n"
+    "VS: Tron\n    -4 Lightning Bolt\n    +3 Alpine Moon\n\n"
+    "VS: Burn\n    -2 Lightning Bolt\n"
+)
+
+
+def test_guide_lists_plans(runner: CliRunner, tmp_path: Path) -> None:
+    deck = tmp_path / "burn.deck"
+    deck.write_text(_PLAN_DECK, encoding="utf-8")
+    result = runner.invoke(main, ["guide", str(deck)])
+    assert result.exit_code == 0
+    assert "vs Tron  -4 +3 !" in result.output
+    assert "  -4 Lightning Bolt" in result.output
+    assert "  +3 Alpine Moon" in result.output
+    assert "vs Burn  -2 +0 !" in result.output
+
+
+def test_guide_markdown(runner: CliRunner, tmp_path: Path) -> None:
+    deck = tmp_path / "burn.deck"
+    deck.write_text(_PLAN_DECK, encoding="utf-8")
+    result = runner.invoke(main, ["guide", str(deck), "--markdown"])
+    assert result.exit_code == 0
+    assert result.output.startswith("# Burn — sideboard guide")
+
+
+def test_guide_without_plans(runner: CliRunner, tmp_path: Path) -> None:
+    deck = tmp_path / "plain.deck"
+    deck.write_text("4 Lightning Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["guide", str(deck)])
+    assert result.exit_code == 0
+    assert "No sideboard plans" in result.output
+
+
+def test_validate_reports_plan_issues(runner: CliRunner, tmp_path: Path) -> None:
+    deck = tmp_path / "burn.deck"
+    deck.write_text("4 Lightning Bolt\n\nVS: Tron\n    +1 Lightning Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", str(deck)])
+    assert result.exit_code == 1
+    assert "burn.deck:4: error: Lightning Bolt is not in the sideboard" in result.output

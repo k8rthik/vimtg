@@ -29,6 +29,7 @@ flagged otherwise.
 | `b` | Previous card entry |
 | `{` | Previous section header |
 | `}` | Next section header |
+| `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `Ctrl-D` | Half page down |
 | `Ctrl-U` | Half page up |
 | `^` | First non-blank on line |
@@ -49,6 +50,7 @@ flagged otherwise.
 | `-` | Decrement quantity (deletes the line at 0) |
 | `x` | Delete card at cursor |
 | `ms` / `mm` / `md` | Move card to **s**ideboard / **m**aybeboard / main **d**eck (all copies; `2ms` splits off 2) |
+| `mo` / `mi` | Board the card **o**ut of / **i**nto the active sideboard plan (all copies; `2mo` boards 2; see `:plan`) |
 | `mc` / `mp` | Move card to **c**ommander (`CMD:`) / com**p**anion (`CMP:`) |
 | `.` | Repeat last change (dot repeat) |
 | `u` | Undo |
@@ -89,6 +91,7 @@ deck (read-only) or EDHREC recommendations (see
 | `Sv` | Open a **v**ertical split — prompts `:vsplit ` for a deck file |
 | `Sh` | Open a **h**orizontal split — prompts `:split ` |
 | `Sr` | EDHREC **r**ecommendations for the commander (runs `:edhrec`) |
+| `Sa` | Live **a**nalytics pane (runs `:analytics`) |
 | `Ss` | **S**witch focus between editor and pane |
 | `Sc` | **C**lose the pane |
 

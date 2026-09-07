@@ -149,6 +149,30 @@ def info(path: str) -> None:
     click.echo(f"Sideboard: {side_count} cards ({side_unique} unique)")
 
 
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--markdown", is_flag=True, help="Print the guide as Markdown")
+def guide(path: str, markdown: bool) -> None:
+    """Print the deck's sideboard plans (VS: blocks)."""
+    from vimtg.domain.sideboard_plan import format_guide_markdown
+
+    service = _make_service()
+    _text, deck = service.open_deck(Path(path))
+    if not deck.plans:
+        click.echo("No sideboard plans")
+        return
+    if markdown:
+        click.echo(format_guide_markdown(deck), nl=False)
+        return
+    for i, plan in enumerate(deck.plans):
+        if i:
+            click.echo()
+        mark = "" if plan.is_balanced else " !"
+        click.echo(f"vs {plan.name}  {plan.summary()}{mark}")
+        for entry in plan.entries:
+            click.echo(f"  {entry.text()}")
+
+
 @main.command(name="sync")
 @click.option("--force", is_flag=True, help="Force re-download")
 def sync_cmd(force: bool) -> None:
@@ -211,9 +235,9 @@ def search(query: str, limit: int) -> None:
 @click.option(
     "--to",
     "to_fmt",
-    type=click.Choice(["vimtg", "mtgo", "arena", "moxfield", "archidekt"]),
+    type=click.Choice(["vimtg", "mtgo", "arena", "moxfield", "archidekt", "guide"]),
     required=True,
-    help="Target format",
+    help="Target format (guide = sideboard plans as Markdown)",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
 def convert(input_path: str, from_fmt: str | None, to_fmt: str, output: str | None) -> None:

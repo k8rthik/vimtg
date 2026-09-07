@@ -78,6 +78,8 @@ Sections are comments. Sideboard lines start with `SB:`. Metadata goes at the to
 
 **Import / Export** — `:export arena`, `:export mtgo`, `:export moxfield`, `:export archidekt`. Import auto-detects format.
 
+**Sideboard plans** — Record how you board per matchup as text: a `VS: Tron` block of `-4 Lightning Bolt` / `+3 Alpine Moon` lines. `:plan Tron` activates it, `mo`/`mi` board the card under the cursor out/in, the deck view shows each card's `-N`/`+N`, lint keeps ins and outs honest, and `:export guide` writes a Markdown sideboard guide.
+
 **Deck analytics** — `:stats` shows mana curve, type breakdown, color distribution, and total price. `:validate` checks 60-card minimum, 4-of rule, and sideboard limits.
 
 ## Keybindings
@@ -194,6 +196,7 @@ vimtg sync                        # download/update card database
 vimtg search "lightning bolt"     # search cards
 vimtg validate deck.deck          # check legality
 vimtg info deck.deck              # deck summary
+vimtg guide deck.deck             # sideboard plans (--markdown for a guide)
 vimtg convert in.mtgo --to arena -o out.txt
 ```
 
