@@ -15,12 +15,12 @@ from typing import NamedTuple
 from vimtg.domain.deck_lines import match_metadata, parse_zone_header
 from vimtg.editor.buffer import (
     CARD_LINE_TYPES,
-    LABEL_ZONE_TYPES,
     ZONE_TAG_TYPES,
     Buffer,
     LineType,
 )
 from vimtg.editor.plan_ops import plan_blocks, plan_totals
+from vimtg.editor.section_model import parse_sections
 
 # The zones that make up "the deck" for the '// Deck:' title total —
 # mainboard plus command-zone cards, excluding side/maybeboard.
@@ -59,24 +59,17 @@ def _zone_totals(buf: Buffer) -> dict[LineType, int]:
     return totals
 
 
-def _section_total(buf: Buffer, header_row: int) -> int:
-    """Quantity covered by a '// Creatures'-style header: cards of the
-    header's zone from the header down to the next header.
-
-    Zone-aware like sections._drop_empty_headers — an SB: line sitting
-    under a type header does not count toward it. Blanks and comments
-    are looked through implicitly (they add nothing).
-    """
-    label = buf.get_line(header_row).text.strip().removeprefix("//").strip()
-    expected = LABEL_ZONE_TYPES.get(label, LineType.CARD_ENTRY)
-    total = 0
-    for i in range(header_row + 1, buf.line_count()):
-        bl = buf.get_line(i)
-        if bl.line_type == LineType.SECTION_HEADER:
-            break
-        if bl.line_type == expected:
-            total += buf.quantity_at(i) or 0
-    return total
+def _section_totals(buf: Buffer) -> dict[int, int]:
+    """Quantity under each '// Creatures'-style header, keyed by row:
+    the section's own cards per the shared section model, so the count
+    agrees with what insertion and cleanup consider the section."""
+    return {
+        section.header_row: sum(
+            buf.quantity_at(row) or 0 for row in section.card_rows
+        )
+        for section in parse_sections(buf)
+        if not section.is_structural
+    }
 
 
 def header_counts(buf: Buffer) -> dict[int, HeaderCount]:
@@ -93,6 +86,7 @@ def header_counts(buf: Buffer) -> dict[int, HeaderCount]:
       an empty plan reads '(-0 +0)').
     """
     totals = _zone_totals(buf)
+    section_totals = _section_totals(buf)
     counts: dict[int, HeaderCount] = {}
     for block in plan_blocks(buf):
         outs, ins = plan_totals(buf, block)
@@ -113,7 +107,7 @@ def header_counts(buf: Buffer) -> dict[int, HeaderCount]:
             count = HeaderCount(
                 totals[ZONE_TAG_TYPES[tag]]
                 if tag is not None
-                else _section_total(buf, i)
+                else section_totals.get(i, 0)
             )
         else:
             continue

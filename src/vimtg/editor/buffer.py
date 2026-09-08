@@ -16,7 +16,6 @@ from enum import Enum
 
 from vimtg.domain.categories import (
     format_inline_category,
-    parse_category_header,
     parse_inline_category,
     strip_inline_category,
 )
@@ -41,6 +40,7 @@ from vimtg.domain.deck_lines import (
     zone_context_effect,
     zone_running_context,
 )
+from vimtg.domain.section_keys import parse_section_key
 from vimtg.domain.tags import format_inline_tags, parse_inline_tags, strip_inline_tags
 
 
@@ -58,14 +58,6 @@ class LineType(Enum):
     PLAN_HEADER = "plan_header"
     PLAN_ENTRY = "plan_entry"
 
-
-SECTION_HEADERS = frozenset({
-    "Creatures", "Creature", "Spells", "Lands", "Land", "Sideboard",
-    "Enchantments", "Enchantment", "Artifacts", "Artifact",
-    "Planeswalkers", "Planeswalker", "Instants", "Instant",
-    "Sorceries", "Sorcery", "Mainboard", "Maybeboard",
-    "Other", "Commander", "Companion", "Uncategorized",
-})
 
 _CARD_PATTERN = CARD_PATTERN
 _SB_PATTERN = SB_PATTERN
@@ -93,11 +85,9 @@ def classify_line(text: str) -> LineType:
     if stripped.startswith("//"):
         if match_metadata(stripped) is not None:
             return LineType.METADATA
-        if stripped[2:].strip() in SECTION_HEADERS:
-            return LineType.SECTION_HEADER
-        # "// @name" — a user-defined category header. The @ marker
-        # keeps prose comments from classifying as sections.
-        if parse_category_header(stripped) is not None:
+        # Type, category, zone-label, and fixed headers share one
+        # vocabulary (domain.section_keys); everything else is prose.
+        if parse_section_key(stripped) is not None:
             return LineType.SECTION_HEADER
         return LineType.COMMENT
     # "DCK:"/"CMD:"/… — Python-style zone block header (cards sit beneath)
@@ -147,16 +137,6 @@ ZONE_TAG_TYPES: dict[str, LineType] = {
 }
 _ZONE_TAG_TYPES = ZONE_TAG_TYPES
 
-# Text section headers whose cards live in a non-main zone; every other
-# header ("// Creatures", "// @ramp", ...) labels mainboard cards.
-LABEL_ZONE_TYPES: dict[str, LineType] = {
-    "Sideboard": LineType.SIDEBOARD_ENTRY,
-    "Maybeboard": LineType.MAYBEBOARD_ENTRY,
-    "Commander": LineType.COMMANDER_ENTRY,
-    "Companion": LineType.COMPANION_ENTRY,
-}
-
-
 def insertion_zone(buffer: Buffer, row: int) -> LineType:
     """The zone a card inserted at `row` should join, cursor-style.
 
@@ -180,11 +160,10 @@ def insertion_zone(buffer: Buffer, row: int) -> LineType:
         if bl.line_type in CARD_LINE_TYPES:
             return bl.line_type
         if bl.line_type == LineType.SECTION_HEADER:
-            header_tag = parse_zone_header(bl.text)
-            if header_tag is not None:
-                return _ZONE_TAG_TYPES[header_tag]
-            label = bl.text.strip().removeprefix("//").strip()
-            return LABEL_ZONE_TYPES.get(label, LineType.CARD_ENTRY)
+            key = parse_section_key(bl.text)
+            if key is None:
+                return LineType.CARD_ENTRY
+            return _ZONE_TAG_TYPES[key.zone_tag]
         return LineType.CARD_ENTRY  # metadata / top of file
     return LineType.CARD_ENTRY
 

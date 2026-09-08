@@ -121,5 +121,5 @@ async def test_mainboard_insert_still_uses_type_sections(
         screen._state.cursor = Cursor(row=_row_of(screen, "4 Goblin Guide"))
         await _add_card(pilot, "lightning bo")
         lines = screen._state.buffer.to_text().splitlines()
-        assert "// Instant" in lines  # auto-sorted into its type section
+        assert "// Instants" in lines  # auto-sorted into its type section
         assert "1 Lightning Bolt" in lines

@@ -378,7 +378,7 @@ class TestMoveToZone:
             main_section="Creature",
         )
         lines = self._lines(result.buffer)
-        header_idx = lines.index("// Creature")
+        header_idx = lines.index("// Creatures")
         assert lines[header_idx + 1] == "2 Llanowar Elves"
         assert result.cursor.row == header_idx + 1
         assert "SB: 2 Llanowar Elves" not in lines

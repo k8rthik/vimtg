@@ -13,14 +13,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from vimtg.domain.card_types import TYPE_ORDER, primary_type, type_section_label
-from vimtg.domain.categories import (
-    UNCATEGORIZED_LABEL,
-    format_category_header,
-    parse_category_header,
-)
+from vimtg.domain.card_types import TYPE_ORDER, primary_type
+from vimtg.domain.categories import UNCATEGORIZED_LABEL
 from vimtg.domain.deck_lines import parse_zone_header
+from vimtg.domain.section_keys import ZONE_LABELS, SectionKey, SectionKind
 from vimtg.editor.buffer import Buffer, BufferLine, LineType
+from vimtg.editor.section_model import parse_sections, section_at
 from vimtg.editor.sort_keys import extract_card_name, extract_sort_key
 
 LAYOUT_TYPE = "type"
@@ -34,26 +32,26 @@ def detect_layout(buffer: Buffer) -> str:
     Any '// @name' category header means the deck is category-grouped;
     otherwise it is treated as type-grouped (the conventional default).
     """
-    for i in range(buffer.line_count()):
-        bl = buffer.get_line(i)
-        if (
-            bl.line_type == LineType.SECTION_HEADER
-            and parse_category_header(bl.text) is not None
-        ):
-            return LAYOUT_CATEGORY
+    if any(
+        section.key.kind is SectionKind.CATEGORY
+        for section in parse_sections(buffer)
+    ):
+        return LAYOUT_CATEGORY
     return LAYOUT_TYPE
 
 
 def enclosing_category(buffer: Buffer, row: int) -> str:
     """Category of the section containing `row` ('' when none).
 
-    Walks up to the nearest section header; only a '// @name' header
-    yields a category — a type header (or no header) yields ''.
+    Only a '// @name' section yields a category — a type section (or
+    no section) yields ''.
     """
-    for i in range(min(row, buffer.line_count() - 1), -1, -1):
-        bl = buffer.get_line(i)
-        if bl.line_type == LineType.SECTION_HEADER:
-            return parse_category_header(bl.text) or ""
+    # An insert at the very end (row == line count) belongs to the
+    # section that runs to the end
+    row = min(row, buffer.line_count() - 1)
+    section = section_at(parse_sections(buffer), row)
+    if section is not None and section.key.kind is SectionKind.CATEGORY:
+        return section.key.ident
     return ""
 
 
@@ -147,8 +145,8 @@ def regroup_buffer(
             out.append(f"// {label}")
             out.extend(_prefixed(bl.text, f"{tag}: ") for bl in ordered)
 
-    emit_zone("CMD", "Commander", zone_lines[LineType.COMMANDER_ENTRY], False)
-    emit_zone("CMP", "Companion", zone_lines[LineType.COMPANION_ENTRY], False)
+    emit_zone("CMD", ZONE_LABELS["CMD"], zone_lines[LineType.COMMANDER_ENTRY], False)
+    emit_zone("CMP", ZONE_LABELS["CMP"], zone_lines[LineType.COMPANION_ENTRY], False)
 
     dck_block = "DCK" in block_tags
     if dck_block:
@@ -165,14 +163,51 @@ def regroup_buffer(
             for bl in sort_group(group)
         )
 
-    emit_zone("SB", "Sideboard", zone_lines[LineType.SIDEBOARD_ENTRY], True)
-    emit_zone("MB", "Maybeboard", zone_lines[LineType.MAYBEBOARD_ENTRY], True)
+    emit_zone("SB", ZONE_LABELS["SB"], zone_lines[LineType.SIDEBOARD_ENTRY], True)
+    emit_zone("MB", ZONE_LABELS["MB"], zone_lines[LineType.MAYBEBOARD_ENTRY], True)
 
     if plan_tail:
         _pad(out)
         out.extend(plan_tail)
 
     return Buffer.from_text("\n".join(out) + "\n")
+
+
+def follow_line(old_buf: Buffer, new_buf: Buffer, row: int) -> int:
+    """Row in `new_buf` of the line that sat at `row` in `old_buf`.
+
+    Regrouping, normalization, and category refiling move whole lines
+    without editing them, so the line is refound by matching its text
+    occurrence count. Falls back to `row` (callers clamp) for blank or
+    dropped lines.
+    """
+    if row >= old_buf.line_count():
+        return row
+    text = old_buf.get_line(row).text
+    if not text.strip():
+        return row
+    nth = sum(1 for i in range(row + 1) if old_buf.get_line(i).text == text)
+    seen = 0
+    for i in range(new_buf.line_count()):
+        if new_buf.get_line(i).text == text:
+            seen += 1
+            if seen == nth:
+                return i
+    return row
+
+
+def regroup_following_cursor(
+    buffer: Buffer,
+    row: int,
+    mode: str,
+    resolved_cards: dict[str, Any] | None,
+    order_field: str,
+    price_source: str,
+) -> tuple[Buffer, int]:
+    """regroup_buffer plus the cursor's new row, clamped."""
+    new_buf = regroup_buffer(buffer, mode, resolved_cards, order_field, price_source)
+    new_row = follow_line(buffer, new_buf, row)
+    return new_buf, min(new_row, max(0, new_buf.line_count() - 1))
 
 
 def _plan_blocks_verbatim(buffer: Buffer) -> tuple[list[str], set[int]]:
@@ -237,25 +272,30 @@ def _bare(text: str, tag: str) -> str:
     return stripped
 
 
+_OTHER_KEY = SectionKey(SectionKind.OTHER, "Other")
+_UNCATEGORIZED_KEY = SectionKey(SectionKind.OTHER, UNCATEGORIZED_LABEL)
+
+
+def _type_key(ptype: str | None) -> SectionKey:
+    return SectionKey(SectionKind.TYPE, ptype) if ptype else _OTHER_KEY
+
+
 def _group_by_type(
     cards: list[BufferLine], resolved: dict[str, Any]
 ) -> list[tuple[str, list[BufferLine]]]:
     """Group mainboard lines by primary card type, in canonical order."""
-    buckets: dict[str, list[BufferLine]] = {}
+    buckets: dict[SectionKey, list[BufferLine]] = {}
     for bl in cards:
         card = resolved.get(extract_card_name(bl.text.strip()))
         ptype = primary_type(card.type_line) if card is not None else None
-        buckets.setdefault(type_section_label(ptype), []).append(bl)
+        buckets.setdefault(_type_key(ptype), []).append(bl)
 
-    def type_rank(label: str) -> int:
-        for ptype, order in TYPE_ORDER.items():
-            if type_section_label(ptype) == label:
-                return order
-        return 99  # "Other" last
+    def type_rank(key: SectionKey) -> int:
+        return TYPE_ORDER.get(key.ident, 99) if key.kind is SectionKind.TYPE else 99
 
     return [
-        (f"// {label}", buckets[label])
-        for label in sorted(buckets, key=type_rank)
+        (key.header_text(), buckets[key])
+        for key in sorted(buckets, key=type_rank)
     ]
 
 
@@ -285,9 +325,9 @@ def _group_by_category(
         buckets[category].append(bl)
 
     groups = [
-        (format_category_header(category), buckets[category])
+        (SectionKey(SectionKind.CATEGORY, category).header_text(), buckets[category])
         for category in order
     ]
     if uncategorized:
-        groups.append((f"// {UNCATEGORIZED_LABEL}", uncategorized))
+        groups.append((_UNCATEGORIZED_KEY.header_text(), uncategorized))
     return groups
