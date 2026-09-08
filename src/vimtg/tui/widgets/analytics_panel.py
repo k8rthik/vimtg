@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from rich.text import Text
+from textual import events
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -30,6 +31,7 @@ from vimtg.domain.probabilities import (
     prob_at_least,
 )
 from vimtg.tui.theme import COLORS
+from vimtg.tui.widgets.scrolling import WHEEL_LINES
 
 _CURVE_BAR_WIDTH = 24
 _DIM = f"dim {COLORS['comment']}"
@@ -103,6 +105,16 @@ class AnalyticsPanel(Static):
 
     def scroll_line_up(self) -> None:
         self._scroll_offset = max(0, self._scroll_offset - 1)
+        self.refresh()
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        event.stop()
+        self._scroll_offset += WHEEL_LINES
+        self.refresh()
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        event.stop()
+        self._scroll_offset = max(0, self._scroll_offset - WHEEL_LINES)
         self.refresh()
 
     # ── Rendering ────────────────────────────────────────────────

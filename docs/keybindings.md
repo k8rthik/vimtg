@@ -34,6 +34,7 @@ flagged otherwise.
 | `Ctrl-U` | Half page up |
 | `^` | First non-blank on line |
 | `$` | End of line |
+| mouse wheel / trackpad | Scroll the deck three lines per notch, vim-style: the window moves and the cursor is only dragged along when it would leave the screen |
 
 ## Editing
 
@@ -98,7 +99,7 @@ deck (read-only) or EDHREC recommendations (see
 While the pane is focused: `j`/`k` scroll (or select a recommendation),
 `Ctrl-D`/`Ctrl-U` page, `g`/`G` jump top/bottom, `h`/`l` switch EDHREC
 tabs, `Enter` adds the selected recommendation to the deck, and `Esc`
-returns to the editor. Any editing key falls through to the editor and
+returns to the editor. The mouse wheel scrolls whichever pane it is over. Any editing key falls through to the editor and
 refocuses it.
 
 ## Categories
@@ -148,7 +149,7 @@ holds a frozen set of them.
 | Key | Action |
 |-----|--------|
 | `F1` | Open full-screen help (j/k scroll, `q` to close) |
-| `?` | Toggle quick-reference panel |
+| `?` | Toggle quick-reference panel (j/k, Ctrl-D/U, g/G, or the mouse wheel to scroll) |
 
 ## Command-mode keys
 

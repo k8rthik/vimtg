@@ -9,12 +9,13 @@ MainScreen's worker.
 from __future__ import annotations
 
 from rich.text import Text
+from textual import events
 from textual.reactive import reactive
 from textual.widgets import Static
 
 from vimtg.services.edhrec import EdhrecCard, EdhrecPage
 from vimtg.tui.theme import COLORS
-from vimtg.tui.widgets.scrolling import compute_scroll_offset
+from vimtg.tui.widgets.scrolling import WHEEL_LINES, compute_scroll_offset
 
 _SCROLLOFF = 2
 # Header + tab bar + hint line + "more" indicators
@@ -64,6 +65,16 @@ class EdhrecPanel(Static):
         self.active_tab = index
         self.selected = 0
         self._scroll_offset = 0
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        event.stop()
+        for _ in range(WHEEL_LINES):
+            self.select_next()
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        event.stop()
+        for _ in range(WHEEL_LINES):
+            self.select_prev()
 
     def select_next(self) -> None:
         cards = self._cards()

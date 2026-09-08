@@ -765,6 +765,26 @@ class MainScreen(Screen[None]):
         if hr:
             self._apply_handler_result(hr)
 
+    def on_deck_view_cursor_request(self, message: DeckView.CursorRequest) -> None:
+        """A wheel scroll pushed the cursor off screen; move it to the row
+        the view asked for. Only in normal/visual mode — an insert or
+        command in progress owns the cursor."""
+        if not message.view.is_current_request(message.row):
+            return  # superseded by a later wheel event
+        s = self._state
+        comp = self._split_pane
+        if comp is not None and message.view.id == "deck-view-2":
+            if comp.buffer is not None:
+                comp.cursor_row = max(0, min(message.row, comp.buffer.line_count() - 1))
+                self._sync_widgets()
+            return
+        if not (s.mode_mgr.is_normal() or s.mode_mgr.is_visual()):
+            return
+        s.cursor = s.cursor.move_to(
+            max(0, min(message.row, s.buffer.line_count() - 1)), 0
+        )
+        self._sync_widgets()
+
     def _split_pane_widget(self) -> DeckView | EdhrecPanel | AnalyticsPanel:
         if self._split_pane is not None and self._split_pane.kind == "edhrec":
             return self.query_one("#edhrec-panel", EdhrecPanel)
