@@ -27,8 +27,10 @@ from vimtg.editor.layout import (
     LAYOUT_MODES,
     LAYOUT_TYPE,
     detect_layout,
-    regroup_buffer,
+    follow_line,
+    regroup_following_cursor,
 )
+from vimtg.editor.placement import reconcile_category_sections
 
 
 def _card_range(
@@ -48,6 +50,7 @@ def cmd_category(
     if cmd.bang:
         buf, count = clear_category_in_range(buf, start, end)
         if count:
+            buf, cursor = _refile(buf, cursor)
             ctx.message = f"Cleared category from {count} card(s)"
             ctx.modified = True
         else:
@@ -70,10 +73,21 @@ def cmd_category(
     if count == 0:
         ctx.message = "No card lines in range"
     else:
+        buf, cursor = _refile(buf, cursor)
         ctx.message = f"Categorized {count} card(s) as @{name}"
         ctx.modified = True
         record_category(name)
     return buf, cursor
+
+
+def _refile(buf: Buffer, cursor: Cursor) -> tuple[Buffer, Cursor]:
+    """Move re-categorized cards under their headers (category layout
+    only); the cursor follows its line."""
+    refiled = reconcile_category_sections(buf)
+    if refiled is buf:
+        return buf, cursor
+    row = follow_line(buf, refiled, cursor.row)
+    return refiled, cursor.move_to(min(row, max(0, refiled.line_count() - 1)), 0)
 
 
 def cmd_categories(
@@ -102,23 +116,12 @@ def apply_layout(
     buf: Buffer, cursor: Cursor, mode: str, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
     """Regroup the buffer into `mode` layout, preserving the cursor card."""
-    cursor_text = buf.get_line(cursor.row).text
     order_field = getattr(ctx.settings, "sort_order", "cmc") or "cmc"
     price_source = getattr(ctx.settings, "price_source", "usd") or "usd"
-    new_buf = regroup_buffer(
-        buf, mode, ctx.resolved_cards, order_field, price_source=price_source
+    new_buf, new_row = regroup_following_cursor(
+        buf, cursor.row, mode, ctx.resolved_cards, order_field, price_source
     )
-
-    # Follow the card the cursor was on into its new group
-    new_row = cursor.row
-    if cursor_text.strip():
-        for i in range(new_buf.line_count()):
-            if new_buf.get_line(i).text == cursor_text:
-                new_row = i
-                break
-    new_cursor = cursor.move_to(
-        min(new_row, max(0, new_buf.line_count() - 1)), 0
-    )
+    new_cursor = cursor.move_to(new_row, 0)
 
     ctx.modified = True
     label = "category" if mode == LAYOUT_CATEGORY else "type"

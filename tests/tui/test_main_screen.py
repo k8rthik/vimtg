@@ -1,7 +1,7 @@
 """Unit tests for MainScreen helper logic that needs no mounted widgets.
 
 MainScreen.__init__ only builds editor state, so the buffer-manipulation
-helpers (_cleanup_empty_sections, _find_type_section_row, _find_card_line)
+helpers (_cleanup_empty_sections, _find_card_line)
 and the module-level pure functions can be exercised directly. Section
 cleanup is historically the source of section-corruption bugs, so it gets
 thorough coverage here.
@@ -16,10 +16,10 @@ from textual.app import App
 
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.placement import PlacementPolicy, place_mainboard_card
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.main_screen import (
     MainScreen,
-    _card_type_section,
     _hint_for_cursor,
 )
 
@@ -41,24 +41,6 @@ def _card(name: str, type_line: str) -> object:
 
 
 # ── module-level pure functions ────────────────────────────────────
-
-
-class TestCardTypeSection:
-    def test_creature(self) -> None:
-        assert _card_type_section("Legendary Creature — Goblin") == "Creature"
-
-    def test_instant(self) -> None:
-        assert _card_type_section("Instant") == "Instant"
-
-    def test_land(self) -> None:
-        assert _card_type_section("Basic Land — Mountain") == "Land"
-
-    def test_unknown_is_other(self) -> None:
-        assert _card_type_section("Conspiracy") == "Other"
-
-    def test_creature_precedence_over_artifact(self) -> None:
-        # Artifact Creature -> Creature wins (checked first).
-        assert _card_type_section("Artifact Creature — Golem") == "Creature"
 
 
 class TestHintForCursor:
@@ -85,26 +67,33 @@ class TestFindCardLine:
         assert s._find_card_line("Counterspell") is None
 
 
-# ── _find_type_section_row ─────────────────────────────────────────
+# ── type-layout placement ──────────────────────────────────────────
+
+
+def _type_place(card: object, buf: Buffer) -> tuple[Buffer, int]:
+    placed = place_mainboard_card(
+        buf, PlacementPolicy(auto_sort=True, type_line=card.type_line)  # type: ignore[attr-defined]
+    )
+    return placed.buffer, placed.row
 
 
 class TestFindTypeSectionRow:
     def test_inserts_into_existing_section(self) -> None:
         s = _screen("// Creatures\n4 Goblin Guide\n\n// Lands\n4 Mountain\n")
         card = _card("Monastery Swiftspear", "Creature")
-        _buf, row = s._find_type_section_row(card, s._state.buffer)
+        _buf, row = _type_place(card, s._state.buffer)
         # Row should be just after the existing creatures block (line 2).
         assert row == 2
 
     def test_creates_new_section_at_end(self) -> None:
         s = _screen("// Creatures\n4 Goblin Guide\n")
-        buf, row = s._find_type_section_row(_card("Lightning Bolt", "Instant"), s._state.buffer)
+        buf, row = _type_place(_card("Lightning Bolt", "Instant"), s._state.buffer)
         assert row is not None
         assert "// Instant" in buf.get_line(row - 1).text
 
     def test_creates_section_before_sideboard(self) -> None:
         s = _screen("// Creatures\n4 Goblin Guide\nSB: 2 Rest in Peace\n")
-        buf, row = s._find_type_section_row(_card("Lightning Bolt", "Instant"), s._state.buffer)
+        buf, row = _type_place(_card("Lightning Bolt", "Instant"), s._state.buffer)
         # The new header must appear before the sideboard entry.
         header_idx = next(
             i for i in range(buf.line_count())

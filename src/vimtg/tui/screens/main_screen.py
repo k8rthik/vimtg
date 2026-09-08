@@ -25,7 +25,6 @@ from vimtg.config.settings import Settings
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
-from vimtg.domain.card_types import primary_type
 from vimtg.domain.formats import get_format_rules
 from vimtg.domain.sideboard_plan import apply_plan, find_plan
 from vimtg.editor.buffer import Buffer, LineType, insertion_zone
@@ -34,11 +33,7 @@ from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import load_remapper
-from vimtg.editor.layout import (
-    LAYOUT_CATEGORY,
-    detect_layout,
-    enclosing_category,
-)
+from vimtg.editor.layout import follow_line
 from vimtg.editor.lint import (
     EMPTY_LINT,
     LintResult,
@@ -46,6 +41,7 @@ from vimtg.editor.lint import (
     lint_buffer,
 )
 from vimtg.editor.modes import Mode, ModeManager
+from vimtg.editor.placement import PlacementPolicy, place_mainboard_card
 from vimtg.editor.plan_ops import (
     find_block,
     plan_search,
@@ -53,11 +49,7 @@ from vimtg.editor.plan_ops import (
     row_deltas,
 )
 from vimtg.editor.registers import RegisterStore
-from vimtg.editor.sections import (
-    matched_indent,
-    normalize_sections,
-    type_section_insert_row,
-)
+from vimtg.editor.sections import matched_indent, normalize_sections
 from vimtg.editor.session import (
     EditorState,
     HandlerResult,
@@ -139,36 +131,7 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     return _GENERIC_HINT
 
 
-def _card_type_section(type_line: str) -> str:
-    """Map a card's type_line to its singular section name."""
-    return primary_type(type_line) or "Other"
-
-
 _matched_indent = matched_indent
-
-
-def _remapped_row(old_buf: Buffer, new_buf: Buffer, row: int) -> int:
-    """Row of `old_buf[row]`'s line after normalization rewrote the buffer.
-
-    Normalization inserts/removes blanks and drops empty headers but
-    never edits or reorders the surviving lines, so the cursor line is
-    refound by matching its text occurrence count. Falls back to the
-    old row (clamped by the caller) for blank or dropped lines."""
-    if row >= old_buf.line_count():
-        return row
-    text = old_buf.get_line(row).text
-    if not text.strip():
-        return row
-    nth = sum(
-        1 for i in range(row + 1) if old_buf.get_line(i).text == text
-    )
-    seen = 0
-    for i in range(new_buf.line_count()):
-        if new_buf.get_line(i).text == text:
-            seen += 1
-            if seen == nth:
-                return i
-    return row
 
 
 @dataclass
@@ -700,38 +663,12 @@ class MainScreen(Screen[None]):
                 )
             elif zone != LineType.CARD_ENTRY:
                 self._insert_zone_card(card.name, zone, copies)
-            elif not s.settings.auto_sort:
-                # auto_sort off: card goes exactly where the user opened it
-                open_row, _ = take_insert_position(s)
-                indent = _matched_indent(s.buffer, open_row)
-                s.buffer = s.buffer.insert_line(
-                    open_row, f"{indent}{copies} {card.name}"
-                )
-                s.cursor = s.cursor.move_to(open_row, 0)
-            elif detect_layout(s.buffer) == LAYOUT_CATEGORY:
-                # Category layout: stay where opened, inherit the
-                # enclosing '// @name' section's category
-                open_row, _ = take_insert_position(s)
-                indent = _matched_indent(s.buffer, open_row)
-                s.buffer = s.buffer.insert_line(
-                    open_row, f"{indent}{copies} {card.name}"
-                )
-                category = enclosing_category(s.buffer, open_row)
-                if category:
-                    s.buffer = s.buffer.set_category(open_row, category)
-                s.cursor = s.cursor.move_to(open_row, 0)
             else:
-                # Remove the scratch blank BEFORE the section math —
+                # Remove the scratch blank BEFORE the placement math —
                 # creating a header can shift rows past a stale cursor
-                take_insert_position(s)
-                s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
-                if insert_row is None:
-                    insert_row = s.buffer.line_count()
-                indent = _matched_indent(s.buffer, insert_row)
-                s.buffer = s.buffer.insert_line(
-                    insert_row, f"{indent}{copies} {card.name}"
-                )
-                s.cursor = s.cursor.move_to(insert_row, 0)
+                open_row, _ = take_insert_position(s)
+                row = self._place_new_card(card, card.name, copies, open_row)
+                s.cursor = s.cursor.move_to(row, 0)
             s.modified = True
             s.history.record(s.buffer, f"added {card.name}")
             if self.card_repo:
@@ -754,6 +691,23 @@ class MainScreen(Screen[None]):
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
+
+    def _place_new_card(
+        self, card: Card | None, name: str, qty: int, open_row: int | None
+    ) -> int:
+        """Write a fresh mainboard line where the placement policy says
+        (type section, category section, or where it was opened) and
+        return its row. Stamps the category the section implies."""
+        s = self._state
+        policy = PlacementPolicy(
+            auto_sort=s.settings.auto_sort,
+            type_line=card.type_line if card is not None else None,
+        )
+        placed = place_mainboard_card(s.buffer, policy, open_row=open_row)
+        s.buffer = placed.buffer.insert_line(placed.row, f"{placed.indent}{qty} {name}")
+        if placed.category:
+            s.buffer = s.buffer.set_category(placed.row, placed.category)
+        return placed.row
 
     def _insert_plan_entry(self, name: str, qty: int) -> None:
         """Write a signed plan line where the user opened it: '+N' for a
@@ -1099,15 +1053,7 @@ class MainScreen(Screen[None]):
             row = existing
         else:
             card = self.card_repo.get_by_name(rec.name) if self.card_repo else None
-            if card is not None:
-                s.buffer, insert_row = self._find_type_section_row(card, s.buffer)
-                if insert_row is None:
-                    insert_row = s.buffer.line_count()
-            else:
-                insert_row = s.buffer.line_count()
-            indent = _matched_indent(s.buffer, insert_row)
-            s.buffer = s.buffer.insert_line(insert_row, f"{indent}1 {rec.name}")
-            row = insert_row
+            row = self._place_new_card(card, rec.name, 1, None)
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
         s.cursor = s.cursor.move_to(min(row, s.buffer.line_count() - 1), 0)
@@ -1465,14 +1411,6 @@ class MainScreen(Screen[None]):
                 return i
         return None
 
-    def _find_type_section_row(self, card: Card, buf: Buffer) -> tuple[Buffer, int | None]:
-        """Find the right row to insert a card based on its primary type.
-
-        Uses singular type names: "Creature", "Instant", "Sorcery", etc.
-        Returns (buffer, insert_row) — buffer may have new section header lines.
-        """
-        return type_section_insert_row(buf, _card_type_section(card.type_line))
-
     @work(thread=True)
     def _run_search(self, query: str) -> None:
         if self.search_service:
@@ -1519,7 +1457,7 @@ class MainScreen(Screen[None]):
         cleaned = normalize_sections(s.buffer)
         if cleaned is s.buffer:
             return
-        new_row = _remapped_row(s.buffer, cleaned, s.cursor.row)
+        new_row = follow_line(s.buffer, cleaned, s.cursor.row)
         s.buffer = cleaned
         s.cursor = s.cursor.move_to(new_row).clamp(cleaned.line_count() - 1)
         s.modified = True

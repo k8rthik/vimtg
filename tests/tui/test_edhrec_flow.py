@@ -185,3 +185,32 @@ async def test_sr_key_opens_edhrec(tmp_path: Path) -> None:
             await pilot.pause()
             assert screen._split_pane is not None
             assert screen._split_pane.kind == "edhrec"
+
+
+_CATEGORY_DECK = (
+    "// Format: commander\n"
+    "\n"
+    "CMD: 1 Atraxa, Praetors' Voice\n"
+    "\n"
+    "// @ramp\n"
+    "1 Cultivate  @ramp\n"
+    "\n"
+    "// @lands\n"
+    "99 Forest  @lands\n"
+)
+
+
+@pytest.mark.asyncio
+async def test_enter_respects_category_layout(tmp_path: Path) -> None:
+    """An EDHREC insert follows the same placement policy as every other
+    insert: in a category-grouped deck it joins the uncategorized group
+    rather than creating a type header."""
+    app = VimTGApp(deck_path=_deck(tmp_path, _CATEGORY_DECK))
+    with patch("vimtg.tui.screens.main_screen.EdhrecClient", _StubClient):
+        async with app.run_test() as pilot:
+            screen = _main_screen(app)
+            await _open_edhrec(pilot, app)
+            await pilot.press("enter")
+            lines = screen._state.buffer.to_text().splitlines()
+            assert lines[-2:] == ["// Uncategorized", "1 Sol Ring"]
+            assert not any(line.startswith("// Artifact") for line in lines)

@@ -341,3 +341,79 @@ class TestSortDefaultsToSetting:
         buf, _ = cmd_sort(buf, Cursor(), ParsedCommand(name="sort"), ctx)
         assert "by name" in ctx.message
         assert buf.get_line(0).text == "1 Cultivate"
+
+
+class TestCategoryEditsRefile:
+    """In a category-grouped deck a card's @token and the header it sits
+    under are one fact: setting or clearing the category moves the card
+    to the matching section, and the cursor follows."""
+
+    DECK = "// @ramp\n1 Cultivate  @ramp\n1 Opt  @ramp\n\n// @draw\n1 Ponder  @draw\n"
+
+    def test_cmd_category_moves_card_to_its_section(self) -> None:
+        buf = Buffer.from_text(self.DECK)
+        buf, cursor = cmd_category(
+            buf, Cursor(row=2), ParsedCommand(name="category", args="draw"), _ctx()
+        )
+        lines = buf.to_text().splitlines()
+        assert lines == [
+            "// @ramp", "1 Cultivate  @ramp", "",
+            "// @draw", "1 Ponder  @draw", "1 Opt  @draw",
+        ]
+        assert cursor.row == lines.index("1 Opt  @draw")
+
+    def test_cmd_category_bang_moves_card_to_uncategorized(self) -> None:
+        buf = Buffer.from_text(self.DECK)
+        buf, cursor = cmd_category(
+            buf, Cursor(row=2), ParsedCommand(name="category", bang=True), _ctx()
+        )
+        lines = buf.to_text().splitlines()
+        assert lines[-2:] == ["// Uncategorized", "1 Opt"]
+        assert cursor.row == len(lines) - 1
+
+    def test_gc_moves_card_and_cursor(self) -> None:
+        state = _state(self.DECK)
+        state.cursor = state.cursor.move_to(2, 0)
+        handle_normal_special(state, ParsedAction("special", "gc"))
+        handle_tag_input_special(
+            state, ParsedAction("special", "enter", text="draw")
+        )
+        lines = state.buffer.to_text().splitlines()
+        assert lines[-2:] == ["1 Ponder  @draw", "1 Opt  @draw"]
+        assert state.cursor.row == len(lines) - 1
+
+    def test_gc_new_category_creates_section(self) -> None:
+        state = _state(self.DECK)
+        state.cursor = state.cursor.move_to(2, 0)
+        handle_normal_special(state, ParsedAction("special", "gc"))
+        handle_tag_input_special(
+            state, ParsedAction("special", "enter", text="cantrip")
+        )
+        lines = state.buffer.to_text().splitlines()
+        assert lines[-2:] == ["// @cantrip", "1 Opt  @cantrip"]
+
+    def test_g_cap_c_moves_to_uncategorized(self) -> None:
+        state = _state(self.DECK)
+        state.cursor = state.cursor.move_to(2, 0)
+        handle_normal_special(state, ParsedAction("special", "gC"))
+        lines = state.buffer.to_text().splitlines()
+        assert lines[-2:] == ["// Uncategorized", "1 Opt"]
+
+    def test_refile_is_one_undo_step(self) -> None:
+        state = _state(self.DECK)
+        state.cursor = state.cursor.move_to(2, 0)
+        handle_normal_special(state, ParsedAction("special", "gc"))
+        handle_tag_input_special(
+            state, ParsedAction("special", "enter", text="draw")
+        )
+        handle_normal_special(state, ParsedAction("special", "u"))
+        assert state.buffer.to_text() == self.DECK
+
+    def test_type_layout_only_edits_the_token(self) -> None:
+        state = _state("// Sorceries\n1 Ponder\n1 Opt\n")
+        state.cursor = state.cursor.move_to(2, 0)
+        handle_normal_special(state, ParsedAction("special", "gc"))
+        handle_tag_input_special(
+            state, ParsedAction("special", "enter", text="draw")
+        )
+        assert state.buffer.to_text() == "// Sorceries\n1 Ponder\n1 Opt  @draw\n"
