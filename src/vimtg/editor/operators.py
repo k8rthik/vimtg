@@ -9,7 +9,9 @@ TUI-agnostic: no Textual imports.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
+from vimtg.domain.categories import format_inline_category
 from vimtg.domain.deck_lines import (
     CARD_PATTERN,
     format_inline_comment,
@@ -19,6 +21,9 @@ from vimtg.domain.deck_lines import (
 from vimtg.domain.tags import format_inline_tags
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
+
+if TYPE_CHECKING:
+    from vimtg.editor.placement import PlacementPolicy
 from vimtg.editor.motions import MOTION_REGISTRY
 from vimtg.editor.registers import RegisterStore
 
@@ -251,7 +256,7 @@ def _find_zone_entry(
 ALPHA_ZONES = frozenset({LineType.SIDEBOARD_ENTRY, LineType.MAYBEBOARD_ENTRY})
 
 
-def _zone_insert_row(
+def zone_insert_row(
     buffer: Buffer, zone: LineType, sort_name: str | None = None
 ) -> int:
     """Row where a new `zone` line belongs: alphabetically among the
@@ -305,7 +310,7 @@ def insert_zone_line(
         parse_zone_header(buffer.get_line(i).text) == tag
         for i in range(buffer.line_count())
     )
-    row = _zone_insert_row(buffer, zone, sort_name)
+    row = zone_insert_row(buffer, zone, sort_name)
     if row == buffer.line_count() and row > 0:
         prev = buffer.get_line(row - 1)
         if prev.line_type not in (LineType.BLANK, zone) and (
@@ -346,25 +351,22 @@ def zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
 
 def move_to_zone(
     buffer: Buffer, cursor: Cursor, target: LineType, count: int = 0,
-    main_section: str | None = None, uncategorized: bool = False,
-    alpha: bool = False,
+    policy: PlacementPolicy | None = None,
 ) -> ZoneMoveResult:
     """ms/mm/md — move the card at the cursor to another zone.
 
     count == 0 (no count given) moves every copy; 0 < count < quantity
     splits the entry, leaving the remainder behind. If the target zone
-    already holds the card, quantities merge and tags union.
+    already holds the card, quantities merge and tags union. The card's
+    @category token travels with it.
 
-    md placement in a grouped mainboard (both default to appending
-    after the zone's last entry when unset):
-    - `main_section`: the type section the card belongs to in a
-      type-grouped deck ("Instant", "Creature", ...) — the line lands
-      in that section, created if missing.
-    - `uncategorized`: category-grouped deck — the line lands with the
-      category-less cards (their section, else the top of the block).
-    `alpha` (auto-sort): a fresh sideboard/maybeboard line is placed
-    alphabetically among the zone's entries instead of appended.
-    Commander/companion keep append order — partner order matters.
+    `policy` (auto-sort on): an md lands where the mainboard placement
+    policy says — its type section, its category's section, or the
+    uncategorized group (vimtg.editor.placement); a fresh sideboard or
+    maybeboard line is placed alphabetically among the zone's entries.
+    Without it (or with auto-sort off) lines append after the zone's
+    last entry. Commander/companion keep append order — partner order
+    matters.
     """
     row = cursor.row
     if not buffer.is_card_line(row):
@@ -384,6 +386,8 @@ def move_to_zone(
     remainder = qty - moved
     tags = buffer.tags_at(row)
     comment = buffer.comment_at(row)
+    category = buffer.category_at(row)
+    alpha = policy.auto_sort if policy is not None else False
 
     new_buf = buffer
     deleted_row: int | None = None
@@ -405,33 +409,28 @@ def move_to_zone(
             deleted_row = row
             dest_row = merge_row if merge_row < row else merge_row - 1
     else:
-        suffix = format_inline_tags(tags) + format_inline_comment(comment)
+        suffix = (
+            format_inline_category(category)
+            + format_inline_tags(tags)
+            + format_inline_comment(comment)
+        )
         body = f"{moved} {name}{suffix}"
         if remainder > 0:
             new_buf = new_buf.set_quantity(row, remainder)
         else:
             new_buf, _ = new_buf.delete_lines(row, row)
             deleted_row = row
-        if target == LineType.CARD_ENTRY and (main_section or uncategorized):
-            from vimtg.editor.sections import (
-                matched_indent,
-                type_section_insert_row,
-                uncategorized_insert_row,
-            )
+        if target == LineType.CARD_ENTRY and alpha and policy is not None:
+            from vimtg.editor.placement import place_mainboard_card
 
-            before = new_buf.line_count()
-            if main_section:
-                new_buf, dest_row = type_section_insert_row(
-                    new_buf, main_section
-                )
-            else:
-                new_buf, dest_row = uncategorized_insert_row(new_buf)
+            placed = place_mainboard_card(new_buf, policy, category=category)
+            new_buf = placed.buffer.insert_line(
+                placed.row, f"{placed.indent}{body}"
+            )
+            dest_row = placed.row
             # Any new blank + header lines sit just above the card row
-            extra_lines = new_buf.line_count() - before
-            indent = matched_indent(new_buf, dest_row)
-            new_buf = new_buf.insert_line(dest_row, f"{indent}{body}")
-            inserted_row = dest_row - extra_lines
-            inserted_count = extra_lines + 1
+            inserted_row = dest_row - placed.lines_added
+            inserted_count = placed.lines_added + 1
         else:
             sort_name = name if alpha and target in ALPHA_ZONES else None
             new_buf, dest_row, inserted_count = insert_zone_line(

@@ -2,7 +2,15 @@
 
 from vimtg.domain.card import Card, Color, Prices, Rarity
 from vimtg.editor.buffer import Buffer, LineType
-from vimtg.tui.screens.main_screen import MainScreen
+from vimtg.editor.placement import PlacementPolicy, place_mainboard_card
+
+
+def _type_place(card: Card, buf: Buffer) -> tuple[Buffer, int]:
+    """(buffer, row) for a type-layout auto-sort insert of `card`."""
+    placed = place_mainboard_card(
+        buf, PlacementPolicy(auto_sort=True, type_line=card.type_line)
+    )
+    return placed.buffer, placed.row
 
 
 def _make_card(**overrides: object) -> Card:
@@ -34,7 +42,7 @@ def _buf_from_lines(*lines: str) -> Buffer:
 
 
 class TestFindTypeSectionRow:
-    """Tests for MainScreen._find_type_section_row (pure, no side effects)."""
+    """Type-layout placement (pure, no side effects)."""
 
     def test_existing_section_returns_unchanged_buffer(self) -> None:
         buf = _buf_from_lines(
@@ -43,7 +51,7 @@ class TestFindTypeSectionRow:
         )
         card = _make_card(name="Counterspell", type_line="Instant")
 
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
 
         assert new_buf is buf  # buffer unchanged
         assert row == 2  # after the last card in the section
@@ -59,7 +67,7 @@ class TestFindTypeSectionRow:
         )
         card = _make_card(name="Birds of Paradise", type_line="Creature")
 
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
 
         assert new_buf is buf
         assert row == 3  # after "2 Tarmogoyf", before blank line
@@ -71,7 +79,7 @@ class TestFindTypeSectionRow:
         )
         card = _make_card(name="Llanowar Elves", type_line="Creature")
 
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
 
         assert row is not None
         assert new_buf is not buf  # new buffer created
@@ -87,7 +95,7 @@ class TestFindTypeSectionRow:
         )
         card = _make_card(name="Llanowar Elves", type_line="Creature")
 
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
 
         assert row is not None
         assert new_buf is not buf
@@ -108,7 +116,7 @@ class TestFindTypeSectionRow:
         )
         card = _make_card(name="Llanowar Elves", type_line="Creature")
 
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
 
         assert row is not None
         # Line before section header should be blank separator
@@ -123,7 +131,7 @@ class TestFindTypeSectionRow:
         original_count = buf.line_count()
         card = _make_card(name="Llanowar Elves", type_line="Creature")
 
-        new_buf, _ = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, _ = _type_place(card, buf)
 
         assert buf.line_count() == original_count  # original unchanged
         assert new_buf.line_count() > original_count  # new one has additions
@@ -140,7 +148,7 @@ class TestFindTypeSectionRow:
         card = _make_card(name="Llanowar Elves", type_line="Creature")
         original_count = buf.line_count()
 
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
 
         assert row is not None
         # Only 1 line added (header), no extra blank since line before SB is blank
@@ -155,7 +163,7 @@ class TestFindTypeSectionRow:
         )
         card = _make_card(name="Birds of Paradise", type_line="Creature")
 
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
 
         assert new_buf is buf  # no new section created
         assert row == 2  # after existing cards
@@ -178,7 +186,7 @@ class TestNewSectionNormalizeStable:
             "SB: 1 Duress",
         )
         card = _make_card(name="Shock", type_line="Instant")
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
         assert row is not None
         new_buf = new_buf.insert_line(row, "    1 Shock")
         assert normalize_sections(new_buf) is new_buf
@@ -191,7 +199,7 @@ class TestNewSectionNormalizeStable:
             "1 Llanowar Elves",
         )
         card = _make_card(name="Shock", type_line="Instant")
-        new_buf, row = MainScreen._find_type_section_row(None, card, buf)  # type: ignore[arg-type]
+        new_buf, row = _type_place(card, buf)
         assert row is not None
         new_buf = new_buf.insert_line(row, "1 Shock")
         assert normalize_sections(new_buf) is new_buf
@@ -291,3 +299,33 @@ class TestCleanupEmptySections:
         assert 0 in empty      # // Creature is empty
         assert 2 in empty      # // Instant is empty
         assert 4 not in empty   # // Sorcery has cards
+
+
+class TestSorceryRegression:
+    """Adding a sorcery to a deck with a '// Sorceries' header created a
+    second '// Sorcery' section: the insert path matched by substring and
+    'Sorcery' is the one type whose singular is not a prefix of its
+    plural. Both spellings are the same section."""
+
+    def test_sorcery_card_joins_sorceries_header(self) -> None:
+        buf = _buf_from_lines(
+            "// Sorceries",
+            "4 Ponder",
+            "",
+            "// Lands",
+            "20 Island",
+        )
+        card = _make_card(name="Preordain", type_line="Sorcery")
+
+        new_buf, row = _type_place(card, buf)
+
+        assert new_buf is buf
+        assert row == 2
+
+    def test_new_type_section_is_plural_like_regroup(self) -> None:
+        buf = _buf_from_lines("// Creatures", "4 Llanowar Elves")
+        card = _make_card(name="Ponder", type_line="Sorcery")
+
+        new_buf, row = _type_place(card, buf)
+
+        assert new_buf.get_line(row - 1).text == "// Sorceries"

@@ -49,8 +49,8 @@ keeps its `@category` token, so toggling back and forth is lossless.
 
 | Command | Description |
 |---------|-------------|
-| `:category name` (alias `:cat`) | Set the category on the current line (or range). Tab-completes in the `gc` prompt |
-| `:category!` | Clear the category from the line/range |
+| `:category name` (alias `:cat`) | Set the category on the current line (or range). Tab-completes in the `gc` prompt. In a category-grouped deck the card moves under its new `// @name` header (created if needed) |
+| `:category!` | Clear the category from the line/range; in a category-grouped deck the card moves to `// Uncategorized` |
 | `:categories` (alias `:cats`) | List categories with counts; `:categories name` lists that category's cards |
 | `:layout type` | Regroup mainboard by card type (`// Creatures`, …) |
 | `:layout category` | Regroup by category (`// @ramp`, …); uncategorized cards group last |

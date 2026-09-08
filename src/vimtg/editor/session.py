@@ -40,7 +40,8 @@ from vimtg.editor.layout import (
     LAYOUT_CATEGORY,
     LAYOUT_TYPE,
     detect_layout,
-    regroup_buffer,
+    follow_line,
+    regroup_following_cursor,
 )
 from vimtg.editor.macros import MacroRecorder
 from vimtg.editor.marks import MarkStore
@@ -55,6 +56,7 @@ from vimtg.editor.operators import (
     put_lines,
     resolve_line_range,
 )
+from vimtg.editor.placement import PlacementPolicy, reconcile_category_sections
 from vimtg.editor.plan_ops import (
     block_at,
     board,
@@ -575,6 +577,7 @@ def _handle_category_action(state: EditorState, sub_key: str) -> HandlerResult:
             start = end = row
         state.buffer, count = clear_category_in_range(state.buffer, start, end)
         if count:
+            _refile_categories(state)
             state.modified = True
             state.history.record(state.buffer, "clear category")
             return HandlerResult(
@@ -587,6 +590,19 @@ def _handle_category_action(state: EditorState, sub_key: str) -> HandlerResult:
     if sub_key == "l":
         return _toggle_layout(state)
     return HandlerResult()
+
+
+def _refile_categories(state: EditorState) -> None:
+    """After a category edit in a category-grouped deck, move the edited
+    cards under the headers their tokens name (the cursor follows)."""
+    refiled = reconcile_category_sections(state.buffer)
+    if refiled is state.buffer:
+        return
+    row = follow_line(state.buffer, refiled, state.cursor.row)
+    state.buffer = refiled
+    state.cursor = state.cursor.move_to(
+        min(row, max(0, refiled.line_count() - 1)), 0
+    )
 
 
 def _toggle_layout(state: EditorState) -> HandlerResult:
@@ -604,23 +620,15 @@ def _toggle_layout(state: EditorState) -> HandlerResult:
     order_field = state.settings.sort_order
     if order_field not in SORT_FIELDS:
         order_field = "name"
-    cursor_text = state.buffer.get_line(state.cursor.row).text
-    state.buffer = regroup_buffer(
+    state.buffer, new_row = regroup_following_cursor(
         state.buffer,
+        state.cursor.row,
         mode,
         state.resolved_cards,
         order_field,
-        price_source=state.settings.price_source,
+        state.settings.price_source,
     )
-    new_row = state.cursor.row
-    if cursor_text.strip():
-        for i in range(state.buffer.line_count()):
-            if state.buffer.get_line(i).text == cursor_text:
-                new_row = i
-                break
-    state.cursor = state.cursor.move_to(
-        min(new_row, max(0, state.buffer.line_count() - 1)), 0
-    )
+    state.cursor = state.cursor.move_to(new_row, 0)
     state.modified = True
     state.history.record(state.buffer, f"layout by {mode}")
     return HandlerResult(
@@ -774,6 +782,7 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
             state.buffer, start, end, name
         )
         if count:
+            _refile_categories(state)
             state.modified = True
             state.history.record(state.buffer, f"category @{name}")
             record_category(name)
@@ -807,46 +816,28 @@ ZONE_TARGETS: dict[str, LineType] = {
 }
 
 
-def _main_placement(state: EditorState) -> tuple[str | None, bool]:
-    """(type section, join-uncategorized) for an md into the mainboard.
-
-    A type-grouped deck yields the resolved card's section; a
-    category-grouped deck yields the uncategorized flag — the card has
-    no category yet, so it goes with the other category-less cards.
-    (None, False) — auto-sort off, or card unresolved in a type-grouped
-    deck — appends to the zone's end instead.
-    """
-    from vimtg.domain.card_types import primary_type
-
-    if not state.settings.auto_sort:
-        return None, False
-    if detect_layout(state.buffer) == LAYOUT_CATEGORY:
-        return None, True
+def _placement_policy(state: EditorState) -> PlacementPolicy:
+    """The mainboard placement policy for the card under the cursor."""
     name = state.buffer.card_name_at(state.cursor.row)
     card = state.resolved_cards.get(name) if name else None
-    if card is None:
-        return None, False
-    return primary_type(card.type_line) or "Other", False
+    return PlacementPolicy(
+        auto_sort=state.settings.auto_sort,
+        type_line=card.type_line if card is not None else None,
+    )
 
 
 def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResult:
     """ms/mm/md — move the card at the cursor to another zone.
 
     count == 0 moves every copy; a positive count splits that many off.
-    A move into a type-grouped mainboard lands in the card's own type
-    section (created if missing); into a category-grouped mainboard it
-    joins the uncategorized cards — never the bottom of the zone.
+    With auto-sort on, a move into the mainboard lands where the
+    placement policy says (its type section, its category's section,
+    or the uncategorized group) — never the bottom of the zone.
     """
     target = ZONE_TARGETS[key]
-    section, uncategorized = (
-        _main_placement(state)
-        if target == LineType.CARD_ENTRY
-        else (None, False)
-    )
     result = move_to_zone(
         state.buffer, state.cursor, target, count,
-        main_section=section, uncategorized=uncategorized,
-        alpha=state.settings.auto_sort,
+        policy=_placement_policy(state),
     )
     if not result.moved:
         return HandlerResult(

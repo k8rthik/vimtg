@@ -9,6 +9,7 @@ from vimtg.editor.operators import (
     move_to_zone,
     put_lines,
 )
+from vimtg.editor.placement import PlacementPolicy
 from vimtg.editor.registers import RegisterStore
 
 SAMPLE_DECK = """\
@@ -361,7 +362,7 @@ class TestMoveToZone:
         )
         result = move_to_zone(
             buf, _make_cursor(row=8), LineType.CARD_ENTRY,
-            main_section="Instant",
+            policy=PlacementPolicy(auto_sort=True, type_line="Instant"),
         )
         lines = self._lines(result.buffer)
         assert "    1 Annul" in lines
@@ -375,7 +376,7 @@ class TestMoveToZone:
         )
         result = move_to_zone(
             buf, _make_cursor(row=3), LineType.CARD_ENTRY,
-            main_section="Creature",
+            policy=PlacementPolicy(auto_sort=True, type_line="Creature"),
         )
         lines = self._lines(result.buffer)
         header_idx = lines.index("// Creatures")
@@ -384,8 +385,8 @@ class TestMoveToZone:
         assert "SB: 2 Llanowar Elves" not in lines
 
     def test_move_to_main_without_section_appends(self) -> None:
-        """No main_section (unresolved card / auto_sort off) keeps the
-        old append-to-zone-end behavior."""
+        """No policy (auto_sort off) keeps the old append-to-zone-end
+        behavior."""
         buf = _make_buffer()
         sb_row = self._lines(buf).index("SB: 2 Engineered Explosives")
         result = move_to_zone(
@@ -410,7 +411,7 @@ class TestMoveToZone:
         )
         result = move_to_zone(
             buf, _make_cursor(row=5), LineType.CARD_ENTRY,
-            uncategorized=True,
+            policy=PlacementPolicy(auto_sort=True),
         )
         lines = self._lines(result.buffer)
         header_idx = lines.index("    // Uncategorized")
@@ -431,7 +432,7 @@ class TestMoveToZone:
         )
         result = move_to_zone(
             buf, _make_cursor(row=6), LineType.CARD_ENTRY,
-            uncategorized=True,
+            policy=PlacementPolicy(auto_sort=True),
         )
         lines = self._lines(result.buffer)
         assert lines.index("1 Annul") == lines.index("1 Opt") + 1
@@ -447,7 +448,7 @@ class TestMoveToZone:
         )
         result = move_to_zone(
             buf, _make_cursor(row=3), LineType.CARD_ENTRY,
-            uncategorized=True,
+            policy=PlacementPolicy(auto_sort=True),
         )
         lines = self._lines(result.buffer)
         header_idx = lines.index("// Uncategorized")
@@ -461,7 +462,7 @@ class TestMoveToZone:
         )
         result = move_to_zone(
             buf, _make_cursor(row=3), LineType.CARD_ENTRY,
-            main_section="Instant",
+            policy=PlacementPolicy(auto_sort=True, type_line="Instant"),
         )
         lines = self._lines(result.buffer)
         assert "3 Shock" in lines
@@ -477,7 +478,8 @@ class TestAlphabeticalZoneInsert:
             "4 Lightning Bolt\n\nSB: 2 Duress\nSB: 2 Rest in Peace\n"
         )
         result = move_to_zone(
-            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY, alpha=True
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY,
+            policy=PlacementPolicy(auto_sort=True),
         )
         lines = self._lines(result.buffer)
         assert lines.index("SB: 4 Lightning Bolt") == (
@@ -488,7 +490,8 @@ class TestAlphabeticalZoneInsert:
     def test_ms_alpha_before_first(self) -> None:
         buf = Buffer.from_text("4 Annul\n\nSB: 2 Duress\n")
         result = move_to_zone(
-            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY, alpha=True
+            buf, _make_cursor(row=0), LineType.SIDEBOARD_ENTRY,
+            policy=PlacementPolicy(auto_sort=True),
         )
         lines = self._lines(result.buffer)
         assert lines.index("SB: 4 Annul") == lines.index("SB: 2 Duress") - 1
@@ -512,7 +515,8 @@ class TestAlphabeticalZoneInsert:
             "CMD:\n    1 Tymna the Weaver\n\n4 Annul\n"
         )
         result = move_to_zone(
-            buf, _make_cursor(row=3), LineType.COMMANDER_ENTRY, alpha=True
+            buf, _make_cursor(row=3), LineType.COMMANDER_ENTRY,
+            policy=PlacementPolicy(auto_sort=True),
         )
         lines = self._lines(result.buffer)
         assert lines.index("    4 Annul") == lines.index("    1 Tymna the Weaver") + 1

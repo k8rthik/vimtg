@@ -108,8 +108,8 @@ Each card can carry one `@category` purpose label (see
 
 | Key | Action |
 |-----|--------|
-| `gc` | Prompt for category, set on current card (or visual range). The prompt ghost-completes from this deck's categories, previously used names, and common presets; `Tab` accepts |
-| `gC` | Clear the card's category |
+| `gc` | Prompt for category, set on current card (or visual range). The prompt ghost-completes from this deck's categories, previously used names, and common presets; `Tab` accepts. In a category-grouped deck the card moves under its new header |
+| `gC` | Clear the card's category; in a category-grouped deck the card moves to `// Uncategorized` |
 | `gl` | Toggle layout: group by card type / by category |
 
 ## Tags
