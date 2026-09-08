@@ -40,6 +40,50 @@ def compute_scroll_offset(
     return max(0, min(offset, max_offset))
 
 
+def compute_block_scroll_offset(
+    selected: int,
+    block_height: int,
+    current_offset: int,
+    total: int,
+    viewport: int,
+    scrolloff: int = 2,
+    bottom_pad: int = 0,
+) -> int:
+    """Scroll offset keeping a multi-row selection block visible.
+
+    The selected line renders `block_height` rows (its own row plus any
+    expansion beneath it); every other line renders one row. The whole
+    block is kept on screen with `scrolloff` rows of context above and
+    below it. When the block is taller than that allows, the selected
+    row and its top context win and the expansion clips at the bottom.
+
+    The view may scroll up to `bottom_pad` rows past the last line so a
+    block at the end of the buffer still gets its context; the pad never
+    forces a scroll when the content already fits the viewport.
+
+    Offsets are buffer-line indices: rows above the selection map 1:1
+    to buffer lines, and the offset never passes the selected line.
+    """
+    extra = max(0, block_height - 1)
+    if viewport <= 0 or total + extra <= viewport:
+        return 0
+
+    scrolloff = min(scrolloff, max(0, (viewport - 1) // 2))
+    max_offset = total + extra + bottom_pad - viewport
+    offset = current_offset
+
+    # Scrolling down: block bottom (plus context) below the viewport
+    if selected + extra > offset + viewport - 1 - scrolloff:
+        offset = selected + extra - viewport + 1 + scrolloff
+
+    # Scrolling up: selected row (plus context) above the viewport.
+    # Applied last so the cursor row always wins over the expansion.
+    if selected < offset + scrolloff:
+        offset = selected - scrolloff
+
+    return max(0, min(offset, max_offset))
+
+
 def scroll_step_for_key(key: str, viewport: int) -> int | str | None:
     """Vim-style scroll command for a translated key.
 
