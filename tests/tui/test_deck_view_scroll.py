@@ -58,3 +58,24 @@ def test_cursor_row_keeps_scrolloff_below(monkeypatch) -> None:
     rows = dv.render().plain.rstrip("\n").split("\n")
     cursor_idx = next(i for i, r in enumerate(rows) if "Bear 17" in r)
     assert cursor_idx <= 20 - 1 - 3
+
+
+def test_wheel_moves_window_and_drags_cursor(monkeypatch) -> None:
+    dv = _view(lines=60, height=20)
+    dv.auto_expand = False
+    monkeypatch.setattr(
+        type(dv), "size", property(lambda self: self._size_override)  # type: ignore[attr-defined]
+    )
+    dv.cursor = Cursor(row=0, col=0)
+    dv.render()
+    requests: list[int] = []
+    monkeypatch.setattr(dv, "post_message", lambda msg: requests.append(msg.row))
+    dv.wheel(3)
+    assert dv._scroll_offset == 3
+    # Cursor row 0 fell out of the scrolloff band, so the view asks for row 6
+    assert requests == [6]
+    dv.wheel(-3)
+    assert dv._scroll_offset == 0
+    # The view reasons from its own outstanding request (row 6), which is
+    # inside the band at offset 0 — no second request
+    assert requests == [6]

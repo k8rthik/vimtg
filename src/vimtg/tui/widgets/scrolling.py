@@ -106,3 +106,40 @@ def scroll_step_for_key(key: str, viewport: int) -> int | str | None:
     if key == "G":
         return "end"
     return None
+
+
+# Buffer rows one wheel notch moves (vim's default for the mouse wheel)
+WHEEL_LINES = 3
+
+
+def wheel_scroll(
+    offset: int,
+    cursor: int,
+    delta: int,
+    total: int,
+    viewport: int,
+    scrolloff: int = 2,
+) -> tuple[int, int]:
+    """Vim-style wheel scroll: move the window by `delta` rows and return
+    (new_offset, new_cursor).
+
+    The window moves freely within the content; the cursor stays put
+    unless it would leave the scrolloff band, in which case it is
+    dragged to the band's edge — so the view never scrolls the cursor
+    off screen, and never yanks it around when it is comfortably inside.
+    """
+    if viewport <= 0 or total <= viewport:
+        return 0, cursor
+    scrolloff = min(scrolloff, max(0, (viewport - 1) // 2))
+    max_offset = total - viewport
+    new_offset = max(0, min(offset + delta, max_offset))
+    # At the very top/bottom of the content the band opens up: the
+    # cursor may sit on the first or last line, as in vim
+    low = new_offset + scrolloff if new_offset > 0 else 0
+    high = (
+        new_offset + viewport - 1 - scrolloff
+        if new_offset < max_offset
+        else total - 1
+    )
+    new_cursor = max(low, min(cursor, high))
+    return new_offset, new_cursor

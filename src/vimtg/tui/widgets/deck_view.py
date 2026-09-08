@@ -6,6 +6,8 @@ Thin wrapper around deck_renderer; all formatting logic lives there.
 from __future__ import annotations
 
 from rich.text import Text
+from textual import events
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -16,7 +18,11 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.header_counts import HeaderCount, header_counts
 from vimtg.tui.deck_renderer import render_line
-from vimtg.tui.widgets.scrolling import compute_block_scroll_offset
+from vimtg.tui.widgets.scrolling import (
+    WHEEL_LINES,
+    compute_block_scroll_offset,
+    wheel_scroll,
+)
 
 # Rows of context kept above/below the cursor block (vim's scrolloff),
 # and the blank rows the view may scroll past the last line so a card
@@ -27,6 +33,20 @@ _BOTTOM_PAD = 3
 
 class DeckView(Static):
     """Scrollable deck buffer display with inline card expansion."""
+
+    class CursorRequest(Message):
+        """The view scrolled (mouse wheel) and needs the cursor moved to
+        `row` to stay on screen. The cursor is editor state, so the
+        screen applies it — the view never moves the cursor itself."""
+
+        def __init__(self, view: DeckView, row: int) -> None:
+            super().__init__()
+            self.view = view
+            self.row = row
+
+        @property
+        def control(self) -> DeckView:
+            return self.view
 
     buffer: reactive[Buffer | None] = reactive(None)
     cursor: reactive[Cursor] = reactive(Cursor)
@@ -45,6 +65,11 @@ class DeckView(Static):
     # sized in rendered rows, so the cursor row's inline expansion
     # counts toward what must stay on screen.
     _scroll_offset: int = 0
+    # Cursor row the last wheel scroll asked the screen for, until the
+    # screen delivers a new cursor. Wheel events can arrive faster than
+    # the screen applies them, so the view reasons from its own request
+    # and the screen applies only the latest one.
+    _pending_cursor_row: int | None = None
 
     # Header count annotations, cached per Buffer — buffers are
     # immutable, so identity is a sound cache key.
@@ -69,6 +94,11 @@ class DeckView(Static):
         assert self.buffer is not None
         total = self.buffer.line_count()
         viewport = self.size.height
+        # A wheel scroll may render before the screen has applied the
+        # cursor it asked for; window on the requested row, or the stale
+        # cursor would drag the offset straight back.
+        if self._pending_cursor_row is not None:
+            cursor_row = min(self._pending_cursor_row, max(0, total - 1))
         self._scroll_offset = compute_block_scroll_offset(
             cursor_row, block_height, self._scroll_offset, total, viewport,
             _SCROLLOFF, _BOTTOM_PAD,
@@ -121,10 +151,47 @@ class DeckView(Static):
                 output.append("\n")
         return output
 
+    # ── Mouse wheel ──────────────────────────────────────────────
+
+    def wheel(self, delta: int) -> None:
+        """Scroll the window by `delta` buffer rows, vim-style: the
+        cursor is only dragged along when it would leave the scrolloff
+        band, and then via a CursorRequest the screen applies."""
+        if self.buffer is None:
+            return
+        total = self.buffer.line_count()
+        current = (
+            self._pending_cursor_row
+            if self._pending_cursor_row is not None
+            else min(self.cursor.row, max(0, total - 1))
+        )
+        offset, row = wheel_scroll(
+            self._scroll_offset, current, delta, total, self.size.height, _SCROLLOFF,
+        )
+        self._scroll_offset = offset
+        if row != current:
+            self._pending_cursor_row = row
+            self.post_message(self.CursorRequest(self, row))
+        self.refresh()
+
+    def is_current_request(self, row: int) -> bool:
+        """True when `row` is the view's latest outstanding cursor
+        request — older ones are stale and must be dropped."""
+        return self._pending_cursor_row == row
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        event.stop()
+        self.wheel(WHEEL_LINES)
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        event.stop()
+        self.wheel(-WHEEL_LINES)
+
     def watch_buffer(self, _old: Buffer | None, _new: Buffer | None) -> None:
         self.refresh()
 
     def watch_cursor(self, _old: Cursor, _new: Cursor) -> None:
+        self._pending_cursor_row = None
         self.refresh()
 
     def watch_resolved_cards(

@@ -6,7 +6,7 @@ block, plus scrolloff rows of context, on screen — and may scroll past
 the last line so a block at the end of the buffer still fits.
 """
 
-from vimtg.tui.widgets.scrolling import compute_block_scroll_offset
+from vimtg.tui.widgets.scrolling import compute_block_scroll_offset, wheel_scroll
 
 
 class TestFits:
@@ -86,3 +86,50 @@ class TestBottomPad:
         )
         assert off > 0
         assert 18 - off + 8 <= 24
+
+
+class TestWheelScroll:
+    """wheel_scroll — vim-style: the window moves, the cursor is only
+    dragged along when it would otherwise leave the scrolloff band."""
+
+    @staticmethod
+    def _ws(**kw: int) -> tuple[int, int]:
+        return wheel_scroll(**kw)
+
+    def test_scrolls_window_and_leaves_cursor(self) -> None:
+        off, cur = self._ws(offset=0, cursor=10, delta=3, total=100, viewport=20, scrolloff=3)
+        assert (off, cur) == (3, 10)
+
+    def test_cursor_dragged_to_top_band(self) -> None:
+        off, cur = self._ws(offset=0, cursor=1, delta=3, total=100, viewport=20, scrolloff=3)
+        assert (off, cur) == (3, 6)
+
+    def test_cursor_dragged_to_bottom_band(self) -> None:
+        off, cur = self._ws(offset=10, cursor=26, delta=-3, total=100, viewport=20, scrolloff=3)
+        assert (off, cur) == (7, 23)
+
+    def test_clamps_at_top(self) -> None:
+        assert self._ws(offset=1, cursor=5, delta=-3, total=100, viewport=20, scrolloff=3) == (0, 5)
+
+    def test_clamps_at_bottom(self) -> None:
+        off, cur = self._ws(offset=78, cursor=90, delta=5, total=100, viewport=20, scrolloff=3)
+        assert off == 80
+        assert cur == 90
+
+    def test_content_shorter_than_viewport_never_scrolls(self) -> None:
+        assert self._ws(offset=0, cursor=3, delta=3, total=10, viewport=20, scrolloff=3) == (0, 3)
+
+    def test_cursor_never_leaves_buffer(self) -> None:
+        off, cur = self._ws(offset=0, cursor=0, delta=200, total=30, viewport=10, scrolloff=3)
+        assert off == 20
+        assert cur == 23
+
+    def test_band_opens_at_top_and_bottom(self) -> None:
+        # Offset 0: the cursor may sit on line 0 (no drag to row 3)
+        top = self._ws(offset=3, cursor=0, delta=-3, total=100, viewport=20, scrolloff=3)
+        assert top == (0, 0)
+        # Max offset: the cursor may sit on the last line
+        bottom = self._ws(
+            offset=77, cursor=99, delta=3, total=100, viewport=20, scrolloff=3
+        )
+        assert bottom == (80, 99)
