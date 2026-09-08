@@ -16,6 +16,7 @@ from textual.widgets import Static
 from vimtg.editor.help_text import get_help
 from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
+from vimtg.tui.widgets.scrolling import scroll_step_for_key
 
 _HEADER = "═══ vimtg Help ═══════════════════════════════════════"
 
@@ -77,15 +78,11 @@ class HelpScreen(Screen[None]):
 
         if key in ("q", "escape"):
             self.app.pop_screen()
-        elif key in ("j", "down"):
-            scroll.scroll_relative(y=1, animate=False)
-        elif key in ("k", "up"):
-            scroll.scroll_relative(y=-1, animate=False)
-        elif key == "ctrl_d":
-            scroll.scroll_relative(y=scroll.size.height // 2, animate=False)
-        elif key == "ctrl_u":
-            scroll.scroll_relative(y=-(scroll.size.height // 2), animate=False)
-        elif key == "g":
+            return
+        step = scroll_step_for_key(key, scroll.size.height)
+        if step == "home":
             scroll.scroll_home(animate=False)
-        elif key == "G":
+        elif step == "end":
             scroll.scroll_end(animate=False)
+        elif isinstance(step, int):
+            scroll.scroll_relative(y=step, animate=False)

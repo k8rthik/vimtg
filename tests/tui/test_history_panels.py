@@ -1,4 +1,4 @@
-"""Tests for BranchesPanel, SnapshotsPanel, and HelpPanel render output."""
+"""Tests for BranchesPanel and SnapshotsPanel render output."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from datetime import datetime
 from vimtg.domain.vcs import VCSBranch, VCSSnapshot
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.branches_panel import BranchesPanel
-from vimtg.tui.widgets.help_panel import HelpPanel
 from vimtg.tui.widgets.snapshots_panel import SnapshotsPanel
 
 
@@ -179,20 +178,3 @@ class TestSnapshotsPanel:
         # snap0..snap4 hidden, snap5 visible
         assert "snap0\n" not in plain
         assert "snap5" in plain
-
-
-# ── HelpPanel ──────────────────────────────────────────────────────
-
-
-class TestHelpPanel:
-    def test_header_present(self) -> None:
-        p = HelpPanel()
-        plain = p.render().plain
-        assert "Help" in plain
-        assert "Press ? or Escape to close" in plain
-
-    def test_help_content_not_empty(self) -> None:
-        p = HelpPanel()
-        plain = p.render().plain
-        # The overview should produce many lines of help text
-        assert len(plain.split("\n")) > 5

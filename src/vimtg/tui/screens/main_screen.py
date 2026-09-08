@@ -283,12 +283,15 @@ class MainScreen(Screen[None]):
         event.prevent_default()
         event.stop()
 
-        # ── Help panel modal: block all keys except ? and Escape ──
+        # ── Help panel modal: ? / Escape close, scroll keys scroll,
+        # everything else is swallowed so it never reaches the editor ──
         hp = self.query_one("#help-panel", HelpPanel)
         if hp.display:
             key = translate(event.key)
             if key in ("?", "escape"):
                 hp.display = False
+            else:
+                hp.scroll_by_key(key)
             return
 
         # F1 opens the full help screen from normal mode
@@ -578,7 +581,10 @@ class MainScreen(Screen[None]):
             self._vcs_auto_snapshot()
         if hr.help_requested:
             hp = self.query_one("#help-panel", HelpPanel)
-            hp.display = not hp.display
+            if hp.display:
+                hp.display = False
+            else:
+                hp.open()
             self.query_one("#which-key", WhichKey).display = not hp.display
         if hr.greeter_requested:
             app = self.app

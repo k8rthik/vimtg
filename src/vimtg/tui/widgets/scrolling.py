@@ -38,3 +38,27 @@ def compute_scroll_offset(
         offset = selected - scrolloff
 
     return max(0, min(offset, max_offset))
+
+
+def scroll_step_for_key(key: str, viewport: int) -> int | str | None:
+    """Vim-style scroll command for a translated key.
+
+    Returns a signed line delta (j/k/arrows one line, Ctrl-D/U half a
+    viewport, never less than one line), "home"/"end" for g/G, or None
+    when the key is not a scroll key. Shared by every read-only scrolling
+    view (help panel, help screen) so they cannot drift apart.
+    """
+    half = max(1, viewport // 2)
+    if key in ("j", "down"):
+        return 1
+    if key in ("k", "up"):
+        return -1
+    if key == "ctrl_d":
+        return half
+    if key == "ctrl_u":
+        return -half
+    if key == "g":
+        return "home"
+    if key == "G":
+        return "end"
+    return None
