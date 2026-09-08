@@ -1,27 +1,42 @@
-"""Section normalization for deck buffers.
+"""Section placement and normalization for deck buffers.
 
-Removes section headers with no cards, collapses runs of blank lines,
-and keeps one blank line before each header. Pure buffer-to-buffer
-logic; returns the input Buffer unchanged (same object) when the text
-is already normalized, so callers can detect "no change" by identity.
+Built on the parsed section model (vimtg.editor.section_model): a
+section's identity is its SectionKey and its extent runs to the next
+header, so the insert row, the empty-section cleanup, and the duplicate
+merge below all agree with header counts and category lookup.
+
+Normalization merges duplicate sections, removes headers with no cards,
+collapses runs of blank lines, and keeps one blank line before each
+header. Pure buffer-to-buffer logic; returns the input Buffer unchanged
+(same object) when the text is already normalized, so callers can
+detect "no change" by identity.
 
 TUI-agnostic: no Textual imports.
 """
 
 from __future__ import annotations
 
+from vimtg.domain.categories import UNCATEGORIZED_LABEL
 from vimtg.domain.deck_lines import (
-    apply_zone_effect,
+    CARD_PATTERN,
     block_header_tag,
     parse_zone_header,
     zone_context_effect,
+    zone_running_context,
 )
-from vimtg.editor.buffer import (
-    LABEL_ZONE_TYPES,
-    Buffer,
-    LineType,
-    classify_line,
+from vimtg.domain.section_keys import (
+    SectionKey,
+    SectionKind,
+    section_key_for_label,
 )
+from vimtg.editor.buffer import Buffer, LineType, classify_line
+from vimtg.editor.section_model import Section, find_section, parse_sections
+
+UNCATEGORIZED_KEY = SectionKey(SectionKind.OTHER, UNCATEGORIZED_LABEL)
+
+# Derived groupings whose duplicates normalization folds together.
+# Fixed labels ('// Other') and zone headers are left alone.
+_MERGEABLE_KINDS = (SectionKind.TYPE, SectionKind.CATEGORY)
 
 
 def matched_indent(buf: Buffer, row: int) -> str:
@@ -41,35 +56,42 @@ def matched_indent(buf: Buffer, row: int) -> str:
     return ""
 
 
+def section_insert_row(buf: Buffer, key: SectionKey) -> tuple[Buffer, int]:
+    """Row where a mainboard card of section `key` belongs.
+
+    Joins the existing section in any spelling; creates the header when
+    missing — indented inside the DCK: block when the deck uses one,
+    blank-separated at the top level otherwise. New headers are written
+    already normalize-stable (blank line before them), so the cleanup
+    pass never shifts rows — a shift would leave the caller's cursor
+    pointing at the header.
+    Returns (buffer, insert_row) — buffer may have new header lines.
+    """
+    section = find_section(parse_sections(buf), key, LineType.CARD_ENTRY)
+    if section is not None:
+        return buf, section.insert_row
+    return _create_section_row(buf, key)
+
+
 def type_section_insert_row(
     buf: Buffer, section_name: str
 ) -> tuple[Buffer, int]:
-    """Row where a mainboard card of `section_name` type belongs.
-
-    Creates the section header if it doesn't exist — indented inside
-    the DCK: block when the deck uses one, blank-separated at the top
-    level otherwise. New headers are written already normalize-stable
-    (blank line before them), so the cleanup pass never shifts rows —
-    a shift would leave the caller's cursor pointing at the header.
-    Returns (buffer, insert_row) — buffer may have new header lines.
-    """
-    # Look for existing section header (indented headers included)
-    for i in range(buf.line_count()):
-        bl = buf.get_line(i)
-        if bl.line_type == LineType.SECTION_HEADER and section_name in bl.text:
-            insert_at = i + 1
-            while insert_at < buf.line_count() and buf.is_card_line(insert_at):
-                insert_at += 1
-            return buf, insert_at
-
-    return _create_section_row(buf, section_name)
+    """section_insert_row for a type named in any spelling ('Sorcery',
+    'Sorceries') or a fixed label ('Other')."""
+    return section_insert_row(buf, section_key_for_label(section_name))
 
 
-def _create_section_row(buf: Buffer, section_name: str) -> tuple[Buffer, int]:
-    """Create a '// section_name' header and return the card row under
-    it — indented inside the DCK: block when the deck uses one (after
-    the block's current content), blank-separated before the sideboard
-    or at the end otherwise."""
+def uncategorized_insert_row(buf: Buffer) -> tuple[Buffer, int]:
+    """Row where a category-less mainboard card belongs in a
+    category-grouped deck: with the other uncategorized cards."""
+    return section_insert_row(buf, UNCATEGORIZED_KEY)
+
+
+def _create_section_row(buf: Buffer, key: SectionKey) -> tuple[Buffer, int]:
+    """Create `key`'s header and return the card row under it — indented
+    inside the DCK: block when the deck uses one (after the block's
+    current content), blank-separated before the sideboard or at the
+    end otherwise."""
     dck_row = next(
         (
             i for i in range(buf.line_count())
@@ -95,7 +117,7 @@ def _create_section_row(buf: Buffer, section_name: str) -> tuple[Buffer, int]:
         if buf.get_line(insert_at - 1).line_type != LineType.BLANK:
             buf = buf.insert_line(insert_at, "")
             insert_at += 1
-        buf = buf.insert_line(insert_at, f"    // {section_name}")
+        buf = buf.insert_line(insert_at, key.header_text("    "))
         return buf, insert_at + 1
 
     # Legacy layout — create the section before sideboard or at end
@@ -111,75 +133,71 @@ def _create_section_row(buf: Buffer, section_name: str) -> tuple[Buffer, int]:
         buf = buf.insert_line(insert_at, "")
         insert_at += 1
 
-    buf = buf.insert_line(insert_at, f"// {section_name}")
+    buf = buf.insert_line(insert_at, key.header_text())
     return buf, insert_at + 1
 
 
-def uncategorized_insert_row(buf: Buffer) -> tuple[Buffer, int]:
-    """Row where a category-less mainboard card belongs in a
-    category-grouped deck: with the other uncategorized cards.
-
-    Joins the existing '// Uncategorized' section when one exists —
-    matched exactly, so a '// @Uncategorized' category header can never
-    silently categorize the card — else creates the same trailing
-    section a gl regroup emits. Normalize-stable like the type path.
-    Returns (buffer, insert_row) — buffer may have new header lines.
-    """
-    from vimtg.domain.categories import UNCATEGORIZED_LABEL
-
-    for i in range(buf.line_count()):
-        bl = buf.get_line(i)
-        if (
-            bl.line_type == LineType.SECTION_HEADER
-            and bl.text.strip().removeprefix("//").strip()
-            == UNCATEGORIZED_LABEL
-        ):
-            insert_at = i + 1
-            while insert_at < buf.line_count() and buf.is_card_line(insert_at):
-                insert_at += 1
-            return buf, insert_at
-
-    return _create_section_row(buf, UNCATEGORIZED_LABEL)
-
-
-def _expected_card_type(header_text: str) -> LineType | None:
-    """The card LineType a header's section is made of.
-
-    None for bare zone block headers ('DCK:', 'CMD:', ...) — those are
-    structural zone declarations, not derived groupings, and are never
-    auto-dropped.
-    """
-    if parse_zone_header(header_text) is not None:
-        return None
-    label = header_text.strip().removeprefix("//").strip()
-    return LABEL_ZONE_TYPES.get(label, LineType.CARD_ENTRY)
+# ── Normalization ────────────────────────────────────────────────────
 
 
 def normalize_sections(buffer: Buffer) -> Buffer:
     """Return a normalized Buffer, or `buffer` itself if already clean."""
-    lines = [
-        (buffer.get_line(i).text, buffer.get_line(i).line_type)
-        for i in range(buffer.line_count())
-    ]
-
-    kept = _drop_empty_headers(lines)
+    merged = _merge_duplicate_sections(buffer)
+    kept = _drop_empty_headers(merged)
     collapsed = _collapse_blank_runs(kept)
     padded = _pad_before_headers(collapsed)
 
-    if [text for text, _ in lines] == padded:
+    if [bl.text for bl in buffer.get_lines()] == padded:
         return buffer
     return Buffer.from_text("\n".join(padded) + "\n")
 
 
-def _would_capture_cards(
-    lines: list[tuple[str, LineType]], header_row: int
-) -> bool:
+def _first_duplicate(
+    sections: tuple[Section, ...],
+) -> tuple[Section, Section] | None:
+    """(earlier, later) for the first pair of mergeable sections that
+    denote the same grouping in the same zone at the same depth."""
+    seen: dict[tuple[SectionKey, LineType, str], Section] = {}
+    for section in sections:
+        if section.key.kind not in _MERGEABLE_KINDS:
+            continue
+        ident = (section.key, section.zone, section.indent)
+        if ident not in seen:
+            seen[ident] = section
+        elif not section.is_empty:
+            # An empty duplicate has nothing to move — cleanup drops it
+            return seen[ident], section
+    return None
+
+
+def _merge_duplicate_sections(buffer: Buffer) -> Buffer:
+    """Fold '// Sorcery' into an earlier '// Sorceries' (and the like):
+    the later section's cards move to the end of the earlier one and
+    its header goes. Other lines in the later extent (comments, foreign
+    zone lines) stay where they are; the blank-line passes that follow
+    tidy the separators."""
+    buf = buffer
+    while True:
+        pair = _first_duplicate(parse_sections(buf))
+        if pair is None:
+            return buf
+        first, later = pair
+        texts = [bl.text for bl in buf.get_lines()]
+        removing = set(later.card_rows) | {later.header_row}
+        moved = [texts[r] for r in later.card_rows]
+        remaining = [t for i, t in enumerate(texts) if i not in removing]
+        # `first` precedes `later`, so its insert row is unshifted
+        remaining[first.insert_row:first.insert_row] = moved
+        while remaining and not remaining[-1].strip():
+            remaining.pop()  # a removed tail section leaves its separator
+        buf = Buffer.from_text("\n".join(remaining) + "\n")
+
+
+def _would_capture_cards(texts: list[str], header_row: int) -> bool:
     """True when dropping the block-terminating header at `header_row`
     would extend the open zone block over an indented bare card line,
     silently rezoning it."""
-    from vimtg.domain.deck_lines import CARD_PATTERN
-
-    for text, _ in lines[header_row + 1:]:
+    for text in texts[header_row + 1:]:
         if zone_context_effect(text) != "keep":
             return False  # another terminator closes the block first
         if text[:1].isspace() and CARD_PATTERN.match(text) is not None:
@@ -187,43 +205,33 @@ def _would_capture_cards(
     return False
 
 
-def _drop_empty_headers(
-    lines: list[tuple[str, LineType]],
-) -> list[tuple[str, LineType]]:
-    """Drop section headers with no card lines before the next section.
+def _terminates_block(texts: list[str], row: int) -> bool:
+    """True when the line at `row` closes an open zone block."""
+    return (
+        zone_running_context(texts, row) is not None
+        and zone_context_effect(texts[row]) == "clear"
+    )
 
-    Zone-aware: a '// Creature' header is only occupied by mainboard
-    cards — a CMD:/SB: line sitting where the section's cards used to
-    be does not keep it alive. Blank lines and comments between the
-    header and its cards are looked through, and a header that is
-    terminating an open zone block above it is never dropped (removing
-    it would extend that block over the following lines).
+
+def _drop_empty_headers(buffer: Buffer) -> list[tuple[str, LineType]]:
+    """Drop derived section headers that hold no cards of their zone.
+
+    Structural zone blocks ('DCK:') are never dropped, and neither is a
+    header that is terminating an open zone block above it when removing
+    it would swallow the following lines into that block.
     """
-    running: str | None = None
+    lines = [(bl.text, bl.line_type) for bl in buffer.get_lines()]
+    texts = [text for text, _ in lines]
     to_delete: set[int] = set()
-    for i, (text, line_type) in enumerate(lines):
-        terminates_block = (
-            running is not None and zone_context_effect(text) == "clear"
-        )
-        running = apply_zone_effect(zone_context_effect(text), running)
-        if line_type != LineType.SECTION_HEADER:
+    for section in parse_sections(buffer):
+        if section.is_structural or not section.is_empty:
             continue
-        expected = _expected_card_type(text)
-        if expected is None:
-            continue  # bare zone block header — structural, keep
-        if terminates_block and _would_capture_cards(lines, i):
-            continue  # dropping it would swallow lines into the block
-        has_cards = False
-        for _, next_type in lines[i + 1:]:
-            if next_type in (LineType.BLANK, LineType.COMMENT):
-                continue
-            if next_type == expected:
-                has_cards = True
-            break
-        if not has_cards:
-            to_delete.add(i)
-            if i + 1 < len(lines) and lines[i + 1][1] == LineType.BLANK:
-                to_delete.add(i + 1)
+        row = section.header_row
+        if _terminates_block(texts, row) and _would_capture_cards(texts, row):
+            continue
+        to_delete.add(row)
+        if row + 1 < len(lines) and lines[row + 1][1] == LineType.BLANK:
+            to_delete.add(row + 1)
     return [entry for i, entry in enumerate(lines) if i not in to_delete]
 
 

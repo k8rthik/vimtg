@@ -59,6 +59,25 @@ def type_section_label(ptype: str | None) -> str:
     return SECTION_LABELS.get(ptype, "Other")
 
 
+# Every spelling a type-section header may use, lowercased, -> the type.
+# Hand-written and imported lists use singular ('// Sorcery') and plural
+# ('// Sorceries') interchangeably; both name the same section.
+_LABEL_TYPES: dict[str, str] = {
+    **{ptype.lower(): ptype for ptype in PRIMARY_TYPES},
+    **{label.lower(): ptype for ptype, label in SECTION_LABELS.items()},
+}
+
+
+def header_primary_type(label: str) -> str | None:
+    """The primary type a section label names, or None for labels that
+    aren't a type ('Other', 'Sideboard', '@ramp', 'Artifact Lands').
+
+    Tolerant of singular/plural and case so 'Sorcery' and 'Sorceries'
+    can never be treated as two different sections.
+    """
+    return _LABEL_TYPES.get(label.strip().lower())
+
+
 def primary_type(type_line: str) -> str | None:
     """Return the first matching primary type from a card's front face."""
     front = type_line.split("—")[0].split("//")[0].strip()

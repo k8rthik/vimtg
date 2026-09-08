@@ -50,9 +50,17 @@ Unknown keys are preserved on save.
 ## Sections
 
 A line matching a known header word (`// Creatures`, `// Lands`, …) or the
-category form `// @name` is a section header. Sections are purely visual —
-they affect rendering and the `{` / `}` motions but have no semantic
-meaning. Any other `// text` line is a freeform comment.
+category form `// @name` is a section header. Type headers are accepted in
+singular or plural and any case (`// Sorcery` and `// Sorceries` name the
+same section); inserts join whichever spelling the deck already uses and
+write the plural form when creating a new one. A section runs from its
+header to the next header and owns the cards of its zone in that span —
+a `SB:` line under `// Creatures` is not one of its cards. Section
+cleanup drops a derived header with no cards and folds two headers that
+name the same section (`// Sorcery` after `// Sorceries`) into the first.
+Sections are otherwise visual — they affect rendering and the `{` / `}`
+motions but have no semantic meaning. Any other `// text` line is a
+freeform comment.
 
 ```
 // Creatures
@@ -73,6 +81,13 @@ label (`@ramp`, `@draw`, `@wincon`) that drives the category layout.
 `:layout type` regroups by card type while each card keeps its token, so
 toggling is lossless. Set with `gc` / `:cat name`, clear with `gC` /
 `:cat!`. Names are lowercase: letters, digits, hyphens, 1–32 chars.
+
+In a category-grouped deck the token and the header agree by
+construction: setting or clearing a category moves the card under the
+matching `// @name` (or `// Uncategorized`) header, a card added under a
+category header takes that category, and a card moved into the
+mainboard (`md`) lands in its own category's section. Moving a card
+between zones keeps its token.
 
 ## Cards
 
@@ -148,7 +163,7 @@ Block rules, Python-like:
 Block style is the default: new decks scaffold a `DCK:` body (plus a
 `CMD:` block for commander decks), a zone move that creates a brand-new
 zone opens it as a block, and auto-sorted inserts create their
-`// Creature`-style type headers indented inside the `DCK:` block. Zone
+`// Creatures`-style type headers indented inside the `DCK:` block. Zone
 moves and card inserts match the style of where they land — indented
 inside blocks, prefixed next to prefix-style entries. Layout regrouping
 (`:layout`, `gl`) preserves each zone's style; export normalizes to

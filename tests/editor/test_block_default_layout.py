@@ -35,10 +35,22 @@ class TestMcLeavesNoEmptyTypeHeader:
         )
 
     def test_commander_line_does_not_keep_foreign_header_alive(self):
-        # A '// Creature' header directly above a CMD: line is empty
-        buf = Buffer.from_text("// Creature\n\nCMD: 1 Atraxa\n1 Forest\n")
+        # A '// Creature' header whose extent holds only a CMD: line is
+        # empty — the section runs to the next header, and a foreign-zone
+        # line inside it is not one of its cards
+        buf = Buffer.from_text(
+            "// Creature\n\nCMD: 1 Atraxa\n\n// Lands\n1 Forest\n"
+        )
         cleaned = normalize_sections(buf)
         assert "// Creature" not in cleaned.to_text()
+        assert "// Lands" in cleaned.to_text()
+
+    def test_mainboard_card_after_foreign_line_keeps_header(self):
+        # Same extent rule the other way: a mainboard card anywhere in
+        # the section's extent occupies it, even past a CMD: line
+        buf = Buffer.from_text("// Creature\n\nCMD: 1 Atraxa\n1 Forest\n")
+        cleaned = normalize_sections(buf)
+        assert "// Creature" in cleaned.to_text()
 
     def test_sideboard_header_kept_by_sideboard_cards(self):
         buf = Buffer.from_text("4 Bolt\n\n// Sideboard\nSB: 1 Duress\n")

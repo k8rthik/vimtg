@@ -201,16 +201,16 @@ def _find_empty_section_indices(buf: Buffer) -> list[int]:
     """Return indices of section headers the real normalizer would drop."""
     from vimtg.editor.sections import _drop_empty_headers
 
-    lines = [
-        (buf.get_line(i).text, buf.get_line(i).line_type)
-        for i in range(buf.line_count())
-    ]
-    kept_ids = {id(entry) for entry in _drop_empty_headers(lines)}
-    return [
-        i
-        for i, entry in enumerate(lines)
-        if entry[1] == LineType.SECTION_HEADER and id(entry) not in kept_ids
-    ]
+    kept = [text for text, _ in _drop_empty_headers(buf)]
+    dropped: list[int] = []
+    j = 0
+    for i in range(buf.line_count()):
+        bl = buf.get_line(i)
+        if j < len(kept) and kept[j] == bl.text:
+            j += 1
+        elif bl.line_type == LineType.SECTION_HEADER:
+            dropped.append(i)
+    return dropped
 
 
 class TestCleanupEmptySections:

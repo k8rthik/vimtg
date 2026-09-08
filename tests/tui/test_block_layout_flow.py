@@ -58,11 +58,11 @@ async def test_new_deck_scaffolds_blocks_and_insert_lands_inside(
 
         buf = screen._state.buffer
         lines = buf.to_text().splitlines()
-        assert "    // Creature" in lines
+        assert "    // Creatures" in lines
         assert "    1 Goblin Guide" in lines
         row = lines.index("    1 Goblin Guide")
         assert buf.get_line(row).line_type is LineType.CARD_ENTRY
-        assert lines.index("DCK:") < lines.index("    // Creature")
+        assert lines.index("DCK:") < lines.index("    // Creatures")
 
         # mc moves it into the CMD: block, indented, and cleans the
         # now-empty type section
