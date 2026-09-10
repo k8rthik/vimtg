@@ -52,15 +52,15 @@ MODE_SWITCHES: dict[str, str] = {
     "/": "SEARCH",
 }
 SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "A"})
-MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@", "S"})
+MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@", "S", "z"})
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion)
-_G_SUB_KEYS = frozenset({"c", "C", "l"})
+_G_SUB_KEYS = frozenset({"c", "C", "l", "h"})
 # S{v,h,s,c,r} — split panes: vertical/horizontal, switch, close, EDHREC
 _SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r", "a"})
-# m{s,m,d,c,p} — zone moves; m{i,o} — board in/out of the sideboard plan.
-# These shadow the same-lettered marks (every other m{a-z} sets a mark).
-_MOVE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
+# z{s,m,d,c,p} — zone moves; z{i,o} — board in/out of the sideboard plan.
+# m{a-z} is marks only.
+_ZONE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
 
 
 def _apply_text_edit(
@@ -169,9 +169,13 @@ class KeyMap:
             self._state = _State.REGISTER
             return KeyResult.PENDING, None
         if self._state == _State.REGISTER:
-            self._register = key
-            self._state = _State.IDLE
-            return KeyResult.PENDING, None
+            # Only a-z, A-Z, 0-9 name a register; anything else is a typo
+            if len(key) == 1 and (key.isalpha() or key.isdigit()):
+                self._register = key
+                self._state = _State.IDLE
+                return KeyResult.PENDING, None
+            self.reset()
+            return KeyResult.NO_MATCH, None
 
         # "0" starts the line-start motion when no count is pending, but
         # extends an in-progress count ("10j"), matching vim.
@@ -206,12 +210,12 @@ class KeyMap:
                 action = ParsedAction("motion", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # m{s,m,d,c,p} — move card to sideboard/maybeboard/main deck/
-            # commander/companion; m{i,o} — board the card in/out of the
+            # z{s,m,d,c,p} — move card to sideboard/maybeboard/main deck/
+            # commander/companion; z{i,o} — board the card in/out of the
             # active sideboard plan. Count 0 is the "no count given"
-            # sentinel (like G): a bare move takes every copy, "3ms"
+            # sentinel (like G): a bare move takes every copy, "3zs"
             # splits off 3.
-            if self._multi_key_prefix == "m" and key in _MOVE_SUB_KEYS:
+            if self._multi_key_prefix == "z" and key in _ZONE_SUB_KEYS:
                 explicit_count = int(self._count_str) if self._count_str else 0
                 action = ParsedAction(
                     "special", full_key, explicit_count, self._register
@@ -233,7 +237,7 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # g{c,C,l} — category operations and layout toggle
+            # g{c,C,l} — category operations and layout toggle; gh — history overlay
             if self._multi_key_prefix == "g" and key in _G_SUB_KEYS:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()

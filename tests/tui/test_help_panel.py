@@ -20,7 +20,7 @@ class TestRenderHelpOverview:
     def test_header_present(self) -> None:
         plain = render_help_overview().plain
         assert "Help" in plain
-        assert "? or Escape" in plain
+        assert "? or Esc" in plain
 
     def test_help_content_not_empty(self) -> None:
         plain = render_help_overview().plain
@@ -47,8 +47,11 @@ class TestScrollStepForKey:
         assert scroll_step_for_key("ctrl_u", 1) == -1
 
     def test_top_and_bottom(self) -> None:
-        assert scroll_step_for_key("g", 20) == "home"
+        # bare g is never a scroll key; gg is parsed by tui.keys.VimNav
+        assert scroll_step_for_key("g", 20) is None
+        assert scroll_step_for_key("home", 20) == "home"
         assert scroll_step_for_key("G", 20) == "end"
+        assert scroll_step_for_key("end", 20) == "end"
 
     def test_unknown_key_is_none(self) -> None:
         assert scroll_step_for_key("x", 20) is None
@@ -92,7 +95,7 @@ async def test_top_bottom_and_half_page_scroll_help_panel(tmp_path: Path) -> Non
         await pilot.pause()
         bottom = hp.scroll_offset.y
         assert bottom > 0
-        await pilot.press("g")
+        await pilot.press("g", "g")
         await pilot.pause()
         assert hp.scroll_offset.y == 0
         await pilot.press("ctrl+d")

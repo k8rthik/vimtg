@@ -109,7 +109,7 @@ async def test_g_jumps_top_and_bottom(sample_deck_path: Path) -> None:
         await pilot.press("G")  # jump to bottom
         await pilot.pause()
         assert scroll.scroll_offset.y > 0
-        await pilot.press("g")  # jump to top
+        await pilot.press("g", "g")  # jump to top
         await pilot.pause()
         assert scroll.scroll_offset.y == 0
 

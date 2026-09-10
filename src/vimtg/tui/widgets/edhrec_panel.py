@@ -15,7 +15,12 @@ from textual.widgets import Static
 
 from vimtg.services.edhrec import EdhrecCard, EdhrecPage
 from vimtg.tui.theme import COLORS
-from vimtg.tui.widgets.scrolling import WHEEL_LINES, compute_scroll_offset
+from vimtg.tui.widgets.scrolling import (
+    WHEEL_LINES,
+    compute_scroll_offset,
+    marker_above,
+    marker_below,
+)
 
 _SCROLLOFF = 2
 # Header + tab bar + hint line + "more" indicators
@@ -77,12 +82,26 @@ class EdhrecPanel(Static):
             self.select_prev()
 
     def select_next(self) -> None:
-        cards = self._cards()
-        if cards:
-            self.selected = min(self.selected + 1, len(cards) - 1)
+        self.select_by(1)
 
     def select_prev(self) -> None:
-        self.selected = max(self.selected - 1, 0)
+        self.select_by(-1)
+
+    def select_by(self, delta: int) -> None:
+        cards = self._cards()
+        if cards:
+            self.selected = max(0, min(self.selected + delta, len(cards) - 1))
+        else:
+            self.selected = 0
+
+    def select_first(self) -> None:
+        self.select_by(-len(self._cards()))
+
+    def select_last(self) -> None:
+        self.select_by(len(self._cards()))
+
+    def viewport_rows(self) -> int:
+        return self._viewport()
 
     def get_selected(self) -> EdhrecCard | None:
         cards = self._cards()
@@ -143,12 +162,12 @@ class EdhrecPanel(Static):
         end = min(start + viewport, len(cards))
 
         if start > 0:
-            t.append("   ... more above\n", style=_DIM)
+            t.append(marker_above() + "\n", style=_DIM)
         for i in range(start, end):
             t.append(self._card_row(cards[i], i))
             t.append("\n")
         if end < len(cards):
-            t.append(f"   ... {len(cards) - end} more below\n", style=_DIM)
+            t.append(marker_below(len(cards) - end) + "\n", style=_DIM)
         if self.focused_panel:
             t.append(
                 " j/k select  h/l tabs  Enter add card  Esc back\n", style=_DIM

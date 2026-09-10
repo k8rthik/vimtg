@@ -20,8 +20,20 @@ from textual.widgets import Static
 from vimtg.domain.deck_merge import CardKey
 from vimtg.services.vcs_service import PendingMerge
 from vimtg.tui.key_translator import translate
+from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.conflicts_panel import ConflictsPanel
+
+# Action keys and the shared navigation vocabulary; the hint bar and the
+# test in tests/tui/test_merge_screen.py both read this table.
+HINTS = (
+    ("q/Esc", "abort"), ("j/k", "nav"), ("o", "ours"), ("t", "theirs"),
+    ("c", "custom"), ("u", "unresolve"), ("Enter", "confirm"), ("?", "help"),
+)
+ACTIONS: dict[str, str] = {
+    "o": "_pick_ours", "t": "_pick_theirs", "c": "_start_custom_qty",
+    "u": "_unresolve_selected", "enter": "_confirm",
+}
 
 
 class MergeInputMode(Enum):
@@ -46,21 +58,7 @@ class MergeCommandLine(Static):
             t.append(self.text, style="bold")
             t.append(" ", style="bold reverse")
             return t
-        # Default hint bar — must list every key on_key handles
-        hints = (
-            ("j/k", "nav"), ("o", "ours"), ("t", "theirs"),
-            ("c", "custom"), ("u", "unresolve"), ("Enter", "confirm"),
-            ("q", "abort"),
-        )
-        for i, (key, desc) in enumerate(hints):
-            t.append(
-                f"{' ' if i == 0 else ''}{key}",
-                style=f"bold {COLORS['quantity']}",
-            )
-            t.append(f":{desc}", style="dim")
-            if i < len(hints) - 1:
-                t.append(" ", style="dim")
-        return t
+        return render_hints(HINTS, self.size.width)
 
     def show_prompt(self, prompt: str) -> None:
         self.prompt = prompt
@@ -128,6 +126,7 @@ class MergeScreen(Screen[None]):
         self._deck_name = deck_name
         self._on_complete = on_complete
         self._on_abort = on_abort
+        self._nav = VimNav()
         self._resolutions: dict[CardKey, int | None] = {}
         self._input_mode = MergeInputMode.NORMAL
         self._input_text = ""
@@ -164,22 +163,29 @@ class MergeScreen(Screen[None]):
             cl.hide()
 
         cp = self.query_one("#conflicts-panel", ConflictsPanel)
-        if key in ("j", "down"):
-            cp.select_next()
-        elif key in ("k", "up"):
-            cp.select_prev()
-        elif key == "o":
-            self._resolve_selected(lambda c: c.ours_quantity)
-        elif key == "t":
-            self._resolve_selected(lambda c: c.theirs_quantity)
-        elif key == "c":
-            self._start_custom_qty()
-        elif key == "u":
-            self._unresolve_selected()
-        elif key == "enter":
-            self._confirm()
-        elif key in ("q", "escape"):
+        step = self._nav.feed(key, max(1, len(cp.conflicts)))
+        if step == PENDING:
+            return
+        if step == "home":
+            cp.select_first()
+        elif step == "end":
+            cp.select_last()
+        elif step is not None:
+            cp.select_by(int(step))
+        elif key in CLOSE_KEYS:
             self._abort()
+        elif key in (HELP_KEY, FULL_HELP_KEY):
+            from vimtg.tui.screens.help_screen import HelpScreen
+
+            self.app.push_screen(HelpScreen(topic="merge" if key == HELP_KEY else None))
+        elif (method := ACTIONS.get(key)) is not None:
+            getattr(self, method)()
+
+    def _pick_ours(self) -> None:
+        self._resolve_selected(lambda c: c.ours_quantity)
+
+    def _pick_theirs(self) -> None:
+        self._resolve_selected(lambda c: c.theirs_quantity)
 
     # ── Resolution actions ────────────────────────────────
 

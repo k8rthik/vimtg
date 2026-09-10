@@ -9,7 +9,11 @@ from textual.widgets import Static
 from vimtg.domain.card import Card
 from vimtg.tui.deck_renderer import format_mana
 from vimtg.tui.theme import COLORS
-from vimtg.tui.widgets.scrolling import compute_scroll_offset
+from vimtg.tui.widgets.scrolling import (
+    compute_scroll_offset,
+    marker_above,
+    marker_below,
+)
 
 _MAX_VISIBLE = 10
 _SCROLLOFF = 2
@@ -57,7 +61,7 @@ class SearchResults(Static):
         visible = self.results[self._scroll_offset:end]
 
         if self._scroll_offset > 0:
-            t.append("   ... more above\n", style=_DIM)
+            t.append(marker_above() + "\n", style=_DIM)
 
         for i, card in enumerate(visible):
             absolute_idx = self._scroll_offset + i
@@ -97,7 +101,7 @@ class SearchResults(Static):
                 t.append(f"     {oracle_preview}\n", style=_DIM)
 
         if end < count:
-            t.append(f"   ... {count - end} more below\n", style=_DIM)
+            t.append(marker_below(count - end) + "\n", style=_DIM)
 
         return t
 

@@ -94,7 +94,7 @@ async def test_plan_creates_block_and_boards_cards(seeded_db, tmp_path: Path) ->
         assert screen._state.cursor.row == _row_of(screen, "VS: Tron")
 
         await _goto(pilot, screen, "4 Lightning Bolt")
-        await pilot.press("m")
+        await pilot.press("z")
         await pilot.press("o")
         await pilot.pause()
         assert "    -4 Lightning Bolt" in _lines(screen)
@@ -102,7 +102,7 @@ async def test_plan_creates_block_and_boards_cards(seeded_db, tmp_path: Path) ->
 
         await _goto(pilot, screen, "3 Rest in Peace")
         await pilot.press("2")
-        await pilot.press("m")
+        await pilot.press("z")
         await pilot.press("i")
         await pilot.pause()
         assert "    +2 Rest in Peace" in _lines(screen)
@@ -184,7 +184,7 @@ async def test_save_round_trips_the_plan(seeded_db, tmp_path: Path) -> None:
         screen = _screen(app)
         await _ex(pilot, "plan Tron")
         await _goto(pilot, screen, "4 Goblin Guide")
-        await pilot.press("m")
+        await pilot.press("z")
         await pilot.press("o")
         await pilot.pause()
         await _ex(pilot, "w")

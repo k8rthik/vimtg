@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from rich.text import Text
+from textual import events
 from textual.reactive import reactive
 from textual.widgets import Static
 
 from vimtg.domain.deck_merge import CardKey, MergeConflict
 from vimtg.tui.theme import COLORS
+from vimtg.tui.widgets.scrolling import WHEEL_LINES
 
 _UNSET = "·"
 
@@ -80,11 +82,30 @@ class ConflictsPanel(Static):
         return t
 
     def select_next(self) -> None:
-        if self.conflicts:
-            self.selected = min(self.selected + 1, len(self.conflicts) - 1)
+        self.select_by(1)
 
     def select_prev(self) -> None:
-        self.selected = max(self.selected - 1, 0)
+        self.select_by(-1)
+
+    def select_by(self, delta: int) -> None:
+        if self.conflicts:
+            self.selected = max(0, min(self.selected + delta, len(self.conflicts) - 1))
+        else:
+            self.selected = 0
+
+    def select_first(self) -> None:
+        self.select_by(-len(self.conflicts))
+
+    def select_last(self) -> None:
+        self.select_by(len(self.conflicts))
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        event.stop()
+        self.select_by(WHEEL_LINES)
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        event.stop()
+        self.select_by(-WHEEL_LINES)
 
     def get_selected_conflict(self) -> MergeConflict | None:
         if 0 <= self.selected < len(self.conflicts):

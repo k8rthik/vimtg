@@ -126,6 +126,67 @@ class SnapshotRepository:
             current_id = snap.parent_id
         return result
 
+    def get_history(
+        self, snapshot_id: str, deck_path: str, limit: int = 100
+    ) -> list[VCSSnapshot]:
+        """Every snapshot reachable from snapshot_id, newest first.
+
+        Follows both parent_id and merge_parent_id (so merged-in commits
+        appear, like `git log` without --first-parent) but never leaves
+        the deck_path partition. The tip is always first; the rest are
+        ordered by (timestamp, id) descending.
+
+        The graph walk reads ids and parents only; full rows (with the
+        deck text) are fetched for the `limit` survivors afterwards, so
+        a deck with thousands of auto-snapshots stays cheap to open.
+        """
+        conn = self._db.connect()
+        seen: dict[str, tuple[datetime, str | None, str | None]] = {}
+        frontier = [snapshot_id]
+        while frontier:
+            current = frontier.pop()
+            if current in seen:
+                continue
+            row = conn.execute(
+                "SELECT id, parent_id, merge_parent_id, timestamp "
+                "FROM snapshots WHERE id = ? AND deck_path = ?",
+                (current, deck_path),
+            ).fetchone()
+            if row is None:
+                continue
+            parent, merge_parent = row["parent_id"], row["merge_parent_id"]
+            seen[current] = (_parse_timestamp(row["timestamp"]), parent, merge_parent)
+            frontier.extend(
+                pid for pid in (parent, merge_parent)
+                if pid is not None and pid not in seen
+            )
+        if snapshot_id not in seen:
+            return []
+        rest = sorted(
+            (sid for sid in seen if sid != snapshot_id),
+            key=lambda sid: (seen[sid][0], sid),
+            reverse=True,
+        )
+        wanted = [snapshot_id, *rest][:limit]
+        return self._fetch_in_order(wanted)
+
+    def _fetch_in_order(self, ids: list[str]) -> list[VCSSnapshot]:
+        """Full rows for `ids`, in the given order (chunked IN queries)."""
+        conn = self._db.connect()
+        by_id: dict[str, VCSSnapshot] = {}
+        chunk = 500
+        for i in range(0, len(ids), chunk):
+            part = ids[i:i + chunk]
+            marks = ",".join("?" * len(part))
+            rows = conn.execute(
+                f"SELECT * FROM snapshots WHERE id IN ({marks})",  # noqa: S608
+                part,
+            ).fetchall()
+            for row in rows:
+                snap = _row_to_snapshot(row)
+                by_id[snap.id] = snap
+        return [by_id[sid] for sid in ids if sid in by_id]
+
     def update_snapshot_tag(
         self, snapshot_id: str, tag: str | None
     ) -> None:

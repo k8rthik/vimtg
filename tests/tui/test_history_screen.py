@@ -7,14 +7,14 @@ path: commit, branch, tag/untag, restore confirmation, and navigation.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import pytest
-from textual.app import App
 
-from vimtg.data.database import Database
-from vimtg.data.snapshot_repository import SnapshotRepository
-from vimtg.services.deck_diff_service import DeckDiffService
+from tests.tui.history_support import (
+    STATE_V1,
+    STATE_V2,
+    HistoryHostApp,
+    make_history_screen,
+)
 from vimtg.services.vcs_service import VersionControlService
 from vimtg.tui.screens.history_screen import (
     HistoryCommandLine,
@@ -26,12 +26,6 @@ from vimtg.tui.screens.history_screen import (
 from vimtg.tui.widgets.branches_panel import BranchesPanel
 from vimtg.tui.widgets.diff_panel import DiffPanel
 from vimtg.tui.widgets.snapshots_panel import SnapshotsPanel
-
-DECK_PATH = "/tmp/burn.deck"
-STATE_V1 = "4 Lightning Bolt\n4 Goblin Guide\n"
-STATE_V2 = "4 Lightning Bolt\n4 Goblin Guide\n4 Monastery Swiftspear\n"
-STATE_CURRENT = STATE_V2 + "2 Shock\n"
-
 
 # ──────────────────────────────────────────────────────────────────
 # Unit tests: HistoryCommandLine
@@ -115,42 +109,8 @@ class TestHistoryStatusLine:
 # ──────────────────────────────────────────────────────────────────
 
 
-class _HostApp(App[None]):
-    """Minimal app that hosts a single HistoryScreen for pilot tests."""
-
-    def __init__(self, screen: HistoryScreen) -> None:
-        super().__init__()
-        self._target = screen
-
-    def on_mount(self) -> None:
-        self.push_screen(self._target)
-
-
-@pytest.fixture
-def vcs(db_factory: Callable[..., Database]) -> VersionControlService:
-    repo = SnapshotRepository(db_factory())
-    return VersionControlService(repo, DECK_PATH)
-
-
-@pytest.fixture
-def vcs_with_history(vcs: VersionControlService) -> VersionControlService:
-    vcs.commit(STATE_V1, "initial build")
-    vcs.commit(STATE_V2, "add swiftspear")
-    return vcs
-
-
-def _make_screen(
-    vcs: VersionControlService,
-    on_restore: Callable[[str], None] | None = None,
-    current_state: str = STATE_CURRENT,
-) -> HistoryScreen:
-    return HistoryScreen(
-        vcs_service=vcs,
-        diff_service=DeckDiffService(),
-        current_deck_state=current_state,
-        deck_name="Burn",
-        on_restore=on_restore,
-    )
+_HostApp = HistoryHostApp
+_make_screen = make_history_screen
 
 
 @pytest.mark.asyncio
@@ -445,17 +405,19 @@ async def test_switch_branch_via_shortcut(
     vcs_with_history: VersionControlService,
 ) -> None:
     vcs_with_history.create_branch("budget")
-    screen = _make_screen(vcs_with_history)
+    # Switching needs a clean working copy, and a branch other than the
+    # current one (main): budget sorts first.
+    screen = _make_screen(vcs_with_history, current_state=STATE_V2)
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
-        # Move focus to the branches panel and select the second branch.
+        # Move focus to the branches panel; the first branch is selected.
         await pilot.press("tab")  # SNAPSHOTS -> DIFF
         while screen._active_panel != Panel.BRANCHES:
             await pilot.press("tab")
         bp = screen.query_one("#branches-panel", BranchesPanel)
-        target = bp.branches[1].name
-        await pilot.press("j")  # select second branch
+        target = bp.branches[0].name
+        assert target != vcs_with_history.current_branch
         await pilot.press("B")
         await pilot.pause()
         cl = screen.query_one("#history-command", HistoryCommandLine)
@@ -467,7 +429,7 @@ async def test_switch_branch_via_enter_on_branches(
     vcs_with_history: VersionControlService,
 ) -> None:
     vcs_with_history.create_branch("budget")
-    screen = _make_screen(vcs_with_history)
+    screen = _make_screen(vcs_with_history, current_state=STATE_V2)
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -544,7 +506,7 @@ async def test_merge_key_merges_selected_branch(
     async with app.run_test() as pilot:
         await pilot.pause()
         # Branches are sorted: budget first — already selected at index 0
-        await pilot.press("m")
+        await pilot.press("2", "m")
         await pilot.pause()
         cl = screen.query_one("#history-command", HistoryCommandLine)
         assert "Merged budget" in cl.message
@@ -565,7 +527,7 @@ async def test_merge_key_refuses_dirty_state(
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("m")
+        await pilot.press("2", "m")
         cl = screen.query_one("#history-command", HistoryCommandLine)
         assert "Uncommitted changes" in cl.message
 
@@ -578,7 +540,7 @@ async def test_merge_key_refuses_current_branch(
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("m")  # only branch is main == current
+        await pilot.press("2", "m")  # only branch is main == current
         cl = screen.query_one("#history-command", HistoryCommandLine)
         assert "Already on that branch" in cl.message
 
@@ -601,7 +563,7 @@ async def test_merge_with_conflicts_pushes_merge_screen(
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("m")
+        await pilot.press("2", "m")
         await pilot.pause()
         assert isinstance(app.screen, MergeScreen)
 
@@ -620,7 +582,7 @@ async def test_rebase_key_confirms_then_rebases(
         await pilot.pause()
         bp = screen.query_one("#branches-panel", BranchesPanel)
         bp.select_next()  # budget, main -> select main
-        await pilot.press("r")
+        await pilot.press("2", "r")
         assert screen._input_mode == InputMode.CONFIRM_REBASE
         await pilot.press("y")
         await pilot.press("enter")
@@ -645,7 +607,7 @@ async def test_rebase_cancelled_with_n(
         await pilot.pause()
         bp = screen.query_one("#branches-panel", BranchesPanel)
         bp.select_next()
-        await pilot.press("r")
+        await pilot.press("2", "r")
         await pilot.press("n")
         await pilot.press("enter")
         cl = screen.query_one("#history-command", HistoryCommandLine)

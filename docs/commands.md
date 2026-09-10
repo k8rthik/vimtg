@@ -115,13 +115,18 @@ So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
 
 ## Version control
 
-vimtg keeps a git-like commit graph per deck (lazygit-style history
-screen, persistent branches, merges, and rebases). Branches and the
-current branch survive across sessions.
+vimtg keeps a git-like commit graph per deck (persistent branches,
+merges, and rebases). Branches and the current branch survive across
+sessions. `:history` (or `gh`) opens a floating lazygit-style overlay
+over the editor with Working copy, Branches, Snapshots, Diff, and Stats
+panels; the snapshot log follows merge parents, so commits that arrived
+through a merge are listed with their branch name. See
+[keybindings.md](./keybindings.md#version-control-overlay) for the
+overlay keys.
 
 | Command | Description |
 |---------|-------------|
-| `:history` (alias `:log`) | Open the history screen |
+| `:history` (alias `:log`) | Open the history overlay (also `gh`) |
 | `:commit "msg"` | Snapshot the current deck state |
 | `:checkpoint name` | Commit the current state and tag it |
 | `:branch` | List branches (`*` marks the current one) |
@@ -134,8 +139,8 @@ current branch survive across sessions.
 Merging and rebasing require a committed working state (`:commit` first).
 When both branches changed the same card differently, an interactive
 resolution screen opens: pick ours, theirs, or a custom quantity per
-card. Merge commits record both parents; the log shows the first-parent
-history with a `⇄ merge` marker. Rebase replays commits with a
+card. Merge commits record both parents and carry a `⇄ merge` marker in
+the overlay's snapshot log. Rebase replays commits with a
 replayed-change-wins policy and leaves the original snapshots recoverable
 by id. Note that merge and rebase results are normalized on write
 (sections regrouped, free comments dropped), like cherry-pick.
@@ -153,7 +158,7 @@ by id. Note that merge and rebase results are normalized on write
 A plan is a `VS: <matchup>` block at the end of the deck listing
 `-N Card` (out of the mainboard) and `+N Card` (in from the sideboard)
 lines — see [deck-format.md](./deck-format.md#sideboard-plans). One plan
-is *active* at a time: `mo`/`mi` write into it, deck cards show their
+is *active* at a time: `zo`/`zi` write into it, deck cards show their
 `-N`/`+N`, the status line shows `vs Tron -4/+4` (with `!` when
 unbalanced), and `:analytics` boards the deck with it.
 

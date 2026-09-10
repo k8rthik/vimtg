@@ -1,4 +1,4 @@
-"""Sideboard-plan edits — the pure engine behind mi/mo, :plan, and ]v.
+"""Sideboard-plan edits — the pure engine behind zi/zo, :plan, and ]v.
 
 A plan is text: a 'VS: name' header with indented '-N Card' / '+N Card'
 lines. Every operation here rewrites that text and returns a new
@@ -243,7 +243,7 @@ def board(
     else:
         return PlanEditResult(
             buffer,
-            "E: mi/mo board the mainboard or sideboard card under the cursor",
+            "E: zi/zo board the mainboard or sideboard card under the cursor",
             error=True,
         )
     block = find_block(buffer, plan)

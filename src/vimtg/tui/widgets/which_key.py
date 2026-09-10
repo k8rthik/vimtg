@@ -11,77 +11,13 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widgets import Static
 
+from vimtg.editor.keyspec import quick_hints, which_key_menus
 from vimtg.tui.theme import COLORS
 
-# Fallback shown for pending states with no specific continuation
-# (e.g. a count in progress).
-NORMAL_HINTS = {
-    "Navigation": [
-        ("j/k", "down/up"),
-        ("w/b", "next/prev card"),
-        ("{/}", "prev/next section"),
-        ("[[/]]", "prev/next header"),
-        ("gg/G", "top/bottom"),
-        ("Ctrl-D/U", "page down/up"),
-    ],
-    "Editing": [
-        ("i", "edit line"),
-        ("A", "comment card"),
-        ("o/O", "add card"),
-        ("dd", "delete card"),
-        ("yy", "yank card"),
-        ("p/P", "paste below/above"),
-        ("+/-", "inc/dec quantity"),
-        (".", "repeat last"),
-    ],
-    "Commands": [
-        (":", "command mode"),
-        ("/", "search"),
-        ("u", "undo"),
-        ("Ctrl-R", "redo"),
-        ("v/V", "visual mode"),
-        ("q{a-z}", "record macro"),
-        ("S", "splits/EDHREC"),
-    ],
-}
-
-PENDING_HINTS: dict[str, list[tuple[str, str]]] = {
-    "d": [
-        ("dd", "delete line"), ("dw", "del next card"),
-        ("d}", "del section"), ("dG", "del to end"),
-    ],
-    "y": [
-        ("yy", "yank line"), ("yw", "yank next card"),
-        ("y}", "yank section"), ("yG", "yank to end"),
-    ],
-    "c": [("cc", "change line"), ("cw", "change to next card")],
-    "g": [
-        ("gg", "go to top"), ("gc", "set category"),
-        ("gC", "clear category"), ("gl", "toggle layout"),
-    ],
-    "[": [("[[", "prev section header"), ("[v", "prev sideboard plan")],
-    "]": [("]]", "next section header"), ("]v", "next sideboard plan")],
-    "\"": [("\"a-z", "named register"), ("\"0", "yank register"), ("\"1-9", "delete history")],
-    "q": [("qa-z", "record macro"), ("q (stop)", "stop recording")],
-    "@": [("@a-z", "play macro"), ("@@", "replay last")],
-    "m": [
-        ("ms", "→ sideboard"), ("mm", "→ maybeboard"), ("md", "→ main deck"),
-        ("mc", "→ commander"), ("mp", "→ companion"),
-        ("mo", "board out (plan)"), ("mi", "board in (plan)"),
-        ("ma-z", "set mark"),
-    ],
-    "'": [("'a-z", "jump to mark")],
-    "S": [
-        ("Sv", "vertical split"), ("Sh", "horizontal split"),
-        ("Sr", "EDHREC recs"), ("Sa", "analytics"),
-        ("Ss", "switch pane"), ("Sc", "close split"),
-    ],
-    "t": [
-        ("ta", "add tag"), ("tr", "remove tag"), ("tt", "toggle tag"),
-        ("tf", "filter by tag"), ("tl", "list tags"), ("tc", "clear tags"),
-        ("tn", "next tagged"), ("tp", "prev tagged"),
-    ],
-}
+# Both tables are derived from the editor key spec, the single source of
+# truth for what every key does (src/vimtg/editor/keyspec.py).
+NORMAL_HINTS: dict[str, list[tuple[str, str]]] = quick_hints()
+PENDING_HINTS: dict[str, list[tuple[str, str]]] = which_key_menus()
 
 
 class WhichKey(Static):
