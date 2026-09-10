@@ -1,4 +1,4 @@
-"""Tests for editor.plan_ops — the pure boarding edits behind mi/mo and :plan."""
+"""Tests for editor.plan_ops — the pure boarding edits behind zi/zo and :plan."""
 
 from __future__ import annotations
 

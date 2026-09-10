@@ -55,12 +55,12 @@ def _feed(*keys: str) -> ParsedAction:
 
 class TestKeymap:
     def test_board_keys_are_specials(self) -> None:
-        assert _feed("m", "i").action == "mi"
-        assert _feed("m", "o").action == "mo"
+        assert _feed("z", "i").action == "zi"
+        assert _feed("z", "o").action == "zo"
 
     def test_board_count_is_raw(self) -> None:
-        assert _feed("m", "o").count == 0
-        assert _feed("2", "m", "o").count == 2
+        assert _feed("z", "o").count == 0
+        assert _feed("2", "z", "o").count == 2
 
     def test_plan_jump_keys(self) -> None:
         assert _feed("]", "v").action == "]v"
@@ -69,9 +69,9 @@ class TestKeymap:
 
 
 class TestBoardKeys:
-    def test_mo_writes_into_the_active_plan(self) -> None:
+    def test_zo_writes_into_the_active_plan(self) -> None:
         s = _state(row=2, active="Tron")
-        hr = handle_normal_special(s, _feed("m", "o"))
+        hr = handle_normal_special(s, _feed("z", "o"))
         assert s.buffer.get_line(9).text == "    -2 Skullcrack"
         assert s.cursor.row == 2
         assert s.modified
@@ -80,52 +80,52 @@ class TestBoardKeys:
 
     def test_count_boards_that_many(self) -> None:
         s = _state(row=5, active="Tron")
-        handle_normal_special(s, _feed("2", "m", "i"))
+        handle_normal_special(s, _feed("2", "z", "i"))
         assert s.buffer.get_line(9).text == "    +2 Alpine Moon"
 
     def test_undo_reverts_a_boarding(self) -> None:
         s = _state(row=2, active="Tron")
-        handle_normal_special(s, _feed("m", "o"))
+        handle_normal_special(s, _feed("z", "o"))
         handle_normal_special(s, _feed("u"))
         assert s.buffer.to_text() == DECK
 
     def test_dot_repeats_a_boarding(self) -> None:
         s = _state(row=5, active="Tron")
-        handle_normal_special(s, _feed("1", "m", "i"))
+        handle_normal_special(s, _feed("1", "z", "i"))
         handle_normal_special(s, _feed("."))
         assert s.buffer.get_line(9).text == "    +2 Alpine Moon"
 
     def test_single_plan_is_used_without_activation(self) -> None:
         text = DECK.replace("\nVS: Burn\n", "")
         s = _state(text, row=2)
-        hr = handle_normal_special(s, _feed("m", "o"))
+        hr = handle_normal_special(s, _feed("z", "o"))
         assert not hr.error
         assert s.active_plan == "Tron"
         assert s.buffer.get_line(9).text == "    -2 Skullcrack"
 
     def test_no_plan_is_an_error(self) -> None:
         s = _state("4 Opt\n")
-        hr = handle_normal_special(s, _feed("m", "o"))
+        hr = handle_normal_special(s, _feed("z", "o"))
         assert hr.error
         assert ":plan <matchup>" in hr.command_message
         assert s.buffer.to_text() == "4 Opt\n"
 
     def test_ambiguous_plans_need_activation(self) -> None:
         s = _state(row=2)
-        hr = handle_normal_special(s, _feed("m", "o"))
+        hr = handle_normal_special(s, _feed("z", "o"))
         assert hr.error
         assert s.buffer.to_text() == DECK
 
     def test_boarding_error_leaves_history_alone(self) -> None:
         s = _state(row=8, active="Tron")  # a plan line, not a deck card
-        hr = handle_normal_special(s, _feed("m", "o"))
+        hr = handle_normal_special(s, _feed("z", "o"))
         assert hr.error
         assert s.history.undo() is None
 
     def test_insert_above_cursor_shifts_the_cursor(self) -> None:
         text = "VS: Tron\n\nDCK:\n    4 Lightning Bolt\n"
         s = _state(text, row=3, active="Tron")
-        handle_normal_special(s, _feed("m", "o"))
+        handle_normal_special(s, _feed("z", "o"))
         assert s.buffer.get_line(1).text == "    -4 Lightning Bolt"
         assert s.cursor.row == 4
         assert s.buffer.card_name_at(4) == "Lightning Bolt"

@@ -83,6 +83,7 @@ from vimtg.services.deck_sources import (
 from vimtg.services.edhrec import EdhrecClient, EdhrecError, EdhrecPage
 from vimtg.services.history_service import HistoryService
 from vimtg.tui.key_translator import translate
+from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.analytics_panel import (
     AnalyticsPanel,
@@ -109,7 +110,7 @@ if TYPE_CHECKING:
 
 _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
-_PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  mi/mo on a deck card boards it"
+_PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
 
 _NAMED_KEYS = frozenset({
     "escape", "enter", "tab", "backspace", "delete",
@@ -193,6 +194,7 @@ class MainScreen(Screen[None]):
         self._lint_key: tuple[Buffer, dict[str, Card], str] | None = None
         self._lint_resolved_names: frozenset[str] = frozenset()
         self._split_pane: _SplitPane | None = None
+        self._pane_nav = VimNav()
         # Bumped on every :edhrec so a stale fetch can't overwrite a
         # newer result (results deliver via call_from_thread)
         self._edhrec_generation = 0
@@ -407,7 +409,8 @@ class MainScreen(Screen[None]):
                 action.cursor_pos if action.cursor_pos is not None else len(action.text or "")
             )
             return handle_insert_special(s, action)
-        if s.mode_mgr.is_command():
+        if s.mode_mgr.is_command() or s.mode_mgr.current == Mode.SEARCH:
+            # `/` search shares the command line and its key handling
             cl = self.query_one("#command-line", CommandLine)
             cl.text = action.text or ""
             cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
@@ -998,57 +1001,68 @@ class MainScreen(Screen[None]):
         self._sync_pane_focus()
 
     def _handle_split_pane_key(self, key: str) -> bool:
-        """Drive the focused split pane; True when the key was consumed."""
+        """Drive the focused split pane; True when the key was consumed.
+
+        Every pane shares the navigation vocabulary (j/k, Ctrl-D/U, gg/G,
+        Home/End); the EDHREC pane adds tab switching and Enter.
+        """
         comp = self._split_pane
         assert comp is not None
         if key == "escape":
             comp.focused = False
+            self._pane_nav.reset()
             self._sync_pane_focus()
             return True
+        step = self._pane_nav.feed(key, self._pane_viewport(comp))
+        if step == PENDING:
+            return True
+        if step is not None:
+            self._pane_navigate(comp, step)
+            return True
+        if comp.kind == "edhrec":
+            return self._split_edhrec_key(key)
+        return False
+
+    def _pane_viewport(self, comp: _SplitPane) -> int:
         if comp.kind == "deck":
-            return self._split_deck_key(comp, key)
+            return self.query_one("#deck-view-2", DeckView).size.height
         if comp.kind == "analytics":
-            return self._split_analytics_key(key)
-        return self._split_edhrec_key(key)
+            return self.query_one("#analytics-panel", AnalyticsPanel).viewport_rows()
+        return self.query_one("#edhrec-panel", EdhrecPanel).viewport_rows()
 
-    def _split_analytics_key(self, key: str) -> bool:
-        panel = self.query_one("#analytics-panel", AnalyticsPanel)
-        if key in ("j", "down"):
-            panel.scroll_line_down()
-        elif key in ("k", "up"):
-            panel.scroll_line_up()
+    def _pane_navigate(self, comp: _SplitPane, step: int | str) -> None:
+        """Apply a shared navigation step to whichever pane is focused."""
+        if comp.kind == "deck":
+            if comp.buffer is None:
+                return
+            last = comp.buffer.line_count() - 1
+            if step == "home":
+                comp.cursor_row = 0
+            elif step == "end":
+                comp.cursor_row = last
+            else:
+                comp.cursor_row = max(0, min(comp.cursor_row + int(step), last))
+            return
+        if comp.kind == "analytics":
+            panel = self.query_one("#analytics-panel", AnalyticsPanel)
+            if step == "home":
+                panel.scroll_to_top()
+            elif step == "end":
+                panel.scroll_to_bottom()
+            else:
+                panel.scroll_by(int(step))
+            return
+        edh = self.query_one("#edhrec-panel", EdhrecPanel)
+        if step == "home":
+            edh.select_first()
+        elif step == "end":
+            edh.select_last()
         else:
-            return False
-        return True
-
-    def _split_deck_key(self, comp: _SplitPane, key: str) -> bool:
-        if comp.buffer is None:
-            return False
-        last = comp.buffer.line_count() - 1
-        page = max(1, self.query_one("#deck-view-2", DeckView).size.height // 2)
-        if key in ("j", "down"):
-            comp.cursor_row = min(comp.cursor_row + 1, last)
-        elif key in ("k", "up"):
-            comp.cursor_row = max(comp.cursor_row - 1, 0)
-        elif key == "ctrl_d":
-            comp.cursor_row = min(comp.cursor_row + page, last)
-        elif key == "ctrl_u":
-            comp.cursor_row = max(comp.cursor_row - page, 0)
-        elif key in ("g", "home"):
-            comp.cursor_row = 0
-        elif key in ("G", "end"):
-            comp.cursor_row = last
-        else:
-            return False
-        return True
+            edh.select_by(int(step))
 
     def _split_edhrec_key(self, key: str) -> bool:
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
-        if key in ("j", "down"):
-            panel.select_next()
-        elif key in ("k", "up"):
-            panel.select_prev()
-        elif key in ("l", "right", "tab"):
+        if key in ("l", "right", "tab"):
             panel.next_tab()
         elif key in ("h", "left", "shift_tab"):
             panel.prev_tab()
@@ -1151,14 +1165,23 @@ class MainScreen(Screen[None]):
             current_deck_state=self._state.buffer.to_text(),
             deck_name=self.file_path.name if self.file_path else "(new)",
             on_restore=self._on_restore,
+            price_source=self._state.settings.price_source,
+            on_apply_state=self._on_vcs_state,
         ))
 
     def _on_restore(self, deck_state: str) -> None:
         """Callback from HistoryScreen when user restores a snapshot."""
+        self._on_vcs_state(deck_state, "restore from VCS")
+
+    def _on_vcs_state(self, deck_state: str, reason: str) -> None:
+        """Adopt a VCS result (restore, merge, rebase, switch, cherry-pick)
+        into the editor. The cursor keeps its row, clamped to the new
+        buffer, and the undo entry is labelled with `reason`."""
         self._state.buffer = Buffer.from_text(deck_state)
-        self._state.cursor = Cursor()
+        row = min(self._state.cursor.row, max(0, self._state.buffer.line_count() - 1))
+        self._state.cursor = Cursor(row=row)
         self._state.modified = True
-        self._state.history.record(self._state.buffer, "restore from VCS")
+        self._state.history.record(self._state.buffer, reason)
         if self.card_repo:
             self._state.resolved_cards = resolve_cards(
                 self._state.buffer, self.card_repo,
@@ -1338,6 +1361,7 @@ class MainScreen(Screen[None]):
                 pending=pending,
                 deck_name=deck_name,
                 on_complete=lambda res: self._finish_merge(pending, res),
+                on_abort=lambda: cl.set_message("Merge aborted — nothing committed"),
             ))
             return
         if result.new_state is not None:

@@ -86,7 +86,7 @@ In a category-grouped deck the token and the header agree by
 construction: setting or clearing a category moves the card under the
 matching `// @name` (or `// Uncategorized`) header, a card added under a
 category header takes that category, and a card moved into the
-mainboard (`md`) lands in its own category's section. Moving a card
+mainboard (`zd`) lands in its own category's section. Moving a card
 between zones keeps its token.
 
 ## Cards
@@ -131,7 +131,7 @@ The same prefix convention covers the remaining zones:
 - `CMP:` — the companion slot. At most one, quantity 1, outside the
   deck proper; the card must actually have the Companion ability.
 
-In the editor, `ms`/`mm`/`md`/`mc`/`mp` move the cursor card between
+In the editor, `zs`/`zm`/`zd`/`zc`/`zp` move the cursor card between
 zones.
 
 ## Zone block headers (Python style)
@@ -199,7 +199,7 @@ VS: Burn (draw)
   the sideboard, never more copies than the zone holds; ins ≠ outs is a
   warning (Yorion decks and half-written plans are allowed).
 - In the editor `:plan <matchup>` activates a plan (creating the block
-  when new), `mo`/`mi` board the cursor card out/in, `]v`/`[v` jump
+  when new), `zo`/`zi` board the cursor card out/in, `]v`/`[v` jump
   between plans, and `:export guide` writes the plans as Markdown.
   Older vimtg versions read a file with plans as plain comments.
 

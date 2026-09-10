@@ -133,7 +133,7 @@ class EditorState:
     # Ordered completion pool for category input, built on entry
     category_candidates: tuple[str, ...] = ()
     remapper: Any = None  # KeyRemapper, passed through to :map/:unmap
-    # The sideboard plan mi/mo write into and the deck view annotates
+    # The sideboard plan zi/zo write into and the deck view annotates
     active_plan: str | None = None
 
 
@@ -194,8 +194,10 @@ def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
     its count, so the counted case must be intercepted here.
     """
     count = action.count if action.count > 0 else 1
-    if action.action == "G" and count > 1:
-        state.cursor = motion_goto_line(state.cursor, state.buffer, count)
+    # The keymap sends G with count 0 when no count was typed, so a typed
+    # 1G really means line 1.
+    if action.action == "G" and action.count >= 1:
+        state.cursor = motion_goto_line(state.cursor, state.buffer, action.count)
         return HandlerResult()
     motion_fn = MOTION_REGISTRY.get(action.action)
     if motion_fn:
@@ -470,12 +472,12 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
                 command_message=f"Nothing recorded in @{key[1]}"
             )
         return HandlerResult(replay_keys=keys * count)
-    elif key in ("ms", "mm", "md", "mc", "mp"):
-        # Zone moves shadow marks s/m/d/c/p; action.count is read raw
-        # because 0 means "no count given" — move every copy (see keymap).
+    elif key in ("zs", "zm", "zd", "zc", "zp"):
+        # Zone moves; action.count is read raw because 0 means "no count
+        # given" — move every copy (see keymap).
         return _move_card_to_zone(state, key, action.count)
-    elif key in ("mi", "mo"):
-        # Board in/out of the active sideboard plan (shadows marks i/o)
+    elif key in ("zi", "zo"):
+        # Board in/out of the active sideboard plan
         return _board_card(state, key, action.count)
     elif key in ("]v", "[v"):
         return _jump_plan(state, forward=(key == "]v"))
@@ -499,6 +501,8 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         return _handle_split_key(key)
     elif key in ("gc", "gC", "gl"):
         return _handle_category_action(state, key[1])
+    elif key == "gh":
+        return HandlerResult(open_history_screen=True)
     elif key.startswith("t") and len(key) == 2:
         return _handle_tag_action(state, key[1])
     elif key == "A":
@@ -806,13 +810,13 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
     return ""
 
 
-# ms/mm/md/mc/mp → the zone (line type) each move key targets
+# zs/zm/zd/zc/zp → the zone (line type) each move key targets
 ZONE_TARGETS: dict[str, LineType] = {
-    "md": LineType.CARD_ENTRY,
-    "ms": LineType.SIDEBOARD_ENTRY,
-    "mm": LineType.MAYBEBOARD_ENTRY,
-    "mc": LineType.COMMANDER_ENTRY,
-    "mp": LineType.COMPANION_ENTRY,
+    "zd": LineType.CARD_ENTRY,
+    "zs": LineType.SIDEBOARD_ENTRY,
+    "zm": LineType.MAYBEBOARD_ENTRY,
+    "zc": LineType.COMMANDER_ENTRY,
+    "zp": LineType.COMPANION_ENTRY,
 }
 
 
@@ -827,7 +831,7 @@ def _placement_policy(state: EditorState) -> PlacementPolicy:
 
 
 def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResult:
-    """ms/mm/md — move the card at the cursor to another zone.
+    """zs/zm/zd — move the card at the cursor to another zone.
 
     count == 0 moves every copy; a positive count splits that many off.
     With auto-sort on, a move into the mainboard lands where the
@@ -861,7 +865,7 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
 
 
 def _resolve_active_plan(state: EditorState) -> str | None:
-    """The plan mi/mo write into: the active one, else the deck's only
+    """The plan zi/zo write into: the active one, else the deck's only
     plan (activated as a side effect). None when there is no unambiguous
     choice."""
     if state.active_plan is not None:
@@ -874,11 +878,11 @@ def _resolve_active_plan(state: EditorState) -> str | None:
 
 
 def _board_card(state: EditorState, key: str, count: int) -> HandlerResult:
-    """mi/mo — board the cursor card in/out of the active sideboard plan.
+    """zi/zo — board the cursor card in/out of the active sideboard plan.
 
     count == 0 boards every copy; a positive count boards that many.
     The plan block is edited in place (an undoable text edit); the
-    cursor stays on the deck card so the next mi/mo is one key away.
+    cursor stays on the deck card so the next zi/zo is one key away.
     """
     plan = _resolve_active_plan(state)
     if plan is None:
@@ -889,7 +893,7 @@ def _board_card(state: EditorState, key: str, count: int) -> HandlerResult:
         return HandlerResult(command_message=msg, error=True)
     result = board(
         state.buffer, state.cursor.row, plan,
-        direction="in" if key == "mi" else "out", count=count,
+        direction="in" if key == "zi" else "out", count=count,
     )
     if result.error or result.buffer is state.buffer:
         return HandlerResult(command_message=result.message, error=result.error)
@@ -908,7 +912,7 @@ def _board_card(state: EditorState, key: str, count: int) -> HandlerResult:
     state.cursor = state.cursor.move_to(row, 0)
     state.modified = True
     state.history.record(
-        state.buffer, "board in" if key == "mi" else "board out"
+        state.buffer, "board in" if key == "zi" else "board out"
     )
     state.dot_repeat.record(RepeatableAction("board", operator=key, count=count))
     return HandlerResult(command_message=result.message, plan_changed=True)

@@ -88,9 +88,11 @@ def scroll_step_for_key(key: str, viewport: int) -> int | str | None:
     """Vim-style scroll command for a translated key.
 
     Returns a signed line delta (j/k/arrows one line, Ctrl-D/U half a
-    viewport, never less than one line), "home"/"end" for g/G, or None
-    when the key is not a scroll key. Shared by every read-only scrolling
-    view (help panel, help screen) so they cannot drift apart.
+    viewport, never less than one line), "home" for Home, "end" for G or
+    End, or None when the key is not a scroll key. `gg` is handled by
+    tui.keys.VimNav, which owns the pending `g`; a bare `g` is never a
+    scroll key. Shared by every read-only scrolling view so they cannot
+    drift apart.
     """
     half = max(1, viewport // 2)
     if key in ("j", "down"):
@@ -101,9 +103,9 @@ def scroll_step_for_key(key: str, viewport: int) -> int | str | None:
         return half
     if key == "ctrl_u":
         return -half
-    if key == "g":
+    if key == "home":
         return "home"
-    if key == "G":
+    if key in ("G", "end"):
         return "end"
     return None
 
@@ -143,3 +145,55 @@ def wheel_scroll(
     )
     new_cursor = max(low, min(cursor, high))
     return new_offset, new_cursor
+
+
+def resolved_viewport(height: int, default: int, reserved: int = 0) -> int:
+    """Rows available for content.
+
+    Uses the widget's real height once it is laid out, else `default`
+    (headless tests, or before the first layout); `reserved` rows (a
+    header, a hint line) are subtracted. Never below one row.
+    """
+    base = height if height > 0 else default
+    return max(1, base - reserved)
+
+
+def max_window_offset(total: int, rows: int) -> int:
+    """Largest offset for window_lines: every line reachable, tip aligned."""
+    if total <= rows:
+        return 0
+    if rows <= 2:
+        return total - rows
+    # Scrolled to the bottom one row holds the "more above" marker
+    return total - rows + 1
+
+
+def window_lines(total: int, offset: int, rows: int) -> tuple[int, int, bool, bool]:
+    """The slice of `total` lines shown in `rows` at `offset`.
+
+    Returns (start, end, above, below): the half-open body slice plus
+    whether a "more above" / "more below" marker row is shown. Marker
+    rows are reserved out of `rows`, so every body line is reachable at
+    some offset; with two rows or fewer the markers are dropped so the
+    body still shows.
+    """
+    if total <= rows:
+        return 0, total, False, False
+    start = max(0, min(offset, max_window_offset(total, rows)))
+    if rows <= 2:
+        return start, start + rows, False, False
+    above = start > 0
+    body = rows - (1 if above else 0)
+    end = min(total, start + body)
+    below = end < total
+    if below:
+        end = min(total, start + body - 1)
+    return start, end, above, below
+
+
+def marker_above() -> str:
+    return "   ... more above"
+
+
+def marker_below(remaining: int) -> str:
+    return f"   ... {remaining} more below"

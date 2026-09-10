@@ -76,8 +76,13 @@ class TestHandleMotion:
 
     def test_g_bare_goes_last(self) -> None:
         st = _state(row=0)
-        handle_motion(st, _act("G", action_type="motion", count=1))
+        handle_motion(st, _act("G", action_type="motion", count=0))  # keymap sends 0 for bare G
         assert st.cursor.row == st.buffer.line_count() - 1
+
+    def test_1g_goes_to_line_one(self) -> None:
+        st = _state(row=2)
+        handle_motion(st, _act("G", action_type="motion", count=1))
+        assert st.cursor.row == 0
 
     def test_g_with_count_goes_to_line(self) -> None:
         # Regression: 5G must jump to line 5, not the last line.
@@ -557,13 +562,13 @@ class TestMarkAdjustment:
         assert mark.row == 3
 
 
-# ── Zone moves (ms/mm/md) ──────────────────────────────────────────
+# ── Zone moves (zs/zm/zd) ──────────────────────────────────────────
 
 
 class TestZoneMoves:
-    def test_ms_moves_all_copies_to_sideboard(self) -> None:
+    def test_zs_moves_all_copies_to_sideboard(self) -> None:
         state = _state(row=1)  # "4 Goblin Guide"
-        result = handle_normal_special(state, _act("ms", count=0))
+        result = handle_normal_special(state, _act("zs", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         # A brand-new zone opens as a Python-style block
         assert "SB:" in lines
@@ -574,22 +579,22 @@ class TestZoneMoves:
         # Cursor follows the card
         assert state.cursor.row == lines.index("    4 Goblin Guide")
 
-    def test_counted_ms_splits_entry(self) -> None:
+    def test_counted_zs_splits_entry(self) -> None:
         state = _state(row=1)
-        handle_normal_special(state, _act("ms", count=1))
+        handle_normal_special(state, _act("zs", count=1))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert "3 Goblin Guide" in lines
         assert "    1 Goblin Guide" in lines
         assert "SB:" in lines
 
-    def test_md_moves_sideboard_card_back(self) -> None:
+    def test_zd_moves_sideboard_card_back(self) -> None:
         state = _state("4 Goblin Guide\n\nSB: 2 Eidolon of the Great Revel\n", row=2)
-        handle_normal_special(state, _act("md", count=0))
+        handle_normal_special(state, _act("zd", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert "2 Eidolon of the Great Revel" in lines
         assert "SB: 2 Eidolon of the Great Revel" not in lines
 
-    def test_md_places_resolved_card_in_type_section(self) -> None:
+    def test_zd_places_resolved_card_in_type_section(self) -> None:
         """md on a sideboard card whose type is known lands it in the
         matching type section, not at the bottom of the mainboard."""
 
@@ -601,12 +606,12 @@ class TestZoneMoves:
             row=6,
         )
         state.resolved_cards = {"Annul": _C()}  # type: ignore[dict-item]
-        handle_normal_special(state, _act("md", count=0))
+        handle_normal_special(state, _act("zd", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert lines.index("1 Annul") == lines.index("1 Shock") + 1
         assert state.cursor.row == lines.index("1 Annul")
 
-    def test_md_in_category_layout_goes_with_uncategorized(self) -> None:
+    def test_zd_in_category_layout_goes_with_uncategorized(self) -> None:
         """A category-grouped deck must not sprout type headers on md —
         the card lands in the '// Uncategorized' section gl would make."""
 
@@ -618,33 +623,39 @@ class TestZoneMoves:
             row=5,
         )
         state.resolved_cards = {"Annul": _C()}  # type: ignore[dict-item]
-        handle_normal_special(state, _act("md", count=0))
+        handle_normal_special(state, _act("zd", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert "    // Instant" not in lines
         header_idx = lines.index("    // Uncategorized")
         assert lines[header_idx + 1] == "    1 Annul"
         assert state.cursor.row == header_idx + 1
 
-    def test_md_in_category_layout_works_without_card_data(self) -> None:
+    def test_zd_in_category_layout_works_without_card_data(self) -> None:
         """Uncategorized placement needs no resolved card."""
         state = _state(
             "// @removal\n1 Shock @removal\n\nSB: 1 Annul\n", row=3
         )
-        handle_normal_special(state, _act("md", count=0))
+        handle_normal_special(state, _act("zd", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert lines[lines.index("// Uncategorized") + 1] == "1 Annul"
 
-    def test_mm_moves_to_maybeboard(self) -> None:
+    def test_zm_moves_to_maybeboard(self) -> None:
         state = _state(row=1)
-        handle_normal_special(state, _act("mm", count=0))
+        handle_normal_special(state, _act("zm", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert "MB:" in lines
         assert "    4 Goblin Guide" in lines
 
-    def test_ms_does_not_set_mark(self) -> None:
+    def test_zs_does_not_set_mark(self) -> None:
         state = _state(row=1)
-        handle_normal_special(state, _act("ms", count=0))
+        handle_normal_special(state, _act("zs", count=0))
         assert state.marks.get("s") is None
+
+    def test_zs_is_a_plain_mark_again(self) -> None:
+        state = _state(row=1)
+        result = handle_normal_special(state, _act("ms"))
+        assert "Mark 's' set" in result.command_message
+        assert state.marks.get("s") is not None
 
     def test_other_letters_still_set_marks(self) -> None:
         state = _state(row=1)
@@ -655,14 +666,14 @@ class TestZoneMoves:
     def test_zone_move_records_history_for_undo(self) -> None:
         state = _state(row=1)
         original = state.buffer.to_text()
-        handle_normal_special(state, _act("ms", count=0))
+        handle_normal_special(state, _act("zs", count=0))
         restored = state.history.undo()
         assert restored is not None
         assert restored.to_text() == original
 
     def test_dot_repeats_zone_move(self) -> None:
         state = _state(row=1)
-        handle_normal_special(state, _act("ms", count=0))
+        handle_normal_special(state, _act("zs", count=0))
         # Move cursor to the next main-deck card and repeat
         state.cursor = Cursor(row=state.buffer.get_lines().index(
             next(bl for bl in state.buffer.get_lines()
@@ -675,7 +686,7 @@ class TestZoneMoves:
 
     def test_noop_on_comment_line_reports_error(self) -> None:
         state = _state(row=0)  # "// Creatures"
-        result = handle_normal_special(state, _act("ms", count=0))
+        result = handle_normal_special(state, _act("zs", count=0))
         assert result.error
         assert not state.modified
 
@@ -784,24 +795,24 @@ class TestPendingInsert:
 
 
 class TestZoneMoveAlphabetical:
-    def test_ms_keeps_sideboard_alphabetical(self) -> None:
+    def test_zs_keeps_sideboard_alphabetical(self) -> None:
         """auto_sort (the default) keeps SB: lines in name order."""
         state = _state(
             "4 Lightning Bolt\n\nSB: 2 Duress\nSB: 2 Rest in Peace\n", row=0
         )
-        handle_normal_special(state, _act("ms", count=0))
+        handle_normal_special(state, _act("zs", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert lines.index("SB: 4 Lightning Bolt") == (
             lines.index("SB: 2 Duress") + 1
         )
 
-    def test_ms_appends_when_auto_sort_off(self) -> None:
+    def test_zs_appends_when_auto_sort_off(self) -> None:
         from vimtg.config.settings import Settings
 
         state = _state(
             "4 Lightning Bolt\n\nSB: 2 Rest in Peace\nSB: 2 Duress\n", row=0
         )
         state.settings = Settings(auto_sort=False)
-        handle_normal_special(state, _act("ms", count=0))
+        handle_normal_special(state, _act("zs", count=0))
         lines = [bl.text for bl in state.buffer.get_lines()]
         assert lines[-1] == "SB: 4 Lightning Bolt"

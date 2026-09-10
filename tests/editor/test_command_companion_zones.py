@@ -46,24 +46,32 @@ class TestCompanionLineGrammar:
 
 
 class TestKeymapZoneMoves:
-    def test_mc_and_mp_complete_as_specials(self):
+    def test_zc_and_zp_complete_as_specials(self):
         for sub in ("c", "p"):
             km = KeyMap()
-            km.feed("m")
+            km.feed("z")
             result, action = km.feed(sub)
             assert result == KeyResult.COMPLETE
             assert action is not None
-            assert action.action == f"m{sub}"
+            assert action.action == f"z{sub}"
             assert action.action_type == "special"
-            assert action.count == 0  # "no count" sentinel, like ms/mm/md
+            assert action.count == 0  # "no count" sentinel, like zs/zm/zd
 
-    def test_other_letters_still_set_marks(self):
+    def test_other_letters_under_z_do_nothing(self):
         km = KeyMap()
-        km.feed("m")
+        km.feed("z")
         result, action = km.feed("a")
-        assert result == KeyResult.COMPLETE
-        assert action is not None
-        assert action.action == "ma"
+        assert result == KeyResult.NO_MATCH
+        assert action is None
+
+    def test_m_prefix_is_marks_only(self):
+        for letter in ("c", "p", "a"):
+            km = KeyMap()
+            km.feed("m")
+            result, action = km.feed(letter)
+            assert result == KeyResult.COMPLETE
+            assert action is not None
+            assert action.action == f"m{letter}"
 
 
 class TestMoveToCommander:

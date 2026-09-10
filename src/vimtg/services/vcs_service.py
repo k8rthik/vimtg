@@ -204,6 +204,17 @@ class VersionControlService:
             return []
         return self._repo.get_ancestors(branch_obj.tip_id, limit=limit)
 
+    def get_history(self, limit: int = 100) -> list[VCSSnapshot]:
+        """Every snapshot reachable from the current tip, newest first.
+
+        Unlike get_log this follows merge parents too, so commits that
+        arrived through a merge show up in the history overlay.
+        """
+        branch_obj = self._repo.get_branch(self._deck_path, self._current_branch)
+        if branch_obj is None:
+            return []
+        return self._repo.get_history(branch_obj.tip_id, self._deck_path, limit=limit)
+
     def checkout(self, snapshot_id: str) -> str | None:
         """Return deck_state for a snapshot (read-only)."""
         snap = self._repo.get_snapshot(snapshot_id)

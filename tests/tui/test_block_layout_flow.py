@@ -69,7 +69,7 @@ async def test_new_deck_scaffolds_blocks_and_insert_lands_inside(
         from vimtg.editor.cursor import Cursor
 
         screen._state.cursor = Cursor(row=row)
-        await pilot.press("m", "c")
+        await pilot.press("z", "c")
         lines = screen._state.buffer.to_text().splitlines()
         assert "    1 Goblin Guide" in lines
         cmd_row = lines.index("CMD:")

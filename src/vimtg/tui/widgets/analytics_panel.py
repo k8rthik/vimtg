@@ -31,7 +31,11 @@ from vimtg.domain.probabilities import (
     prob_at_least,
 )
 from vimtg.tui.theme import COLORS
-from vimtg.tui.widgets.scrolling import WHEEL_LINES
+from vimtg.tui.widgets.scrolling import (
+    WHEEL_LINES,
+    marker_above,
+    marker_below,
+)
 
 _CURVE_BAR_WIDTH = 24
 _DIM = f"dim {COLORS['comment']}"
@@ -100,12 +104,30 @@ class AnalyticsPanel(Static):
     _scroll_offset: int = 0
 
     def scroll_line_down(self) -> None:
-        self._scroll_offset += 1
-        self.refresh()
+        self.scroll_by(1)
 
     def scroll_line_up(self) -> None:
-        self._scroll_offset = max(0, self._scroll_offset - 1)
+        self.scroll_by(-1)
+
+    def _max_offset(self) -> int:
+        if self.data is None:
+            return 0
+        return max(0, len(self._body_lines(self.data)) - self._viewport())
+
+    def scroll_by(self, delta: int) -> None:
+        self._scroll_offset = max(0, min(self._scroll_offset + delta, self._max_offset()))
         self.refresh()
+
+    def scroll_to_top(self) -> None:
+        self._scroll_offset = 0
+        self.refresh()
+
+    def scroll_to_bottom(self) -> None:
+        self._scroll_offset = self._max_offset()
+        self.refresh()
+
+    def viewport_rows(self) -> int:
+        return self._viewport()
 
     def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
         event.stop()
@@ -133,12 +155,12 @@ class AnalyticsPanel(Static):
         start = self._scroll_offset
         end = min(start + viewport, len(lines))
         if start > 0:
-            t.append("   ... more above\n", style=_DIM)
+            t.append(marker_above() + "\n", style=_DIM)
         for line in lines[start:end]:
             t.append(line)
             t.append("\n")
         if end < len(lines):
-            t.append(f"   ... {len(lines) - end} more below\n", style=_DIM)
+            t.append(marker_below(len(lines) - end) + "\n", style=_DIM)
         if self.focused_panel:
             t.append(" j/k scroll  Esc back\n", style=_DIM)
         return t

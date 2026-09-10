@@ -1,7 +1,8 @@
 """Config screen — modal settings editor with vim-like navigation.
 
-Pushed via :config command. Displays grouped settings with j/k navigation,
-h/l/Space cycling, and s to save. Follows the GreeterScreen pattern.
+Pushed via :config command. Displays grouped settings with the shared
+navigation keys (j/k, gg/G, Ctrl-D/U, wheel), h/l/Space/Enter cycling,
+s to save, and q/Esc to close (guarded when unsaved).
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.reactive import reactive
@@ -25,7 +27,13 @@ from vimtg.editor.config_options import (
     options_for_group,
 )
 from vimtg.tui.key_translator import translate
+from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
 from vimtg.tui.theme import COLORS
+
+HINTS = (
+    ("j/k", "navigate"), ("gg/G", "top/bottom"), ("h/l", "cycle"),
+    ("Space/Enter", "cycle"), ("s", "save"), ("q/Esc", "close"), ("?", "help"),
+)
 
 
 class ConfigView(Static):
@@ -93,29 +101,17 @@ class ConfigView(Static):
         elif self.unsaved:
             t.append("  * unsaved changes\n", style=f"bold {COLORS['error']}")
 
-        hints = Text()
-        hints.append("  j", style=f"bold {COLORS['quantity']}")
-        hints.append("/", style="dim")
-        hints.append("k", style=f"bold {COLORS['quantity']}")
-        hints.append(" navigate  ", style="dim")
-        hints.append("h", style=f"bold {COLORS['quantity']}")
-        hints.append("/", style="dim")
-        hints.append("l", style=f"bold {COLORS['quantity']}")
-        hints.append(" cycle  ", style="dim")
-        hints.append("Space", style=f"bold {COLORS['quantity']}")
-        hints.append(" toggle\n", style="dim")
-        t.append_text(hints)
-
-        hints2 = Text()
-        hints2.append("  s", style=f"bold {COLORS['quantity']}")
-        hints2.append(" save  ", style="dim")
-        hints2.append("Esc", style=f"bold {COLORS['quantity']}")
-        hints2.append("/", style="dim")
-        hints2.append("q", style=f"bold {COLORS['quantity']}")
-        hints2.append(" close\n", style="dim")
-        t.append_text(hints2)
-
+        t.append_text(render_hints(HINTS, self.size.width, leading="  "))
+        t.append("\n")
         return t
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        event.stop()
+        self.selected_index = min(self.selected_index + 1, len(navigable_options()) - 1)
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        event.stop()
+        self.selected_index = max(self.selected_index - 1, 0)
 
 
 class ConfigScreen(Screen[None]):
@@ -139,6 +135,7 @@ class ConfigScreen(Screen[None]):
         self._settings = settings
         self._on_save = on_save
         self._discard_armed = False  # first q with unsaved changes warns
+        self._nav = VimNav()
 
     def compose(self) -> ComposeResult:
         yield ConfigView(id="config-view")
@@ -148,9 +145,6 @@ class ConfigScreen(Screen[None]):
         view.settings = self._settings
 
     def on_key(self, event: Key) -> None:
-        if event.key == "ctrl+c":
-            self.app.exit()
-            return
         event.prevent_default()
         event.stop()
 
@@ -158,23 +152,35 @@ class ConfigScreen(Screen[None]):
         view = self.query_one("#config-view", ConfigView)
         all_options = navigable_options()
         max_idx = len(all_options) - 1
+        # Ctrl-C closes like q, so unsaved changes still get their warning
+        if key == "ctrl_c":
+            key = "q"
 
-        if key not in ("q", "escape") and self._discard_armed:
+        if key not in CLOSE_KEYS and self._discard_armed:
             self._discard_armed = False
             view.warning = ""
 
-        if key == "j":
-            view.selected_index = min(view.selected_index + 1, max_idx)
-        elif key == "k":
-            view.selected_index = max(view.selected_index - 1, 0)
+        step = self._nav.feed(key, max(1, max_idx + 1))
+        if step == PENDING:
+            return
+        if step == "home":
+            view.selected_index = 0
+        elif step == "end":
+            view.selected_index = max_idx
+        elif step is not None:
+            view.selected_index = max(0, min(view.selected_index + int(step), max_idx))
         elif key in ("l", " ", "enter"):  # translate() maps Space to " "
             self._cycle_current(view, all_options, direction=1)
         elif key == "h":
             self._cycle_current(view, all_options, direction=-1)
         elif key == "s":
             self._save_and_close()
-        elif key in ("escape", "q"):
+        elif key in CLOSE_KEYS:
             self._close(view)
+        elif key in (HELP_KEY, FULL_HELP_KEY):
+            from vimtg.tui.screens.help_screen import HelpScreen
+
+            self.app.push_screen(HelpScreen(topic="config" if key == HELP_KEY else None))
 
     def _cycle_current(
         self, view: ConfigView, all_options: list[ConfigOption], direction: int

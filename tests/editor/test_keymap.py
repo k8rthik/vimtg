@@ -714,35 +714,35 @@ class TestCommandCursorMovement:
 
 
 class TestZoneMoveKeys:
-    def test_ms_completes_with_no_count_sentinel(self) -> None:
+    def test_zs_completes_with_no_count_sentinel(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
-        r1, a1 = km.feed("m")
+        r1, a1 = km.feed("z")
         assert r1 == KeyResult.PENDING
         r2, a2 = km.feed("s")
         assert r2 == KeyResult.COMPLETE
         assert a2 is not None
         assert a2.action_type == "special"
-        assert a2.action == "ms"
+        assert a2.action == "zs"
         # 0 = "no count given" — move every copy
         assert a2.count == 0
 
     def test_counted_zone_move(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
         km.feed("3")
-        km.feed("m")
+        km.feed("z")
         result, action = km.feed("m")
         assert result == KeyResult.COMPLETE
         assert action is not None
-        assert action.action == "mm"
+        assert action.action == "zm"
         assert action.count == 3
 
-    def test_md_completes(self) -> None:
+    def test_zd_completes(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
-        km.feed("m")
+        km.feed("z")
         result, action = km.feed("d")
         assert result == KeyResult.COMPLETE
         assert action is not None
-        assert action.action == "md"
+        assert action.action == "zd"
         assert action.count == 0
 
     def test_other_letters_still_set_marks(self) -> None:

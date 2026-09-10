@@ -74,7 +74,7 @@ class TestRenderHelp:
         gv = GreeterView()
         gv._mode = GreeterMode.HELP
         text = gv._render_help()
-        assert "Escape" in text.plain
+        assert "Esc" in text.plain
 
     def test_render_dispatches_to_help(self) -> None:
         gv = GreeterView()
@@ -271,7 +271,7 @@ async def test_files_mode_navigation_and_open(
         assert gv._cursor == 0
         await pilot.press("G")
         assert gv._cursor == 2
-        await pilot.press("g")
+        await pilot.press("g", "g")
         assert gv._cursor == 0
         await pilot.press("enter")
         assert app.launched and app.launched[0][0] is not None

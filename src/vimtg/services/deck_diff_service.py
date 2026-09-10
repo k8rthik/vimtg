@@ -33,7 +33,7 @@ class DeckDiffService:
         """Compute card-level diff, optionally enriched with stats delta."""
         base_diff = compute_deck_diff(old_state, new_state)
 
-        if self._card_repo is None:
+        if not self.has_card_data():
             return base_diff
 
         stats_delta = self._compute_stats_delta(
@@ -52,6 +52,10 @@ class DeckDiffService:
     ) -> DeckDiff:
         """Diff a snapshot state against its parent (or empty if root)."""
         return self.diff(parent_state or "", deck_state, price_source)
+
+    def has_card_data(self) -> bool:
+        """Stats need a synced card database, not just an empty one."""
+        return self._card_repo is not None and self._card_repo.count() > 0
 
     def _compute_stats_delta(
         self,

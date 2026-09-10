@@ -183,7 +183,7 @@ def decrement_quantity(
     return buffer.set_quantity(cursor.row, qty - count), cursor
 
 
-# ── Zone moves (ms/mm/md) ────────────────────────────────────────────
+# ── Zone moves (zs/zm/zd) ────────────────────────────────────────────
 
 ZONE_LABELS = {
     LineType.COMMANDER_ENTRY: "commander",
@@ -353,7 +353,7 @@ def move_to_zone(
     buffer: Buffer, cursor: Cursor, target: LineType, count: int = 0,
     policy: PlacementPolicy | None = None,
 ) -> ZoneMoveResult:
-    """ms/mm/md — move the card at the cursor to another zone.
+    """zs/zm/zd — move the card at the cursor to another zone.
 
     count == 0 (no count given) moves every copy; 0 < count < quantity
     splits the entry, leaving the remainder behind. If the target zone

@@ -11,13 +11,14 @@ from enum import Enum
 from pathlib import Path
 
 from rich.text import Text
-from textual import work
+from textual import events, work
 from textual.app import ComposeResult
 from textual.events import Key, Paste
 from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg import __version__
+from vimtg.editor.help_text import HELP_OVERVIEW, is_section_header
 from vimtg.services.deck_sources import (
     DeckSourceError,
     fetch_deck,
@@ -25,6 +26,7 @@ from vimtg.services.deck_sources import (
     stamped_deck,
 )
 from vimtg.tui.key_translator import translate
+from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.theme import COLORS
 
 LOGO_LINES = [
@@ -75,6 +77,9 @@ class GreeterView(Static):
         self._cursor = 0
         self._status = ""
         self._input = ""  # import prompt text (path or URL)
+        self.nav = VimNav()
+        self._help_nav = VimNav()
+        self._help_offset = 0
 
     def render(self) -> Text:
         if self._mode == GreeterMode.HELP:
@@ -122,20 +127,21 @@ class GreeterView(Static):
         return t
 
     def _render_help(self) -> Text:
-        from vimtg.editor.help_text import HELP_OVERVIEW, is_section_header
-
         t = Text()
         t.append("  vimtg Help\n", style=f"bold {COLORS['mana_blue']}")
         t.append("  " + "=" * 40 + "\n\n", style=_DIM)
 
-        for line in HELP_OVERVIEW.split("\n"):
+        lines = HELP_OVERVIEW.split("\n")
+        start = self._help_offset
+        viewport = self.list_viewport() if self.size.height > 0 else len(lines)
+        for line in lines[start:start + viewport]:
             if is_section_header(line):
                 t.append(f"  {line}\n", style=f"bold {COLORS['mana_green']}")
             else:
                 t.append(f"  {line}\n", style="")
 
         t.append("\n")
-        t.append("  Press Escape or q to return\n", style=_DIM)
+        t.append("  j/k scroll  gg/G top/bottom  ?/Esc/q return\n", style=_DIM)
         return t
 
     def _render_import(self) -> Text:
@@ -207,7 +213,10 @@ class GreeterView(Static):
             t.append("\n")
 
         t.append("\n")
-        t.append("  j/k navigate  Enter open  Escape back\n", style=_DIM)
+        t.append(
+            "  j/k navigate  gg/G top/bottom  Enter open  n new deck  Esc/q back\n",
+            style=_DIM,
+        )
         return t
 
     # -- Cursor navigation ---------------------------------------------
@@ -215,6 +224,67 @@ class GreeterView(Static):
     def set_mode(self, mode: GreeterMode) -> None:
         self._mode = mode
         self._cursor = 0
+
+    def list_viewport(self) -> int:
+        return max(1, (self.size.height or 24) - 8)
+
+    def navigate(self, file_list: list[Path], step: int | str) -> None:
+        """Apply a shared navigation step (line delta, "home", "end")."""
+        if not file_list:
+            self._cursor = 0
+            return
+        last = len(file_list) - 1
+        if step == "home":
+            self._cursor = 0
+        elif step == "end":
+            self._cursor = last
+        else:
+            self._cursor = max(0, min(self._cursor + int(step), last))
+
+    def _active_list(self) -> list[Path]:
+        if self._mode == GreeterMode.FILES:
+            return self._all_files
+        if self._mode == GreeterMode.RECENT:
+            return self._recent
+        return []
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        if self._mode in (GreeterMode.FILES, GreeterMode.RECENT):
+            event.stop()
+            self.navigate(self._active_list(), 1)
+            self.refresh()
+        elif self._mode == GreeterMode.HELP:
+            event.stop()
+            self.scroll_help_by_key("ctrl_d")
+            self.refresh()
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        if self._mode in (GreeterMode.FILES, GreeterMode.RECENT):
+            event.stop()
+            self.navigate(self._active_list(), -1)
+            self.refresh()
+        elif self._mode == GreeterMode.HELP:
+            event.stop()
+            self.scroll_help_by_key("ctrl_u")
+            self.refresh()
+
+    def scroll_help_by_key(self, key: str) -> bool:
+        """Scroll the inline help overview; False when `key` is not a nav key."""
+        lines = HELP_OVERVIEW.count("\n") + 1
+        viewport = self.list_viewport()
+        step = self._help_nav.feed(key, viewport)
+        if step is None:
+            return False
+        if step == PENDING:
+            return True
+        max_offset = max(0, lines - viewport)
+        if step == "home":
+            self._help_offset = 0
+        elif step == "end":
+            self._help_offset = max_offset
+        else:
+            self._help_offset = max(0, min(self._help_offset + int(step), max_offset))
+        return True
 
     def select_next(self, file_list: list[Path]) -> None:
         if file_list:
@@ -289,17 +359,20 @@ class GreeterScreen(Screen[None]):
         elif key == "r":
             gv.set_mode(GreeterMode.RECENT)
             gv.refresh()
-        elif key in ("q", "escape"):
+        elif key == "q":
             self.app.exit()
-        elif key == "?" or key == ":":
+        elif key in ("?", "f1"):
             gv.set_mode(GreeterMode.HELP)
             gv.refresh()
         elif key.isdigit() and int(key) >= 1 and int(key) <= len(self._recent):
             self._open_editor(file_path=self._recent[int(key) - 1])
 
     def _handle_help_key(self, key: str, gv: GreeterView) -> None:
-        if key in ("escape", "q", "?"):
+        if key in ("escape", "q", "?", "f1"):
             gv.set_mode(GreeterMode.MENU)
+            gv.refresh()
+            return
+        if gv.scroll_help_by_key(key):
             gv.refresh()
 
     def _handle_import_key(self, key: str, gv: GreeterView) -> None:
@@ -331,11 +404,11 @@ class GreeterScreen(Screen[None]):
         gv: GreeterView,
         file_list: list[Path],
     ) -> None:
-        if key == "j":
-            gv.select_next(file_list)
-            gv.refresh()
-        elif key == "k":
-            gv.select_prev()
+        step = gv.nav.feed(key, gv.list_viewport())
+        if step == PENDING:
+            return
+        if step is not None:
+            gv.navigate(file_list, step)
             gv.refresh()
         elif key in ("escape", "q"):
             gv.set_mode(GreeterMode.MENU)
@@ -346,13 +419,6 @@ class GreeterScreen(Screen[None]):
                 self._open_editor(file_path=selected)
         elif key == "n":
             self._open_editor(file_path=None)
-        elif key == "g":
-            gv._cursor = 0
-            gv.refresh()
-        elif key == "G":
-            if file_list:
-                gv._cursor = len(file_list) - 1
-            gv.refresh()
 
     def _open_editor(
         self, file_path: Path | None, initial_text: str | None = None

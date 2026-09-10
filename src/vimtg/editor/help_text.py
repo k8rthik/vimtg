@@ -2,85 +2,16 @@
 
 from __future__ import annotations
 
-HELP_OVERVIEW = """
+from vimtg.editor.keyspec import format_overview_group, overview_groups
+
+_COUNTS = """
 COUNTS
   {n}key        Repeat/scale any motion or edit: 5j down 5 lines,
                 3dd delete 3 cards, 10+ add 10 to quantity,
                 2x delete 2 cards, 3p paste 3 copies, 3@a play macro 3x
+""".strip()
 
-NAVIGATION
-  j/k           Move down/up
-  gg/G          First/last line
-  w/b           Next/prev card entry
-  {/}           Prev/next section
-  [[/]]         Prev/next section header
-  Ctrl-D/U      Half page down/up
-  m{a-z}        Set mark (s/m/d/c/p are taken by zone moves)
-  '{a-z}        Jump to mark
-
-EDITING
-  i             Edit current line as plain text
-                (on // Key: metadata lines, edits just the value;
-                the // Format: value Tab-completes known formats)
-  A             Add/edit card comment (empty removes)
-  o/O           Add card (new line below / above; the card joins
-                the zone under the cursor — CMD:/SB: block or
-                prefix lines add there; mainboard auto-sorts by
-                type, sideboard/maybeboard stay alphabetical;
-                a count sets copies: 4o adds 4 of the card)
-  dd            Delete card line
-  x             Delete card line (into register)
-  yy            Yank (copy) card line
-  p/P           Paste below/above
-  "{a-z}        Use named register for yank/paste
-  +/-           Increment/decrement quantity
-  ms/mm/md      Move card to sideboard/maybeboard/main deck
-                (all copies; 2ms moves just 2)
-  mo / mi       Board the card out of / into the active sideboard
-                plan (all copies; 2mo boards 2)
-  ]v / [v       Next / previous sideboard plan (activates it)
-  mc/mp         Move card to commander (CMD:) / companion (CMP:)
-  .             Repeat last change
-  u / Ctrl-R    Undo / redo
-  q{a-z} / q    Record macro / stop recording
-  @{a-z} / @@   Play macro / replay last
-
-VISUAL MODE
-  v/V           Enter visual / visual-line
-  d/y/c         Delete/yank/change selection
-  o             Jump to the other end of the selection
-  Escape        Exit visual
-
-CATEGORIES
-  gc            Set category on current card (Tab completes)
-  gC            Clear category
-  gl            Toggle layout: by type / by category
-  :cat name     Set category (range supported)
-  :layout       Regroup deck (type|category; no arg toggles)
-
-SPLITS, EDHREC & ANALYTICS
-  Sv / Sh       Open a vertical / horizontal split (prompts for deck)
-  Sr            EDHREC recommendations for the commander (:edhrec)
-  Sa            Live analytics pane (:analytics)
-  Ss            Switch pane focus (in a pane: j/k move, h/l tabs,
-                Enter adds the selected card, Esc returns)
-  Sc            Close the split
-  :vsplit deck  View another deck side by side (read-only)
-  :split deck   Same, stacked below
-  :edhrec       EDHREC panel — tabs per card type
-  :analytics    Curve, counts per type/zone/category, mana base,
-                draw odds — follows the cursor, updates as you edit
-  :close        Close the split pane
-
-TAGS
-  ta            Add tag to current card
-  tr            Remove tag
-  tt            Toggle tag
-  tf            Filter view by tag expression
-  tl            List tags with counts
-  tc            Clear tags from current card
-  tn / tp       Next / prev card sharing a tag
-
+_COMMANDS = """
 COMMANDS
   :w            Save deck
   :q            Quit (:q! force)
@@ -113,15 +44,38 @@ COMMANDS
   :config       Open the settings screen
   :map / :unmap Key remapping for this session
   :help         This help
+""".strip()
 
+_VCS_COMMANDS = """
 VERSION CONTROL
-  :history      Open deck history (lazygit-style)
+  :history      Same, as a command
   :commit "msg" Snapshot current deck state
   :branch       Branches: list; name creates; ! switches
   :checkpoint n Commit and tag the current state
   :merge x      Merge branch x (or another .deck file)
   :rebase x     Replay this branch's commits onto branch x
 """.strip()
+
+
+def _build_overview() -> str:
+    """The keybinding sections come from the key spec; the ex-command
+    sections are prose kept here."""
+    parts = [_COUNTS]
+    for title, rows in overview_groups():
+        if title == "VERSION CONTROL":
+            parts.append(format_overview_group(title, rows) + "\n" + "\n".join(
+                _VCS_COMMANDS.split("\n")[1:]
+            ))
+        else:
+            parts.append(format_overview_group(title, rows))
+    # COMMANDS sits between TAGS and VERSION CONTROL, as before
+    vcs = parts.pop()
+    parts.append(_COMMANDS)
+    parts.append(vcs)
+    return "\n\n".join(parts)
+
+
+HELP_OVERVIEW = _build_overview()
 
 COMMAND_HELP: dict[str, str] = {
     "w": ":w [file]  Save deck to file",
@@ -190,7 +144,7 @@ COMMAND_HELP: dict[str, str] = {
         "'-N Card' (out of the mainboard) and '+N Card' (in from the\n"
         "sideboard) lines under it. :plan creates the block when the\n"
         "name is new and moves the cursor to it. With a plan active,\n"
-        "mo/mi on a deck card board it out/in (count = copies, bare =\n"
+        "zo/zi on a deck card board it out/in (count = copies, bare =\n"
         "all), deck cards show their -N/+N, the status line shows the\n"
         "running totals, and :analytics reports the post-board deck.\n"
         "Inside the block: o adds a card (searching the deck's own\n"
@@ -244,21 +198,27 @@ COMMAND_HELP: dict[str, str] = {
     "retag": ":retag /old/new/  Rename a tag across the entire deck",
     "help": ":help [command]  Open full-screen help (also F1; q closes)",
     "history": (
-        ":history  Open lazygit-style deck version control\n"
+        ":history  Open the lazygit-style history overlay (also gh)\n"
         "\n"
-        "Keybindings in history screen:\n"
-        "  Tab/Shift-Tab  Cycle panels\n"
-        "  j/k            Navigate\n"
+        "A floating window over the editor with five panels:\n"
+        "  1 Working copy   uncommitted changes vs the branch tip\n"
+        "  2 Branches       3 Snapshots   4 Diff   5 Stats\n"
+        "\n"
+        "Keybindings in the overlay:\n"
+        "  1-5 / Tab      Jump to / cycle panels\n"
+        "  j/k / wheel    Navigate or scroll\n"
+        "  gg/G  Ctrl-D/U Top/bottom, half page\n"
+        "  Enter          Open: switch branch, or jump to Diff\n"
         "  c              Commit snapshot\n"
-        "  b              Create branch\n"
-        "  B              Switch branch\n"
-        "  m              Merge selected branch\n"
-        "  r              Rebase onto selected branch\n"
+        "  b              Create branch at the tip\n"
+        "  B / D          Switch to / delete branch (Branches panel)\n"
+        "  m / r          Merge / rebase onto branch (Branches panel)\n"
         "  t/T            Tag/untag snapshot\n"
         "  R              Restore snapshot\n"
         "  p              Cherry-pick\n"
-        "  d              Toggle detail view\n"
-        "  q              Return to editor"
+        "  d              Toggle unchanged cards in the diff\n"
+        "  q / Esc / gh   Return to editor\n"
+        "  ? / F1         This topic / full help"
     ),
     "commit": ":commit message  Create a named snapshot of current deck state",
     "branch": (
@@ -283,6 +243,15 @@ COMMAND_HELP: dict[str, str] = {
         ":merge path.deck     merge another deck file's cards\n"
         "\n"
         "Conflicting card quantities open an interactive resolution screen."
+        "\n"
+        "Keys in the conflict screen:\n"
+        "  j/k  gg/G  Ctrl-D/U  Move between conflicts (or the wheel)\n"
+        "  o / t          Take ours / theirs\n"
+        "  c              Custom quantity (0 omits the card)\n"
+        "  u              Unresolve\n"
+        "  Enter          Confirm (every conflict must be resolved)\n"
+        "  q / Esc        Abort — nothing is committed\n"
+        "  ? / F1         This topic / full help"
     ),
     "rebase": (
         ":rebase branch  Replay this branch's commits onto another tip\n"
@@ -309,7 +278,17 @@ COMMAND_HELP: dict[str, str] = {
         ":set nonumber        disable\n"
         ":set price_source=eur"
     ),
-    "config": ":config  Open the settings screen (j/k navigate, s save)",
+    "config": (
+        ":config  Open the settings screen\n"
+        "\n"
+        "Keys in the settings screen:\n"
+        "  j/k  gg/G  Ctrl-D/U  Navigate (or the mouse wheel)\n"
+        "  h / l          Cycle the value back / forward\n"
+        "  Space / Enter  Cycle forward\n"
+        "  s              Save and close\n"
+        "  q / Esc        Close (asks again when there are unsaved changes)\n"
+        "  ? / F1         This topic / full help"
+    ),
     "map": (
         ":map key action  Remap a NORMAL-mode key for this session\n"
         "\n"
