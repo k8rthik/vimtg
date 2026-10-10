@@ -150,7 +150,7 @@ def _salvage_history(source: Path, dest: Path) -> tuple[dict[str, int], bool, st
         error = ""
         try:
             # Read-only: recovery never writes to the damaged copy
-            old = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+            old = sqlite3.connect(f"{source.resolve().as_uri()}?mode=ro", uri=True)
         except sqlite3.Error as exc:
             return {}, False, str(exc)
         try:
