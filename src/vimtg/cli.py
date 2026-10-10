@@ -312,6 +312,47 @@ def guide(path: str, markdown: bool) -> None:
             click.echo(f"  {entry.text()}")
 
 
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--seed", type=int, default=None, help="Seed the shuffle (repeatable hands)")
+@click.option(
+    "--draws", type=click.IntRange(min=0), default=0,
+    help="Also draw this many cards after the opener",
+)
+@click.option("--plan", "plan_name", default="", help="Use a sideboard plan's post-board deck")
+def hand(path: str, seed: int | None, draws: int, plan_name: str) -> None:
+    """Print a sample opening hand and land odds."""
+    import random
+
+    from vimtg.config.settings import load_settings
+    from vimtg.domain.sample_hand import build_source, deal, format_hand
+    from vimtg.domain.sample_hand import draw as draw_card
+    from vimtg.domain.sideboard_plan import find_plan
+
+    card_repo = _try_card_repo()
+    service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
+    _text, deck = service.open_deck(Path(path))
+    plan = None
+    if plan_name:
+        plan = find_plan(deck, plan_name)
+        if plan is None:
+            raise click.ClickException(f"No sideboard plan named {plan_name!r}")
+    resolved = service.resolve_cards(deck)[0] if card_repo is not None else None
+    fmt = deck.metadata.format or load_settings().default_format
+    source = build_source(deck, resolved, fmt, plan)
+    if not source.library:
+        raise click.ClickException("No cards in the main deck")
+    if card_repo is None:
+        click.echo(
+            "(no card database — only basic lands count as lands; run 'vimtg sync')",
+            err=True,
+        )
+    state = deal(source.library, random.Random(seed), free_mulligan=source.free_mulligan)
+    for _ in range(min(draws, len(state.library))):
+        state = draw_card(state)
+    click.echo(format_hand(source, state, seed), nl=False)
+
+
 @main.command(name="sync")
 @click.option("--force", is_flag=True, help="Force re-download")
 def sync_cmd(force: bool) -> None:

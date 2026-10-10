@@ -34,6 +34,7 @@ Built with [Textual](https://textual.textualize.io). Styled in [Catppuccin Mocha
   - [Format-aware validation and live lint](#format-aware-validation-and-live-lint)
   - [Sideboard plans](#sideboard-plans)
   - [Analytics](#analytics)
+  - [Sample hand](#sample-hand)
   - [Split panes and EDHREC](#split-panes-and-edhrec)
   - [Import, export, and clipboard](#import-export-and-clipboard)
   - [Version control](#version-control)
@@ -235,6 +236,14 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
 - `vimtg info deck.deck` prints counts from the shell.
 
+### Sample hand
+
+- `:hand` (alias `:goldfish`, key `Sd`) opens a goldfish overlay: it shuffles the main deck and draws an opening seven. Sideboard, maybeboard, commander and companion cards stay out of the library; for Commander the commander is shown in the command zone and the hand comes from the 99. With a sideboard plan active, the post-board deck is used.
+- `n`/`Space` draws the next card, `m` takes a London mulligan (draw seven, then select cards with `j`/`k` and press `b` to put one on the bottom per mulligan; the first mulligan is free in Commander and Brawl), `r` reshuffles a fresh hand, `q`/`Esc` closes.
+- The overlay shows the land count in hand and hypergeometric odds: at least one / two lands in the opening seven, and the chance of hitting every land drop through turns 1 to 5, on the play and on the draw. Lands come from the card database; without one, only basic lands are counted.
+- `:hand seed=42` seeds the shuffle so the same hands come up every time (useful for tests and comparisons).
+- `vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]` prints a sample hand, any extra draws and the odds from the shell.
+
 ### Split panes and EDHREC
 
 One pane at a time, beside (`Sv`, `:vsplit file`) or below (`Sh`, `:split file`) the editor.
@@ -352,6 +361,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `gh` | Toggle the history overlay |
 | `Sv` / `Sh` | Vertical / horizontal split (prompts for a deck) |
 | `Sr` / `Sa` | EDHREC pane / analytics pane |
+| `Sd` | Sample hand / goldfish overlay |
 | `Ss` / `Sc` | Switch focus / close pane |
 | `?` / `F1` | Quick reference / full help |
 | `ZZ` / `ZQ` | Save and quit (`:wq`) / quit discarding changes (`:q!`) |
@@ -377,7 +387,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](docs/commands
 | `:plan [name]`, `:plan!`, `:plans` | Sideboard plans |
 | `:export fmt [file]`, `:import file\|url`, `:clipboard [fmt]` | Formats: arena, mtgo, dek, moxfield, archidekt, vimtg, guide |
 | `:vsplit`, `:split`, `:close`, `:edhrec [type]`, `:analytics` | Panes |
-| `:stats`, `:validate` | Analytics and legality |
+| `:stats`, `:validate`, `:hand [seed=N]` | Analytics, legality, sample hand |
 | `:history` (or `gh`), `:commit msg`, `:checkpoint name`, `:branch [name]`, `:branch! name`, `:merge target`, `:rebase branch` | Version control |
 | `:set [key=value]`, `:config`, `:map`, `:unmap` | Configuration |
 | `:help [command]` | Help |
@@ -396,6 +406,7 @@ vimtg search "t:creature cmc<=2" -n 40 # search cards
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
 vimtg info deck.deck                   # counts summary
 vimtg guide deck.deck [--markdown]     # sideboard plans
+vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt
 ```
 
