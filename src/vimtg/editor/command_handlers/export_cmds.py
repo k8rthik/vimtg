@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from vimtg.data.deck_repository import parse_deck_text
+from vimtg.domain.card_names import CardMap
 from vimtg.domain.errors import CardsNotFoundWarning
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
@@ -123,7 +124,7 @@ def cmd_import(
 
     resolution = service.resolve_cards(deck)
     if resolution.resolved:
-        ctx.resolved_cards = dict(resolution.resolved)
+        ctx.resolved_cards = CardMap(resolution.resolved)
     if resolution.unresolved:
         warning = str(CardsNotFoundWarning(len(resolution.unresolved)))
         first_missing = next(

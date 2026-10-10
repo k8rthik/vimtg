@@ -15,6 +15,15 @@ def _safe_price(row: sqlite3.Row, key: str) -> float | None:
         return None
 
 
+def _optional(row: sqlite3.Row, key: str) -> object:
+    """A column added by a later migration, or None when absent."""
+    try:
+        value: object = row[key]
+        return value
+    except (IndexError, KeyError):
+        return None
+
+
 def row_to_card(row: sqlite3.Row) -> Card:
     """Convert a SQLite Row to a Card domain object."""
     colors = parse_colors(json.loads(row["colors"]))
@@ -51,7 +60,14 @@ def row_to_card(row: sqlite3.Row) -> Card:
         image_uri=row["image_uri"],
         layout=row["layout"],
         keywords=keywords,
+        oracle_id=_str_or_none(_optional(row, "oracle_id")),
+        produced_mana=tuple(json.loads(str(_optional(row, "produced_mana") or "[]"))),
+        game_changer=bool(_optional(row, "game_changer")),
     )
+
+
+def _str_or_none(value: object) -> str | None:
+    return None if value is None else str(value)
 
 
 def card_to_row(card: Card) -> tuple[object, ...]:
@@ -78,4 +94,7 @@ def card_to_row(card: Card) -> tuple[object, ...]:
         card.image_uri,
         card.layout,
         json.dumps(list(card.keywords)),
+        card.oracle_id,
+        json.dumps(list(card.produced_mana)),
+        int(card.game_changer),
     )

@@ -12,6 +12,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from vimtg.domain.card import Card
+from vimtg.domain.card_names import CardMap
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 from vimtg.domain.deck_lines import clamp_quantity, strip_bom, strip_printing_suffix
 from vimtg.services.deck_sources import (
@@ -239,9 +240,9 @@ class ImportExportService:
             case DeckFormat.MTGO_DEK:
                 return self._export_mtgo_dek(deck, resolved or {})
             case DeckFormat.ARENA:
-                return self._export_arena(deck, resolved or {})
+                return self._export_arena(deck, CardMap(resolved or {}))
             case DeckFormat.MOXFIELD:
-                return self._export_moxfield(deck, resolved or {})
+                return self._export_moxfield(deck, CardMap(resolved or {}))
             case DeckFormat.ARCHIDEKT:
                 return self._export_archidekt(deck)
             case DeckFormat.GUIDE:
@@ -256,10 +257,11 @@ class ImportExportService:
     def resolve_cards(self, deck: Deck) -> CardResolution:
         """Resolve each unique card name in *deck* against the database.
 
-        Exact and case-insensitive matches resolve directly (get_by_name is
-        COLLATE NOCASE). Names with no match are reported as unresolved, with
-        the top FTS5 hit recorded as a "did you mean?" suggestion when one
-        exists. Returns an empty resolution when no repository is configured.
+        Names resolve through the card-name resolver (case, accents, face
+        names and "Fire/Ice" spellings all match). Names with no match are
+        reported as unresolved, with the top FTS5 hit recorded as a "did you
+        mean?" suggestion when one exists. Returns an empty resolution when
+        no repository is configured.
         """
         if self._card_repo is None:
             return CardResolution()

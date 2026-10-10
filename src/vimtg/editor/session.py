@@ -18,6 +18,7 @@ from vimtg.config.category_history import load_category_history, record_category
 from vimtg.config.settings import Settings
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
+from vimtg.domain.card_names import CardMap
 from vimtg.domain.categories import (
     CATEGORY_NAME_RE,
     complete_category,
@@ -378,7 +379,7 @@ def handle_command(
         if ctx.settings_changed and ctx.settings is not None:
             state.settings = ctx.settings
         if ctx.resolved_cards is not None and ctx.resolved_cards is not state.resolved_cards:
-            state.resolved_cards = dict(ctx.resolved_cards)
+            state.resolved_cards = CardMap(ctx.resolved_cards)
         if ctx.tag_filter_set:
             state.tag_filter = ctx.tag_filter
         return HandlerResult(

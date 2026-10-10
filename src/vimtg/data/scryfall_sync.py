@@ -178,7 +178,9 @@ class ScryfallSync:
                 "format may have changed"
             )
 
-        count = self._repo.bulk_insert(cards)
+        # Reload, don't merge: a re-keyed representative printing or a
+        # card Scryfall dropped must not survive as a stale row.
+        count = self._repo.replace_all(cards, synced_at=datetime.now(UTC).isoformat())
         if progress:
             progress(total, total)
         return count
@@ -217,12 +219,9 @@ class ScryfallSync:
         if cached is not None:
             if progress:
                 progress("parse", 0, 0)
-            count = self.parse_and_load(
-                cached, _wrap_progress(progress, "parse")
-            )
-            # Record the load so sync_is_due() sees a populated, fresh DB
-            self._repo.set_last_sync(datetime.now(UTC).isoformat())
-            return count
+            # The load records the sync time, so sync_is_due() sees a
+            # populated, fresh DB
+            return self.parse_and_load(cached, _wrap_progress(progress, "parse"))
 
         if progress:
             progress("download", 0, 0)
@@ -232,10 +231,7 @@ class ScryfallSync:
 
         if progress:
             progress("parse", 0, 0)
-        count = self.parse_and_load(dest, _wrap_progress(progress, "parse"))
-
-        self._repo.set_last_sync(datetime.now(UTC).isoformat())
-        return count
+        return self.parse_and_load(dest, _wrap_progress(progress, "parse"))
 
 
 def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
