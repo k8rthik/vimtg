@@ -21,5 +21,5 @@ class Cursor:
         )
 
     def move_to(self, row: int, col: int = 0) -> Cursor:
-        """Return a new Cursor at the given position."""
-        return Cursor(row=row, col=col)
+        """Return a new Cursor at the given position (never negative)."""
+        return Cursor(row=max(0, row), col=max(0, col))

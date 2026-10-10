@@ -41,6 +41,7 @@ Everything below is normal mode unless flagged otherwise.
 | `Esc` | Back to normal mode; cancels a pending key sequence |
 | `?` | Toggle the quick-reference panel |
 | `F1` | Full-screen help |
+| `ZZ` / `ZQ` | Save and quit (`:wq`) / quit discarding changes (`:q!`) |
 
 ### Navigation
 
@@ -69,7 +70,7 @@ Any motion takes a count: `10j`, `3w`, `2n`. The deck is line-oriented: there is
 | `p` / `P` | Paste below / above; `3p` pastes three copies |
 | `+` / `-` | Increment / decrement quantity; `-` at 0 deletes the line. Both keep zone prefixes, plan signs, `@category`, `#tags`, and comments |
 | `.` | Repeat the last change (a count overrides the recorded one) |
-| `u` / `Ctrl-R` | Undo / redo |
+| `u` / `Ctrl-R` | Undo / redo, one change per `u`. Only a quick burst of `+` or `-` folds into one step |
 
 ### Zones (`z` prefix)
 

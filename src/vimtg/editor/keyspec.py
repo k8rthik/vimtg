@@ -17,6 +17,7 @@ Prefix namespaces (normal mode), each with one meaning:
     @   macros (play)    @{a-z} @@
     "   registers        "{a-z} "{A-Z} "0 "1-9
     [ ] jumps            [[ ]] [v ]v
+    Z   quit             ZZ ZQ
 """
 
 from __future__ import annotations
@@ -109,6 +110,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b("escape", "Back to normal mode; cancels a pending sequence", MODES, label="Esc"),
     _b("?", "Toggle the quick-reference panel", MODES),
     _b("f1", "Full-screen help", MODES, label="F1"),
+    _b(("ZZ", "ZQ"), "Save and quit (:wq) / quit discarding changes (:q!)", MODES,
+       shorts=("save and quit", "quit without saving")),
     # ── Navigation ────────────────────────────────────────
     _b(("j", "k"), "Move down / up (blank lines skipped)", NAVIGATION, quick="Navigation",
        brief="down/up"),
@@ -195,7 +198,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
 PREFIX_TITLES: dict[str, str] = {
     "g": "go", "t": "tags", "S": "splits", "z": "zones", "m": "marks",
     "'": "marks", "q": "macros", "@": "macros", '"': "registers",
-    "[": "jump back", "]": "jump forward",
+    "[": "jump back", "]": "jump forward", "Z": "quit",
 }
 
 # Motions that may follow an operator, for the d / y / c which-key menus.

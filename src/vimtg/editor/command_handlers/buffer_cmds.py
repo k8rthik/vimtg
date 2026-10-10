@@ -12,6 +12,7 @@ from vimtg.editor.commands import (
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.slug import generate_unique_path
+from vimtg.services.recovery import discard_recovery, read_recovery
 
 
 def _resolve_write_path(cmd: ParsedCommand, ctx: EditorContext) -> Path:
@@ -108,6 +109,31 @@ def cmd_home(
     return buffer, cursor
 
 
+def cmd_recover(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """Load the crash-recovery copy of this deck (:recover! discards it).
+
+    The recovered text replaces the buffer as one undoable, unsaved
+    change; the copy itself is removed by the next successful :w.
+    """
+    if cmd.bang:
+        discard_recovery(ctx.file_path)
+        ctx.message = "Recovery file discarded"
+        return buffer, cursor
+    text = read_recovery(ctx.file_path)
+    if text is None:
+        ctx.fail("No recovery file for this deck")
+        return buffer, cursor
+    recovered = Buffer.from_text(text)
+    ctx.modified = True
+    ctx.message = "Recovered unsaved changes (:w to keep, u to undo)"
+    return recovered, cursor.clamp(max(0, recovered.line_count() - 1))
+
+
 def register_buffer_commands(registry: CommandRegistry) -> None:
     """Register :w, :q, :wq, :x, :home commands."""
     registry.register("w", cmd_write, aliases=["write"])
@@ -115,3 +141,4 @@ def register_buffer_commands(registry: CommandRegistry) -> None:
     registry.register("wq", cmd_write_quit)
     registry.register("x", cmd_write_quit)
     registry.register("home", cmd_home, aliases=["greeter"])
+    registry.register("recover", cmd_recover)

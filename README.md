@@ -149,7 +149,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Marks**: `m{a-z}` set, `'{a-z}` jump, all 26 letters. Marks shift correctly through inserts, deletes, puts, and zone moves.
 - **Macros**: `q{a-z}` record, `q` stop, `@{a-z}` play, `@@` replay last, `3@a` plays three times. Playback re-feeds keys through the full pipeline.
 - **Dot repeat**: `.` replays the last operator, quantity, zone, or board action; a count on `.` overrides the recorded one.
-- **Undo/redo**: `u`/`Ctrl-R`, counted. Session history is a snapshot tree: undo walks to the parent, redo to the newest child, and abandoned branches are kept. Rapid same-description edits within two seconds collapse into one step.
+- **Undo/redo**: `u`/`Ctrl-R`, counted. Session history is a snapshot tree: undo walks to the parent, redo to the newest child, and abandoned branches are kept. Each change is its own undo step, as in vim; only a quick burst of `+` or `-` on a card (within two seconds, not interrupted by an undo) collapses into one step. Undoing back to the loaded or last-saved state clears the modified flag.
 - **Remapping**: `:map key action` (session-only, multi-character targets allowed, `:`-prefixed targets auto-submit), `:unmap key`, bare `:map` lists. Persistent maps live in `[keybindings]` in `config.toml`, per mode.
 - **Which-key**: when a key sequence is pending (`d`, `y`, `c`, `g`, `[`, `]`, `"`, `q`, `@`, `m`, `'`, `S`, `t`, `z`) a popup shows the possible completions, derived from the same key spec as the help overview. The status line shows the pending sequence and counts.
 - **Mouse**: wheel and trackpad scroll the deck view, the split pane, the EDHREC pane, and the analytics pane, vim-style: three lines per notch, the cursor is dragged only when it would leave the scroll-off band. There is no click-to-position.
@@ -349,6 +349,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `Sr` / `Sa` | EDHREC pane / analytics pane |
 | `Ss` / `Sc` | Switch focus / close pane |
 | `?` / `F1` | Quick reference / full help |
+| `ZZ` / `ZQ` | Save and quit (`:wq`) / quit discarding changes (`:q!`) |
 
 </details>
 
@@ -361,7 +362,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](docs/commands
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]`, `:q`, `:q!`, `:wq`, `:x`, `:e file`, `:home` | File and navigation |
+| `:w [file]`, `:q`, `:q!`, `:wq`, `:x`, `:e file`, `:home`, `:recover` | File and navigation (`:recover` loads the crash-recovery copy) |
 | `:sort [field]`, `:sort!` | Sort section or range |
 | `:s/old/new/[gi]` | Substitute (literal) |
 | `:g/pat/d`, `:v/pat/d` | Delete matching / non-matching cards in any zone (`d` only) |

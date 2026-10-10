@@ -17,6 +17,12 @@ import time
 from vimtg.domain.snapshot import Snapshot, SnapshotTree
 from vimtg.editor.buffer import Buffer
 
+# Only quantity bursts (+ + + / - - -) fold into one undo step, like
+# vim's insert-mode run. Operators, x, put and dot-repeat are always one
+# change per u, so repeating one never swallows the step before it.
+MERGEABLE_DESCRIPTIONS = frozenset({"increment", "decrement"})
+MERGE_WINDOW_SECONDS = 2.0
+
 
 class HistoryService:
     """Manages the session undo tree for deck edits."""
@@ -25,25 +31,42 @@ class HistoryService:
         self._tree: SnapshotTree | None = None
         self._last_record_time: float = 0
         self._last_description: str = ""
+        # Id of the node the last record() created or merged into. A
+        # merge is only safe while that node is still current: after u
+        # or ctrl_r the current node is an older state that must never
+        # be rewritten.
+        self._last_recorded_id: str | None = None
 
     def initialize(self, buffer: Buffer) -> None:
         """Create a new tree from the given buffer."""
         self._tree = SnapshotTree.new(buffer.to_text())
+        self._last_recorded_id = None
 
     def record(self, buffer: Buffer, description: str) -> None:
-        """Record a snapshot. Debounces same-description records within 2s."""
+        """Record a snapshot.
+
+        A quantity change (see MERGEABLE_DESCRIPTIONS) within 2s of the
+        same kind of change folds into it — but only while that change
+        is still the current node, never after an undo or redo.
+        """
         if self._tree is None:
             self.initialize(buffer)
             return
 
         now = time.monotonic()
-        if now - self._last_record_time < 2.0 and description == self._last_description:
+        if (
+            description in MERGEABLE_DESCRIPTIONS
+            and description == self._last_description
+            and now - self._last_record_time < MERGE_WINDOW_SECONDS
+            and self._last_recorded_id == self._tree.current_id
+        ):
             self.amend(buffer)
         else:
             self._tree = self._tree.add_snapshot(buffer.to_text(), description)
 
         self._last_record_time = now
         self._last_description = description
+        self._last_recorded_id = self._tree.current_id
 
     def amend(self, buffer: Buffer) -> None:
         """Replace the current snapshot's state without adding a new one.
@@ -75,6 +98,7 @@ class HistoryService:
         if new_tree is None:
             return None
         self._tree = new_tree
+        self._last_recorded_id = None  # the next edit is a new change
         return Buffer.from_text(self._tree.current.deck_state)
 
     def redo(self) -> Buffer | None:
@@ -85,6 +109,7 @@ class HistoryService:
         if new_tree is None:
             return None
         self._tree = new_tree
+        self._last_recorded_id = None  # the next edit is a new change
         return Buffer.from_text(self._tree.current.deck_state)
 
     @property

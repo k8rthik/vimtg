@@ -11,6 +11,7 @@ from pathlib import Path
 from vimtg.editor.help_text import HELP_OVERVIEW
 from vimtg.editor.keymap import (
     _G_SUB_KEYS,
+    _QUIT_SUB_KEYS,
     _SPLIT_SUB_KEYS,
     _TAG_SUB_KEYS,
     _ZONE_SUB_KEYS,
@@ -87,6 +88,8 @@ class TestSpecMatchesKeymap:
             assert f"S{sub}" in declared
         for sub in _ZONE_SUB_KEYS:
             assert f"z{sub}" in declared
+        for sub in _QUIT_SUB_KEYS:
+            assert f"Z{sub}" in declared
         sequences = (
             "gg", "[[", "]]", "[v", "]v",
             f"m{MARK}", f"'{MARK}", f"q{MARK}", f"@{MARK}", "@@",

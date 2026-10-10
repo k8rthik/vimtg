@@ -147,6 +147,9 @@ class EditorState:
     # scrolling the deck view — set by the TUI before H / M / L. None
     # means no view is known and the whole buffer counts as visible.
     view_band: tuple[int, int] | None = None
+    # Text of the buffer as last loaded or written; None when unknown.
+    # Undo/redo compare against it so returning to it is unmodified.
+    clean_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -301,7 +304,9 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         # never open a line (doing so used to mutate the buffer and
         # then crash on the VISUAL->INSERT transition)
         if state.mode_mgr.is_visual() and state.visual_anchor is not None:
-            anchor = state.visual_anchor
+            # An edit inside the selection (e.g. '.') can leave the
+            # anchor past the end of a shrunken buffer
+            anchor = min(state.visual_anchor, state.buffer.line_count() - 1)
             state.visual_anchor = state.cursor.row
             state.cursor = state.cursor.move_to(anchor, 0)
             return HandlerResult()
@@ -316,7 +321,14 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         return HandlerResult(enter_search=True)
     if key in ("v", "V"):
         target = Mode.VISUAL if key == "v" else Mode.VISUAL_LINE
-        state.visual_anchor = state.cursor.row
+        current = state.mode_mgr.current
+        # Vim: the same visual key again ends the selection; the other
+        # one switches kind and keeps the selection's anchor
+        if current == target:
+            state.visual_anchor = None
+            return HandlerResult(exit_to_normal=True)
+        if not state.mode_mgr.is_visual() or state.visual_anchor is None:
+            state.visual_anchor = state.cursor.row
         return HandlerResult(enter_visual=target)
     return HandlerResult()
 
@@ -357,6 +369,8 @@ def handle_command(
         if ctx.modified and state.buffer is not before:
             state.history.record(state.buffer, f":{action.text}")
         state.modified = ctx.modified
+        if ctx.file_saved:
+            state.clean_text = state.buffer.to_text()
         plan_changed = False
         if ctx.active_plan_set:
             state.active_plan = ctx.active_plan
@@ -404,20 +418,13 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
     """
     key = action.action
     count = action.count if action.count > 0 else 1
-    if key == "u":
+    if key in ("u", "ctrl_r"):
+        step = state.history.undo if key == "u" else state.history.redo
         for _ in range(count):
-            restored = state.history.undo()
+            restored = step()
             if restored is None:
                 break
-            state.buffer = restored
-            state.modified = True
-    elif key == "ctrl_r":
-        for _ in range(count):
-            restored = state.history.redo()
-            if restored is None:
-                break
-            state.buffer = restored
-            state.modified = True
+            restore_buffer(state, restored)
     elif key in ("p", "P"):
         before = state.buffer.line_count()
         # First row the paste block occupies — after the loop the cursor
@@ -524,11 +531,35 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         return _handle_category_action(state, key[1])
     elif key == "gh":
         return HandlerResult(open_history_screen=True)
+    elif key in ("ZZ", "ZQ"):
+        # Vim's ZZ / ZQ are exactly :wq / :q!
+        return HandlerResult(run_ex_command="wq" if key == "ZZ" else "q!")
     elif key.startswith("t") and len(key) == 2:
         return _handle_tag_action(state, key[1])
     elif key == "A":
         return _handle_comment_action(state)
     return HandlerResult()
+
+
+def restore_buffer(state: EditorState, buffer: Buffer) -> None:
+    """Swap in a buffer from history (undo/redo), keeping every row
+    reference inside it.
+
+    The restored buffer can be shorter than the one it replaces, so the
+    cursor and visual anchor are clamped, and the modified flag follows
+    whether the text differs from the last loaded/saved state — undoing
+    back to it is clean again, as in vim.
+    """
+    state.buffer = buffer
+    last = max(0, buffer.line_count() - 1)
+    state.cursor = state.cursor.clamp(last)
+    if state.visual_anchor is not None:
+        state.visual_anchor = max(0, min(state.visual_anchor, last))
+    state.pending_insert = None
+    if state.clean_text is None:
+        state.modified = True
+    else:
+        state.modified = buffer.to_text() != state.clean_text
 
 
 def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerResult:
@@ -1196,7 +1227,8 @@ def _apply_insert_variant(state: EditorState, variant: str) -> None:
     open the line below the whole block instead — a card line must
     never split the metadata header.
     """
-    row = state.cursor.row
+    # Defensive: a cursor trailing a shrunken buffer opens at its end
+    row = max(0, min(state.cursor.row, state.buffer.line_count() - 1))
     origin = row
     if state.buffer.get_line(row).line_type == LineType.METADATA:
         while (
