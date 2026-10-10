@@ -25,6 +25,7 @@ COMMANDS
   :find pattern Jump to matching card
   :stats        Deck statistics
   :validate     Check format legality (uses // Format:)
+  :hand [seed]  Sample hand / goldfish (draw, mulligan; Sd)
   :cat name     Set card category (:cat! clears)
   :categories   List categories with counts
   :layout       Toggle type/category layout
@@ -356,6 +357,22 @@ COMMAND_HELP: dict[str, str] = {
         "Everything recomputes as the deck is edited.\n"
         "\n"
         "Ss focuses the pane (j/k scroll, Esc back); :close closes."
+    ),
+    "hand": (
+        ":hand [seed=N]  Sample hand / goldfish overlay (alias :goldfish;\n"
+        "also the Sd key)\n"
+        "\n"
+        "Shuffles the main deck and draws an opening seven. Sideboard,\n"
+        "maybeboard, commander and companion cards stay out of the\n"
+        "library; the commander is shown in the command zone. With a\n"
+        "sideboard plan active the post-board deck is used. seed=N\n"
+        "makes the shuffles repeatable.\n"
+        "\n"
+        "Keys: n/Space draw, m mulligan (London: draw 7, then b puts\n"
+        "the selected card on the bottom), j/k select, r reshuffle,\n"
+        "q/Esc close. The first mulligan is free in Commander and\n"
+        "Brawl. Shows the land count in hand and the odds of 1+ / 2+\n"
+        "lands in seven and of hitting every land drop by turn N."
     ),
 }
 

@@ -132,6 +132,7 @@ Other keys act on the cursor line only.
 | `Sv` / `Sh` | Open a **v**ertical / **h**orizontal split (prompts `:vsplit ` / `:split ` for a deck file) |
 | `Sr` | EDHREC **r**ecommendations for the commander (`:edhrec`) |
 | `Sa` | Live **a**nalytics pane (`:analytics`) |
+| `Sd` | Sample hand: **d**raw an opening seven and goldfish (`:hand`) |
 | `Ss` | **S**witch focus between the editor and the pane |
 | `Sc` | **C**lose the pane |
 
@@ -140,6 +141,11 @@ While a pane is focused it uses the shared navigation keys (`j`/`k`,
 `h`/`l` (or `Tab`/`Shift-Tab`) to switch tabs and `Enter` to add the
 selected card. `Esc` returns to the editor; `:` and `S` sequences pass
 through; any other key refocuses the editor and runs there.
+
+`Sd` opens the sample-hand overlay rather than a pane. In it, `n` or
+`Space` draws, `m` takes a London mulligan, `j`/`k` select a card and
+`b` puts it on the bottom, `r` reshuffles a fresh hand, and `q`/`Esc`
+close it.
 
 ### Version control
 
@@ -153,7 +159,7 @@ through; any other key refocuses the editor and runs there.
 |--------|-----------|------|
 | `g` | go | `gg` `gc` `gC` `gl` `gh` |
 | `t` | tags | `ta` `tr` `tt` `tf` `tl` `tc` `tn` `tp` |
-| `S` | splits | `Sv` `Sh` `Sr` `Sa` `Ss` `Sc` |
+| `S` | splits | `Sv` `Sh` `Sr` `Sa` `Sd` `Ss` `Sc` |
 | `z` | zones | `zs` `zm` `zd` `zc` `zp` `zo` `zi` |
 | `m` / `'` | marks | `m{a-z}` `'{a-z}` |
 | `q` / `@` | macros | `q{a-z}` `q` `@{a-z}` `@@` |

@@ -84,6 +84,7 @@ from vimtg.services.history_service import HistoryService
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
     from vimtg.data.file_io import FileStamp
+    from vimtg.editor.command_handlers.hand_cmds import HandOpen
 
 
 class InsertSubmode(Enum):
@@ -199,6 +200,7 @@ class HandlerResult:
     split_close: bool = False
     edhrec_open: EdhrecOpen | None = None
     analytics_open: AnalyticsOpen | None = None
+    hand_open: HandOpen | None = None  # sample-hand overlay (:hand)
     import_url: str = ""  # deck-site URL to fetch asynchronously
     focus_next_pane: bool = False
     command_prefill: str = ""  # pre-typed text when entering command mode
@@ -410,6 +412,7 @@ def handle_command(
             split_close=ctx.split_close,
             edhrec_open=ctx.edhrec_open,
             analytics_open=ctx.analytics_open,
+            hand_open=ctx.hand_open,
             import_url=ctx.import_url,
             plan_changed=plan_changed,
         )
@@ -532,7 +535,7 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
             return HandlerResult(
                 command_message=f"Mark '{mark_name}' not set",
             )
-    elif key in ("Sv", "Sh", "Ss", "Sc", "Sr", "Sa"):
+    elif key in ("Sv", "Sh", "Ss", "Sc", "Sr", "Sa", "Sd"):
         return _handle_split_key(key)
     elif key in ("gc", "gC", "gl"):
         return _handle_category_action(state, key[1])
@@ -591,7 +594,7 @@ def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerRe
 
 def _handle_split_key(key: str) -> HandlerResult:
     """Dispatch S sub-key: v/h open a split prompt, s switch, c close,
-    r EDHREC recommendations, a analytics."""
+    r EDHREC recommendations, a analytics, d sample hand."""
     if key == "Sv":
         return HandlerResult(enter_command=True, command_prefill="vsplit ")
     if key == "Sh":
@@ -602,6 +605,8 @@ def _handle_split_key(key: str) -> HandlerResult:
         return HandlerResult(split_close=True)
     if key == "Sa":
         return HandlerResult(run_ex_command="analytics")
+    if key == "Sd":
+        return HandlerResult(run_ex_command="hand")
     return HandlerResult(run_ex_command="edhrec")
 
 

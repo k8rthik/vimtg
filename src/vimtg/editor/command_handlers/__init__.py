@@ -12,6 +12,7 @@ from vimtg.editor.command_handlers.config_cmds import register_config_commands
 from vimtg.editor.command_handlers.deck_cmds import register_deck_commands
 from vimtg.editor.command_handlers.export_cmds import register_export_commands
 from vimtg.editor.command_handlers.global_cmd import register_global_commands
+from vimtg.editor.command_handlers.hand_cmds import register_hand_commands
 from vimtg.editor.command_handlers.help_cmd import register_help_commands
 from vimtg.editor.command_handlers.history_cmds import register_history_commands
 from vimtg.editor.command_handlers.plan_cmds import register_plan_commands
@@ -37,6 +38,7 @@ _REGISTRARS = (
     register_global_commands,
     register_split_commands,
     register_plan_commands,
+    register_hand_commands,
 )
 
 
