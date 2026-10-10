@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import contextlib
 import os
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
 from textual.app import App
+from textual.events import Resize
 
+from vimtg.config import app_state
 from vimtg.config.paths import cache_dir, db_path
 from vimtg.config.settings import Settings, load_settings_checked
 from vimtg.config.settings_writer import save_settings
@@ -33,8 +36,10 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers import register_all_commands
 from vimtg.editor.commands import CommandRegistry
 from vimtg.services.deck_service import (
+    Scaffold,
     scaffold_deck_body,
-    scaffold_missing_metadata,
+    scaffold_metadata,
+    strip_unused_scaffold,
 )
 from vimtg.services.search_service import SearchService
 from vimtg.tui.theme import COLORS
@@ -43,6 +48,9 @@ from vimtg.tui.theme import COLORS
 # Staleness itself is MAX_AGE_DAYS in scryfall_sync — this only bounds
 # how quickly a running app notices.
 AUTO_SYNC_CHECK_SECONDS = 3600
+
+# Decks offered by the greeter's Recent section and `r` list
+RECENT_LIMIT = 9
 
 
 class VimTGApp(App[None]):
@@ -57,8 +65,9 @@ class VimTGApp(App[None]):
     #deck-view-2 {{ width: 1fr; height: 1fr; }}
     #edhrec-panel {{ width: 1fr; height: 1fr; }}
     #analytics-panel {{ width: 1fr; height: 1fr; }}
-    #search-results {{ height: auto; max-height: 20; dock: bottom; }}
-    #help-panel {{ height: auto; max-height: 24; dock: bottom; }}
+    #search-results {{ height: auto; max-height: 50%; dock: bottom; }}
+    #help-panel {{ height: auto; max-height: 60%; dock: bottom; }}
+    #tips-panel {{ height: auto; dock: bottom; background: {COLORS['cursor_bg']}; }}
     #which-key {{ height: auto; max-height: 6; dock: bottom; }}
     #status-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}
     #command-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}
@@ -109,10 +118,29 @@ class VimTGApp(App[None]):
             self.open_deck(self._deck_path)
         else:
             self.show_greeter()
+        self._check_terminal_size(*self.size)
         self._maybe_auto_sync()
         # Long-lived sessions re-check staleness periodically; the
         # worker group is exclusive so checks can never overlap.
         self.set_interval(AUTO_SYNC_CHECK_SECONDS, self._maybe_auto_sync)
+
+    def on_resize(self, event: Resize) -> None:
+        # self.size lags the event by a timer tick; the event is current
+        self._check_terminal_size(event.size.width, event.size.height)
+
+    def _check_terminal_size(self, width: int, height: int) -> None:
+        """Below MIN_WIDTH x MIN_HEIGHT nothing is drawn but a notice:
+        squeezed layouts garble, and keys typed blind do damage."""
+        from vimtg.tui.screens.too_small import TooSmallScreen, fits
+
+        top = self.screen_stack[-1] if self.screen_stack else None
+        if not fits(width, height):
+            if isinstance(top, TooSmallScreen):
+                top.show_size(width, height)
+            else:
+                self.push_screen(TooSmallScreen(width, height))
+        elif isinstance(top, TooSmallScreen):
+            self.pop_screen()
 
     def _handle_exception(self, error: Exception) -> None:
         """Last-resort net for errors outside the editor's key path.
@@ -326,13 +354,13 @@ class VimTGApp(App[None]):
 
         stamp: FileStamp | None = None
         if initial_text is not None:
-            text = scaffold_deck_body(scaffold_missing_metadata(initial_text))
+            text, added = scaffold_metadata(initial_text)
         elif file_path and file_path.exists():
             # Stamp before reading: a write racing the read then shows
             # up as a change (a spurious warning, never a lost edit).
             stamp = file_stamp(file_path)
             try:
-                text = file_path.read_text(encoding="utf-8-sig")
+                raw = file_path.read_text(encoding="utf-8-sig")
             except (OSError, UnicodeDecodeError) as exc:
                 # Unreadable/binary file: fail loudly instead of silently
                 # presenting an empty "New Deck" over a real file.
@@ -340,34 +368,60 @@ class VimTGApp(App[None]):
                 return
             # Scaffold only fills the buffer — modified stays False, so
             # merely viewing a deck never forces a save.
-            text = scaffold_deck_body(scaffold_missing_metadata(text))
+            text, added = scaffold_metadata(raw)
+            app_state.remember_deck(file_path)
         else:
-            text = scaffold_deck_body(scaffold_missing_metadata(""))
+            text, added = scaffold_metadata("")
             if file_path is not None:
                 stamp = ABSENT  # a file appearing before :w is a change too
+        text = scaffold_deck_body(text)
 
         buffer = Buffer.from_text(text)
-        save_fn = self._deck_repo.save if self._deck_repo else None
         screen = MainScreen(
             buffer=buffer,
             file_path=file_path,
             registry=self._cmd_registry,
             search_service=self._search_svc,
             card_repo=self._card_repo,
-            save_fn=save_fn,
+            save_fn=self._make_save_fn(added),
             settings=self._settings,
             db=self._db,
             disk_stamp=stamp,
+            # An import arrives with its cards; anything else that is
+            # still an empty, unnamed/format-less deck asks for both
+            prompt_new_deck=initial_text is None,
         )
         if initial_text is not None:
             screen._state.modified = True
             screen._state.clean_text = None  # never saved: undo stays dirty
         self.push_screen(screen)
 
+    def _make_save_fn(self, added: Scaffold) -> Callable[[Path, str], None] | None:
+        """The editor's writer: drops scaffold lines still empty (the
+        file never had them), then remembers the deck as recent."""
+        repo = self._deck_repo
+        if repo is None:
+            return None
+
+        def save(path: Path, text: str) -> None:
+            repo.save(path, strip_unused_scaffold(text, added))
+            app_state.remember_deck(path)
+
+        return save
+
     def _find_recent_decks(self) -> list[Path]:
-        """Find .deck files in current directory, newest first."""
+        """Recently opened decks from any directory, then the newest
+        .deck files in the current directory — no duplicates."""
         repo = self._deck_repo or DeckRepository()
-        return repo.list_decks(Path.cwd(), by_mtime=True)[:5]
+        local = repo.list_decks(Path.cwd(), by_mtime=True)
+        seen: set[Path] = set()
+        recent: list[Path] = []
+        for path in [*app_state.recent_decks(), *local]:
+            key = path.resolve()
+            if key not in seen:
+                seen.add(key)
+                recent.append(path)
+        return recent[:RECENT_LIMIT]
 
 
 def sync_progress_text(phase: str, current: int, total: int) -> str:

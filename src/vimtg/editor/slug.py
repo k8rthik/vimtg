@@ -7,6 +7,7 @@ that haven't been given an explicit filename.
 from __future__ import annotations
 
 import random
+import re
 from pathlib import Path
 
 _ADJECTIVES = (
@@ -114,3 +115,34 @@ def generate_unique_path(directory: Path, max_attempts: int = 100) -> Path:
             return path
     msg = f"Could not generate unique filename after {max_attempts} attempts"
     raise RuntimeError(msg)
+
+
+_MAX_SLUG = 60
+
+
+def slugify(name: str) -> str:
+    """A filename stem for a deck name: 'Mono-Red Burn!' -> 'mono-red-burn'.
+
+    Lowercase ASCII letters and digits joined by single hyphens; ''
+    when the name has nothing usable (the caller falls back to a
+    random slug).
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug[:_MAX_SLUG].rstrip("-")
+
+
+def unique_deck_path(directory: Path, name: str) -> Path:
+    """`<slug>.deck` in `directory` for a deck name, never an existing file.
+
+    Collisions get a numeric suffix (burn-2.deck, burn-3.deck, ...); a
+    name with no usable characters gets a random MTG-themed slug.
+    """
+    stem = slugify(name)
+    if not stem:
+        return generate_unique_path(directory)
+    path = directory / f"{stem}.deck"
+    n = 2
+    while path.exists():
+        path = directory / f"{stem}-{n}.deck"
+        n += 1
+    return path

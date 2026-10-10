@@ -235,6 +235,7 @@ class HandlerResult:
     command_replace: str | None = None
     # :e — open this deck in place of the current one
     edit_file: Path | None = None
+    ui_request: str = ""  # screen-level view (:messages, :tips)
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -551,6 +552,7 @@ def handle_command(
             card_sync=ctx.card_sync,
             plan_changed=plan_changed,
             edit_file=ctx.edit_path,
+            ui_request=ctx.ui_request,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)

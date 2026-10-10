@@ -24,6 +24,7 @@ async def test_missing_deck_path_opens_buffer_bound_to_it(tmp_path: Path) -> Non
     app = VimTGApp(deck_path=target)
     async with app.run_test() as pilot:
         await pilot.pause()
+        await pilot.press("escape")  # skip the new-deck prompts
         screen = app.screen
         assert isinstance(screen, MainScreen)
         assert screen.file_path == target
@@ -82,6 +83,7 @@ async def test_settings_save_failure_is_visible(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         await pilot.pause()
+        await pilot.press("escape")  # skip the new-deck prompts
         screen = app.screen
         assert isinstance(screen, MainScreen)
         screen._on_settings_saved(Settings(price_source="eur"))

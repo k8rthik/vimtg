@@ -5,7 +5,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from vimtg.editor.slug import generate_slug, generate_unique_path
+from vimtg.editor.slug import (
+    generate_slug,
+    generate_unique_path,
+    slugify,
+    unique_deck_path,
+)
 
 
 class TestGenerateSlug:
@@ -49,3 +54,31 @@ class TestGenerateUniquePath:
             assert False, "Expected RuntimeError"  # noqa: B011
         except RuntimeError as exc:
             assert "5 attempts" in str(exc)
+
+
+class TestSlugify:
+    def test_lowercases_and_hyphenates(self) -> None:
+        assert slugify("Mono-Red Burn!") == "mono-red-burn"
+
+    def test_collapses_and_trims_separators(self) -> None:
+        assert slugify("  Izzet   //  Phoenix  ") == "izzet-phoenix"
+
+    def test_nothing_usable_is_empty(self) -> None:
+        assert slugify("!!! ") == ""
+
+    def test_caps_length(self) -> None:
+        assert len(slugify("a" * 200)) <= 60
+
+
+class TestUniqueDeckPath:
+    def test_uses_slug(self, tmp_path: Path) -> None:
+        assert unique_deck_path(tmp_path, "Burn") == tmp_path / "burn.deck"
+
+    def test_numbers_collisions(self, tmp_path: Path) -> None:
+        (tmp_path / "burn.deck").touch()
+        (tmp_path / "burn-2.deck").touch()
+        assert unique_deck_path(tmp_path, "Burn") == tmp_path / "burn-3.deck"
+
+    def test_blank_name_gets_random_slug(self, tmp_path: Path) -> None:
+        path = unique_deck_path(tmp_path, "")
+        assert re.fullmatch(r"[a-z]+-[a-z]+-deck\.deck", path.name)

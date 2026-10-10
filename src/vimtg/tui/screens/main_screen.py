@@ -21,6 +21,7 @@ from textual.containers import Container
 from textual.events import Key, Paste
 from textual.screen import Screen
 
+from vimtg.config import app_state
 from vimtg.config.paths import cache_dir
 from vimtg.config.settings import Settings
 from vimtg.data.database import Database
@@ -84,6 +85,7 @@ from vimtg.editor.splits import (
     SplitOpen,
 )
 from vimtg.services.clipboard import copy_message, copy_to_clipboard
+from vimtg.services.deck_service import needs_new_deck_prompt, set_deck_identity
 from vimtg.services.deck_sources import (
     DeckSourceError,
     RemoteDeck,
@@ -98,6 +100,7 @@ from vimtg.services.recovery import (
 )
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
+from vimtg.tui.screens.new_deck import NewDeckInfo, NewDeckScreen
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.analytics_panel import (
     AnalyticsPanel,
@@ -109,6 +112,7 @@ from vimtg.tui.widgets.edhrec_panel import EdhrecPanel
 from vimtg.tui.widgets.help_panel import HelpPanel
 from vimtg.tui.widgets.search_results import SearchResults
 from vimtg.tui.widgets.status_line import StatusLine
+from vimtg.tui.widgets.tips_panel import TipsPanel
 from vimtg.tui.widgets.which_key import WhichKey
 
 if TYPE_CHECKING:
@@ -149,6 +153,12 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     return _GENERIC_HINT
 
 
+# Below these sizes the screen sheds extras instead of squeezing the deck
+TIPS_MIN_HEIGHT = 18  # first-run tips panel
+SPLIT_MIN_WIDTH = 60  # side-by-side split
+SPLIT_MIN_HEIGHT = 16  # stacked split
+
+
 @dataclass
 class _SplitPane:
     """State of the split pane (second deck or EDHREC)."""
@@ -176,6 +186,7 @@ class MainScreen(Screen[None]):
         settings: Settings | None = None,
         db: Database | None = None,
         disk_stamp: FileStamp | None = None,
+        prompt_new_deck: bool = False,
     ) -> None:
         super().__init__()
         # Normalize up front so a hand-written deck's section cleanup is
@@ -238,6 +249,17 @@ class MainScreen(Screen[None]):
         self._key_depth = 0
         # Card database readout for the status line (text, attention)
         self._card_status: tuple[str, bool] = ("", False)
+        # Ask for name/format when this opens a deck that is still blank
+        self._prompt_new_deck = prompt_new_deck
+        # The tips panel was closed (Esc) for this session
+        self._tips_closed = False
+        # Action type of the last completed key ("motion", ...); an
+        # error message survives motions so it can still be read
+        self._last_action_type = ""
+        # Tips: turned off for good (state file), or shown on request
+        # even for a deck with cards (:tips)
+        self._tips_dismissed = app_state.tips_dismissed()
+        self._tips_forced = False
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -250,6 +272,7 @@ class MainScreen(Screen[None]):
         yield SearchResults(id="search-results")
         yield HelpPanel(id="help-panel")
         yield WhichKey(id="which-key")
+        yield TipsPanel(id="tips-panel")
         yield StatusLine(id="status-line")
         yield CommandLine(id="command-line")
 
@@ -275,6 +298,48 @@ class MainScreen(Screen[None]):
                 "Found unsaved changes from a crash: :recover to load them, "
                 ":recover! to discard"
             )
+        elif self._prompt_new_deck and needs_new_deck_prompt(
+            self._state.buffer.to_text()
+        ):
+            self.open_new_deck_prompt()
+
+    # ── New-deck wizard ──────────────────────────────────────────
+
+    def open_new_deck_prompt(self) -> None:
+        """Ask for the deck's name and format (Esc skips)."""
+        deck = parse_deck_text(self._state.buffer.to_text())
+        # `vimtg burn.deck` suggests "burn"
+        suggested = self.file_path.stem if self.file_path is not None else ""
+        self.app.push_screen(
+            NewDeckScreen(
+                name=deck.metadata.name,
+                fmt=deck.metadata.format,
+                suggested_name=suggested,
+            ),
+            self.apply_new_deck_info,
+        )
+
+    def apply_new_deck_info(self, info: NewDeckInfo | None) -> None:
+        """Write the wizard's answers into the metadata lines as one
+        undoable change (nothing changes when it was skipped)."""
+        if info is None:
+            return
+        s = self._state
+        old = s.buffer.to_text()
+        new = set_deck_identity(old, info.name, info.fmt)
+        if new == old:
+            return
+        s.buffer = Buffer.from_text(new)
+        s.cursor = s.cursor.clamp(s.buffer.line_count() - 1)
+        s.modified = True
+        s.history.record(s.buffer, "new deck")
+        message = f"New deck: {info.name or '(unnamed)'}"
+        if info.fmt:
+            message += f" ({info.fmt})"
+        self._sync_widgets()
+        self.query_one("#command-line", CommandLine).set_message(
+            message + "  —  o add a card, :w save"
+        )
 
     # ── Card data status ─────────────────────────────────────────
 
@@ -428,13 +493,25 @@ class MainScreen(Screen[None]):
             self._open_help(None)
             return
 
-        # Clear transient messages from the previous keypress
-        cl = self.query_one("#command-line", CommandLine)
-        if cl.message:
-            cl.message = ""
         # Translate Textual key name → canonical vim key name
         key = translate(event.key)
+        if key == "escape" and self._state.mode_mgr.is_normal():
+            self._tips_closed = True  # Esc closes the tips for the session
+        # Clear transient messages from the previous keypress. An error
+        # stays up through motions (so it can be read while moving) and
+        # goes with the first other key; :messages keeps them all.
+        cl = self.query_one("#command-line", CommandLine)
+        if cl.message and not cl.error:
+            cl.message = ""
+        sticky = cl.message_serial if cl.message else None
+        self._last_action_type = ""
         self._process_key(key)
+        if (
+            sticky is not None
+            and cl.message_serial == sticky
+            and self._last_action_type not in ("motion", "pending")
+        ):
+            cl.message = ""
 
     def _process_key(self, key: str, resolve: bool = True) -> None:
         """Run one canonical key through remap, keymap, and dispatch.
@@ -538,6 +615,7 @@ class MainScreen(Screen[None]):
         sl = self.query_one("#status-line", StatusLine)
         sl.pending_keys = self.keymap.pending_display
         if result == KeyResult.PENDING:
+            self._last_action_type = "pending"
             wk.pending_key = key
             wk.display = self._state.settings.show_which_key
             return
@@ -547,6 +625,7 @@ class MainScreen(Screen[None]):
         if result != KeyResult.COMPLETE or action is None:
             return
 
+        self._last_action_type = action.action_type
         s = self._state
         hr = None
         if action.action_type == "motion":
@@ -836,6 +915,8 @@ class MainScreen(Screen[None]):
             self._execute_ex(hr.run_ex_command)
         if hr.scroll_view:
             self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)
+        if hr.ui_request:
+            self._handle_ui_request(hr.ui_request)
         if hr.edit_file is not None:
             self._edit_file(hr.edit_file)
 
@@ -852,6 +933,31 @@ class MainScreen(Screen[None]):
         new_screen = app.screen
         if isinstance(new_screen, MainScreen):
             new_screen._state.registers = registers
+
+    def _handle_ui_request(self, request: str) -> None:
+        """:messages and :tips — screen-level views with no buffer change."""
+        cl = self.query_one("#command-line", CommandLine)
+        if request == "messages":
+            body = "\n".join(text for _error, text in cl.history) or "(no messages)"
+            from vimtg.tui.screens.help_screen import HelpScreen
+
+            self.app.push_screen(HelpScreen(body=body, title="Messages"))
+        elif request == "messages_clear":
+            cl.history.clear()
+        elif request == "tips_show":
+            self._tips_closed = False
+            self._tips_forced = True
+        elif request in ("tips_on", "tips_off"):
+            self._tips_dismissed = request == "tips_off"
+            self._tips_closed = False
+            self._tips_forced = False
+            app_state.set_tips_dismissed(self._tips_dismissed)
+            cl.set_message(
+                "Tips off (:tips on brings them back)" if self._tips_dismissed
+                else "Tips on: shown while the deck is empty"
+            )
+        if request.startswith("tips"):
+            self._update_tips(count_cards(self._state.buffer))
 
     # ── Search and insert ────────────────────────────────────────
 
@@ -970,7 +1076,12 @@ class MainScreen(Screen[None]):
         area = self.query_one("#editor-area", Container)
         side_by_side = comp.direction is SplitDirection.VERTICAL
         area.styles.layout = "horizontal" if side_by_side else "vertical"
-        show = self._split_pane_widget()
+        show: DeckView | EdhrecPanel | AnalyticsPanel | None = self._split_pane_widget()
+        if not self._split_fits(side_by_side):
+            # No room for two panes: show the deck alone (the split
+            # stays open and comes back when the terminal grows)
+            show = None
+            comp.focused = False
         for widget in (
             self.query_one("#deck-view-2", DeckView),
             self.query_one("#edhrec-panel", EdhrecPanel),
@@ -978,6 +1089,16 @@ class MainScreen(Screen[None]):
         ):
             widget.display = widget is show
         self._sync_pane_focus()
+
+    def _split_fits(self, side_by_side: bool) -> bool:
+        """True when the terminal has room for the split pane (unknown
+        size — before the first layout — counts as room)."""
+        width, height = self.size
+        if not width or not height:
+            return True
+        if side_by_side:
+            return width >= SPLIT_MIN_WIDTH
+        return height >= SPLIT_MIN_HEIGHT
 
     def _sync_pane_focus(self) -> None:
         """Reflect which pane is active: separator color + panel state."""
@@ -1163,6 +1284,9 @@ class MainScreen(Screen[None]):
         cl = self.query_one("#command-line", CommandLine)
         if self._split_pane is None:
             cl.set_message("E: No split open (Sv/Sh or :vsplit)", error=True)
+            return
+        if not self._split_pane_widget().display:
+            cl.set_message("E: Terminal too small to show the split", error=True)
             return
         self._split_pane.focused = not self._split_pane.focused
         self._sync_pane_focus()
@@ -1874,3 +1998,22 @@ class MainScreen(Screen[None]):
             cl.hint = _hint_for_cursor(s.buffer, s.cursor.row)
         else:
             cl.hint = ""
+        self._update_tips(sl.card_count)
+
+    def _update_tips(self, card_count: int) -> None:
+        """Show the first-run tips under an empty deck (normal mode,
+        room to spare) unless turned off or closed with Esc."""
+        wanted = self._tips_forced or (card_count == 0 and not self._tips_dismissed)
+        self.query_one("#tips-panel", TipsPanel).display = (
+            wanted
+            and not self._tips_closed
+            and self._state.mode_mgr.is_normal()
+            and self.size.height >= TIPS_MIN_HEIGHT
+        )
+
+    def on_resize(self) -> None:
+        """Small terminals: drop the tips and any split pane that no
+        longer fits, and bring them back when there is room again."""
+        self._update_tips(count_cards(self._state.buffer))
+        if self._split_pane is not None:
+            self._apply_split_layout()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -19,21 +20,38 @@ __all__ = [
     "BASIC_LANDS",
     "DeckService",
     "SCAFFOLD_KEYS",
+    "Scaffold",
     "ValidationError",
+    "scaffold_metadata",
     "scaffold_missing_metadata",
+    "strip_unused_scaffold",
 ]
 
 # Metadata lines every deck starts with, editable in-buffer with `i`
 SCAFFOLD_KEYS: tuple[str, ...] = ("Deck", "Format", "Tags")
 
 
-def scaffold_missing_metadata(text: str) -> str:
+@dataclass(frozen=True)
+class Scaffold:
+    """What scaffolding added to a deck's text, so a save can take the
+    unused part back out: the metadata keys inserted and whether the
+    blank line after them is scaffolding too (not the file's own)."""
+
+    keys: frozenset[str] = frozenset()
+    blank: bool = False
+
+
+NO_SCAFFOLD = Scaffold()
+
+
+def scaffold_metadata(text: str) -> tuple[str, Scaffold]:
     """Insert empty '// Key:' lines for scaffold keys absent from the file.
 
     Missing keys are added after the leading metadata block (line 0 when
     there is none), followed by one blank line when the next line holds
     content. Returns `text` unchanged (same object) when nothing is
-    missing, so callers can cheaply detect a no-op.
+    missing, so callers can cheaply detect a no-op; the Scaffold records
+    what was added for strip_unused_scaffold.
     """
     lines = text.split("\n")
     present = {
@@ -41,17 +59,59 @@ def scaffold_missing_metadata(text: str) -> str:
     }
     missing = [key for key in SCAFFOLD_KEYS if key not in present]
     if not missing:
-        return text
+        return text, NO_SCAFFOLD
 
     insert_at = 0
     while insert_at < len(lines) and match_metadata(lines[insert_at]) is not None:
         insert_at += 1
 
     scaffold = [f"// {key}:" for key in missing]
-    if insert_at < len(lines) and lines[insert_at].strip():
+    blank = insert_at < len(lines) and bool(lines[insert_at].strip())
+    if blank:
         scaffold.append("")
+    # An empty deck gets its blank later, ahead of scaffold_deck_body's DCK:
+    blank = blank or not text.strip()
     new_lines = lines[:insert_at] + scaffold + lines[insert_at:]
-    return "\n".join(new_lines)
+    return "\n".join(new_lines), Scaffold(frozenset(missing), blank)
+
+
+def scaffold_missing_metadata(text: str) -> str:
+    """scaffold_metadata without the record of what was added."""
+    return scaffold_metadata(text)[0]
+
+
+def strip_unused_scaffold(text: str, added: Scaffold) -> str:
+    """Drop scaffold lines that are still empty before writing to disk.
+
+    The editor shows '// Deck:' / '// Format:' / '// Tags:' so they can
+    be filled in place, but a file that never had them should not gain
+    empty lines (git-diff noise) just by being saved. Only keys the
+    scaffold added are touched, so metadata the file already had —
+    empty or not — round-trips unchanged.
+    """
+    if not added.keys:
+        return text
+    lines = text.split("\n")
+    end = 0
+    while end < len(lines) and match_metadata(lines[end]) is not None:
+        end += 1
+    kept: list[str] = []
+    for line in lines[:end]:
+        meta = match_metadata(line)
+        if meta is not None and meta[0] in added.keys and not meta[1]:
+            continue
+        kept.append(line)
+    if len(kept) == end:
+        return text
+    rest = lines[end:]
+    # The separating blank the scaffold added goes with the last of its lines
+    scaffold_left = any(
+        (meta := match_metadata(line)) is not None and meta[0] in added.keys
+        for line in kept
+    )
+    if added.blank and not scaffold_left and rest and not rest[0].strip():
+        rest = rest[1:]
+    return "\n".join(kept + rest)
 
 
 def scaffold_deck_body(text: str) -> str:
@@ -81,6 +141,51 @@ def scaffold_deck_body(text: str) -> str:
     return "\n".join(blocks) + "\n"
 
 
+def needs_new_deck_prompt(text: str) -> bool:
+    """True for a deck still waiting to be set up: no cards yet and a
+    blank '// Deck:' name or '// Format:'."""
+    deck = parse_deck_text(text)
+    if deck.entries:
+        return False
+    return not deck.metadata.name.strip() or not deck.metadata.format.strip()
+
+
+def set_deck_identity(text: str, name: str, fmt: str) -> str:
+    """Fill the '// Deck:' and '// Format:' lines of a new deck.
+
+    Blank answers leave their line alone. Lines missing from the text
+    are added to the leading metadata block. A commander/brawl format
+    on a deck with no CMD: block gains one ahead of DCK:, as `vimtg new
+    --format commander` would have written.
+    """
+    from vimtg.domain.deck_lines import parse_zone_header
+
+    lines = text.split("\n")
+    for key, value in (("Deck", name.strip()), ("Format", fmt.strip())):
+        if not value:
+            continue
+        row = next(
+            (
+                i for i, line in enumerate(lines)
+                if (m := match_metadata(line)) is not None and m[0].lower() == key.lower()
+            ),
+            None,
+        )
+        if row is not None:
+            lines[row] = f"// {key}: {value}"
+            continue
+        end = 0
+        while end < len(lines) and match_metadata(lines[end]) is not None:
+            end += 1
+        lines.insert(end, f"// {key}: {value}")
+    if fmt.strip().lower() in ("commander", "brawl"):
+        headers = [parse_zone_header(line) for line in lines]
+        if "CMD" not in headers and "DCK" in headers:
+            dck = headers.index("DCK")
+            lines[dck:dck] = ["CMD:", ""]
+    return "\n".join(lines)
+
+
 class DeckService:
     """Stateless service for deck operations.
 
@@ -108,12 +213,13 @@ class DeckService:
 
     def new_deck(self, name: str, fmt: str = "", author: str = "") -> str:
         """Create template deck text. Returns the text (not saved to disk)."""
-        lines: list[str] = []
-        lines.append(f"// Deck: {name}".rstrip())
-        lines.append(f"// Format: {fmt}".rstrip())
+        # Only metadata with content is written; the editor scaffolds
+        # the empty keys back in for display when the file is opened
+        lines: list[str] = [f"// Deck: {name}".rstrip()]
+        if fmt.strip():
+            lines.append(f"// Format: {fmt.strip()}")
         if author:
             lines.append(f"// Author: {author}")
-        lines.append("// Tags:")
         lines.append("")
         if fmt.strip().lower() in ("commander", "brawl"):
             lines.append("CMD:")
