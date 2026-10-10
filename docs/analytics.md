@@ -22,10 +22,14 @@ the synced Scryfall data; nothing is fetched live.
 
 Every coloured symbol in the mana cost is a pip of its colour. A hybrid
 symbol is a pip of **each** of its colours (`{R/G}` counts once for red
-and once for green; `{2/W}` counts for white). A Phyrexian symbol counts
-for its colour (`{B/P}` is a black pip), because paying life does not
-remove the need for a source if you want to pay mana. Generic, `{X}`,
-`{C}` and snow symbols are not coloured pips.
+and once for green; `{2/W}` counts for white), and a Phyrexian symbol
+counts for its colour (`{B/P}` is a black pip). These are the totals
+shown as `N pips`. Generic, `{X}`, `{C}` and snow symbols are not
+coloured pips.
+
+**Split cards** (`Fire // Ice`, aftermath and fuse cards) store both
+halves' costs the way Scryfall prints them, `{1}{R} // {1}{U}`, and the
+pip totals count both halves.
 
 ## Mana sources
 
@@ -35,12 +39,15 @@ A land counts as a source for a colour when it can **produce** it or
 1. **Produced mana**: Scryfall's `produced_mana`. Command Tower and City
    of Brass count for every colour (Command Tower only makes your
    commander's colours, but you will not have pips outside them).
-2. **Fetch lands** (heuristic, read from the oracle text):
-   - `Search your library for a Mountain or Plains card` counts for the
-     colours of the basic land types it names (Arid Mesa: red and white).
+2. **Fetch lands** (heuristic, read from the oracle text). A fetch land
+   counts for the colours of the lands **in this deck** it can find:
+   - `Search your library for an Island or Swamp card` (Polluted Delta)
+     finds the deck's lands with one of those land types, basic or not.
+     In an Izzet deck with Islands and Steam Vents it counts for blue
+     and red; with no Swamp-typed land it is no black source.
    - `Search your library for a basic land card` (Evolving Wilds, Fabled
-     Passage, Prismatic Vista) counts for the colours of the basic lands
-     actually in the deck. With no basics, it counts for nothing.
+     Passage, Prismatic Vista) finds the deck's basic lands only. With
+     no basics, it counts for nothing.
    - Anything else counts for nothing. This errs on the side of
      reporting too few sources rather than too many.
 3. **Older card databases**: when a card has no stored `produced_mana`
@@ -48,10 +55,35 @@ A land counts as a source for a colour when it can **produce** it or
    (`Land — Mountain Plains`) and its colour identity are used instead.
    Run `vimtg sync --force` to get the exact data.
 
+## Source requirements
+
 The requirement per colour is the deck's most demanding card under Frank
-Karsten's source table (pips vs. turn = mana value), scaled to the
-mainboard size. It is shown as `sources/needed`, with `✓` or
-`✗ need N more`.
+Karsten's source table (pips of that colour vs. turn = mana value),
+scaled to the mainboard size. It is shown as `sources/needed`, with `✓`
+or `✗ need N more`. The requirement counts pips differently from the
+totals above:
+
+- **Hybrid symbols** (`{G/W}`) can be paid with either colour, so a card
+  asks for whichever colouring the deck's lands cover best. vimtg tries
+  every way to split the card's hybrid symbols between their colours
+  and keeps the one with the smallest total shortfall against the
+  current source counts, then the one asking for the fewest sources.
+  Kitchen Finks (`{1}{G/W}{G/W}`) in a deck with 12 green and 12 white
+  sources asks for 12 of each (one pip each), not 18 of each; in mono
+  green it asks for 18 green and nothing of white.
+- **`{2/W}`** symbols can be paid with two generic mana and **Phyrexian
+  symbols** (`{B/P}`) with life, so they never raise a requirement.
+  Dismember in an Izzet deck shows its black pips with `0/0 ✓`.
+- **Split cards** are judged one half at a time, each on its own mana
+  value: Commit // Memory asks for one blue pip on turn 4 and two white
+  pips on turn 6.
+
+## Mana curve and average mana value
+
+A split card sits on the curve at its **cheaper half**, since you cast
+one half at a time: Fire // Ice is a 2-drop, not Scryfall's combined 4.
+The same value feeds the average and median mana value and so the
+suggested land count below. Every other card uses its mana value.
 
 ## Suggested land count
 
@@ -76,7 +108,7 @@ by default) and names it, for example `$123.45 (usd)` or
 
 ## Commander brackets
 
-For Commander decks (`// Format: commander`, or no format and a card in
+For Commander decks (`// Format: commander` or an alias such as `EDH`, or no format and a card in
 the command zone) the pane has a **COMMANDER BRACKET** section, and
 `vimtg validate` prints an `info:` line, listing the deck's Game
 Changers and an estimated bracket:

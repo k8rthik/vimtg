@@ -17,6 +17,7 @@ from vimtg.domain.search import (
     And,
     ColorMatch,
     ExactName,
+    FieldCompare,
     IsMatch,
     LegalityMatch,
     NameWords,
@@ -24,7 +25,9 @@ from vimtg.domain.search import (
     Not,
     NumberMatch,
     Or,
+    ProducesMatch,
     RarityMatch,
+    SearchOrder,
     SetMatch,
     TextMatch,
 )
@@ -83,7 +86,49 @@ _IS_SQL: dict[str, str] = {
     "flip": "c.layout = 'flip'",
     "meld": "c.layout = 'meld'",
     "gamechanger": "COALESCE(c.game_changer, 0) = 1",
+    # Scryfall's is:permanent / is:spell read the front face.
+    "permanent": " OR ".join(
+        f"{_FRONT_TYPE} LIKE '%{t}%'"
+        for t in ("Artifact", "Creature", "Enchantment", "Land",
+                  "Planeswalker", "Battle")
+    ),
+    "spell": f"{_FRONT_TYPE} NOT LIKE '%Land%'",
+    # {R/G}, {2/W}, {G/U/P} — not a plain Phyrexian {W/P}
+    "hybrid": (
+        f"{REGEXP_FUNCTION}('\\{{[WUBRG2]/[WUBRG]', COALESCE(c.mana_cost, ''))"
+    ),
+    "phyrexian": "COALESCE(c.mana_cost, '') LIKE '%/P}%'",
 }
+
+# Every face's (power, toughness) as rows of a JSON array: the stored
+# per-face values, or the card's own when there are none (single-faced
+# cards, rows from before face_stats was stored).
+_FACE_ROWS = (
+    "json_each(COALESCE(c.face_stats, json_array(json_array(c.power, c.toughness))))"
+)
+_FACE_STAT = {"power": "json_extract(f.value, '$[0]')",
+              "toughness": "json_extract(f.value, '$[1]')",
+              "cmc": "c.cmc"}
+
+_ORDER_COLUMNS = {
+    "name": "c.name",
+    "cmc": "c.cmc",
+    "power": "CAST(c.power AS REAL)",
+    "toughness": "CAST(c.toughness AS REAL)",
+    "rarity": _RARITY_RANK,
+    "usd": "c.price_usd",
+    "eur": "c.price_eur",
+    "tix": "c.price_tix",
+    "set": "lower(c.set_code)",
+}
+
+
+def order_by(order: SearchOrder) -> str:
+    """ORDER BY clause for order:/direction:. Cards without the value
+    (no power, no price) sort last either way; ties go by name."""
+    column = _ORDER_COLUMNS[order.key]
+    direction = "DESC" if order.descending else "ASC"
+    return f"{column} IS NULL, {column} {direction}, c.name"
 
 
 def _like(text: str) -> str:
@@ -133,6 +178,22 @@ class _Compiler:
             return self._text(node)
         if isinstance(node, ColorMatch):
             return self._color(node)
+        if isinstance(node, NumberMatch) and node.field in ("power", "toughness"):
+            return (
+                f"EXISTS (SELECT 1 FROM {_FACE_ROWS} f WHERE "
+                f"{_FACE_STAT[node.field]} IS NOT NULL AND "
+                f"CAST({_FACE_STAT[node.field]} AS REAL) {_SQL_OPS[node.op]} "
+                f"{self.bind(node.value)})"
+            )
+        if isinstance(node, FieldCompare):
+            left, right = _FACE_STAT[node.left], _FACE_STAT[node.right]
+            return (
+                f"EXISTS (SELECT 1 FROM {_FACE_ROWS} f WHERE "
+                f"{left} IS NOT NULL AND {right} IS NOT NULL AND "
+                f"CAST({left} AS REAL) {_SQL_OPS[node.op]} CAST({right} AS REAL))"
+            )
+        if isinstance(node, ProducesMatch):
+            return self._produces(node)
         if isinstance(node, NumberMatch):
             column = _NUMBER_COLUMNS[node.field]
             cast = (
@@ -164,11 +225,48 @@ class _Compiler:
         if node.regex:
             return f"({REGEXP_FUNCTION}({self.bind(node.text)}, {column}))"
         if node.field == "keyword":
-            # Keywords are a JSON list; match a whole keyword.
+            # Keywords are a JSON list; match a whole keyword, or its
+            # "… with" form (kw:partner finds "Partner with").
+            word = node.text.lower()
             return (
-                f"(instr(lower({column}), {self.bind(_json_str(node.text.lower()))}) > 0)"
+                f"(instr(lower({column}), {self.bind(_json_str(word))}) > 0 "
+                f"OR instr(lower({column}), {self.bind(chr(34) + word + ' with')}) > 0)"
             )
         return f"({column} LIKE {self.bind(_like(node.text))} ESCAPE '\\')"
+
+    def _produces(self, node: ProducesMatch) -> str:
+        column = "COALESCE(c.produced_mana, '[]')"
+        symbols = ("W", "U", "B", "R", "G", "C")
+
+        def has(symbol: str) -> str:
+            return f"(instr({column}, {self.bind(_json_str(symbol))}) > 0)"
+
+        wanted = [s for s in symbols if s in node.symbols]
+        others = [s for s in symbols if s not in node.symbols]
+        produces_any = f"{column} != '[]'"
+
+        def all_of() -> str:
+            return "(" + (" AND ".join(has(s) for s in wanted) or "1") + ")"
+
+        def none_of() -> str:
+            return "(NOT (" + (" OR ".join(has(s) for s in others) or "0") + "))"
+
+        def any_of() -> str:
+            return "(" + (" OR ".join(has(s) for s in others) or "0") + ")"
+
+        # Each helper binds parameters as it renders, so render each
+        # piece exactly once, in SQL order.
+        if node.op == ">=":
+            return all_of()
+        if node.op == "<=":
+            return f"({none_of()} AND {produces_any})"
+        if node.op in ("=", ":"):
+            return f"({all_of()} AND {none_of()})"
+        if node.op == "!=":
+            return f"(NOT ({all_of()} AND {none_of()}))"
+        if node.op == ">":
+            return f"({all_of()} AND {any_of()})"
+        return f"({none_of()} AND {produces_any} AND NOT {all_of()})"
 
     def _color(self, node: ColorMatch) -> str:
         column = _COLOR_COLUMNS[node.field]

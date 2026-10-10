@@ -112,8 +112,8 @@ class TestUnknownFormatNotice:
     def test_unknown_format_warns_on_confirm(self):
         state = _state()
         _enter_format_edit(state)
-        hr = self._confirm(state, "edh")
-        assert "Unknown format 'edh'" in hr.command_message
+        hr = self._confirm(state, "edhh")
+        assert "Unknown format 'edhh'" in hr.command_message
         assert "no legality checking" in hr.command_message
 
     def test_known_format_confirms_silently(self):
@@ -137,7 +137,7 @@ class TestUnknownFormatNotice:
 
 class TestLintAnchor:
     def test_unknown_format_warning_anchors_to_format_line(self):
-        buf = Buffer.from_text("// Format: edh\n60 Forest\n")
+        buf = Buffer.from_text("// Format: edhh\n60 Forest\n")
         result = lint_buffer(buf, {})
         err = result.line_errors.get(0)
         assert err is not None

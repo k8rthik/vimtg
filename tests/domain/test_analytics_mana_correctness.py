@@ -103,10 +103,10 @@ class TestManaSources:
     def test_typed_fetch_counts_for_its_types(
         self, cards: dict[str, Card]
     ) -> None:
-        deck = _deck("4 Lightning Helix\n4 Arid Mesa\n")
+        deck = _deck("4 Lightning Helix\n4 Arid Mesa\n1 Mountain\n1 Plains\n")
         sources = _sources(compute_mana_base(deck, cards))
-        assert sources[Color.RED] == 4
-        assert sources[Color.WHITE] == 4
+        assert sources[Color.RED] == 5
+        assert sources[Color.WHITE] == 5
 
     def test_basic_fetch_counts_for_basics_in_deck(
         self, cards: dict[str, Card]
@@ -127,9 +127,9 @@ class TestManaSources:
         assert sources == {Color.RED: 0, Color.WHITE: 0}
 
     def test_produced_plus_fetch(self, cards: dict[str, Card]) -> None:
-        deck = _deck("1 Spectral Procession\n2 Krosan Verge\n")
+        deck = _deck("1 Spectral Procession\n2 Krosan Verge\n1 Plains\n")
         sources = _sources(compute_mana_base(deck, cards))
-        assert sources[Color.WHITE] == 2
+        assert sources[Color.WHITE] == 3
 
     def test_no_false_shortfall_with_fetches(
         self, cards: dict[str, Card]

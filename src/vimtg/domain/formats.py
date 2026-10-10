@@ -23,6 +23,14 @@ Sources (rules as of 2026-10):
   https://www.pdhhomebase.com — 100 cards, singleton, no sideboard.
 - Duel Commander ("duel"): https://www.mtgdc.info — 100 cards
   including the commander, singleton, no sideboard.
+- MTG Arena formats, from the official format pages: Explorer
+  (https://magic.wizards.com/en/formats/explorer), Alchemy
+  (https://magic.wizards.com/en/formats/alchemy), Historic
+  (https://magic.wizards.com/en/formats/historic) and Timeless
+  (https://magic.wizards.com/en/formats/timeless) are 60-card minimum,
+  up to 15 sideboard cards (Best-of-Three), 4-of. Gladiator
+  (https://magic.wizards.com/en/formats/gladiator): at least 100 cards,
+  singleton, no sideboard, no commander.
 """
 
 from __future__ import annotations
@@ -63,6 +71,11 @@ FORMAT_RULES: dict[str, FormatRules] = {
     "pauper": FormatRules(name="pauper"),
     "historic": FormatRules(name="historic"),
     "timeless": FormatRules(name="timeless"),
+    "explorer": FormatRules(name="explorer"),
+    "alchemy": FormatRules(name="alchemy"),
+    "gladiator": FormatRules(
+        name="gladiator", min_deck_size=100, copy_limit=1, allows_sideboard=False,
+    ),
     "premodern": FormatRules(name="premodern"),
     "penny": FormatRules(name="penny"),
     "commander": _commander_style("commander", 100),
@@ -74,9 +87,43 @@ FORMAT_RULES: dict[str, FormatRules] = {
 }
 
 
+# Every Scryfall legality key a search can name (f:, banned:, ...).
+# Formats in FORMAT_RULES are also validated; the rest are search-only.
+SCRYFALL_FORMATS = frozenset({
+    "standard", "future", "historic", "timeless", "gladiator", "pioneer",
+    "explorer", "modern", "legacy", "pauper", "vintage", "penny", "commander",
+    "oathbreaker", "standardbrawl", "brawl", "alchemy", "paupercommander",
+    "duel", "oldschool", "premodern", "predh",
+})
+
+# Nicknames and spelled-out names -> Scryfall key. Matched after
+# normalize_format lower-cases and drops spaces, hyphens, underscores.
+FORMAT_ALIASES: dict[str, str] = {
+    "edh": "commander",
+    "cedh": "commander",
+    "pdh": "paupercommander",
+    "historicbrawl": "brawl",
+    "duelcommander": "duel",
+    "pennydreadful": "penny",
+}
+
+_FORMAT_SEPARATORS = str.maketrans("", "", " -_")
+
+
+def normalize_format(fmt: str) -> str:
+    """The Scryfall legality key for a format name, as typed in a deck
+    header or a search: case-insensitive, spaces/hyphens ignored,
+    aliases resolved ('EDH' -> 'commander', 'Standard Brawl' ->
+    'standardbrawl'). Unknown names come back normalised but unchanged;
+    '' stays ''."""
+    key = fmt.strip().lower().translate(_FORMAT_SEPARATORS)
+    return FORMAT_ALIASES.get(key, key)
+
+
 def get_format_rules(fmt: str) -> FormatRules | None:
-    """Rules for a format name (case-insensitive); None for ''/unknown."""
-    return FORMAT_RULES.get(fmt.strip().lower())
+    """Rules for a format name (any spelling normalize_format accepts);
+    None for ''/unknown."""
+    return FORMAT_RULES.get(normalize_format(fmt))
 
 
 def known_formats() -> tuple[str, ...]:

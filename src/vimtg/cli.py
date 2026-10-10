@@ -436,7 +436,7 @@ def search(query: tuple[str, ...], limit: int) -> None:
     for card in results:
         price = f"${card.price_usd:.2f}" if card.price_usd is not None else "-"
         name = card.name[:30] if len(card.name) > 30 else card.name
-        mana = card.mana_cost[:14] if len(card.mana_cost) > 14 else card.mana_cost
+        mana = card.mana_cost  # in full: a split card's is "{1}{R} // {1}{U}"
         type_line = card.type_line[:26] if len(card.type_line) > 26 else card.type_line
         click.echo(
             f"{name:<32}{mana:<16}{type_line:<28}"
