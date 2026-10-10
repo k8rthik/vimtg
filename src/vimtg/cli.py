@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import sqlite3
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +18,7 @@ from vimtg.config.paths import cache_dir, db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
+from vimtg.data.file_io import atomic_write_text
 from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync_error
 from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService
@@ -448,28 +450,104 @@ def search(query: tuple[str, ...], limit: int) -> None:
     help="Target format (guide = sideboard plans as Markdown)",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
-def convert(input_path: str, from_fmt: str | None, to_fmt: str, output: str | None) -> None:
-    """Convert deck between formats."""
-    from vimtg.services.import_export_service import DeckFormat, ImportExportService
+@click.option("--force", is_flag=True, help="Overwrite an existing output file")
+def convert(
+    input_path: str,
+    from_fmt: str | None,
+    to_fmt: str,
+    output: str | None,
+    force: bool,
+) -> None:
+    """Convert deck between formats.
 
-    service = ImportExportService()
-    text = Path(input_path).read_text(encoding="utf-8")
-    src_fmt = DeckFormat(from_fmt) if from_fmt else None
+    Card names resolve against the card database when it has been
+    synced, so exports carry each card's official name. -o refuses an
+    existing file unless --force is given, and never overwrites the
+    input file.
+    """
+    in_path = Path(input_path)
+    out_path = Path(output).expanduser() if output else None
+    if out_path is not None:
+        if out_path.resolve() == in_path.resolve():
+            raise click.ClickException(
+                f"refusing to overwrite the input file {input_path} "
+                "(choose another -o path)"
+            )
+        if out_path.exists() and not force:
+            raise click.ClickException(
+                f"{out_path} already exists (use --force to overwrite)"
+            )
+
+    card_db = _optional_card_db()
+    try:
+        result = _convert_text(in_path, from_fmt, to_fmt, card_db)
+    finally:
+        if card_db is not None:
+            card_db.close()
+    if out_path is not None:
+        atomic_write_text(out_path, result)
+        click.echo(f"Converted to {output}")
+    else:
+        click.echo(result)
+
+
+def _convert_text(
+    in_path: Path, from_fmt: str | None, to_fmt: str, card_db: Database | None
+) -> str:
+    """The converted deck text (see convert)."""
+    from vimtg.services.import_export_service import (
+        DeckFormat,
+        ImportExportService,
+        normalize_text,
+        structured_deck_text,
+    )
+
+    repo = CardRepository(card_db) if card_db is not None else None
+    service = ImportExportService(card_repo=repo)
+    text = normalize_text(in_path.read_text(encoding="utf-8"))
+    src_fmt = DeckFormat(from_fmt) if from_fmt else service.detect_format(text)
+    dst_fmt = DeckFormat(to_fmt)
     report = service.import_deck_report(text, src_fmt)
     if report.skipped:
         # stderr, so `vimtg convert ... > out.txt` stays a clean deck
         click.echo(
-            f"Skipped {len(report.skipped)} unreadable line(s) in {input_path}:",
+            f"Skipped {len(report.skipped)} unreadable line(s) in {in_path}:",
             err=True,
         )
         for skipped in report.skipped:
             click.echo(f"  line {skipped.line_number}: {skipped.text}", err=True)
-    result = service.export_deck(report.deck, DeckFormat(to_fmt))
-    if output:
-        Path(output).write_text(result, encoding="utf-8")
-        click.echo(f"Converted to {output}")
+    deck = report.deck
+    if dst_fmt is DeckFormat.VIMTG and src_fmt is DeckFormat.VIMTG:
+        # Lossless: the deck file's own layout, comments and blocks
+        result = text
     else:
-        click.echo(result)
+        resolved = dict(service.resolve_cards(deck).resolved)
+        if dst_fmt is DeckFormat.VIMTG:
+            if not deck.metadata.name:
+                deck = replace(
+                    deck, metadata=replace(deck.metadata, name=in_path.stem)
+                )
+            result = structured_deck_text(deck, resolved)
+        else:
+            result = service.export_deck(deck, dst_fmt, resolved=resolved)
+    return result
+
+
+def _optional_card_db() -> Database | None:
+    """The synced card database, or None when there is none (or it
+    cannot be opened) — conversion then works from the typed names.
+    The caller closes it."""
+    if not db_path().is_file():
+        return None
+    db = Database(db_path())
+    try:
+        db.initialize()
+        if CardRepository(db).count() > 0:
+            return db
+    except sqlite3.Error:
+        pass
+    db.close()
+    return None
 
 
 @main.command()

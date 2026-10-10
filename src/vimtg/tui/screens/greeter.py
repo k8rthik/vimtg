@@ -6,9 +6,11 @@ Supports four modes: menu (default), help, file browser, and recent files browse
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual import events, work
@@ -28,6 +30,10 @@ from vimtg.services.deck_sources import (
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.theme import COLORS
+
+if TYPE_CHECKING:
+    from vimtg.domain.deck import Deck
+    from vimtg.services.import_export_service import ImportExportService
 
 LOGO_LINES = [
     "       _           _        ",
@@ -500,10 +506,7 @@ class GreeterScreen(Screen[None]):
     def _import_decklist(self, text: str, gv: GreeterView) -> bool:
         """Open pasted decklist text in the editor; False (with a status
         message) when it holds no card lines."""
-        from vimtg.services.import_export_service import (
-            DeckFormat,
-            ImportExportService,
-        )
+        from vimtg.services.import_export_service import ImportExportService
 
         service = ImportExportService()
         try:
@@ -518,7 +521,7 @@ class GreeterScreen(Screen[None]):
             gv._status = f"E: Not a decklist: {reason}"
             gv.refresh()
             return False
-        self._open_editor(None, service.export_deck(report.deck, DeckFormat.VIMTG))
+        self._open_editor(None, _imported_text(service, text, report.deck))
         return True
 
     def _handle_file_list_key(
@@ -572,10 +575,7 @@ class GreeterScreen(Screen[None]):
 
     def _import_file(self, source: str, gv: GreeterView) -> None:
         """Local files parse synchronously — no network, no worker."""
-        from vimtg.services.import_export_service import (
-            DeckFormat,
-            ImportExportService,
-        )
+        from vimtg.services.import_export_service import ImportExportService
 
         path = Path(source).expanduser()
         if not path.is_file():
@@ -593,24 +593,21 @@ class GreeterScreen(Screen[None]):
             return
         service = ImportExportService()
         deck = service.import_deck(text)
-        self._open_editor(None, service.export_deck(deck, DeckFormat.VIMTG))
+        if not deck.metadata.name:
+            deck = replace(deck, metadata=replace(deck.metadata, name=path.stem))
+        self._open_editor(None, _imported_text(service, text, deck))
 
     @work(thread=True)
     def _import_worker(self, url: str) -> None:
         """URL fetches run off the event loop, like the card sync."""
-        from vimtg.services.import_export_service import (
-            DeckFormat,
-            ImportExportService,
-        )
+        from vimtg.services.import_export_service import structured_deck_text
 
         try:
             remote = fetch_deck(url)
         except DeckSourceError as exc:
             self.app.call_from_thread(self._import_failed, str(exc))
             return
-        text = ImportExportService().export_deck(
-            stamped_deck(remote, url), DeckFormat.VIMTG
-        )
+        text = structured_deck_text(stamped_deck(remote, url))
         self.app.call_from_thread(self._open_editor, None, text)
 
     def _import_failed(self, message: str) -> None:
@@ -681,3 +678,17 @@ def _find_all_decks() -> list[Path]:
     from vimtg.data.deck_repository import DeckRepository
 
     return DeckRepository().list_decks(Path.cwd())
+
+
+def _imported_text(service: ImportExportService, text: str, deck: Deck) -> str:
+    """Editor text for an imported deck: a vimtg deck verbatim, anything
+    else in the structured new-deck layout (see structured_deck_text)."""
+    from vimtg.services.import_export_service import (
+        DeckFormat,
+        normalize_text,
+        structured_deck_text,
+    )
+
+    if service.detect_format(normalize_text(text)) is DeckFormat.VIMTG:
+        return normalize_text(text)
+    return structured_deck_text(deck)
