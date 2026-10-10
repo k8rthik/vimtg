@@ -29,6 +29,11 @@ def isolate_xdg_dirs(
     # Keep app tests off the network: VimTGApp auto-syncs card data on
     # mount unless this guard is set.
     monkeypatch.setenv("VIMTG_NO_AUTOSYNC", "1")
+    # pytest-socket allows loopback, so a local HTTP(S) proxy would be a
+    # way out to the internet. Tests never need one: drop proxy settings.
+    for var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        monkeypatch.delenv(var, raising=False)
+        monkeypatch.delenv(var.lower(), raising=False)
 
 
 @pytest.fixture
