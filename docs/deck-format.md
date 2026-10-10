@@ -96,7 +96,12 @@ between zones keeps its token.
 - `N` is the quantity. If omitted, vimtg assumes `1` on parse and writes it
   back explicitly.
 - `CardName` is the canonical Scryfall name. Double-faced cards use `//` as
-  the separator (`Bonecrusher Giant // Stomp`).
+  the separator (`Bonecrusher Giant // Stomp`). The spellings other tools
+  write resolve to the same card everywhere (lint, validate, stats, export,
+  rendering, import): a single face (`Bonecrusher Giant`, `Stomp`,
+  `Valakut Awakening`), a single slash (`Fire/Ice`), any letter case, and
+  names without accents or the Æ ligature (`Lim-Dul's Vault`, `Æther Vial`).
+  The text you wrote is kept as-is.
 - The optional `@category` token follows the name after two spaces.
 - Tags follow and are space-separated `#word` tokens. They are
   stored deck-locally and never sent to Scryfall.

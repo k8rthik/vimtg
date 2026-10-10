@@ -1,9 +1,13 @@
+import json
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
+from vimtg.domain.card import Card
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -62,6 +66,30 @@ def sample_deck_path() -> Path:
 @pytest.fixture
 def scryfall_sample_path() -> Path:
     return FIXTURES_DIR / "scryfall_sample.json"
+
+
+@pytest.fixture
+def real_shape_cards() -> list[dict[str, Any]]:
+    """Scryfall oracle_cards entries in the feed's real shape.
+
+    Covers transform, modal DFC (spell and land backs), split, adventure,
+    companion, partner, any-number, game changers, mana producers, and
+    accented / ligature names. Multi-face cards carry their colours and
+    costs on the faces exactly as Scryfall serves them.
+    """
+    path = FIXTURES_DIR / "scryfall_real_shape.json"
+    cards: list[dict[str, Any]] = json.loads(path.read_text(encoding="utf-8"))
+    return cards
+
+
+@pytest.fixture
+def real_shape_repo(
+    db_factory: Callable[..., Database], real_shape_cards: list[dict[str, Any]]
+) -> CardRepository:
+    """A card repository loaded from the real-shape fixture set."""
+    repo = CardRepository(db_factory())
+    repo.replace_all([Card.from_scryfall(d) for d in real_shape_cards])
+    return repo
 
 
 @pytest.fixture

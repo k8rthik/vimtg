@@ -129,6 +129,35 @@ def _build_from_adventure_layout(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _face_colors(data: dict[str, Any]) -> list[str]:
+    """Card colours, falling back to the union of face colours.
+
+    Scryfall omits top-level ``colors`` on transform and modal DFCs and
+    puts them on each face instead; a card is every colour its faces
+    are (Delver of Secrets is blue, Fable of the Mirror-Breaker red).
+    """
+    top = data.get("colors")
+    if top is not None:
+        return list(top)
+    found: set[str] = set()
+    for face in data.get("card_faces") or ():
+        if isinstance(face, dict):
+            found.update(face.get("colors") or ())
+    return [c.value for c in Color if c.value in found]
+
+
+def _oracle_id(data: dict[str, Any]) -> str | None:
+    """Top-level oracle_id, or the front face's (reversible cards)."""
+    oracle_id = data.get("oracle_id")
+    if oracle_id:
+        return str(oracle_id)
+    faces = data.get("card_faces")
+    if faces and isinstance(faces, list) and isinstance(faces[0], dict):
+        face_id = faces[0].get("oracle_id")
+        return str(face_id) if face_id else None
+    return None
+
+
 @dataclass(frozen=True)
 class Card:
     scryfall_id: str
@@ -148,6 +177,11 @@ class Card:
     image_uri: str | None
     layout: str
     keywords: tuple[str, ...]
+    oracle_id: str | None = None
+    # Mana symbols the card can produce (Scryfall ``produced_mana``).
+    produced_mana: tuple[str, ...] = ()
+    # On the Commander Game Changers list (Scryfall ``game_changer``).
+    game_changer: bool = False
 
     @classmethod
     def from_scryfall(cls, data: dict[str, Any]) -> "Card":
@@ -157,7 +191,9 @@ class Card:
         # instead of raising KeyError.
         has_faces = bool(data.get("card_faces"))
 
-        if has_faces and layout in _FACE_LAYOUTS:
+        # Any other faced layout without top-level costs (reversible
+        # cards) reads its front face, like transform / modal DFCs.
+        if has_faces and (layout in _FACE_LAYOUTS or "mana_cost" not in data):
             face_fields = _build_from_face_layout(data)
         elif has_faces and layout in _SPLIT_LAYOUTS:
             face_fields = _build_from_split_layout(data)
@@ -178,7 +214,7 @@ class Card:
             cmc=data.get("cmc", 0.0),
             type_line=data.get("type_line", ""),
             oracle_text=face_fields["oracle_text"],
-            colors=parse_colors(data.get("colors", [])),
+            colors=parse_colors(_face_colors(data)),
             color_identity=parse_colors(data.get("color_identity", [])),
             power=face_fields["power"],
             toughness=face_fields["toughness"],
@@ -189,6 +225,9 @@ class Card:
             image_uri=_extract_image_uri(data),
             layout=layout,
             keywords=tuple(data.get("keywords", [])),
+            oracle_id=_oracle_id(data),
+            produced_mana=tuple(data.get("produced_mana") or ()),
+            game_changer=bool(data.get("game_changer", False)),
         )
 
     @property

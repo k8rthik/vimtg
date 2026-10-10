@@ -216,7 +216,10 @@ class TestImportResolution:
         assert ctx.error is False
         assert "Imported 4 cards" in ctx.message
         assert "W100" not in ctx.message
-        assert ctx.resolved_cards == {"Lightning Bolt": bolt}
+        # Keyed by normalised name: any spelling of the card finds it
+        assert list(ctx.resolved_cards.values()) == [bolt]
+        assert ctx.resolved_cards.get("Lightning Bolt") is bolt
+        assert ctx.resolved_cards.get("lightning bolt") is bolt
         path.unlink()
 
     def test_import_unresolved_cards_warns_with_suggestion(self) -> None:
