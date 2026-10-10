@@ -20,7 +20,7 @@ from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 @pytest.fixture
 def scryfall_cards() -> list[dict]:
     path = Path(__file__).parent.parent / "fixtures" / "scryfall_sample.json"
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

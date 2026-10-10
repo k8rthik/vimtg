@@ -21,7 +21,7 @@ NEW_STATE = "4 Lightning Bolt\n4 Monastery Swiftspear\n"
 @pytest.fixture
 def card_repo(db_factory: Callable[..., Database]) -> CardRepository:
     repo = CardRepository(db_factory())
-    with open(FIXTURES_DIR / "scryfall_sample.json") as f:
+    with open(FIXTURES_DIR / "scryfall_sample.json", encoding="utf-8") as f:
         cards = [Card.from_scryfall(d) for d in json.load(f)]
     repo.bulk_insert(cards)
     return repo

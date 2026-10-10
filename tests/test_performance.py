@@ -37,7 +37,7 @@ def budget(seconds: float) -> float:
 @pytest.fixture
 def card_repo_loaded(db_factory: Callable[..., Database]) -> CardRepository:
     repo = CardRepository(db_factory())
-    with open(FIXTURES_DIR / "scryfall_sample.json") as f:
+    with open(FIXTURES_DIR / "scryfall_sample.json", encoding="utf-8") as f:
         cards_data = json.load(f)
     cards = [Card.from_scryfall(d) for d in cards_data]
     repo.bulk_insert(cards)
