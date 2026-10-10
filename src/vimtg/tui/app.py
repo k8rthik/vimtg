@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import os
 import signal
 from collections import deque
@@ -70,6 +71,8 @@ TERMINATING_SIGNALS: tuple[signal.Signals, ...] = tuple(
     sig for name in ("SIGHUP", "SIGTERM")
     if (sig := getattr(signal, name, None)) is not None
 )
+
+_NOTIFY_TAKES_MARKUP = "markup" in inspect.signature(App.notify).parameters
 
 
 class VimTGApp(App[None]):
@@ -141,13 +144,12 @@ class VimTGApp(App[None]):
         if last.removeprefix("E: ") != message.removeprefix("E: "):
             text = f"{title}: {message}" if title else message
             self.message_log.append((severity == "error", text))
-        if markup:
-            # Textual 2.0's notify has no markup parameter; on is its default
-            super().notify(message, title=title, severity=severity, timeout=timeout)
-        else:
+        if _NOTIFY_TAKES_MARKUP:
             super().notify(
-                message, title=title, severity=severity, timeout=timeout, markup=False,
+                message, title=title, severity=severity, timeout=timeout, markup=markup,
             )
+        else:  # Textual < 2.1 has no markup parameter
+            super().notify(message, title=title, severity=severity, timeout=timeout)
 
     def on_mount(self) -> None:
         self._install_signal_handlers()
