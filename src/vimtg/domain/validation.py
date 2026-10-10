@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from vimtg.domain.card_names import CardMap
 from vimtg.domain.card_types import is_basic_land
 from vimtg.domain.deck import Deck, DeckEntry, DeckSection
 from vimtg.domain.formats import FormatRules, get_format_rules, known_formats
@@ -124,15 +125,14 @@ def _check_plans(deck: Deck, fmt: str) -> list[ValidationError]:
 def _lowercase_lookup(
     resolved: dict[str, Card] | None,
 ) -> dict[str, Card]:
-    """Key resolved cards by lowercase name.
+    """Key resolved cards by normalised name (see card_names).
 
-    CardRepository.get_by_names matches COLLATE NOCASE but keys results
-    by the DB-canonical name, so a hand-typed 'lightning bolt' must
-    still find its Card here.
+    Whatever map the caller passes, a hand-typed 'lightning bolt' or
+    'Fire/Ice' must still find its Card here.
     """
     if not resolved:
         return {}
-    return {name.lower(): card for name, card in resolved.items()}
+    return CardMap(resolved)
 
 
 def _counted_copies(deck: Deck) -> dict[str, int]:

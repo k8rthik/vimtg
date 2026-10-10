@@ -1,0 +1,895 @@
+[
+  {
+    "object": "card",
+    "id": "00000001-5c1d-4e5a-9f0e-000000000001",
+    "oracle_id": "11110001-0a0b-4c0d-8e0f-000000000001",
+    "name": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+    "lang": "en",
+    "layout": "transform",
+    "cmc": 3.0,
+    "color_identity": [
+      "R"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "neo",
+    "set_name": "NEO",
+    "rarity": "rare",
+    "prices": {
+      "usd": "17.50",
+      "usd_foil": "22.00",
+      "usd_etched": null,
+      "eur": "15.00",
+      "eur_foil": null,
+      "tix": "4.10"
+    },
+    "game_changer": false,
+    "type_line": "Enchantment — Saga // Enchantment Creature — Goblin Shaman",
+    "card_faces": [
+      {
+        "object": "card_face",
+        "name": "Fable of the Mirror-Breaker",
+        "mana_cost": "{2}{R}",
+        "type_line": "Enchantment — Saga",
+        "oracle_text": "(As this Saga enters and after your draw step, add a lore counter. Sacrifice after III.)\nI — Create a 2/2 red Goblin Shaman creature token with \"Whenever this creature attacks, create a Treasure token.\"\nII — You may discard up to two cards. If you do, draw that many cards.\nIII — Exile this Saga, then return it to the battlefield transformed under your control.",
+        "colors": [
+          "R"
+        ],
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/fable.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/fable.jpg",
+          "large": "https://cards.scryfall.io/large/front/fable.jpg"
+        }
+      },
+      {
+        "object": "card_face",
+        "name": "Reflection of Kiki-Jiki",
+        "mana_cost": "",
+        "type_line": "Enchantment Creature — Goblin Shaman",
+        "oracle_text": "{1}, {T}: Create a token that's a copy of another target nonlegendary creature you control, except it has haste. Sacrifice it at the beginning of the next end step.",
+        "colors": [
+          "R"
+        ],
+        "color_indicator": [
+          "R"
+        ],
+        "power": "2",
+        "toughness": "2",
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/kiki.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/kiki.jpg",
+          "large": "https://cards.scryfall.io/large/front/kiki.jpg"
+        }
+      }
+    ]
+  },
+  {
+    "object": "card",
+    "id": "00000002-5c1d-4e5a-9f0e-000000000002",
+    "oracle_id": "11110002-0a0b-4c0d-8e0f-000000000002",
+    "name": "Delver of Secrets // Insectile Aberration",
+    "lang": "en",
+    "layout": "transform",
+    "cmc": 1.0,
+    "color_identity": [
+      "U"
+    ],
+    "keywords": [
+      "Transform"
+    ],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "mid",
+    "set_name": "MID",
+    "rarity": "common",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "type_line": "Creature — Human Wizard // Creature — Human Insect",
+    "card_faces": [
+      {
+        "object": "card_face",
+        "name": "Delver of Secrets",
+        "mana_cost": "{U}",
+        "type_line": "Creature — Human Wizard",
+        "oracle_text": "At the beginning of your upkeep, look at the top card of your library. You may reveal that card. If an instant or sorcery card is revealed this way, transform Delver of Secrets.",
+        "colors": [
+          "U"
+        ],
+        "power": "1",
+        "toughness": "1",
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/delver.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/delver.jpg",
+          "large": "https://cards.scryfall.io/large/front/delver.jpg"
+        }
+      },
+      {
+        "object": "card_face",
+        "name": "Insectile Aberration",
+        "mana_cost": "",
+        "type_line": "Creature — Human Insect",
+        "oracle_text": "Flying",
+        "colors": [
+          "U"
+        ],
+        "color_indicator": [
+          "U"
+        ],
+        "power": "3",
+        "toughness": "2",
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/insectile.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/insectile.jpg",
+          "large": "https://cards.scryfall.io/large/front/insectile.jpg"
+        }
+      }
+    ]
+  },
+  {
+    "object": "card",
+    "id": "00000003-5c1d-4e5a-9f0e-000000000003",
+    "oracle_id": "11110003-0a0b-4c0d-8e0f-000000000003",
+    "name": "Valakut Awakening // Valakut Stoneforge",
+    "lang": "en",
+    "layout": "modal_dfc",
+    "cmc": 3.0,
+    "color_identity": [
+      "R"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "znr",
+    "set_name": "ZNR",
+    "rarity": "rare",
+    "prices": {
+      "usd": "4.20",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "type_line": "Instant // Land",
+    "produced_mana": [
+      "R"
+    ],
+    "card_faces": [
+      {
+        "object": "card_face",
+        "name": "Valakut Awakening",
+        "mana_cost": "{2}{R}",
+        "type_line": "Instant",
+        "oracle_text": "Put any number of cards from your hand on the bottom of your library, then draw that many cards plus one.",
+        "colors": [
+          "R"
+        ],
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/valakut-awakening.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/valakut-awakening.jpg",
+          "large": "https://cards.scryfall.io/large/front/valakut-awakening.jpg"
+        }
+      },
+      {
+        "object": "card_face",
+        "name": "Valakut Stoneforge",
+        "mana_cost": "",
+        "type_line": "Land",
+        "oracle_text": "As Valakut Stoneforge enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {R}.",
+        "colors": [],
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/valakut-stoneforge.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/valakut-stoneforge.jpg",
+          "large": "https://cards.scryfall.io/large/front/valakut-stoneforge.jpg"
+        }
+      }
+    ]
+  },
+  {
+    "object": "card",
+    "id": "00000004-5c1d-4e5a-9f0e-000000000004",
+    "oracle_id": "11110004-0a0b-4c0d-8e0f-000000000004",
+    "name": "Emeria's Call // Emeria, Shattered Skyclave",
+    "lang": "en",
+    "layout": "modal_dfc",
+    "cmc": 7.0,
+    "color_identity": [
+      "W"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "znr",
+    "set_name": "ZNR",
+    "rarity": "mythic",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "type_line": "Sorcery // Land",
+    "produced_mana": [
+      "W"
+    ],
+    "card_faces": [
+      {
+        "object": "card_face",
+        "name": "Emeria's Call",
+        "mana_cost": "{4}{W}{W}{W}",
+        "type_line": "Sorcery",
+        "oracle_text": "Create two 4/4 white Angel Warrior creature tokens with flying. Non-Angel creatures you control gain indestructible until your next turn.",
+        "colors": [
+          "W"
+        ],
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/emerias-call.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/emerias-call.jpg",
+          "large": "https://cards.scryfall.io/large/front/emerias-call.jpg"
+        }
+      },
+      {
+        "object": "card_face",
+        "name": "Emeria, Shattered Skyclave",
+        "mana_cost": "",
+        "type_line": "Land",
+        "oracle_text": "As Emeria, Shattered Skyclave enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {W}.",
+        "colors": [],
+        "image_uris": {
+          "small": "https://cards.scryfall.io/small/front/emeria.jpg",
+          "normal": "https://cards.scryfall.io/normal/front/emeria.jpg",
+          "large": "https://cards.scryfall.io/large/front/emeria.jpg"
+        }
+      }
+    ]
+  },
+  {
+    "object": "card",
+    "id": "00000005-5c1d-4e5a-9f0e-000000000005",
+    "oracle_id": "11110005-0a0b-4c0d-8e0f-000000000005",
+    "name": "Fire // Ice",
+    "lang": "en",
+    "layout": "split",
+    "cmc": 4.0,
+    "color_identity": [
+      "R",
+      "U"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "mh2",
+    "set_name": "MH2",
+    "rarity": "uncommon",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{1}{R} // {1}{U}",
+    "colors": [
+      "R",
+      "U"
+    ],
+    "type_line": "Instant // Instant",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/fire-ice.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/fire-ice.jpg",
+      "large": "https://cards.scryfall.io/large/front/fire-ice.jpg"
+    },
+    "card_faces": [
+      {
+        "object": "card_face",
+        "name": "Fire",
+        "mana_cost": "{1}{R}",
+        "type_line": "Instant",
+        "oracle_text": "Fire deals 2 damage divided as you choose among one or two targets."
+      },
+      {
+        "object": "card_face",
+        "name": "Ice",
+        "mana_cost": "{1}{U}",
+        "type_line": "Instant",
+        "oracle_text": "Tap target permanent.\nDraw a card."
+      }
+    ]
+  },
+  {
+    "object": "card",
+    "id": "00000006-5c1d-4e5a-9f0e-000000000006",
+    "oracle_id": "11110006-0a0b-4c0d-8e0f-000000000006",
+    "name": "Bonecrusher Giant // Stomp",
+    "lang": "en",
+    "layout": "adventure",
+    "cmc": 3.0,
+    "color_identity": [
+      "R"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "eld",
+    "set_name": "ELD",
+    "rarity": "rare",
+    "prices": {
+      "usd": "1.10",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{2}{R} // {1}{R}",
+    "colors": [
+      "R"
+    ],
+    "type_line": "Creature — Giant // Instant — Adventure",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/bonecrusher.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/bonecrusher.jpg",
+      "large": "https://cards.scryfall.io/large/front/bonecrusher.jpg"
+    },
+    "card_faces": [
+      {
+        "object": "card_face",
+        "name": "Bonecrusher Giant",
+        "mana_cost": "{2}{R}",
+        "type_line": "Creature — Giant",
+        "oracle_text": "Whenever Bonecrusher Giant becomes the target of a spell, Bonecrusher Giant deals 2 damage to that spell's controller.",
+        "power": "4",
+        "toughness": "3"
+      },
+      {
+        "object": "card_face",
+        "name": "Stomp",
+        "mana_cost": "{1}{R}",
+        "type_line": "Instant — Adventure",
+        "oracle_text": "Damage can't be prevented this turn. Stomp deals 2 damage to any target."
+      }
+    ]
+  },
+  {
+    "object": "card",
+    "id": "00000007-5c1d-4e5a-9f0e-000000000007",
+    "oracle_id": "11110007-0a0b-4c0d-8e0f-000000000007",
+    "name": "Lurrus of the Dream-Den",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 3.0,
+    "color_identity": [
+      "W",
+      "B"
+    ],
+    "keywords": [
+      "Lifelink",
+      "Companion"
+    ],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "banned",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "iko",
+    "set_name": "IKO",
+    "rarity": "rare",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{1}{W/B}{W/B}",
+    "colors": [
+      "W",
+      "B"
+    ],
+    "type_line": "Legendary Creature — Cat Nightmare",
+    "oracle_text": "Companion — Each permanent card in your starting deck has mana value 2 or less. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nLifelink\nDuring each of your turns, you may cast one permanent spell with mana value 2 or less from your graveyard.",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/lurrus-of-the-dream-den.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/lurrus-of-the-dream-den.jpg",
+      "large": "https://cards.scryfall.io/large/front/lurrus-of-the-dream-den.jpg"
+    },
+    "power": "3",
+    "toughness": "2"
+  },
+  {
+    "object": "card",
+    "id": "00000008-5c1d-4e5a-9f0e-000000000008",
+    "oracle_id": "11110008-0a0b-4c0d-8e0f-000000000008",
+    "name": "Thrasios, Triton Hero",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 2.0,
+    "color_identity": [
+      "G",
+      "U"
+    ],
+    "keywords": [
+      "Partner",
+      "Scry"
+    ],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "c16",
+    "set_name": "C16",
+    "rarity": "rare",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{G}{U}",
+    "colors": [
+      "G",
+      "U"
+    ],
+    "type_line": "Legendary Creature — Merfolk Wizard",
+    "oracle_text": "{4}: Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped. Otherwise, draw a card.\nPartner (You can have two commanders if both have partner.)",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/thrasios,-triton-hero.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/thrasios,-triton-hero.jpg",
+      "large": "https://cards.scryfall.io/large/front/thrasios,-triton-hero.jpg"
+    },
+    "power": "1",
+    "toughness": "3"
+  },
+  {
+    "object": "card",
+    "id": "00000009-5c1d-4e5a-9f0e-000000000009",
+    "oracle_id": "11110009-0a0b-4c0d-8e0f-000000000009",
+    "name": "Tymna the Weaver",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 3.0,
+    "color_identity": [
+      "W",
+      "B"
+    ],
+    "keywords": [
+      "Lifelink",
+      "Partner"
+    ],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "c16",
+    "set_name": "C16",
+    "rarity": "mythic",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{1}{W}{B}",
+    "colors": [
+      "W",
+      "B"
+    ],
+    "type_line": "Legendary Creature — Human Cleric",
+    "oracle_text": "Lifelink\nAt the beginning of your postcombat main phase, you may pay X life, where X is the number of opponents that were dealt combat damage this turn. If you do, draw X cards.\nPartner (You can have two commanders if both have partner.)",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/tymna-the-weaver.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/tymna-the-weaver.jpg",
+      "large": "https://cards.scryfall.io/large/front/tymna-the-weaver.jpg"
+    },
+    "power": "2",
+    "toughness": "2"
+  },
+  {
+    "object": "card",
+    "id": "00000010-5c1d-4e5a-9f0e-000000000010",
+    "oracle_id": "11110010-0a0b-4c0d-8e0f-000000000010",
+    "name": "Relentless Rats",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 3.0,
+    "color_identity": [
+      "B"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "m11",
+    "set_name": "M11",
+    "rarity": "uncommon",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{1}{B}{B}",
+    "colors": [
+      "B"
+    ],
+    "type_line": "Creature — Rat",
+    "oracle_text": "Relentless Rats gets +1/+1 for each other creature on the battlefield named Relentless Rats.\nA deck can have any number of cards named Relentless Rats.",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/relentless-rats.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/relentless-rats.jpg",
+      "large": "https://cards.scryfall.io/large/front/relentless-rats.jpg"
+    },
+    "power": "2",
+    "toughness": "2"
+  },
+  {
+    "object": "card",
+    "id": "00000011-5c1d-4e5a-9f0e-000000000011",
+    "oracle_id": "11110011-0a0b-4c0d-8e0f-000000000011",
+    "name": "Sol Ring",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 1.0,
+    "color_identity": [],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "not_legal",
+      "modern": "not_legal",
+      "legacy": "banned",
+      "vintage": "restricted",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "c21",
+    "set_name": "C21",
+    "rarity": "uncommon",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": true,
+    "mana_cost": "{1}",
+    "colors": [],
+    "type_line": "Artifact",
+    "oracle_text": "{T}: Add {C}{C}.",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/sol-ring.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/sol-ring.jpg",
+      "large": "https://cards.scryfall.io/large/front/sol-ring.jpg"
+    },
+    "produced_mana": [
+      "C"
+    ]
+  },
+  {
+    "object": "card",
+    "id": "00000012-5c1d-4e5a-9f0e-000000000012",
+    "oracle_id": "11110012-0a0b-4c0d-8e0f-000000000012",
+    "name": "Rhystic Study",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 3.0,
+    "color_identity": [
+      "U"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "pcy",
+    "set_name": "PCY",
+    "rarity": "common",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": true,
+    "mana_cost": "{2}{U}",
+    "colors": [
+      "U"
+    ],
+    "type_line": "Enchantment",
+    "oracle_text": "Whenever an opponent casts a spell, you may draw a card unless that player pays {1}.",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/rhystic-study.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/rhystic-study.jpg",
+      "large": "https://cards.scryfall.io/large/front/rhystic-study.jpg"
+    }
+  },
+  {
+    "object": "card",
+    "id": "00000013-5c1d-4e5a-9f0e-000000000013",
+    "oracle_id": "11110013-0a0b-4c0d-8e0f-000000000013",
+    "name": "Lim-Dûl's Vault",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 2.0,
+    "color_identity": [
+      "U",
+      "B"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "all",
+    "set_name": "ALL",
+    "rarity": "uncommon",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{U}{B}",
+    "colors": [
+      "U",
+      "B"
+    ],
+    "type_line": "Instant",
+    "oracle_text": "Look at the top five cards of your library. As many times as you choose, you may pay 1 life, put those cards on the bottom of your library in any order, then look at the top five cards of your library. Then shuffle and put the last cards you looked at this way on top of it in any order.",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/lim-dûl's-vault.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/lim-dûl's-vault.jpg",
+      "large": "https://cards.scryfall.io/large/front/lim-dûl's-vault.jpg"
+    }
+  },
+  {
+    "object": "card",
+    "id": "00000014-5c1d-4e5a-9f0e-000000000014",
+    "oracle_id": "11110014-0a0b-4c0d-8e0f-000000000014",
+    "name": "Aether Vial",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 1.0,
+    "color_identity": [],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "dst",
+    "set_name": "DST",
+    "rarity": "uncommon",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{1}",
+    "colors": [],
+    "type_line": "Artifact",
+    "oracle_text": "At the beginning of your upkeep, you may put a charge counter on Aether Vial.\n{T}: You may put a creature card with mana value equal to the number of charge counters on Aether Vial from your hand onto the battlefield.",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/aether-vial.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/aether-vial.jpg",
+      "large": "https://cards.scryfall.io/large/front/aether-vial.jpg"
+    }
+  },
+  {
+    "object": "card",
+    "id": "00000015-5c1d-4e5a-9f0e-000000000015",
+    "oracle_id": "11110015-0a0b-4c0d-8e0f-000000000015",
+    "name": "Lightning Bolt",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 1.0,
+    "color_identity": [
+      "R"
+    ],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "not_legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "clu",
+    "set_name": "CLU",
+    "rarity": "uncommon",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "{R}",
+    "colors": [
+      "R"
+    ],
+    "type_line": "Instant",
+    "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/lightning-bolt.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/lightning-bolt.jpg",
+      "large": "https://cards.scryfall.io/large/front/lightning-bolt.jpg"
+    }
+  },
+  {
+    "object": "card",
+    "id": "00000016-5c1d-4e5a-9f0e-000000000016",
+    "oracle_id": "11110016-0a0b-4c0d-8e0f-000000000016",
+    "name": "Mountain",
+    "lang": "en",
+    "layout": "normal",
+    "cmc": 0.0,
+    "color_identity": [],
+    "keywords": [],
+    "legalities": {
+      "standard": "not_legal",
+      "pioneer": "legal",
+      "modern": "legal",
+      "legacy": "legal",
+      "vintage": "legal",
+      "pauper": "not_legal",
+      "commander": "legal",
+      "brawl": "not_legal"
+    },
+    "set": "fdn",
+    "set_name": "FDN",
+    "rarity": "common",
+    "prices": {
+      "usd": "0.50",
+      "usd_foil": null,
+      "usd_etched": null,
+      "eur": null,
+      "eur_foil": null,
+      "tix": null
+    },
+    "game_changer": false,
+    "mana_cost": "",
+    "colors": [],
+    "type_line": "Basic Land — Mountain",
+    "oracle_text": "({T}: Add {R}.)",
+    "image_uris": {
+      "small": "https://cards.scryfall.io/small/front/mountain.jpg",
+      "normal": "https://cards.scryfall.io/normal/front/mountain.jpg",
+      "large": "https://cards.scryfall.io/large/front/mountain.jpg"
+    },
+    "produced_mana": [
+      "R"
+    ]
+  }
+]

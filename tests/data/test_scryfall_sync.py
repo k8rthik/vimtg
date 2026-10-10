@@ -459,3 +459,36 @@ class TestSyncIsDue:
         self._populate(card_repo)
         card_repo.set_last_sync("not-a-date")
         assert sync_is_due(card_repo)
+
+
+class TestResyncReplacesCardTable:
+    """Each sync reloads the cards table: a changed representative
+    printing (new scryfall_id, same oracle card) must not leave a twin."""
+
+    def test_second_sync_with_new_printing_leaves_one_row(
+        self,
+        syncer: ScryfallSync,
+        card_repo: CardRepository,
+        real_shape_cards: list[dict[str, object]],
+        tmp_path: Path,
+    ) -> None:
+        first = tmp_path / "first.json"
+        first.write_text(json.dumps(real_shape_cards), encoding="utf-8")
+        syncer.parse_and_load(first)
+
+        reprinted = [
+            {**d, "id": "reprint-bolt", "set": "2x2", "legalities": {"modern": "banned"}}
+            if d["name"] == "Lightning Bolt"
+            else d
+            for d in real_shape_cards
+        ]
+        second = tmp_path / "second.json"
+        second.write_text(json.dumps(reprinted), encoding="utf-8")
+        syncer.parse_and_load(second)
+
+        assert card_repo.count() == len(real_shape_cards)
+        assert [c.set_code for c in card_repo.search("Lightning Bolt")] == ["2x2"]
+        single = card_repo.get_by_name("Lightning Bolt")
+        assert single is not None and single.legalities == {"modern": "banned"}
+        assert card_repo.get_by_names(["Lightning Bolt"])["Lightning Bolt"] == single
+        assert card_repo.get_last_sync() is not None

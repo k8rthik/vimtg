@@ -22,9 +22,33 @@ CREATE TABLE IF NOT EXISTS cards (
     legalities TEXT DEFAULT '{}',
     image_uri TEXT,
     layout TEXT DEFAULT 'normal',
-    keywords TEXT DEFAULT '[]'
+    keywords TEXT DEFAULT '[]',
+    oracle_id TEXT,
+    produced_mana TEXT DEFAULT '[]',
+    game_changer INTEGER DEFAULT 0
 )
 """
+
+# Every normalised spelling a card resolves under (full name, each face),
+# see vimtg.domain.card_names. Rebuilt with the cards table on each sync.
+CARD_NAMES_TABLE = """
+CREATE TABLE IF NOT EXISTS card_names (
+    name_key TEXT NOT NULL,
+    scryfall_id TEXT NOT NULL,
+    rank INTEGER NOT NULL,
+    PRIMARY KEY (name_key, scryfall_id)
+)
+"""
+
+CARD_NAMES_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_card_names_id ON card_names(scryfall_id)",
+)
+
+# Bumped whenever a migration needs to run once against an existing DB.
+#   0 -> v0.8 and earlier (no PRAGMA user_version set)
+#   1 -> oracle_id / produced_mana / game_changer, card_names aliases,
+#        stale duplicate card rows removed
+SCHEMA_VERSION = 1
 
 CARDS_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
@@ -96,6 +120,13 @@ _PRICE_MIGRATIONS = (
 )
 
 
+_CARD_V1_MIGRATIONS = (
+    ("oracle_id", "ALTER TABLE cards ADD COLUMN oracle_id TEXT"),
+    ("produced_mana", "ALTER TABLE cards ADD COLUMN produced_mana TEXT DEFAULT '[]'"),
+    ("game_changer", "ALTER TABLE cards ADD COLUMN game_changer INTEGER DEFAULT 0"),
+)
+
+
 _SNAPSHOT_MIGRATIONS = (
     ("deck_hash", "ALTER TABLE snapshots ADD COLUMN deck_hash TEXT DEFAULT ''"),
     ("merge_parent_id", "ALTER TABLE snapshots ADD COLUMN merge_parent_id TEXT"),
@@ -107,9 +138,10 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     # Cards table migrations
     card_rows = conn.execute("PRAGMA table_info(cards)").fetchall()
     card_columns = {row[1] for row in card_rows}
-    for col_name, sql in _PRICE_MIGRATIONS:
+    for col_name, sql in (*_PRICE_MIGRATIONS, *_CARD_V1_MIGRATIONS):
         if col_name not in card_columns:
             conn.execute(sql)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cards_oracle ON cards(oracle_id)")
 
     # Snapshots table migrations
     snap_rows = conn.execute("PRAGMA table_info(snapshots)").fetchall()
@@ -120,11 +152,60 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
 
     conn.commit()
 
+    version: int = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version < 1:
+        _migrate_to_v1(conn)
+
+
+def _migrate_to_v1(conn: sqlite3.Connection) -> None:
+    """One-time upgrade of a v0.8 database, in a single transaction.
+
+    Only the card tables change; snapshots, branches and deck heads are
+    left exactly as they were.
+
+    * Stale duplicates: v0.8 synced with INSERT OR REPLACE keyed on
+      scryfall_id, so a changed representative printing left the old
+      row behind. Keep the most recently inserted row per name.
+    * Build the card_names alias table from the stored full names.
+    * Forget the last sync time when cards exist, so the next sync
+      backfills the new columns and the face colours v0.8 dropped.
+    """
+    from vimtg.domain.card_names import name_aliases
+
+    try:
+        removed = conn.execute(
+            "DELETE FROM cards WHERE rowid NOT IN "
+            "(SELECT MAX(rowid) FROM cards GROUP BY name COLLATE NOCASE)"
+        ).rowcount
+        conn.execute("DELETE FROM card_names")
+        rows = conn.execute("SELECT scryfall_id, name FROM cards").fetchall()
+        conn.executemany(
+            "INSERT OR IGNORE INTO card_names (name_key, scryfall_id, rank) "
+            "VALUES (?, ?, ?)",
+            [
+                (key, row[0], rank)
+                for row in rows
+                for key, rank in name_aliases(row[1])
+            ],
+        )
+        if removed:
+            conn.execute("INSERT INTO cards_fts(cards_fts) VALUES('rebuild')")
+        if rows:
+            conn.execute("DELETE FROM sync_metadata WHERE key = 'last_sync'")
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
 
 def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARDS_TABLE)
     conn.execute(CARDS_FTS)
     for idx in INDEXES:
+        conn.execute(idx)
+    conn.execute(CARD_NAMES_TABLE)
+    for idx in CARD_NAMES_INDEXES:
         conn.execute(idx)
     conn.execute(SYNC_TABLE)
     conn.execute(SNAPSHOTS_TABLE)
