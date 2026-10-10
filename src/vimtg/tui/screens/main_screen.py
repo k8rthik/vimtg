@@ -6,6 +6,7 @@ then syncs updated EditorState to Textual widgets.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 import traceback
@@ -50,6 +51,7 @@ from vimtg.editor.lint import (
     effective_format,
     lint_buffer,
 )
+from vimtg.editor.macros import paste_key, pasted_text
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.paste_deck import add_deck_entries
 from vimtg.editor.plan_ops import (
@@ -94,7 +96,9 @@ from vimtg.services.deck_sources import (
 from vimtg.services.edhrec import EdhrecClient, EdhrecError, EdhrecPage
 from vimtg.services.history_service import HistoryService
 from vimtg.services.recovery import (
+    discard_copy,
     discard_recovery,
+    new_buffer_id,
     pending_recovery,
     write_recovery,
 )
@@ -187,6 +191,8 @@ class MainScreen(Screen[None]):
         db: Database | None = None,
         disk_stamp: FileStamp | None = None,
         prompt_new_deck: bool = False,
+        recovery_id: str | None = None,
+        recovery_copy: Path | None = None,
     ) -> None:
         super().__init__()
         # Normalize up front so a hand-written deck's section cleanup is
@@ -208,6 +214,18 @@ class MainScreen(Screen[None]):
         self._state.history.initialize(buffer)
         self._state.clean_text = buffer.to_text()
         self._state.disk_stamp = disk_stamp
+        # An unnamed buffer's recovery copy is keyed on this id (a copy
+        # reopened from the greeter keeps its own, so a save removes it)
+        self._state.recovery_id = recovery_id or new_buffer_id()
+        # The recovery copy this editor owns — last written, or opened
+        # from the greeter — so a save or a deliberate discard removes it
+        # even after the file changed
+        self._recovery_written: Path | None = recovery_copy
+        # :q! / ZQ / :e! / :home! threw the changes away: leaving must
+        # not save them again
+        self._discarded = False
+        # The buffer itself came from a recovery copy: never offer it
+        self._offer_recovery = recovery_copy is None
         self.file_path = file_path
         self.registry = registry or CommandRegistry()
         self._state.cmd_completer = CommandCompleter(self.registry)
@@ -291,8 +309,10 @@ class MainScreen(Screen[None]):
             )
         self._card_status = self._initial_card_status()
         self._sync_widgets()
-        if self.file_path is not None and pending_recovery(
-            self.file_path, self._state.buffer.to_text()
+        if (
+            self._offer_recovery
+            and self.file_path is not None
+            and pending_recovery(self.file_path, self._state.buffer.to_text())
         ):
             self.query_one("#command-line", CommandLine).set_message(
                 "Found unsaved changes from a crash: :recover to load them, "
@@ -393,6 +413,8 @@ class MainScreen(Screen[None]):
         event.prevent_default()
         if not event.text.strip() or self.query_one("#help-panel", HelpPanel).display:
             return
+        if self._state.macros.is_recording and not self._replaying:
+            self._state.macros.record_key(paste_key(event.text))
         try:
             self._handle_paste(event.text)
         except Exception as exc:  # same safety net as a keypress
@@ -564,7 +586,40 @@ class MainScreen(Screen[None]):
     def save_recovery(self, exc: BaseException) -> Path | None:
         """Write the buffer (and the traceback) to the recovery dir."""
         log = "".join(traceback.format_exception(exc))
-        return write_recovery(self.file_path, self._state.buffer.to_text(), log)
+        return self._write_recovery(log)
+
+    def _write_recovery(self, log: str = "") -> Path | None:
+        saved = write_recovery(
+            self.file_path, self._state.buffer.to_text(), log, self._state.recovery_id,
+        )
+        if saved is not None:
+            if self._recovery_written is not None and self._recovery_written != saved:
+                discard_copy(self._recovery_written)  # superseded (file renamed)
+            self._recovery_written = saved
+        return saved
+
+    def preserve_unsaved(self) -> Path | None:
+        """The editor is going away (quit, Ctrl-C/Ctrl-Q, :home, a closed
+        terminal, SIGHUP/SIGTERM): keep unsaved changes as a recovery
+        copy the next open offers. Nothing is written for a clean buffer
+        or after a deliberate discard (:q!, ZQ)."""
+        if self._discarded or not self._state.modified:
+            return None
+        return self._write_recovery()
+
+    def _drop_recovery(self) -> None:
+        """Remove this buffer's recovery copy — after a save, or when its
+        changes were discarded on purpose."""
+        discard_recovery(self.file_path, self._state.recovery_id)
+        discard_recovery(None, self._state.recovery_id)  # from before a first :w
+        if self._recovery_written is not None:
+            discard_copy(self._recovery_written)
+            self._recovery_written = None
+
+    def on_unmount(self) -> None:
+        # Popped (:home, :e) or torn down at exit: nothing unsaved is lost
+        with contextlib.suppress(Exception):
+            self.preserve_unsaved()
 
     def recover_from_crash(self, exc: Exception) -> None:
         """Save the buffer, reset to a sane normal-mode state, and report
@@ -593,6 +648,10 @@ class MainScreen(Screen[None]):
             pass
 
     def _handle_key(self, key: str, resolve: bool) -> None:
+        pasted = pasted_text(key)
+        if pasted is not None:  # a paste recorded in a macro
+            self._handle_paste(pasted)
+            return
         # Split pane focused: navigation keys drive the pane; ':' and
         # 'S' sequences pass through; any other key refocuses the editor
         # and is handled normally. Applies during macro replay too, so
@@ -872,11 +931,14 @@ class MainScreen(Screen[None]):
             self.file_path = hr.file_path
         if hr.file_saved:
             # The deck is safely on disk: its crash copy is obsolete
-            discard_recovery(self.file_path)
+            self._drop_recovery()
             # Only an actual save auto-snapshots — every ex command carries
             # file_path, and committing on each one would defeat the
             # uncommitted-changes guard on merge/rebase/switch.
             self._vcs_auto_snapshot()
+        if hr.discard_changes:
+            self._discarded = True
+            self._drop_recovery()
         if hr.help_requested:
             hp = self.query_one("#help-panel", HelpPanel)
             if hp.display:

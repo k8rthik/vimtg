@@ -321,3 +321,20 @@ class TestSortByColor:
         # Mono before multi
         assert lines[0] == "4 Lightning Bolt"
         assert lines[1] == "2 Teferi"
+
+
+class TestSortDataSafety:
+    def test_fallback_to_name_says_why(self) -> None:
+        buf = Buffer.from_text("4 Skullcrack\n4 Lightning Bolt\n")
+        ctx = EditorContext()
+        new_buf, _ = cmd_sort(buf, Cursor(), _make_cmd("cmc"), ctx)
+        assert ctx.message == "Sorted 2 cards by name (no card data for cmc)"
+        assert new_buf.get_line(0).text == "4 Lightning Bolt"
+        assert ctx.modified is True
+
+    def test_already_sorted_is_not_a_change(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n4 Skullcrack\n")
+        ctx = EditorContext()
+        new_buf, _ = cmd_sort(buf, Cursor(), _make_cmd("name"), ctx)
+        assert new_buf is buf
+        assert ctx.modified is False

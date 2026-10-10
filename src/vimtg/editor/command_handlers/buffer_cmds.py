@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vimtg.data.file_io import file_stamp
+from vimtg.data.file_io import DELETED, disk_change, file_stamp
 from vimtg.domain.deck_lines import match_metadata
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
@@ -64,12 +64,17 @@ def _write_conflict(target: Path, ctx: EditorContext) -> str | None:
         if target.exists():
             return f"E13: File exists: {target.name} (add ! to override)"
         return None
-    if ctx.disk_stamp is not None and file_stamp(target) != ctx.disk_stamp:
+    if ctx.disk_stamp is None:
+        return None
+    change = disk_change(target, ctx.disk_stamp)
+    if change is None:
+        return None
+    if change == DELETED:
         return (
-            f"{target.name} changed on disk since it was read "
-            "(add ! to override)"
+            f"{target.name} no longer exists on disk (deleted or moved "
+            "since it was read; add ! to write it again)"
         )
-    return None
+    return f"{target.name} changed on disk since it was read (add ! to override)"
 
 
 def cmd_write(
@@ -106,12 +111,31 @@ def cmd_write(
         ctx.fail(f"Write failed: {exc}")
         return buffer, cursor
 
+    previous = ctx.file_path
     ctx.file_path = target
     ctx.disk_stamp = file_stamp(target)
     ctx.file_saved = True
     ctx.modified = False
     ctx.message = f"Written: {target.name}"
+    if previous is not None and not _same_file(target, previous):
+        # The deck's file changed: say so, or edits made from here on
+        # silently stop reaching the file that was opened
+        ctx.message += f" — now editing {target.name} ({previous.name} left as it was)"
     return buffer, cursor
+
+
+def cmd_saveas(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:sav[eas][!] name — write the deck to `name` and edit that file
+    from now on (what `:w name` also does)."""
+    if not cmd.args.strip():
+        ctx.fail("E471: Argument required")
+        return buffer, cursor
+    return cmd_write(buffer, cursor, cmd, ctx)
 
 
 def cmd_quit(
@@ -125,6 +149,7 @@ def cmd_quit(
         ctx.fail("Unsaved changes (use :q! to force)")
         return buffer, cursor
     ctx.quit_requested = True
+    ctx.discard_requested = cmd.bang
     ctx.message = ""
     return buffer, cursor
 
@@ -147,6 +172,20 @@ def cmd_write_quit(
     return buffer, cursor
 
 
+def cmd_xit(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:x / ZZ — like :wq, but write only when there are changes (an
+    unmodified deck's file is left untouched, mtime and all)."""
+    if not ctx.modified and not cmd.args.strip():
+        ctx.quit_requested = True
+        return buffer, cursor
+    return cmd_write_quit(buffer, cursor, cmd, ctx)
+
+
 def cmd_home(
     buffer: Buffer,
     cursor: Cursor,
@@ -158,6 +197,7 @@ def cmd_home(
         ctx.fail("Unsaved changes (use :home! to force)")
         return buffer, cursor
     ctx.greeter_requested = True
+    ctx.discard_requested = cmd.bang
     return buffer, cursor
 
 
@@ -173,10 +213,10 @@ def cmd_recover(
     change; the copy itself is removed by the next successful :w.
     """
     if cmd.bang:
-        discard_recovery(ctx.file_path)
+        discard_recovery(ctx.file_path, ctx.recovery_id)
         ctx.message = "Recovery file discarded"
         return buffer, cursor
-    text = read_recovery(ctx.file_path)
+    text = read_recovery(ctx.file_path, ctx.recovery_id)
     if text is None:
         ctx.fail("No recovery file for this deck")
         return buffer, cursor
@@ -187,10 +227,11 @@ def cmd_recover(
 
 
 def register_buffer_commands(registry: CommandRegistry) -> None:
-    """Register :w, :q, :wq, :x, :home commands."""
+    """Register :w, :saveas, :q, :wq, :x, :home, :recover."""
     registry.register("w", cmd_write, aliases=["write"])
+    registry.register("saveas", cmd_saveas, aliases=["sav"])
     registry.register("q", cmd_quit, aliases=["quit"])
     registry.register("wq", cmd_write_quit)
-    registry.register("x", cmd_write_quit)
+    registry.register("x", cmd_xit, aliases=["xit", "exit"])
     registry.register("home", cmd_home, aliases=["greeter"])
     registry.register("recover", cmd_recover)

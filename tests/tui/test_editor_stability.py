@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from vimtg.config.paths import recovery_dir
 from vimtg.editor.modes import Mode
+from vimtg.services.recovery import read_recovery, recovery_path, write_recovery
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.main_screen import MainScreen
 from vimtg.tui.widgets.command_line import CommandLine
@@ -315,10 +315,10 @@ class TestCrashSafetyNet:
             await pilot.pause()
             cl = scr.query_one("#command-line", CommandLine)
             assert "internal error" in cl.message and "boom" in cl.message
-            recovery = recovery_dir() / "burn.deck"
+            recovery = recovery_path(path)
             assert recovery.exists()
-            assert "Goblin Guide" not in recovery.read_text()
-            assert "RuntimeError: boom" in (recovery_dir() / "burn.log").read_text()
+            assert "Goblin Guide" not in (read_recovery(path) or "")
+            assert "RuntimeError: boom" in recovery.with_suffix(".log").read_text()
             monkeypatch.undo()
             # Still alive and editable
             await pilot.press("u")
@@ -349,7 +349,7 @@ class TestCrashSafetyNet:
     ) -> None:
         path = _deck(tmp_path)
         recovered_text = CANONICAL.replace("4 Goblin Guide\n", "")
-        (recovery_dir() / "burn.deck").write_text(recovered_text)
+        write_recovery(path, recovered_text)
         app = VimTGApp(deck_path=path)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -368,19 +368,19 @@ class TestCrashSafetyNet:
             # A successful :w removes the recovery copy
             await pilot.press("ctrl+r", "colon", "w", "enter")
             await pilot.pause()
-        assert not (recovery_dir() / "burn.deck").exists()
+        assert not recovery_path(path).exists()
         assert path.read_text() == recovered_text
 
     @pytest.mark.asyncio
     async def test_recover_bang_discards(self, tmp_path: Path) -> None:
         path = _deck(tmp_path)
-        (recovery_dir() / "burn.deck").write_text("4 Island\n")
+        write_recovery(path, "4 Island\n")
         app = VimTGApp(deck_path=path)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             await pilot.press("colon", *"recover!", "enter")
             await pilot.pause()
-            assert not (recovery_dir() / "burn.deck").exists()
+            assert not recovery_path(path).exists()
             await pilot.press("colon", *"recover", "enter")
             await pilot.pause()
             cl = _screen(app).query_one("#command-line", CommandLine)
@@ -390,13 +390,13 @@ class TestCrashSafetyNet:
     @pytest.mark.asyncio
     async def test_identical_recovery_copy_is_not_offered(self, tmp_path: Path) -> None:
         path = _deck(tmp_path)
-        (recovery_dir() / "burn.deck").write_text(CANONICAL)
+        write_recovery(path, CANONICAL)
         app = VimTGApp(deck_path=path)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             cl = _screen(app).query_one("#command-line", CommandLine)
             assert ":recover" not in cl.message
-        assert not (recovery_dir() / "burn.deck").exists()
+        assert not recovery_path(path).exists()
 
     @pytest.mark.asyncio
     async def test_app_level_handler_writes_recovery(self, tmp_path: Path) -> None:
@@ -414,8 +414,8 @@ class TestCrashSafetyNet:
 
                 scr.call_later(_bad)
                 await pilot.pause()
-        text = (recovery_dir() / "burn.deck").read_text()
-        assert "Goblin Guide" not in text
+        text = read_recovery(path)
+        assert text is not None and "Goblin Guide" not in text
 
 
 # ── Random-key fuzz ────────────────────────────────────────────────
@@ -477,3 +477,65 @@ async def test_random_keys_never_raise(tmp_path: Path) -> None:
                 if not scr._state.history.can_undo:
                     break
                 scr._process_key("u")
+
+
+# ── Ex-command fuzz: every change is dirty and undoable ────────────
+
+# Ex commands that edit the deck (sort variants, ranges, marks) plus
+# ones that must not (sorted-already, out-of-range, unset marks). No
+# :w / :e / :q — writes and exits are covered by their own tests.
+_FUZZ_EX = [
+    "sort", "sort!", "sort name", "sort! name", "sort cmc", "sort qty",
+    "%sort", "%sort!", "%sort! name", ".,$sort!", "1,$sort", "'a,'bsort!",
+    "'<,'>sort!", "d", "2d", "'a,'bd", "999d", "1,999d", "'z,'zd", "t$",
+    "m0", "dtag aggro", "duntag aggro", "duntag nothing", "tag core",
+    "untag core", "s/Bolt/Shock/", "g/Mountain/d", "recover",
+]
+
+
+@pytest.mark.asyncio
+async def test_ex_commands_that_change_text_are_dirty_and_undoable(
+    tmp_path: Path,
+) -> None:
+    """After any ex command: if the text changed, the deck is modified and
+    one u restores the text from before it; if it did not, nothing about
+    the modified flag or the undo history moved."""
+    path = tmp_path / "burn.deck"
+    shutil.copy(FIXTURE, path)
+    app = VimTGApp(deck_path=path)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        scr = _strict(_screen(app))
+        rng = random.Random(1234)
+        for step in range(160):
+            s = scr._state
+            # Wander, set marks, sometimes select, then run a command
+            for key in [rng.choice(list("jjkkGg{}")) for _ in range(rng.randint(0, 4))]:
+                scr._process_key(key)
+            if rng.random() < 0.3:
+                for key in ["m", rng.choice("ab")]:
+                    scr._process_key(key)
+            command = rng.choice(_FUZZ_EX)
+            if command.startswith("'<"):
+                for key in ["V", "j", ":"]:
+                    scr._process_key(key)
+                keys = [*command[len("'<,'>"):], "enter"]
+            else:
+                keys = [":", *command, "enter"]
+            before_text = s.buffer.to_text()
+            before_modified = s.modified
+            before_node = s.history.current_id
+            for key in keys:
+                scr._process_key(key)
+            after = s.buffer.to_text()
+            label = f"step {step}: :{command}"
+            assert s.mode_mgr.current == Mode.NORMAL, label
+            if after != before_text:
+                assert s.modified, label
+                scr._process_key("u")
+                assert s.buffer.to_text() == before_text, label
+                scr._process_key("ctrl_r")
+                assert s.buffer.to_text() == after, label
+            else:
+                assert s.modified == before_modified, label
+                assert s.history.current_id == before_node, label

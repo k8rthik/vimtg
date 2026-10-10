@@ -194,3 +194,17 @@ def test_quantity_burst_outside_window_is_separate() -> None:
     _record_at(svc, 100.0, "v1\n", "increment")
     _record_at(svc, 103.0, "v2\n", "increment")
     assert _undo_text(svc) == "v1\n"
+
+
+def test_current_id_follows_records_and_undo() -> None:
+    from vimtg.editor.buffer import Buffer
+    from vimtg.services.history_service import HistoryService
+
+    history = HistoryService()
+    assert history.current_id is None
+    history.initialize(Buffer.from_text("a\n"))
+    root = history.current_id
+    history.record(Buffer.from_text("b\n"), "edit")
+    assert history.current_id not in (None, root)
+    history.undo()
+    assert history.current_id == root

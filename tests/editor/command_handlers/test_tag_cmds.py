@@ -208,6 +208,18 @@ class TestCmdDuntag:
         assert buf.line_count() == initial_count
         assert buf.get_line(1).text == "// Tags:"
 
+    def test_removing_an_absent_tag_is_not_a_change(self):
+        for text in (
+            "// Deck: Test\n// Tags:\n\n4 Goblin Guide\n",
+            "// Deck: Test\n// Tags: budget\n\n4 Goblin Guide\n",
+        ):
+            before = _buf(text)
+            ctx = _ctx()
+            after, _ = cmd_duntag(before, Cursor(0, 0), _cmd("duntag", "aggro"), ctx)
+            assert after is before
+            assert ctx.modified is False
+            assert "No such deck tag: #aggro" in ctx.message
+
 
 class TestCmdFilter:
     def test_filter_counts(self):

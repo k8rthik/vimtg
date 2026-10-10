@@ -8,11 +8,14 @@ symlinks (the link target is replaced), the original permission bits
 survive, and both the file and its directory are fsynced.
 
 `FileStamp` records what a file looked like when it was read, so a
-later save can tell that something else changed it in the meantime.
+later save can tell that something else changed it in the meantime —
+including a same-size rewrite within the mtime granularity (the stamp
+carries a content hash) and a file deleted since it was read.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 import stat
 import tempfile
@@ -25,7 +28,8 @@ _NEW_FILE_MODE = 0o666
 
 @dataclass(frozen=True)
 class FileStamp:
-    """Modification time and size of a file at one point in time.
+    """Modification time, size and content hash of a file at one point
+    in time ('' digest: the content could not be read).
 
     `ABSENT` stands for "the file did not exist" — comparing it against
     a later stamp catches a file that appeared in the meantime.
@@ -33,9 +37,15 @@ class FileStamp:
 
     mtime_ns: int
     size: int
+    digest: str = ""
 
 
 ABSENT = FileStamp(mtime_ns=-1, size=-1)
+
+# disk_change() results
+CHANGED = "changed"
+DELETED = "deleted"
+CREATED = "created"
 
 
 def file_stamp(path: Path) -> FileStamp:
@@ -44,7 +54,30 @@ def file_stamp(path: Path) -> FileStamp:
         st = path.stat()
     except FileNotFoundError:
         return ABSENT
-    return FileStamp(mtime_ns=st.st_mtime_ns, size=st.st_size)
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        digest = ""
+    return FileStamp(mtime_ns=st.st_mtime_ns, size=st.st_size, digest=digest)
+
+
+def disk_change(path: Path, recorded: FileStamp) -> str | None:
+    """How `path` differs from the `recorded` stamp: CHANGED, DELETED,
+    CREATED, or None when its content is what was read.
+
+    Content decides when both stamps carry a hash: a touch that left
+    the bytes alone is not a change, and a rewrite that kept size and
+    mtime is one.
+    """
+    current = file_stamp(path)
+    if recorded == ABSENT:
+        return None if current == ABSENT else CREATED
+    if current == ABSENT:
+        return DELETED
+    if recorded.digest and current.digest:
+        return None if recorded.digest == current.digest else CHANGED
+    same = (recorded.mtime_ns, recorded.size) == (current.mtime_ns, current.size)
+    return None if same else CHANGED
 
 
 def _current_umask() -> int:

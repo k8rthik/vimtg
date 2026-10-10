@@ -49,6 +49,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
+    RangeError,
     parse_command,
 )
 from vimtg.editor.cursor import Cursor
@@ -163,6 +164,9 @@ class EditorState:
     # The c / o / O whose card search is open: confirming it records
     # the change, with the card, for '.'
     pending_change: RepeatableAction | None = None
+    # Undo node of the delete a c operator made before its card search:
+    # the confirmed card folds into it (one change per u)
+    change_node: str | None = None
     # Text a "+ / "* yank or delete queued for the system clipboard; the
     # handler returns it as HandlerResult.clipboard_text (the TUI copies)
     clipboard_out: str | None = None
@@ -173,9 +177,11 @@ class EditorState:
     # Text of the buffer as last loaded or written; None when unknown.
     # Undo/redo compare against it so returning to it is unmodified.
     clean_text: str | None = None
-    # (mtime, size) of the deck file as last read or written — :w uses
-    # it to refuse clobbering outside changes. None disables the check.
+    # (mtime, size, hash) of the deck file as last read or written — :w
+    # uses it to refuse clobbering outside changes. None disables the check.
     disk_stamp: FileStamp | None = None
+    # Id of an unnamed buffer's crash-recovery copy (see services.recovery)
+    recovery_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -236,6 +242,8 @@ class HandlerResult:
     # :e — open this deck in place of the current one
     edit_file: Path | None = None
     ui_request: str = ""  # screen-level view (:messages, :tips)
+    # :q! / :e! / :home! dropped unsaved changes on purpose
+    discard_changes: bool = False
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -352,6 +360,7 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
         # Confirming a card upgrades the recorded change to include it.
         state.insert_quantity = 1
         state.pending_change = repeat
+        state.change_node = state.history.current_id if changed else None
         return HandlerResult(enter_insert=True)
     # Exit visual mode after operation
     if state.mode_mgr.current in (Mode.VISUAL, Mode.VISUAL_LINE):
@@ -402,6 +411,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         # Vim-style count as copies: 4o opens a card search whose
         # confirmed card is added as '4 <name>'
         state.insert_quantity = max(1, action.count)
+        state.change_node = None  # an o/O card is a change of its own
         open_insert_line(state, key)
         state.pending_change = RepeatableAction(
             "insert", operator=key, quantity=state.insert_quantity,
@@ -409,6 +419,11 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         return HandlerResult(enter_insert=True)
     if key == ":":
         state.cmd_history.reset_browse()
+        selection = _take_selection(state)
+        if selection is not None:
+            # Vim: ':' on a selection pre-types its range, '<,'>
+            state.marks = state.marks.set("<", selection[0]).set(">", selection[1])
+            return HandlerResult(enter_command=True, command_prefill="'<,'>")
         return HandlerResult(enter_command=True)
     if key in ("/", "?"):
         state.search_backward = key == "?"
@@ -475,7 +490,13 @@ def handle_command(
     raw_text = action.text
 
     try:
-        cmd = parse_command(raw_text, state.cursor.row, state.buffer.line_count())
+        try:
+            cmd = parse_command(
+                raw_text, state.cursor.row, state.buffer.line_count(),
+                {name: mark.row for name, mark in state.marks.items()},
+            )
+        except RangeError as exc:
+            return HandlerResult(command_message=f"E: {exc}", error=True)
         ctx = EditorContext(
             file_path=file_path, modified=state.modified,
             save_fn=save_fn, settings=state.settings,
@@ -488,8 +509,10 @@ def handle_command(
             registers=state.registers,
             marks=state.marks,
             last_pattern=state.last_find,
+            recovery_id=state.recovery_id,
         )
         before = state.buffer
+        before_text = before.to_text()
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
         if cmd.name in ("find", "f") and cmd.args and not ctx.error:
             state.last_find = cmd.args
@@ -498,13 +521,21 @@ def handle_command(
             state.registers = ctx.registers
         if ctx.marks is not None:
             state.marks = ctx.marks
-        # A handler that rewrote the buffer gets an undo step; the
-        # modified flag itself syncs unconditionally (allows :w to clear it)
-        if ctx.modified and state.buffer is not before:
+        # Backstop for every handler: a command whose buffer text differs
+        # afterwards changed the deck — it is modified and gets one undo
+        # step, whether or not the handler remembered to say so (:sort
+        # once forgot, so u could not revert it and :q lost it). Text
+        # that did not change never dirties the buffer, whatever the
+        # handler claims; only a write clears the flag.
+        changed = state.buffer is not before and state.buffer.to_text() != before_text
+        if changed:
             state.history.record(state.buffer, f":{action.text}")
             if registry.resolve(cmd.name) == "s":
                 state.dot_repeat.record(RepeatableAction("ex", text=cmd.args))
-        state.modified = ctx.modified
+        if changed:
+            state.modified = True
+        elif ctx.file_saved:
+            state.modified = ctx.modified
         if ctx.undo_request:
             step = state.history.undo if ctx.undo_request == "undo" else state.history.redo
             restored = step()
@@ -553,6 +584,7 @@ def handle_command(
             plan_changed=plan_changed,
             edit_file=ctx.edit_path,
             ui_request=ctx.ui_request,
+            discard_changes=ctx.discard_requested,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)
@@ -656,8 +688,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key == "g?":
         return HandlerResult(help_requested=True)
     elif key in ("ZZ", "ZQ"):
-        # Vim's ZZ / ZQ are exactly :wq / :q!
-        return HandlerResult(run_ex_command="wq" if key == "ZZ" else "q!")
+        # Vim's ZZ / ZQ are exactly :x / :q! (ZZ writes only when modified)
+        return HandlerResult(run_ex_command="x" if key == "ZZ" else "q!")
     elif key.startswith("t") and len(key) == 2:
         return _handle_tag_action(state, key[1])
     elif key == "A":
@@ -1399,14 +1431,16 @@ def _replay_operator(state: EditorState, last: RepeatableAction, count: int) -> 
     if result.registers is not state.registers:
         state.registers = result.registers
         _mirror_clipboard(state, last.register)
+    fold_into = None
     if result.buffer is not state.buffer:
         state.buffer = result.buffer
         state.cursor = result.cursor
         state.modified = True
         state.history.record(state.buffer, "dot repeat")
+        fold_into = state.history.current_id
     if result.enter_insert and last.card_name:
         state.pending_insert = None
-        insert_card(state, last.card_name, last.card, last.quantity)
+        insert_card(state, last.card_name, last.card, last.quantity, fold_into=fold_into)
     state.dot_repeat.record(replace(last, count=count))
 
 
@@ -1456,8 +1490,10 @@ def confirm_card_search(state: EditorState, card: Card) -> str:
     changes the next line to it too."""
     copies = state.insert_quantity
     state.insert_quantity = 1
-    message = insert_card(state, card.name, card, copies)
     pending = state.pending_change
+    fold_into = state.change_node if pending is not None else None
+    state.change_node = None
+    message = insert_card(state, card.name, card, copies, fold_into=fold_into)
     state.pending_change = None
     if pending is not None:
         state.dot_repeat.record(

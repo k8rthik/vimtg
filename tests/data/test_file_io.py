@@ -10,7 +10,16 @@ import pytest
 
 from vimtg.data import file_io
 from vimtg.data.deck_repository import DeckRepository
-from vimtg.data.file_io import ABSENT, atomic_write_text, file_stamp
+from vimtg.data.file_io import (
+    ABSENT,
+    CHANGED,
+    CREATED,
+    DELETED,
+    FileStamp,
+    atomic_write_text,
+    disk_change,
+    file_stamp,
+)
 
 posix_only = pytest.mark.skipif(os.name != "posix", reason="POSIX permissions/symlinks")
 
@@ -103,3 +112,63 @@ class TestFileStamp:
         assert file_stamp(p) == before
         p.write_text("a longer body\n", encoding="utf-8")
         assert file_stamp(p) != before
+
+
+class TestDiskChange:
+    """disk_change compares content, so it catches what mtime+size miss
+    and ignores what they flag needlessly."""
+
+    def test_unchanged(self, tmp_path: Path) -> None:
+        p = tmp_path / "s.deck"
+        p.write_text("a\n", encoding="utf-8")
+        assert disk_change(p, file_stamp(p)) is None
+
+    def test_same_size_same_mtime_rewrite_is_a_change(self, tmp_path: Path) -> None:
+        p = tmp_path / "s.deck"
+        p.write_text("abc\n", encoding="utf-8")
+        st = p.stat()
+        stamp = file_stamp(p)
+        p.write_text("xyz\n", encoding="utf-8")
+        os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+        assert (file_stamp(p).mtime_ns, file_stamp(p).size) == (stamp.mtime_ns, stamp.size)
+        assert disk_change(p, stamp) == CHANGED
+
+    def test_touch_is_not_a_change(self, tmp_path: Path) -> None:
+        p = tmp_path / "s.deck"
+        p.write_text("abc\n", encoding="utf-8")
+        stamp = file_stamp(p)
+        os.utime(p, ns=(stamp.mtime_ns + 10**9, stamp.mtime_ns + 10**9))
+        assert disk_change(p, stamp) is None
+
+    def test_deleted_and_created(self, tmp_path: Path) -> None:
+        p = tmp_path / "s.deck"
+        p.write_text("abc\n", encoding="utf-8")
+        stamp = file_stamp(p)
+        p.unlink()
+        assert disk_change(p, stamp) == DELETED
+        assert disk_change(p, ABSENT) is None
+        p.write_text("new\n", encoding="utf-8")
+        assert disk_change(p, ABSENT) == CREATED
+
+    def test_stamp_without_digest_falls_back_to_mtime_and_size(
+        self, tmp_path: Path
+    ) -> None:
+        p = tmp_path / "s.deck"
+        p.write_text("abc\n", encoding="utf-8")
+        st = p.stat()
+        legacy = FileStamp(mtime_ns=st.st_mtime_ns, size=st.st_size)
+        assert disk_change(p, legacy) is None
+        p.write_text("abcdef\n", encoding="utf-8")
+        assert disk_change(p, legacy) == CHANGED
+
+    def test_unreadable_file_has_no_digest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        p = tmp_path / "s.deck"
+        p.write_text("abc\n", encoding="utf-8")
+
+        def _deny(_self: Path) -> bytes:
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "read_bytes", _deny)
+        assert file_stamp(p).digest == ""

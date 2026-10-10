@@ -10,6 +10,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
+    RangeError,
     parse_command,
 )
 from vimtg.editor.cursor import Cursor
@@ -193,3 +194,57 @@ class TestCommandRegistry:
         completions = registry.get_completions("w")
         assert "w" in completions
         assert "write" in completions
+
+
+class TestMarkAndOutOfRangeAddresses:
+    def test_mark_addresses(self) -> None:
+        marks = {"a": 2, "b": 5}
+        cmd = parse_command("'a,'bd", cursor_row=0, line_count=10, marks=marks)
+        assert cmd.name == "d"
+        assert cmd.cmd_range == CommandRange(start=2, end=5)
+
+    def test_visual_marks(self) -> None:
+        cmd = parse_command("'<,'>sort!", 0, 10, marks={"<": 7, ">": 3})
+        assert cmd.name == "sort" and cmd.bang
+        assert cmd.cmd_range == CommandRange(start=3, end=7)
+
+    def test_mixed_mark_and_number(self) -> None:
+        cmd = parse_command("'a,$d", 0, 10, marks={"a": 4})
+        assert cmd.cmd_range == CommandRange(start=4, end=9)
+
+    def test_unset_mark_raises(self) -> None:
+        with pytest.raises(RangeError, match="E20"):
+            parse_command("'q,'rd", 0, 10, marks={})
+
+    def test_mark_past_the_end_clamps(self) -> None:
+        cmd = parse_command("'a", 0, 5, marks={"a": 40})
+        assert cmd.cmd_range == CommandRange(start=4, end=4)
+
+    def test_line_past_the_end_is_flagged(self) -> None:
+        cmd = parse_command("999d", 0, 10)
+        assert cmd.cmd_range is not None and cmd.cmd_range.out_of_range
+        cmd = parse_command("1,999d", 0, 10)
+        assert cmd.cmd_range is not None and cmd.cmd_range.out_of_range
+        cmd = parse_command("10d", 0, 10)
+        assert cmd.cmd_range is not None and not cmd.cmd_range.out_of_range
+
+    def test_registry_refuses_out_of_range_with_e16(self) -> None:
+        calls: list[ParsedCommand] = []
+
+        def handler(
+            buf: Buffer, cur: Cursor, cmd: ParsedCommand, ctx: EditorContext
+        ) -> tuple[Buffer, Cursor]:
+            calls.append(cmd)
+            return buf, cur
+
+        registry = CommandRegistry()
+        registry.register("d", handler)
+        buf = Buffer.from_text("a\nb\n")
+        ctx = EditorContext()
+        registry.execute(parse_command("999d", 0, buf.line_count()), buf, Cursor(), ctx)
+        assert ctx.error and "E16: Invalid range" in ctx.message
+        assert calls == []
+        # A bare out-of-range number is a goto, which clamps (vim :999)
+        ctx = EditorContext()
+        _, cur = registry.execute(parse_command("999", 0, buf.line_count()), buf, Cursor(), ctx)
+        assert not ctx.error and cur.row == buf.line_count() - 1
