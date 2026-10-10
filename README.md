@@ -176,15 +176,16 @@ Full spec: [docs/deck-format.md](https://github.com/k8rthik/vimtg/blob/main/docs
 The editor engine has no dependency on Textual. Keys flow through a translator, a macro recorder, a remapper, a key-sequence parser, and then a session handler, so everything below is testable headlessly.
 
 - **Modes**: Normal, Insert, Visual, Visual-line, Command, Search. Insert has four submodes: card search (`o`/`O`/`c`), line edit (`i`), tag input (`t` keys and `gc`), and comment input (`A`). `Escape` always returns to Normal.
-- **Motions**: `j`/`k` (skip blank lines), `w`/`b` (next/previous card), `{`/`}` (previous/next section), `[[`/`]]` (previous/next section or plan header), `gg`/`G`, `{count}G` (go to line), `Ctrl-D`/`Ctrl-U` (half page), `H`/`M`/`L` (top/middle/bottom of the visible deck view, inside the scroll-off margin so the view stays put; `3H`/`3L` count in from the edge), `n`/`N` (repeat the last `/` or `:find` forward/backward). Any motion takes a count. The deck is line-oriented, so there is no column cursor and no `h`/`l`/`0`/`$`. `H`/`M`/`L` are not operator targets.
-- **Operators**: `d`, `y`, `c` compose with motions and double up as `dd`, `yy`, `cc`. Counts multiply (`2d3j` is six lines). `dj`/`dk` use raw line arithmetic so a delete never spills across a section boundary. `c` deletes and opens card search. `x` deletes the card under the cursor. `p`/`P` put below/above; `3p` puts three copies.
+- **Motions**: `j`/`k` (skip blank lines), `w`/`b` (next/previous card), `{`/`}` (previous/next section), `[[`/`]]` (previous/next section or plan header), `gg`/`G`, `{count}G` or `{count}gg` (go to line), `Ctrl-D`/`Ctrl-U` (half page), `H`/`M`/`L` (top/middle/bottom of the visible deck view, inside the scroll-off margin so the view stays put; `3H`/`3L` count in from the edge), `/`/`?` (regex search forward/backward), `n`/`N` (repeat the last search in the same/opposite direction), `*`/`#` (search for the card under the cursor). `zz`/`zt`/`zb` scroll the view around the cursor. Any motion takes a count. The deck is line-oriented, so there is no column cursor and no `h`/`l`/`0`/`$`. `H`/`M`/`L` are not operator targets.
+- **Operators**: `d`, `y`, `c` compose with motions and double up as `dd`, `yy`, `cc`. Counts multiply (`2d3j` is six lines). `j`/`k`/`G`/`gg` are linewise (`dj`/`dk` use raw line arithmetic; `d8G` stops at line 8, `dG` runs to the end); `w`/`b`/`{`/`}`/`[[`/`]]` are exclusive as in vim, so `dw` deletes one card and `d}` stops at the end of the section. `c` deletes and opens card search. `x` deletes the card under the cursor. `p`/`P` put below/above; `3p` puts three copies.
 - **Quantity**: `+`/`-` adjust the count (`10+`, `3-`). `-` at zero deletes the line. Both preserve zone prefixes, plan signs, `@category`, `#tags`, and comments.
 - **Line editing**: `i` edits the current line in place. On a `// Key:` metadata line the prefix is locked and only the value is editable. On `// Format:` the value ghost-completes from the known formats and warns when you confirm an unknown one. `A` adds or edits the card's inline comment.
-- **Visual mode**: `v`/`V` select, `d`/`y`/`c` act on the range, `o` swaps the selection ends. Category and tag prompts honour the visual range.
-- **Registers**: `"a`–`"z` named, `"A`–`"Z` append, unnamed, yank register `0`, delete history shifted through `1`–`9`.
+- **Visual mode**: `v`/`V` select, `d`/`y`/`c`/`x` act on the range, `+`/`-` and the `z` zone and plan keys act on every card in it (one undo step), `o` swaps the selection ends. Category and tag prompts honour the visual range.
+- **Registers**: `"a`–`"z` named, `"A`–`"Z` append, unnamed, yank register `0`, delete history shifted through `1`–`9`, black hole `"_`, and the clipboard register `"+`/`"*` (yanks and deletes also copy to the system clipboard via OSC52).
 - **Marks**: `m{a-z}` set, `'{a-z}` jump, all 26 letters. Marks shift correctly through inserts, deletes, puts, and zone moves.
 - **Macros**: `q{a-z}` record, `q` stop, `@{a-z}` play, `@@` replay last, `3@a` plays three times. Playback re-feeds keys through the full pipeline.
-- **Dot repeat**: `.` replays the last operator, quantity, zone, or board action; a count on `.` overrides the recorded one.
+- **Dot repeat**: `.` replays the last change: operators (`c` together with the card it added), `o`/`O` with their card and copies, puts, quantity, `x`, zone and plan moves, tags, categories, comments, `i` line edits, and `:s`. A visual change repeats on as many lines; a count on `.` overrides the recorded one.
+- **Command line**: `Up`/`Down` recall history (prefix-matched, separate for `:` and searches, kept across sessions in `~/.local/state/vimtg/`), `Ctrl-W`/`Ctrl-U` delete a word / to the start, `Ctrl-B`/`Ctrl-E` and `Left`/`Right` move, `Backspace` on an empty line leaves the prompt. The card-search prompt has the same line editing.
 - **Undo/redo**: `u`/`Ctrl-R`, counted. Session history is a snapshot tree: undo walks to the parent, redo to the newest child, and abandoned branches are kept. Each change is its own undo step, as in vim; only a quick burst of `+` or `-` on a card (within two seconds, not interrupted by an undo) collapses into one step. Undoing back to the loaded or last-saved state clears the modified flag.
 - **Remapping**: `:map key action` (session-only, multi-character targets allowed, `:`-prefixed targets auto-submit), `:unmap key`, bare `:map` lists. Persistent maps live in `[keybindings]` in `config.toml`, per mode.
 - **Which-key**: when a key sequence is pending (`d`, `y`, `c`, `g`, `[`, `]`, `"`, `q`, `@`, `m`, `'`, `S`, `t`, `z`) a popup shows the possible completions, derived from the same key spec as the help overview. The status line shows the pending sequence and counts.
@@ -338,11 +339,11 @@ Where things live (XDG-aware): card database plus snapshots, branches, and HEAD 
 
 ### Help
 
-`?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `g`/`G`, or the wheel). `F1` or `:help` opens the full-screen help; `:help <command>` opens one of thirty per-command topics. The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
+`F1` or `:help` opens the full-screen help; `g?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `g`/`G`, or the wheel). In the editor `?` is vim's backward search, not help; `:help <command>` opens one of thirty per-command topics. The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
 
 ## Keybindings
 
-Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`), one help vocabulary (`?`/`F1`), one job per editor prefix (`g` go, `t` tags, `S` splits, `z` zones, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
+Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`), one help vocabulary (`F1` everywhere; `?` on screens other than the editor, where it is backward search), one job per editor prefix (`g` go, `t` tags, `S` splits, `z` zones and scrolling, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
 
 <details>
 <summary><strong>Modes and navigation</strong></summary>
@@ -352,17 +353,19 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `i` | Edit current line (value only on metadata lines) |
 | `o` / `O` | Add card below / above (`4o` adds four copies) |
 | `A` | Add or edit the card's inline comment |
-| `:` / `/` | Command line / find |
+| `:` / `/` / `?` | Command line / search forward / backward |
 | `v` / `V` | Visual / visual-line |
 | `j` / `k` | Down / up, skipping blanks |
 | `w` / `b` | Next / previous card |
 | `{` / `}` | Previous / next section |
 | `[[` / `]]` | Previous / next section or plan header |
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
-| `gg` / `G` / `{n}G` | First / last / nth line |
+| `gg` / `G` / `{n}G` | First / last / nth line (also `:{n}`) |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up |
 | `H` / `M` / `L` | Top / middle / bottom of the visible view |
-| `n` / `N` | Repeat last `/` or `:find` forward / backward |
+| `n` / `N` | Repeat the last search same / opposite direction |
+| `*` / `#` | Search forward / backward for the card under the cursor |
+| `zz` / `zt` / `zb` | Scroll the cursor line to center / top / bottom |
 | `m{a-z}` / `'{a-z}` | Set / jump to mark (all 26 letters) |
 
 </details>
@@ -379,7 +382,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `+` / `-` | Increment / decrement quantity |
 | `zs` `zm` `zd` `zc` `zp` | Move to sideboard / maybeboard / main / commander / companion |
 | `zo` / `zi` | Board out of / into the active plan |
-| `"{x}` | Use register `x` for the next operator |
+| `"{x}` | Use register `x` for the next operator (`"_` black hole, `"+` clipboard) |
 | `q{x}` / `@{x}` / `@@` | Record / play / replay macro |
 | `.` | Repeat last change |
 | `u` / `Ctrl-R` | Undo / redo |
@@ -401,7 +404,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `Sr` / `Sa` | EDHREC pane / analytics pane |
 | `Sd` | Sample hand / goldfish overlay |
 | `Ss` / `Sc` | Switch focus / close pane |
-| `?` / `F1` | Quick reference / full help |
+| `F1` / `g?` | Full help / quick-reference panel |
 | `ZZ` / `ZQ` | Save and quit (`:wq`) / quit discarding changes (`:q!`) |
 
 </details>
@@ -415,10 +418,11 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e file`, `:home`, `:recover` | File and navigation (`:w file` binds the deck to `file`, like `:saveas`; overwriting another file or outside changes needs `:w!`; `:recover` loads the crash-recovery copy) |
+| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e[!] [file]`, `:{n}`, `:home`, `:recover` | File and navigation (`:w file` binds the deck to `file`, like `:saveas`; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
+| `:[range]d [x]`, `:[range]y [x]`, `:[range]m {n}`, `:[range]t {n}` (`:co`), `:undo`, `:redo`, `:reg`, `:marks` | Line commands, as in vim |
 | `:sort [field]`, `:sort!` | Sort section or range |
-| `:s/old/new/[gi]` | Substitute (literal) |
-| `:g/pat/d`, `:v/pat/d` | Delete matching / non-matching cards in any zone (`d` only) |
+| `:s/pat/rep/[gI]` | Substitute (regex like `/`, case-insensitive unless `I`; `&` and `\1` in the replacement) |
+| `:g/pat/cmd`, `:v/pat/cmd`, `:g!` | Run `d`, `p`, `y [x]`, or `s/pat/rep/` on matching / non-matching cards in any zone |
 | `:find pat`, `:search query` | Jump to card / open database search |
 | `:cat name`, `:cat!`, `:categories`, `:layout [type\|category]` | Categories and layout |
 | `:tag`, `:untag`, `:untag!`, `:tags`, `:filter expr`, `:filter!`, `:retag /a/b/`, `:dtag`, `:duntag` | Tags |

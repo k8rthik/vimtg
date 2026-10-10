@@ -59,3 +59,7 @@ class MarkStore:
             else:
                 new._marks[name] = mark
         return new
+
+    def items(self) -> tuple[tuple[str, Mark], ...]:
+        """(name, mark) pairs in name order, for :marks."""
+        return tuple(sorted(self._marks.items()))

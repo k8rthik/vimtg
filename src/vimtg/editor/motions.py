@@ -196,7 +196,8 @@ ViewMotionFn = Callable[[Cursor, Buffer, tuple[int, int], int], Cursor]
 MOTION_REGISTRY: dict[str, MotionFn] = {
     "j": motion_down,
     "k": motion_up,
-    "gg": motion_first_line,
+    # gg takes a count like G does: 5gg is line 5, bare gg line 1
+    "gg": motion_goto_line,
     "G": motion_last_line,
     "w": motion_next_card,
     "b": motion_prev_card,

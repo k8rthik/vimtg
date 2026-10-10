@@ -7,9 +7,10 @@ the returned HandlerResult side effects to widgets.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -28,13 +29,28 @@ from vimtg.domain.deck_lines import split_metadata_prefix
 from vimtg.domain.formats import get_format_rules, known_formats
 from vimtg.domain.tags import TagFilter, format_tag_summary
 from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.card_insert import (
+    PendingInsert,
+    discard_pending_insert,
+    insert_card,
+    open_insert_line,
+)
+from vimtg.editor.card_insert import (
+    take_insert_position as take_insert_position,  # re-exported for the TUI
+)
 from vimtg.editor.category_ops import (
     clear_category_in_range,
     set_category_in_range,
 )
+from vimtg.editor.cmdline_history import COMMAND, SEARCH, CommandHistory
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
 from vimtg.editor.command_handlers.search_cmds import find_card_row
-from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
+from vimtg.editor.commands import (
+    CommandRegistry,
+    EditorContext,
+    ParsedCommand,
+    parse_command,
+)
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.dot_repeat import DotRepeat, RepeatableAction
 from vimtg.editor.keymap import ParsedAction
@@ -62,6 +78,7 @@ from vimtg.editor.operators import (
     move_to_zone,
     put_lines,
     resolve_line_range,
+    store_lines,
 )
 from vimtg.editor.placement import PlacementPolicy, reconcile_category_sections
 from vimtg.editor.plan_ops import (
@@ -71,7 +88,10 @@ from vimtg.editor.plan_ops import (
     plan_blocks,
     plan_label,
 )
-from vimtg.editor.registers import RegisterStore
+from vimtg.editor.registers import (
+    RegisterStore,
+    is_clipboard_register,
+)
 from vimtg.editor.sort_keys import SORT_FIELDS
 from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen
 from vimtg.editor.tag_ops import (
@@ -92,18 +112,6 @@ class InsertSubmode(Enum):
     LINE_EDIT = "line_edit"
     TAG_INPUT = "tag_input"
     COMMENT_INPUT = "comment_input"
-
-
-@dataclass(frozen=True)
-class PendingInsert:
-    """The transient blank line an o/O opened for card search.
-
-    `row` is where the blank sits; `origin` is the cursor row before
-    the open, so cancelling can put the cursor back exactly.
-    """
-
-    row: int
-    origin: int
 
 
 @dataclass
@@ -144,8 +152,20 @@ class EditorState:
     remapper: Any = None  # KeyRemapper, passed through to :map/:unmap
     # The sideboard plan zi/zo write into and the deck view annotates
     active_plan: str | None = None
-    # Pattern of the last / or :find, repeated by n / N
+    # Pattern of the last / ? * # or :find, repeated by n / N; n goes
+    # the way the search went (backward after ? and #), N the other way
     last_find: str = ""
+    last_find_backward: bool = False
+    # Direction of the search prompt being typed: ? is backward
+    search_backward: bool = False
+    # : and / history (Up/Down); the TUI loads the persisted one
+    cmd_history: CommandHistory = field(default_factory=CommandHistory)
+    # The c / o / O whose card search is open: confirming it records
+    # the change, with the card, for '.'
+    pending_change: RepeatableAction | None = None
+    # Text a "+ / "* yank or delete queued for the system clipboard; the
+    # handler returns it as HandlerResult.clipboard_text (the TUI copies)
+    clipboard_out: str | None = None
     # Inclusive (top, bottom) buffer rows the cursor can occupy without
     # scrolling the deck view — set by the TUI before H / M / L. None
     # means no view is known and the whole buffer counts as visible.
@@ -209,6 +229,12 @@ class HandlerResult:
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
     plan_changed: bool = False  # active plan or its entries changed
+    # zz / zt / zb: put the cursor line at the view's "center"/"top"/"bottom"
+    scroll_view: str = ""
+    # Replace the command-line text (history recall); None leaves it
+    command_replace: str | None = None
+    # :e — open this deck in place of the current one
+    edit_file: Path | None = None
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -235,52 +261,117 @@ def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
     return HandlerResult()
 
 
+def _take_selection(state: EditorState) -> tuple[int, int] | None:
+    """The visual selection as (start, end) rows, ending it; None when
+    there is no selection."""
+    if state.visual_anchor is None:
+        return None
+    last = max(0, state.buffer.line_count() - 1)
+    anchor = min(state.visual_anchor, last)
+    state.visual_anchor = None
+    row = min(state.cursor.row, last)
+    return min(anchor, row), max(anchor, row)
+
+
+def _mirror_clipboard(state: EditorState, register: str | None) -> None:
+    """A yank or delete into "+ / "* also goes to the system clipboard:
+    queue the text; _with_clipboard hands it to the TUI, which copies."""
+    if is_clipboard_register(register):
+        state.clipboard_out = "\n".join(state.registers.get("+").content) + "\n"
+
+
+def _with_clipboard(state: EditorState, hr: HandlerResult) -> HandlerResult:
+    """Attach queued "+ register text to `hr` for the TUI to copy."""
+    text = state.clipboard_out
+    if text is None:
+        return hr
+    state.clipboard_out = None
+    lines = text.count("\n")
+    return replace(
+        hr, clipboard_text=text,
+        clipboard_label=f"register + ({lines} line{'s' if lines != 1 else ''})",
+    )
+
+
 def handle_operator(state: EditorState, action: ParsedAction) -> HandlerResult:
     """Process operator actions (dd, yy, cc, dj, etc.).
 
     In visual mode, operates on the selected range (anchor → cursor).
     """
-    # Visual mode: override to line-range operation
-    if state.visual_anchor is not None:
-        start = min(state.visual_anchor, state.cursor.row)
-        end = max(state.visual_anchor, state.cursor.row)
-        count = end - start + 1
-        op = action.action[0] if len(action.action) > 1 else action.action
+    return _with_clipboard(state, _operator(state, action))
+
+
+def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
+    selection = _take_selection(state)
+    if selection is not None:
+        start, end = selection
+        lines = end - start + 1
+        op = action.action[0]
+        # Recorded as the doubled operator over the selection's size,
+        # so '.' after Vjd deletes two lines again
+        repeat = RepeatableAction(
+            "operator", operator=op + op, count=lines, register=action.register,
+        )
         result = execute_operator(
             op + op, None, state.cursor.move_to(start, 0),
-            state.buffer, count, state.registers, action.register,
+            state.buffer, lines, state.registers, action.register,
         )
         affected = (start, end)
-        state.visual_anchor = None
     else:
+        # G keeps a raw 0 ("no count": dG to the end, d8G to line 8)
+        count = action.count if action.motion == "G" else (action.count or 1)
         affected = resolve_line_range(
-            action.action, action.motion, state.cursor, state.buffer,
-            action.count or 1,
+            action.action, action.motion, state.cursor, state.buffer, count,
+        )
+        repeat = RepeatableAction(
+            "operator", operator=action.action,
+            motion=action.motion, count=count,
+            register=action.register,
         )
         result = execute_operator(
             action.action, action.motion, state.cursor, state.buffer,
-            action.count or 1, state.registers, action.register,
+            count, state.registers, action.register,
         )
+    changed = result.buffer is not state.buffer
+    stored = result.registers is not state.registers
     if result.buffer.line_count() < state.buffer.line_count():
         state.marks = state.marks.update_for_delete(*affected)
     state.buffer = result.buffer
     state.cursor = result.cursor
     state.registers = result.registers
-    state.modified = True
-    state.history.record(state.buffer, f"{action.action} operation")
-    state.dot_repeat.record(RepeatableAction(
-        "operator", operator=action.action,
-        motion=action.motion, count=action.count or 1,
-        register=action.register,
-    ))
+    if stored:
+        _mirror_clipboard(state, action.register)
+    if changed:
+        state.modified = True
+        state.history.record(state.buffer, f"{action.action} operation")
+    if repeat.operator and repeat.operator[0] != "y":
+        state.dot_repeat.record(repeat)
     if result.enter_insert:
-        # 'c' enters card search; its count means lines, not copies
+        # 'c' enters card search; its count means lines, not copies.
+        # Confirming a card upgrades the recorded change to include it.
         state.insert_quantity = 1
+        state.pending_change = repeat
         return HandlerResult(enter_insert=True)
     # Exit visual mode after operation
     if state.mode_mgr.current in (Mode.VISUAL, Mode.VISUAL_LINE):
         return HandlerResult(exit_to_normal=True)
     return HandlerResult()
+
+
+def _line_edit_prefix(line_text: str) -> str:
+    """The part of a line `i` keeps locked: the whole '// Key: ' prefix
+    of a metadata line, the '// ' marker of a comment, else nothing."""
+    meta = split_metadata_prefix(line_text)
+    if meta is not None:
+        return meta[0]
+    # Protect the // comment marker — user edits only the content after it
+    if line_text.lstrip().startswith("//"):
+        idx = line_text.index("//") + 2
+        # Include trailing space after // if present
+        if idx < len(line_text) and line_text[idx] == " ":
+            idx += 1
+        return line_text[:idx]
+    return ""
 
 
 def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -294,20 +385,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         state.insert_submode = InsertSubmode.LINE_EDIT
         state.line_edit_original = line_text
         state.line_edit_row = state.cursor.row
-        # On metadata lines, lock the whole '// Key: ' prefix so the
-        # user edits only the value
-        meta = split_metadata_prefix(line_text)
-        if meta is not None:
-            state.line_edit_prefix = meta[0]
-        # Protect the // comment marker — user edits only the content after it
-        elif line_text.lstrip().startswith("//"):
-            idx = line_text.index("//") + 2
-            # Include trailing space after // if present
-            if idx < len(line_text) and line_text[idx] == " ":
-                idx += 1
-            state.line_edit_prefix = line_text[:idx]
-        else:
-            state.line_edit_prefix = ""
+        state.line_edit_prefix = _line_edit_prefix(line_text)
         return HandlerResult(enter_line_edit=True)
     if key in ("o", "O"):
         # Visual o/O swaps the selection's ends, vim-style — it must
@@ -323,11 +401,17 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         # Vim-style count as copies: 4o opens a card search whose
         # confirmed card is added as '4 <name>'
         state.insert_quantity = max(1, action.count)
-        _apply_insert_variant(state, key)
+        open_insert_line(state, key)
+        state.pending_change = RepeatableAction(
+            "insert", operator=key, quantity=state.insert_quantity,
+        )
         return HandlerResult(enter_insert=True)
     if key == ":":
+        state.cmd_history.reset_browse()
         return HandlerResult(enter_command=True)
-    if key == "/":
+    if key in ("/", "?"):
+        state.search_backward = key == "?"
+        state.cmd_history.reset_browse()
         return HandlerResult(enter_search=True)
     if key in ("v", "V"):
         target = Mode.VISUAL if key == "v" else Mode.VISUAL_LINE
@@ -343,21 +427,51 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
     return HandlerResult()
 
 
+def _submit_search(state: EditorState, text: str) -> HandlerResult:
+    """/pattern or ?pattern <Enter>: jump to the next (previous) card
+    matching, wrapping around. An empty pattern reuses the last one."""
+    backward = state.search_backward
+    state.search_backward = False
+    pattern = text or state.last_find
+    prefix = "?" if backward else "/"
+    if not pattern:
+        return HandlerResult(
+            command_message="E35: No previous regular expression", error=True,
+        )
+    try:
+        row = find_card_row(state.buffer, state.cursor.row, pattern, backward=backward)
+    except re.error:
+        return HandlerResult(command_message=f"E: Invalid pattern: {pattern}", error=True)
+    state.last_find = pattern
+    state.last_find_backward = backward
+    if row is None:
+        return HandlerResult(command_message=f"Pattern not found: {pattern}")
+    state.cursor = state.cursor.move_to(row, 0)
+    return HandlerResult(command_message=prefix + pattern)
+
+
 def handle_command(
     state: EditorState,
     action: ParsedAction,
     registry: CommandRegistry,
     file_path: Path | None,
     save_fn: Callable[[Path, str], None] | None = None,
+    *,
+    record_history: bool = True,
 ) -> HandlerResult:
-    """Process ex command or search submission."""
+    """Process ex command or search submission.
+
+    Typed lines go into the : / search history; commands a key runs on
+    the user's behalf (ZZ is :wq) pass record_history=False.
+    """
+    if state.mode_mgr.current == Mode.SEARCH:
+        state.cmd_history.add(SEARCH, action.text or "")
+        return _submit_search(state, action.text or "")
     if not action.text:
         return HandlerResult()
-
-    # If in SEARCH mode, convert to :find command
+    if record_history:
+        state.cmd_history.add(COMMAND, action.text)
     raw_text = action.text
-    if state.mode_mgr.current == Mode.SEARCH:
-        raw_text = f"find {action.text}"
 
     try:
         cmd = parse_command(raw_text, state.cursor.row, state.buffer.line_count())
@@ -370,16 +484,31 @@ def handle_command(
             remapper=state.remapper,
             active_plan=state.active_plan,
             disk_stamp=state.disk_stamp,
+            registers=state.registers,
+            marks=state.marks,
+            last_pattern=state.last_find,
         )
         before = state.buffer
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
         if cmd.name in ("find", "f") and cmd.args and not ctx.error:
             state.last_find = cmd.args
+            state.last_find_backward = False
+        if ctx.registers is not None:
+            state.registers = ctx.registers
+        if ctx.marks is not None:
+            state.marks = ctx.marks
         # A handler that rewrote the buffer gets an undo step; the
         # modified flag itself syncs unconditionally (allows :w to clear it)
         if ctx.modified and state.buffer is not before:
             state.history.record(state.buffer, f":{action.text}")
+            if registry.resolve(cmd.name) == "s":
+                state.dot_repeat.record(RepeatableAction("ex", text=cmd.args))
         state.modified = ctx.modified
+        if ctx.undo_request:
+            step = state.history.undo if ctx.undo_request == "undo" else state.history.redo
+            restored = step()
+            if restored is not None:
+                restore_buffer(state, restored)
         if ctx.file_saved:
             state.clean_text = state.buffer.to_text()
         state.disk_stamp = ctx.disk_stamp
@@ -421,6 +550,7 @@ def handle_command(
             clipboard_label=ctx.clipboard_label,
             card_sync=ctx.card_sync,
             plan_changed=plan_changed,
+            edit_file=ctx.edit_path,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)
@@ -431,7 +561,13 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
 
     A count prefix repeats or scales the action vim-style: 10+ adds 10
     to the quantity, 2x deletes two cards, 3p pastes three copies.
+    With a visual selection, + - and the z zone keys act on every card
+    in it and end the selection.
     """
+    return _with_clipboard(state, _normal_special(state, action))
+
+
+def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     key = action.action
     count = action.count if action.count > 0 else 1
     if key in ("u", "ctrl_r"):
@@ -442,59 +578,24 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
                 break
             restore_buffer(state, restored)
     elif key in ("p", "P"):
-        before = state.buffer.line_count()
-        # First row the paste block occupies — after the loop the cursor
-        # sits on the LAST paste, which would leave marks below the
-        # original line stranded inside the block on counted puts.
-        first_insert_row = state.cursor.row + (0 if key == "P" else 1)
-        for _ in range(count):
-            prev_count = state.buffer.line_count()
-            state.buffer, state.cursor = put_lines(
-                state.buffer, state.cursor, state.registers, action.register,
-                above=(key == "P"),
-            )
-            # put_lines leaves the cursor on the FIRST pasted row; a
-            # counted put-below must continue after the pasted block, or
-            # the next iteration interleaves inside it (First,First,
-            # Second...). Put-above stacks correctly from the first row.
-            pasted = state.buffer.line_count() - prev_count
-            if key == "p" and pasted > 1:
-                state.cursor = state.cursor.move_to(
-                    state.cursor.row + pasted - 1, 0
-                )
-        inserted = state.buffer.line_count() - before
-        if inserted > 0:
-            state.marks = state.marks.update_for_insert(first_insert_row, inserted)
-            state.modified = True
-            state.history.record(
-                state.buffer, "put" if key == "p" else "put above"
-            )
-    elif key == "+":
-        state.buffer = increment_quantity(state.buffer, state.cursor, count)
-        state.modified = True
-        state.history.record(state.buffer, "increment")
-        state.dot_repeat.record(
-            RepeatableAction("quantity", operator="+", count=count)
-        )
-    elif key == "-":
-        state.buffer, state.cursor = decrement_quantity(
-            state.buffer, state.cursor, count,
-        )
-        state.modified = True
-        state.history.record(state.buffer, "decrement")
-        state.dot_repeat.record(
-            RepeatableAction("quantity", operator="-", count=count)
-        )
+        if _put(state, key, count, action.register):
+            state.dot_repeat.record(RepeatableAction(
+                "put", operator=key, count=count, register=action.register,
+            ))
+    elif key in ("+", "-"):
+        return _change_quantity(state, key, count)
     elif key == "x":
         for _ in range(count):
-            _delete_card_at_cursor(state)
+            _delete_card_at_cursor(state, action.register)
         state.dot_repeat.record(
-            RepeatableAction("operator", operator="x", count=count)
+            RepeatableAction("operator", operator="x", count=count, register=action.register)
         )
-    elif key == "?":
-        return HandlerResult(help_requested=True)
     elif key in ("n", "N"):
-        return _repeat_find(state, backward=(key == "N"), count=count)
+        return _repeat_find(
+            state, backward=state.last_find_backward != (key == "N"), count=count,
+        )
+    elif key in ("*", "#"):
+        return _search_card_under_cursor(state, backward=(key == "#"), count=count)
     elif key == ".":
         # A count given to '.' replaces the recorded one (vim semantics);
         # count=1 is indistinguishable from "no count", so only >1 overrides.
@@ -516,6 +617,9 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
                 command_message=f"Nothing recorded in @{key[1]}"
             )
         return HandlerResult(replay_keys=keys * count)
+    elif key in ("zz", "zt", "zb"):
+        position = {"zz": "center", "zt": "top", "zb": "bottom"}[key]
+        return HandlerResult(scroll_view=position)
     elif key in ("zs", "zm", "zd", "zc", "zp"):
         # Zone moves; action.count is read raw because 0 means "no count
         # given" — move every copy (see keymap).
@@ -547,6 +651,8 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         return _handle_category_action(state, key[1])
     elif key == "gh":
         return HandlerResult(open_history_screen=True)
+    elif key == "g?":
+        return HandlerResult(help_requested=True)
     elif key in ("ZZ", "ZQ"):
         # Vim's ZZ / ZQ are exactly :wq / :q!
         return HandlerResult(run_ex_command="wq" if key == "ZZ" else "q!")
@@ -555,6 +661,86 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
     elif key == "A":
         return _handle_comment_action(state)
     return HandlerResult()
+
+
+def _put(state: EditorState, key: str, count: int, register: str | None) -> bool:
+    """p / P count times from `register`; True when lines went in."""
+    before = state.buffer.line_count()
+    # First row the paste block occupies — after the loop the cursor
+    # sits on the LAST paste, which would leave marks below the
+    # original line stranded inside the block on counted puts.
+    first_insert_row = state.cursor.row + (0 if key == "P" else 1)
+    for _ in range(count):
+        prev_count = state.buffer.line_count()
+        state.buffer, state.cursor = put_lines(
+            state.buffer, state.cursor, state.registers, register,
+            above=(key == "P"),
+        )
+        # put_lines leaves the cursor on the FIRST pasted row; a
+        # counted put-below must continue after the pasted block, or
+        # the next iteration interleaves inside it (First,First,
+        # Second...). Put-above stacks correctly from the first row.
+        pasted = state.buffer.line_count() - prev_count
+        if key == "p" and pasted > 1:
+            state.cursor = state.cursor.move_to(
+                state.cursor.row + pasted - 1, 0
+            )
+    inserted = state.buffer.line_count() - before
+    if inserted <= 0:
+        return False
+    state.marks = state.marks.update_for_insert(first_insert_row, inserted)
+    state.modified = True
+    state.history.record(state.buffer, "put" if key == "p" else "put above")
+    return True
+
+
+def _change_quantity(state: EditorState, key: str, count: int) -> HandlerResult:
+    """+ / - on the cursor card, or on every card in a visual selection
+    (one undo step; a card reaching 0 is deleted)."""
+    selection = _take_selection(state)
+    start, end = selection if selection is not None else (state.cursor.row,) * 2
+    before = state.buffer
+    # Bottom-up, so a deleted line never shifts the rows still to do
+    for row in range(end, start - 1, -1):
+        cursor = state.cursor.move_to(row, 0)
+        if key == "+":
+            state.buffer = increment_quantity(state.buffer, cursor, count)
+            continue
+        old_count = state.buffer.line_count()
+        state.buffer, _ = decrement_quantity(state.buffer, cursor, count)
+        if state.buffer.line_count() < old_count:
+            state.marks = state.marks.update_for_delete(row, row)
+    last = max(0, state.buffer.line_count() - 1)
+    if selection is not None:
+        state.cursor = state.cursor.move_to(min(start, last), 0)
+    else:
+        state.cursor = state.cursor.clamp(last)
+    lines = end - start + 1 if selection is not None else 0
+    if state.buffer is not before:
+        state.modified = True
+        state.history.record(state.buffer, "increment" if key == "+" else "decrement")
+    state.dot_repeat.record(
+        RepeatableAction("quantity", operator=key, count=count, lines=lines)
+    )
+    return HandlerResult(exit_to_normal=selection is not None)
+
+
+def _search_card_under_cursor(
+    state: EditorState, *, backward: bool, count: int
+) -> HandlerResult:
+    """* / # — search forward / backward for the card under the cursor
+    (the whole name, so Shock never stops on Shock Troops); n / N repeat."""
+    name = state.buffer.card_name_at(state.cursor.row)
+    if not name:
+        return HandlerResult(command_message="E348: No card under cursor", error=True)
+    # Quantity (and any zone prefix), the exact name, then only the end
+    # of the line or its @category / #tags / // comment
+    state.last_find = (
+        rf"^\s*(?:(?:SB|MB|CMD|CMP):\s*)?\d+\s+{re.escape(name)}"
+        r"(?=\s*(?:$|[@#]|//))"
+    )
+    state.last_find_backward = backward
+    return _repeat_find(state, backward=backward, count=count)
 
 
 def restore_buffer(state: EditorState, buffer: Buffer) -> None:
@@ -640,6 +826,7 @@ def handle_comment_input_special(
         old = state.buffer.comment_at(row)
         state.insert_submode = InsertSubmode.CARD_SEARCH
         message = ""
+        state.dot_repeat.record(RepeatableAction("comment", text=text))
         if text != old:
             state.buffer = state.buffer.set_comment(row, text)
             state.modified = True
@@ -674,6 +861,9 @@ def _handle_category_action(state: EditorState, sub_key: str) -> HandlerResult:
             _refile_categories(state)
             state.modified = True
             state.history.record(state.buffer, "clear category")
+            state.dot_repeat.record(RepeatableAction(
+                "category", lines=end - start + 1 if end > start else 0,
+            ))
             return HandlerResult(
                 exit_to_normal=True,
                 command_message=f"Cleared category from {count} card(s)",
@@ -754,6 +944,7 @@ def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
             state.buffer = state.buffer.set_tags(state.cursor.row, frozenset())
             state.modified = True
             state.history.record(state.buffer, "clear tags")
+            state.dot_repeat.record(RepeatableAction("tag", operator="c"))
             return HandlerResult(command_message="Tags cleared")
         return HandlerResult(command_message="No tags to clear")
     if sub_key == "n":
@@ -841,6 +1032,13 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
         state.visual_anchor = None
     else:
         start = end = row
+    if action in ("a", "r", "t", "category"):
+        # '.' re-applies the same tag/category, over as many lines
+        state.dot_repeat.record(RepeatableAction(
+            "category" if action == "category" else "tag",
+            operator=action, text=text,
+            lines=end - start + 1 if end > start else 0,
+        ))
 
     if action == "a":
         state.buffer, count = add_tags_in_range(state.buffer, start, end, [tag])
@@ -920,38 +1118,104 @@ def _placement_policy(state: EditorState) -> PlacementPolicy:
     )
 
 
+def _zone_refusal(state: EditorState, target: LineType) -> tuple[str, bool]:
+    """(message, refuse) when the deck's format lacks the target zone:
+    a command zone outside commander formats is refused; a sideboard in
+    a format without one is allowed with a warning. ('', False) when
+    the format is unknown or has the zone."""
+    if target not in (LineType.COMMANDER_ENTRY, LineType.SIDEBOARD_ENTRY):
+        return "", False
+    deck = parse_deck_text(state.buffer.to_text())
+    fmt = (deck.metadata.format or state.settings.default_format).strip().lower()
+    rules = get_format_rules(fmt) if fmt else None
+    if rules is None:
+        return "", False
+    if target == LineType.COMMANDER_ENTRY and not rules.requires_commander:
+        return f"E: {fmt} has no command zone (set // Format: to a commander format)", True
+    if target == LineType.SIDEBOARD_ENTRY and not rules.allows_sideboard:
+        return f"{fmt} has no sideboard", False
+    return "", False
+
+
 def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResult:
-    """zs/zm/zd — move the card at the cursor to another zone.
+    """zs/zm/zd/zc/zp — move the card at the cursor (or every card in a
+    visual selection) to another zone.
 
     count == 0 moves every copy; a positive count splits that many off.
     With auto-sort on, a move into the mainboard lands where the
     placement policy says (its type section, its category's section,
-    or the uncategorized group) — never the bottom of the zone.
+    or the uncategorized group) — never the bottom of the zone. A move
+    into a zone the deck's format does not have is refused (command
+    zone) or warned about (sideboard).
     """
     target = ZONE_TARGETS[key]
-    result = move_to_zone(
-        state.buffer, state.cursor, target, count,
-        policy=_placement_policy(state),
-    )
-    if not result.moved:
+    selection = _take_selection(state)
+    warning, refuse = _zone_refusal(state, target)
+    if refuse:
         return HandlerResult(
-            command_message=result.message,
-            error=result.message.startswith("E:"),
+            command_message=warning, error=True, exit_to_normal=selection is not None,
         )
-    if result.deleted_row is not None:
-        state.marks = state.marks.update_for_delete(
-            result.deleted_row, result.deleted_row
+    if selection is None:
+        rows = [state.cursor.row]
+    else:
+        rows = [
+            r for r in range(selection[0], selection[1] + 1)
+            if state.buffer.is_card_line(r)
+        ]
+    moved = 0
+    first_message = ""
+    first_error = False
+    origin = state.cursor
+    for i, row in enumerate(rows):
+        state.cursor = state.cursor.move_to(row, 0)
+        result = move_to_zone(
+            state.buffer, state.cursor, target, count,
+            policy=_placement_policy(state),
         )
-    if result.inserted_row is not None:
-        state.marks = state.marks.update_for_insert(
-            result.inserted_row, result.inserted_count
+        if not first_message:
+            first_message, first_error = result.message, result.message.startswith("E:")
+        if not result.moved:
+            continue
+        moved += 1
+        if result.deleted_row is not None:
+            state.marks = state.marks.update_for_delete(
+                result.deleted_row, result.deleted_row
+            )
+        if result.inserted_row is not None:
+            state.marks = state.marks.update_for_insert(
+                result.inserted_row, result.inserted_count
+            )
+        state.buffer = result.buffer
+        state.cursor = result.cursor
+        # Later selected rows shift with the lines this move removed/added
+        for j in range(i + 1, len(rows)):
+            if result.deleted_row is not None and rows[j] > result.deleted_row:
+                rows[j] -= 1
+            if result.inserted_row is not None and rows[j] >= result.inserted_row:
+                rows[j] += result.inserted_count
+    if selection is not None:
+        last = max(0, state.buffer.line_count() - 1)
+        state.cursor = origin.move_to(min(selection[0], last), 0)
+    if moved == 0:
+        if selection is not None and not rows:
+            first_message = "No card lines selected"
+        return HandlerResult(
+            command_message=first_message, error=first_error,
+            exit_to_normal=selection is not None,
         )
-    state.buffer = result.buffer
-    state.cursor = result.cursor
     state.modified = True
     state.history.record(state.buffer, f"move to {ZONE_LABELS[target]}")
-    state.dot_repeat.record(RepeatableAction("zone", operator=key, count=count))
-    return HandlerResult(command_message=result.message)
+    lines = selection[1] - selection[0] + 1 if selection is not None else 0
+    state.dot_repeat.record(
+        RepeatableAction("zone", operator=key, count=count, lines=lines)
+    )
+    message = (
+        first_message if selection is None
+        else f"Moved {moved} card(s) to {ZONE_LABELS[target]}"
+    )
+    if warning:
+        message = f"{message} — warning: {warning}"
+    return HandlerResult(command_message=message, exit_to_normal=selection is not None)
 
 
 def _resolve_active_plan(state: EditorState) -> str | None:
@@ -968,44 +1232,74 @@ def _resolve_active_plan(state: EditorState) -> str | None:
 
 
 def _board_card(state: EditorState, key: str, count: int) -> HandlerResult:
-    """zi/zo — board the cursor card in/out of the active sideboard plan.
+    """zi/zo — board the cursor card (or every card in a visual
+    selection) in/out of the active sideboard plan.
 
     count == 0 boards every copy; a positive count boards that many.
     The plan block is edited in place (an undoable text edit); the
     cursor stays on the deck card so the next zi/zo is one key away.
     """
+    selection = _take_selection(state)
+    exit_visual = selection is not None
     plan = _resolve_active_plan(state)
     if plan is None:
         if plan_blocks(state.buffer):
             msg = "E: Several sideboard plans — :plan <matchup> or ]v to pick one"
         else:
             msg = "E: No sideboard plan — :plan <matchup> to start one"
-        return HandlerResult(command_message=msg, error=True)
-    result = board(
-        state.buffer, state.cursor.row, plan,
-        direction="in" if key == "zi" else "out", count=count,
-    )
-    if result.error or result.buffer is state.buffer:
-        return HandlerResult(command_message=result.message, error=result.error)
-    row = state.cursor.row
-    if result.inserted_row is not None:
-        state.marks = state.marks.update_for_insert(result.inserted_row, 1)
-        if result.inserted_row <= row:
-            row += 1
-    if result.deleted_row is not None:
-        state.marks = state.marks.update_for_delete(
-            result.deleted_row, result.deleted_row
+        return HandlerResult(command_message=msg, error=True, exit_to_normal=exit_visual)
+    if selection is None:
+        rows = [state.cursor.row]
+    else:
+        rows = [
+            r for r in range(selection[0], selection[1] + 1)
+            if state.buffer.is_card_line(r)
+        ]
+    cursor_row = state.cursor.row if selection is None else selection[0]
+    boarded = 0
+    message = ""
+    error = False
+    for i, row in enumerate(rows):
+        result = board(
+            state.buffer, row, plan,
+            direction="in" if key == "zi" else "out", count=count,
         )
-        if result.deleted_row < row:
-            row -= 1
-    state.buffer = result.buffer
-    state.cursor = state.cursor.move_to(row, 0)
+        if not message or (error and not result.error):
+            message, error = result.message, result.error
+        if result.error or result.buffer is state.buffer:
+            continue
+        boarded += 1
+        shifted = [cursor_row, *rows[i + 1:]]
+        if result.inserted_row is not None:
+            state.marks = state.marks.update_for_insert(result.inserted_row, 1)
+            shifted = [r + 1 if result.inserted_row <= r else r for r in shifted]
+        if result.deleted_row is not None:
+            state.marks = state.marks.update_for_delete(
+                result.deleted_row, result.deleted_row
+            )
+            shifted = [r - 1 if result.deleted_row < r else r for r in shifted]
+        cursor_row = shifted[0]
+        rows[i + 1:] = shifted[1:]
+        state.buffer = result.buffer
+    state.cursor = state.cursor.move_to(
+        max(0, min(cursor_row, state.buffer.line_count() - 1)), 0
+    )
+    if boarded == 0:
+        return HandlerResult(command_message=message, error=error, exit_to_normal=exit_visual)
     state.modified = True
     state.history.record(
         state.buffer, "board in" if key == "zi" else "board out"
     )
-    state.dot_repeat.record(RepeatableAction("board", operator=key, count=count))
-    return HandlerResult(command_message=result.message, plan_changed=True)
+    lines = selection[1] - selection[0] + 1 if selection is not None else 0
+    state.dot_repeat.record(
+        RepeatableAction("board", operator=key, count=count, lines=lines)
+    )
+    if selection is not None:
+        verb = "in" if key == "zi" else "out"
+        message = f"Boarded {boarded} card(s) {verb} — vs {plan}"
+    return HandlerResult(
+        command_message=message, plan_changed=True, exit_to_normal=exit_visual,
+    )
 
 
 def _jump_plan(state: EditorState, forward: bool) -> HandlerResult:
@@ -1025,46 +1319,149 @@ def _jump_plan(state: EditorState, forward: bool) -> HandlerResult:
 
 
 def _replay_dot(state: EditorState, count_override: int | None = None) -> None:
-    """Replay the last repeatable action, optionally with a new count."""
+    """Replay the last repeatable change, optionally with a new count.
+
+    A change made on a visual selection replays on as many lines from
+    the cursor; the replayed change is recorded again, so a count given
+    to '.' sticks, as in vim.
+    """
     last = state.dot_repeat.last_action
     if last is None:
         return
     count = count_override if count_override is not None else last.count
-    if last.action_type == "zone" and last.operator:
-        _move_card_to_zone(state, last.operator, count)
-        return
-    if last.action_type == "board" and last.operator:
-        _board_card(state, last.operator, count)
-        return
-    if last.action_type == "operator" and last.operator:
-        if last.operator == "x":
-            for _ in range(count):
-                _delete_card_at_cursor(state)
+    if last.lines > 0:
+        last_row = max(0, state.buffer.line_count() - 1)
+        state.visual_anchor = min(state.cursor.row + last.lines - 1, last_row)
+    try:
+        _replay(state, last, count, count_override)
+    finally:
+        state.visual_anchor = None
+        state.pending_change = None
+
+
+def _replay(
+    state: EditorState, last: RepeatableAction, count: int, count_override: int | None
+) -> None:
+    op = last.operator or ""
+    kind = last.action_type
+    if kind == "zone":
+        _move_card_to_zone(state, op, count)
+    elif kind == "board":
+        _board_card(state, op, count)
+    elif kind == "quantity":
+        _change_quantity(state, op, count)
+    elif kind == "put":
+        if _put(state, op, count, last.register):
+            state.dot_repeat.record(replace(last, count=count))
+    elif kind == "operator" and op == "x":
+        for _ in range(count):
+            _delete_card_at_cursor(state, last.register)
+        state.dot_repeat.record(replace(last, count=count))
+    elif kind == "operator":
+        _replay_operator(state, last, count)
+    elif kind == "insert":
+        quantity = count_override if count_override is not None else last.quantity
+        open_insert_line(state, op)
+        if last.card_name:
+            insert_card(state, last.card_name, last.card, quantity)
         else:
-            affected = resolve_line_range(
-                last.operator, last.motion, state.cursor, state.buffer, count,
-            )
-            result = execute_operator(
-                last.operator, last.motion, state.cursor, state.buffer,
-                count, state.registers, last.register,
-            )
-            # Deletes must shift marks exactly like the live operator did
-            if result.buffer.line_count() < state.buffer.line_count():
-                state.marks = state.marks.update_for_delete(*affected)
-            state.buffer = result.buffer
-            state.cursor = result.cursor
-            state.registers = result.registers
-            state.modified = True
-            state.history.record(state.buffer, "dot repeat")
-    elif last.action_type == "quantity":
-        if last.operator == "+":
-            state.buffer = increment_quantity(state.buffer, state.cursor, count)
-        elif last.operator == "-":
-            state.buffer, state.cursor = decrement_quantity(
-                state.buffer, state.cursor, count,
-            )
+            discard_pending_insert(state)
+        state.dot_repeat.record(replace(last, quantity=quantity))
+    elif kind == "tag" and op == "c":
+        _handle_tag_action(state, "c")
+    elif kind in ("tag", "category") and last.text is not None:
+        state.tag_input_action = op or "category"
+        _apply_tag_input(state, last.text)
+        state.tag_input_action = ""
+    elif kind == "category":
+        _handle_category_action(state, "C")
+    elif kind == "comment":
+        _replay_comment(state, last.text or "")
+    elif kind == "line_edit":
+        _replay_line_edit(state, last.text or "")
+    elif kind == "ex":
+        _replay_substitute(state, last.text or "")
+
+
+def _replay_operator(state: EditorState, last: RepeatableAction, count: int) -> None:
+    """'.' after d/c + motion (and c with the card it inserted)."""
+    op = last.operator or ""
+    affected = resolve_line_range(op, last.motion, state.cursor, state.buffer, count)
+    result = execute_operator(
+        op, last.motion, state.cursor, state.buffer,
+        count, state.registers, last.register,
+    )
+    # Deletes must shift marks exactly like the live operator did
+    if result.buffer.line_count() < state.buffer.line_count():
+        state.marks = state.marks.update_for_delete(*affected)
+    if result.registers is not state.registers:
+        state.registers = result.registers
+        _mirror_clipboard(state, last.register)
+    if result.buffer is not state.buffer:
+        state.buffer = result.buffer
+        state.cursor = result.cursor
         state.modified = True
         state.history.record(state.buffer, "dot repeat")
+    if result.enter_insert and last.card_name:
+        state.pending_insert = None
+        insert_card(state, last.card_name, last.card, last.quantity)
+    state.dot_repeat.record(replace(last, count=count))
+
+
+def _replay_comment(state: EditorState, text: str) -> None:
+    row = state.cursor.row
+    state.dot_repeat.record(RepeatableAction("comment", text=text))
+    if not state.buffer.is_card_line(row) or state.buffer.comment_at(row) == text:
+        return
+    state.buffer = state.buffer.set_comment(row, text)
+    state.modified = True
+    state.history.record(state.buffer, "edit comment")
+
+
+def _replay_line_edit(state: EditorState, text: str) -> None:
+    """'.' after i: give this line the same value, keeping its own
+    locked prefix (metadata key or // marker)."""
+    row = state.cursor.row
+    state.dot_repeat.record(RepeatableAction("line_edit", text=text))
+    line = state.buffer.get_line(row).text
+    new = (_line_edit_prefix(line) + text).rstrip()
+    if new == line:
+        return
+    state.buffer = state.buffer.set_line(row, new)
+    state.modified = True
+    state.history.record(state.buffer, "edit line")
+
+
+def _replay_substitute(state: EditorState, args: str) -> None:
+    """'.' after :s — the same substitute on the cursor line (vim's &&)."""
+    from vimtg.editor.command_handlers.substitute import cmd_substitute
+
+    ctx = EditorContext(last_pattern=state.last_find)
+    cmd = ParsedCommand(name="s", args=args)
+    new_buf, _ = cmd_substitute(state.buffer, state.cursor, cmd, ctx)
+    state.dot_repeat.record(RepeatableAction("ex", text=args))
+    if new_buf is state.buffer or ctx.error:
+        return
+    state.buffer = new_buf
+    state.modified = True
+    state.history.record(state.buffer, "dot repeat :s")
+
+
+def confirm_card_search(state: EditorState, card: Card) -> str:
+    """Write the card chosen in the o/O/c search and return the status
+    message. Records the change — with the card and its copies — for
+    '.', so 'o eidolon<CR> j .' adds Eidolon again and 'cc fire<CR> .'
+    changes the next line to it too."""
+    copies = state.insert_quantity
+    state.insert_quantity = 1
+    message = insert_card(state, card.name, card, copies)
+    pending = state.pending_change
+    state.pending_change = None
+    if pending is not None:
+        state.dot_repeat.record(
+            replace(pending, card_name=card.name, card=card, quantity=copies)
+        )
+    return message
 
 
 def handle_insert_special(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -1149,6 +1546,7 @@ def handle_line_edit_special(state: EditorState, action: ParsedAction) -> Handle
                     state.buffer = state.buffer.set_line(row, committed.rstrip())
             state.history.record(state.buffer, "edit line")
             state.modified = True
+            state.dot_repeat.record(RepeatableAction("line_edit", text=text))
         state.line_edit_original = None
         state.line_edit_row = None
         state.insert_submode = InsertSubmode.CARD_SEARCH
@@ -1180,6 +1578,20 @@ def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerR
     key = action.action
     text = action.text or ""
     completer = state.cmd_completer
+
+    if key in ("up", "down"):
+        kind = SEARCH if state.mode_mgr.current == Mode.SEARCH else COMMAND
+        if key == "up":
+            recalled = state.cmd_history.older(kind, text)
+        else:
+            recalled = state.cmd_history.newer(kind)
+        if recalled is None:
+            return HandlerResult()
+        return HandlerResult(command_replace=recalled, command_ghost="")
+
+    if key in ("char", "backspace", "delete"):
+        # Editing ends a history browse: the next Up matches the new text
+        state.cmd_history.reset_browse()
 
     if completer is None:
         return HandlerResult()
@@ -1238,77 +1650,14 @@ def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
         return {}
 
 
-def _apply_insert_variant(state: EditorState, variant: str) -> None:
-    """Apply buffer changes for insert mode variants (o, O).
-
-    On a metadata line ('// Deck:', '// Format:', ...) both o and O
-    open the line below the whole block instead — a card line must
-    never split the metadata header.
-    """
-    # Defensive: a cursor trailing a shrunken buffer opens at its end
-    row = max(0, min(state.cursor.row, state.buffer.line_count() - 1))
-    origin = row
-    if state.buffer.get_line(row).line_type == LineType.METADATA:
-        while (
-            row < state.buffer.line_count()
-            and state.buffer.get_line(row).line_type == LineType.METADATA
-        ):
-            row += 1
-        state.buffer = state.buffer.insert_line(row, "")
-        state.cursor = state.cursor.move_to(row, 0)
-        state.pending_insert = PendingInsert(row=row, origin=origin)
-        return
-    if variant == "o":
-        state.buffer = state.buffer.insert_line(row + 1, "")
-        state.cursor = state.cursor.move_to(row + 1, 0)
-        state.pending_insert = PendingInsert(row=row + 1, origin=origin)
-    elif variant == "O":
-        state.buffer = state.buffer.insert_line(row, "")
-        state.pending_insert = PendingInsert(row=row, origin=origin)
-
-
-def discard_pending_insert(state: EditorState) -> None:
-    """Cancel path: remove the scratch blank an o/O opened, if it is
-    still there and still blank, and put the cursor back on the line
-    it was opened from. No-op when nothing is pending."""
-    pend = state.pending_insert
-    state.pending_insert = None
-    if pend is None or pend.row >= state.buffer.line_count():
-        return
-    if state.buffer.get_line(pend.row).text.strip():
-        return  # gained content some other way — never delete it
-    state.buffer, _ = state.buffer.delete_lines(pend.row, pend.row)
-    last = state.buffer.line_count() - 1
-    state.cursor = state.cursor.move_to(max(0, min(pend.origin, last)), 0)
-
-
-def take_insert_position(state: EditorState) -> tuple[int, bool]:
-    """Confirm path: remove the scratch blank and return where the
-    insert was opened, as (row, scratch_removed).
-
-    With no pending scratch (cc deleted its line outright) the cursor
-    row is the place the confirmed card belongs — returned with
-    scratch_removed False so callers skip row adjustments.
-    """
-    pend = state.pending_insert
-    state.pending_insert = None
-    if (
-        pend is not None
-        and pend.row < state.buffer.line_count()
-        and not state.buffer.get_line(pend.row).text.strip()
-    ):
-        state.buffer, _ = state.buffer.delete_lines(pend.row, pend.row)
-        return pend.row, True
-    return state.cursor.row, False
-
-
-def _delete_card_at_cursor(state: EditorState) -> None:
+def _delete_card_at_cursor(state: EditorState, register: str | None = None) -> None:
     """Delete the card line at cursor, storing in register."""
     if not state.buffer.is_card_line(state.cursor.row):
         return
     new_buf, deleted = state.buffer.delete_lines(state.cursor.row, state.cursor.row)
     state.marks = state.marks.update_for_delete(state.cursor.row, state.cursor.row)
-    state.registers = state.registers.set_unnamed(deleted, is_delete=True)
+    state.registers = store_lines(state.registers, register, deleted, is_delete=True)
+    _mirror_clipboard(state, register)
     state.buffer = new_buf
     state.cursor = state.cursor.clamp(max(0, state.buffer.line_count() - 1))
     state.modified = True

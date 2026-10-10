@@ -168,6 +168,27 @@ class DeckView(Static):
         bottom = end - 1 if end >= total else end - 1 - margin
         return top, max(top, bottom)
 
+    def scroll_cursor_to(self, position: str) -> None:
+        """zz / zt / zb: scroll so the cursor line sits at the "center",
+        "top", or "bottom" of the view (scrolloff kept, as in vim). The
+        cursor does not move; content that fits never scrolls."""
+        if self.buffer is None:
+            return
+        total = self.buffer.line_count()
+        viewport = self.size.height
+        if viewport <= 0 or total <= viewport:
+            return
+        row = min(self.cursor.row, total - 1)
+        if position == "top":
+            offset = row - _SCROLLOFF
+        elif position == "bottom":
+            offset = row - viewport + 1 + _SCROLLOFF
+        else:
+            offset = row - viewport // 2
+        max_offset = total + _BOTTOM_PAD - viewport
+        self._scroll_offset = max(0, min(offset, max_offset))
+        self.refresh()
+
     # ── Mouse wheel ──────────────────────────────────────────────
 
     def wheel(self, delta: int) -> None:

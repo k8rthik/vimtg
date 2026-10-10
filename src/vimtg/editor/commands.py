@@ -151,6 +151,16 @@ def resolve_command_range(cmd: ParsedCommand) -> tuple[int, int] | None:
     return (min(rng.start, end), max(rng.start, end))
 
 
+def _goto_range(cmd: ParsedCommand, buffer: Buffer, cursor: Cursor) -> Cursor:
+    """:12, :$, :. — a bare range moves to its last line, as in vim."""
+    rng = cmd.cmd_range
+    assert rng is not None
+    row = rng.end if rng.end is not None else rng.start
+    if row is None:
+        return cursor
+    return cursor.move_to(max(0, min(row, buffer.line_count() - 1)), 0)
+
+
 @dataclass
 class EditorContext:
     """Mutable context passed to command handlers for side effects."""
@@ -203,6 +213,16 @@ class EditorContext:
     # marks that the handler changed it (to a name, or None to clear)
     active_plan: str | None = None
     active_plan_set: bool = False
+    # Editor registers and marks (RegisterStore / MarkStore): seeded from
+    # the session; a handler replaces them to change them
+    registers: Any = None
+    marks: Any = None
+    # The last / ? * # pattern — :s// and :g// reuse it
+    last_pattern: str = ""
+    # :undo / :redo — the session steps its history once ("undo"/"redo")
+    undo_request: str = ""
+    # :e — the deck to open in place of this one
+    edit_path: Path | None = None
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""
@@ -249,6 +269,8 @@ class CommandRegistry:
         ctx: EditorContext,
     ) -> tuple[Buffer, Cursor]:
         """Look up and execute a command. Sets ctx.message on unknown command."""
+        if not cmd.name and cmd.cmd_range is not None:
+            return buffer, _goto_range(cmd, buffer, cursor)
         resolved = self._aliases.get(cmd.name, cmd.name)
         handler = self._commands.get(resolved)
         if handler is None:

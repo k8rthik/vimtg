@@ -7,15 +7,15 @@ handled without being documented, or documented without being handled.
 
 Prefix namespaces (normal mode), each with one meaning:
 
-    g   go / global      gg gc gC gl gh
+    g   go / global      gg gc gC gl gh g?
     t   tags             ta tr tt tf tl tc tn tp
     S   splits & panes   Sv Sh Ss Sc Sr Sa Sd
-    z   zones            zs zm zd zc zp  zi zo
+    z   zones & scroll   zs zm zd zc zp  zi zo  zz zt zb
     m   marks (set)      m{a-z}
     '   marks (jump)     '{a-z}
     q   macros (record)  q{a-z}, q stops
     @   macros (play)    @{a-z} @@
-    "   registers        "{a-z} "{A-Z} "0 "1-9
+    "   registers        "{a-z} "{A-Z} "0 "1-9 "_ "+ "*
     [ ] jumps            [[ ]] [v ]v
     Z   quit             ZZ ZQ
 """
@@ -86,6 +86,7 @@ ZONES = "ZONES"
 MARKS_MACROS = "MARKS, MACROS & REGISTERS"
 VISUAL = "VISUAL MODE"
 CATEGORIES = "CATEGORIES"
+CMDLINE = "COMMAND LINE"
 SPLITS = "SPLITS, EDHREC & ANALYTICS"
 TAGS = "TAGS"
 VCS = "VERSION CONTROL"
@@ -106,17 +107,20 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
             "a signed plan line"),
     _b(("v", "V"), "Visual / visual-line selection", MODES, quick="Commands", brief="visual mode"),
     _b(":", "Ex command line", MODES, quick="Commands", brief="command mode"),
-    _b("/", "Find a card (`:find` shorthand)", MODES, quick="Commands", brief="search"),
+    _b(("/", "?"), "Search forward / backward for a card (regex)", MODES,
+       label="/ ?", quick="Commands", brief="search",
+       note="An empty pattern repeats the last one; Up/Down recall earlier searches"),
     _b("escape", "Back to normal mode; cancels a pending sequence", MODES, label="Esc"),
-    _b("?", "Toggle the quick-reference panel", MODES),
-    _b("f1", "Full-screen help", MODES, label="F1"),
+    _b("f1", "Full-screen help (also :help)", MODES, label="F1", quick="Commands",
+       brief="help"),
+    _b("g?", "Toggle the quick-reference panel", MODES, shorts=("quick reference",)),
     _b(("ZZ", "ZQ"), "Save and quit (:wq) / quit discarding changes (:q!)", MODES,
        shorts=("save and quit", "quit without saving")),
     # ── Navigation ────────────────────────────────────────
     _b(("j", "k"), "Move down / up (blank lines skipped)", NAVIGATION, quick="Navigation",
        brief="down/up"),
-    _b(("gg", "G"), "First / last line; {n}G goes to line n", NAVIGATION, quick="Navigation",
-       shorts=("go to top", "go to bottom"), brief="top/bottom"),
+    _b(("gg", "G"), "First / last line; {n}G or {n}gg goes to line n", NAVIGATION,
+       quick="Navigation", shorts=("go to top", "go to bottom"), brief="top/bottom"),
     _b(("w", "b"), "Next / previous card entry", NAVIGATION, quick="Navigation",
        brief="next/prev card"),
     _b(("{", "}"), "Prev/next section", NAVIGATION, quick="Navigation", brief="prev/next section"),
@@ -128,24 +132,34 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        quick="Navigation", brief="half page"),
     _b(("H", "M", "L"), "Top / middle / bottom of the visible deck view", NAVIGATION,
        note="A count offsets H and L: 3H is the third visible line"),
-    _b(("n", "N"), "Repeat the last / or :find forward / backward", NAVIGATION,
+    _b(("n", "N"), "Repeat the last search in the same / opposite direction", NAVIGATION,
        quick="Navigation", brief="next/prev match"),
+    _b(("*", "#"), "Search forward / backward for the card under the cursor", NAVIGATION,
+       note="The whole name: * on Shock never stops on Shock Troops"),
+    _b(("zz", "zt", "zb"), "Scroll the cursor line to the center / top / bottom", NAVIGATION,
+       shorts=("scroll: center", "scroll: top", "scroll: bottom")),
     # ── Editing ───────────────────────────────────────────
     _b("dd", "Delete the card line", EDITING, quick="Editing", brief="delete card"),
     _b("yy", "Yank (copy) the card line", EDITING, quick="Editing", brief="yank card"),
     _b("cc", "Change the line (delete, then card search)", EDITING),
     _b(("d", "y", "c"), "Operators: compose with a motion (dw, d}, y5G)", EDITING,
-       completes=False),
+       completes=False,
+       note="w b { } [[ ]] are exclusive: dw deletes this card, d} stops at "
+            "the end of the section. j k G gg take whole lines"),
     _b("x", "Delete the card under the cursor (into the register)", EDITING),
     _b(("p", "P"), "Paste below / above", EDITING, quick="Editing", brief="paste below/above"),
     _b(("+", "-"), "Increment / decrement quantity (- at 0 deletes)", EDITING,
        quick="Editing", brief="inc/dec quantity"),
-    _b(".", "Repeat the last change", EDITING, quick="Editing", brief="repeat last"),
+    _b(".", "Repeat the last change", EDITING, quick="Editing", brief="repeat last",
+       note="Every edit repeats: operators (c with the card it added), o/O with "
+            "their card, p, +/-, x, zone and plan moves, tags, categories, "
+            "comments, i, and :s; a visual change repeats on as many lines"),
     _b(("u", "ctrl_r"), "Undo / redo", EDITING, label="u / Ctrl-R", quick="Commands",
        brief="undo/redo"),
     # ── Zones (z prefix) ──────────────────────────────────
     _b("zs", "Move the card to the sideboard", ZONES, shorts=("→ sideboard",),
-       note="All copies; 2zs splits off two. Zone moves keep category, tags, and comment"),
+       note="All copies; 2zs splits off two. Zone moves keep category, tags, and "
+            "comment. zc is refused outside commander formats"),
     _b("zm", "Move the card to the maybeboard", ZONES, shorts=("→ maybeboard",)),
     _b("zd", "Move the card to the main deck", ZONES, shorts=("→ main deck",)),
     _b("zc", "Move the card to the command zone (CMD:)", ZONES, shorts=("→ commander",)),
@@ -163,8 +177,19 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b(f'"{MARK}', "Use a named register for the next yank, delete, or put", MARKS_MACROS,
        completes=False, note='"A-Z appends, "0 is the yank register, "1-9 the delete history',
        shorts=("named register",)),
+    _b('"_', "Black hole register: delete without touching any register", MARKS_MACROS,
+       completes=False, shorts=("black hole",)),
+    _b(('"+', '"*'), "Clipboard register: yanks and deletes also copy to the system clipboard",
+       MARKS_MACROS, completes=False, shorts=("clipboard", "clipboard"),
+       note='Copies via OSC52; "+p puts what was last yanked to it in this session'),
     # ── Visual mode ───────────────────────────────────────
     _b(("d", "y", "c"), "Delete / yank / change the selection", VISUAL, mode="visual"),
+    _b("x", "Delete the selection (same as d)", VISUAL, mode="visual"),
+    _b(("+", "-"), "Increment / decrement every card in the selection", VISUAL, mode="visual"),
+    _b(("zs", "zm", "zd", "zc", "zp"), "Move every selected card to a zone", VISUAL,
+       mode="visual"),
+    _b(("zi", "zo"), "Board every selected card in / out of the active plan", VISUAL,
+       mode="visual"),
     _b("o", "Jump to the other end of the selection", VISUAL, mode="visual"),
     _b("escape", "Exit visual mode", VISUAL, mode="visual", label="Esc"),
     # ── Categories ────────────────────────────────────────
@@ -193,19 +218,33 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        shorts=("next tagged", "prev tagged")),
     # ── Version control ───────────────────────────────────
     _b("gh", "Toggle the history overlay (lazygit-style)", VCS, shorts=("history overlay",)),
+    # ── Command line (: and / ? prompts) ─────────────────
+    _b(("up", "down"), "Recall older / newer history entries", CMDLINE, mode="cmdline",
+       label="Up / Down",
+       note="Matches what was typed before the first Up. Kept per prompt "
+            "kind and saved in ~/.local/state/vimtg"),
+    _b(("left", "right"), "Move the cursor", CMDLINE, mode="cmdline", label="Left / Right"),
+    _b(("ctrl_b", "ctrl_e"), "Start / end of the line", CMDLINE, mode="cmdline",
+       label="Ctrl-B / Ctrl-E"),
+    _b("ctrl_w", "Delete the word before the cursor", CMDLINE, mode="cmdline",
+       label="Ctrl-W"),
+    _b("ctrl_u", "Delete everything before the cursor", CMDLINE, mode="cmdline",
+       label="Ctrl-U"),
+    _b("backspace", "Delete a character; on an empty line, leave the prompt", CMDLINE,
+       mode="cmdline", label="Backspace"),
 )
 
 # Prefix → which-key menu title; every prefix the keymap pends on.
 PREFIX_TITLES: dict[str, str] = {
-    "g": "go", "t": "tags", "S": "splits", "z": "zones", "m": "marks",
+    "g": "go", "t": "tags", "S": "splits", "z": "zones & scroll", "m": "marks",
     "'": "marks", "q": "macros", "@": "macros", '"': "registers",
     "[": "jump back", "]": "jump forward", "Z": "quit",
 }
 
 # Motions that may follow an operator, for the d / y / c which-key menus.
 OPERATOR_MENU: tuple[tuple[str, str], ...] = (
-    ("{op}{op}", "this line"), ("{op}w", "next card"),
-    ("{op}}", "to next section"), ("{op}G", "to end"),
+    ("{op}{op}", "this line"), ("{op}w", "this card"),
+    ("{op}}", "to end of section"), ("{op}G", "to end ({n}G: to line n)"),
 )
 
 
@@ -253,7 +292,8 @@ def quick_hints() -> dict[str, list[tuple[str, str]]]:
 
 
 def overview_groups() -> list[tuple[str, list[KeyBinding]]]:
-    """Help-overview sections in declaration order (normal + visual)."""
+    """Help-overview sections in declaration order (normal, visual,
+    and command line)."""
     groups: dict[str, list[KeyBinding]] = {}
     for b in EDITOR_BINDINGS:
         groups.setdefault(b.group, []).append(b)

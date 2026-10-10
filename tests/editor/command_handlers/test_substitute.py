@@ -226,4 +226,6 @@ class TestLiteralReplacement:
         ctx = EditorContext()
 
         new_buf, _ = cmd_substitute(buffer, cursor, _make_cmd(args=r"/Bolt/\1/"), ctx)
-        assert new_buf.get_line(0).text == r"4 Lightning \1"
+        # \1 is vim's group 1; the pattern has none, so it expands to ''
+        assert new_buf.get_line(0).text == "4 Lightning "
+        assert not ctx.error

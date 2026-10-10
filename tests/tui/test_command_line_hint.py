@@ -91,7 +91,7 @@ def test_empty_hint_falls_back_to_generic() -> None:
     cl = CommandLine()
     cl.hint = ""
     rendered = cl.render()
-    assert "Press ? for help" in rendered.plain
+    assert "Press F1 for help" in rendered.plain
 
 
 def test_hide_does_not_clear_hint() -> None:
