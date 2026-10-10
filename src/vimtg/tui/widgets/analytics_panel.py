@@ -16,11 +16,14 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from vimtg.domain.analytics import (
+    BracketEstimate,
     DeckStats,
     ManaBaseCheck,
     category_counts,
     compute_mana_base,
     compute_stats,
+    estimate_bracket,
+    is_commander_deck,
     zone_counts,
 )
 from vimtg.domain.card import Card, Color
@@ -64,6 +67,8 @@ class AnalyticsData:
     categories: tuple[tuple[str, int], ...]  # only when the deck uses any
     mana_base: ManaBaseCheck
     deck_size: int  # mainboard cards, the draw-odds population
+    # Commander decks only: Game Changers and the bracket they imply
+    bracket: BracketEstimate | None = None
 
 
 def build_analytics_data(
@@ -89,6 +94,11 @@ def build_analytics_data(
         categories=categories,
         mana_base=compute_mana_base(deck, resolved_cards),
         deck_size=stats.mainboard_count,
+        bracket=(
+            estimate_bracket(deck, resolved_cards)
+            if is_commander_deck(deck)
+            else None
+        ),
     )
 
 
@@ -194,6 +204,7 @@ class AnalyticsPanel(Static):
         self._zone_lines(lines, data)
         self._category_lines(lines, data)
         self._mana_base_lines(lines, data)
+        self._bracket_lines(lines, data)
         self._draw_lines(lines, data)
         return lines
 
@@ -244,6 +255,11 @@ class AnalyticsPanel(Static):
     def _mana_base_lines(self, lines: list[Text], data: AnalyticsData) -> None:
         check = data.mana_base
         self._heading(lines, f"MANA BASE ({check.total_lands} lands)")
+        rec = data.stats.recommended_lands
+        if rec is not None:
+            lines.append(
+                Text(f"  suggested ~{rec} lands (Karsten estimate)", style="dim")
+            )
         if not check.requirements:
             lines.append(Text("  (no colored pips resolved)", style="dim"))
             return
@@ -260,6 +276,18 @@ class AnalyticsPanel(Static):
                     style=f"bold {COLORS['error']}",
                 )
             lines.append(row)
+
+    def _bracket_lines(self, lines: list[Text], data: AnalyticsData) -> None:
+        bracket = data.bracket
+        if bracket is None:
+            return
+        self._heading(lines, "COMMANDER BRACKET")
+        lines.append(Text(f"  Game Changers {bracket.count}"))
+        for name in bracket.game_changers:
+            lines.append(Text(f"    {name}", style="dim"))
+        row = Text(f"  estimated bracket {bracket.label}")
+        row.append("  (heuristic: Game Changers only)", style="dim")
+        lines.append(row)
 
     def _draw_lines(self, lines: list[Text], data: AnalyticsData) -> None:
         self._heading(lines, "DRAWS")

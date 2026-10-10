@@ -12,6 +12,7 @@ from vimtg.editor.commands import (
     EditorContext,
     ParsedCommand,
 )
+from vimtg.editor.config_options import currency_symbol_for
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.lint import effective_format
 
@@ -26,7 +27,8 @@ def cmd_stats(
     resolved = ctx.resolved_cards or {}
     if resolved:
         deck = parse_deck_text(buffer.to_text())
-        stats = compute_stats(deck, resolved)
+        price_source = getattr(ctx.settings, "price_source", "usd") or "usd"
+        stats = compute_stats(deck, resolved, price_source)
         parts = [f"{stats.total_cards} cards"]
         parts.append(f"Avg CMC {stats.average_cmc:.2f}")
         type_parts = []
@@ -37,7 +39,10 @@ def cmd_stats(
         if type_parts:
             parts.append(", ".join(type_parts))
         if stats.total_price_usd is not None:
-            parts.append(f"${stats.total_price_usd:.2f}")
+            symbol = currency_symbol_for(price_source)
+            parts.append(
+                f"{symbol}{stats.total_price_usd:.2f} ({price_source})"
+            )
         ctx.message = " | ".join(parts)
     else:
         lines = buffer.get_lines()

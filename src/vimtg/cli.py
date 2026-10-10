@@ -6,7 +6,7 @@ import errno
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
 import httpx
@@ -21,6 +21,10 @@ from vimtg.data.scryfall_sync import ScryfallSync, describe_sync_error
 from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService
 from vimtg.services.search_service import SearchService
+
+if TYPE_CHECKING:
+    from vimtg.domain.card import Card
+    from vimtg.domain.deck import Deck
 
 
 def _make_service() -> DeckService:
@@ -222,8 +226,11 @@ def validate(path: str, strict: bool) -> None:
             "(no card database — legality checks skipped; run 'vimtg sync')"
         )
 
+    bracket_note = _bracket_note(deck, fmt, resolved)
     if not errors:
         click.echo(f"{file_path.name}: ok" + (f" ({fmt})" if fmt else ""))
+        if bracket_note:
+            click.echo(f"{file_path.name}: info: {bracket_note}")
         return
 
     has_errors = False
@@ -232,9 +239,32 @@ def validate(path: str, strict: bool) -> None:
         click.echo(f"{file_path.name}:{line_part} {err.level}: {err.message}")
         if err.level == "error" or strict:
             has_errors = True
+    # Informational only: never an error, and --strict ignores it.
+    if bracket_note:
+        click.echo(f"{file_path.name}: info: {bracket_note}")
 
     if has_errors:
         sys.exit(1)
+
+
+def _bracket_note(
+    deck: Deck, fmt: str, resolved: dict[str, Card] | None
+) -> str:
+    """Commander-bracket estimate for `validate`, or '' when it does not
+    apply (not Commander, or no card database to read Game Changers)."""
+    from vimtg.domain.analytics import estimate_bracket, is_commander_deck
+
+    if resolved is None:
+        return ""
+    applies = fmt.strip().lower() == "commander" if fmt else is_commander_deck(deck)
+    if not applies:
+        return ""
+    est = estimate_bracket(deck, resolved)
+    names = f" ({', '.join(est.game_changers)})" if est.game_changers else ""
+    return (
+        f"{est.count} Game Changers{names}; estimated Commander bracket "
+        f"{est.label} (heuristic: counts Game Changers only)"
+    )
 
 
 @main.command()
