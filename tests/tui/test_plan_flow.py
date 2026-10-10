@@ -40,7 +40,7 @@ def seeded_db(db_factory):  # type: ignore[no-untyped-def]
     db_file.parent.mkdir(parents=True, exist_ok=True)
     repo = CardRepository(db_factory(db_file))
     repo.bulk_insert(
-        [Card.from_scryfall(d) for d in json.loads(_FIXTURES.read_text())]
+        [Card.from_scryfall(d) for d in json.loads(_FIXTURES.read_text(encoding="utf-8"))]
     )
     return repo
 

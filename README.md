@@ -9,7 +9,7 @@
 
 **Vim-powered Magic: The Gathering deck builder for the terminal.**
 
-`hjkl` to navigate · `dd` to delete · `o` to add a card · `:wq` to save · plain text decks that live in git
+`j`/`k` to navigate · `dd` to delete · `o` to add a card · `:wq` to save · plain text decks that live in git
 
 ---
 
@@ -17,10 +17,74 @@ Your decks are plain text files. Your editor speaks vim. Your card database is l
 
 Built with [Textual](https://textual.textualize.io). Styled in [Catppuccin Mocha](https://github.com/catppuccin/catppuccin). Designed for people who think in keystrokes.
 
+<!-- Screenshot / demo placeholder: replace with an image or asciinema cast,
+     e.g. ![vimtg editing a Burn deck](https://raw.githubusercontent.com/k8rthik/vimtg/main/docs/assets/screenshot.png)
+     Use an absolute URL so it renders on PyPI too. -->
+> 📸 *Screenshot / asciinema demo coming soon.*
+
+## Install
+
+vimtg is a terminal app for Python 3.12+ on Linux, macOS, and Windows. Install it as an isolated tool:
+
+```bash
+pipx install vimtg          # or:
+uv tool install vimtg
+```
+
+> **Note:** the first PyPI release is upcoming. Until it is published, install from git:
+>
+> ```bash
+> pipx install git+https://github.com/k8rthik/vimtg.git
+> # or
+> uv tool install git+https://github.com/k8rthik/vimtg.git
+> ```
+
+Check it worked with `vimtg --version`. Upgrade later with `pipx upgrade vimtg` or `uv tool upgrade vimtg`.
+
+## Quick start
+
+A 60-second tour, from an empty directory to a saved deck:
+
+```bash
+vimtg sync                      # one-time: download Scryfall card data (~25 MB)
+vimtg new "Burn" -f modern      # scaffold Burn.deck in the current directory
+vimtg Burn.deck                 # open it in the editor
+```
+
+Inside the editor:
+
+1. Press `o` to open a card search below the cursor, type `lightning bolt`, and press `Enter` (`Tab` cycles through matches). Prefix a count for copies: `4o`.
+2. Move with `j`/`k`, `gg`/`G`; bump a quantity with `+`/`-`; delete a line with `dd`; undo with `u`.
+3. `:w` saves (and snapshots the deck in its history), `:q` quits, `:wq` does both.
+4. Press `?` (or `F1`) any time for help.
+
+Back in the shell, `vimtg info Burn.deck` summarises the deck and `vimtg validate Burn.deck` checks legality for its `// Format:`. Running `vimtg` with no arguments opens a greeter with recent decks, import, and sync.
+
+No API keys are needed for anything.
+
+## Network and privacy
+
+vimtg works offline once card data is downloaded. It makes **no telemetry, analytics, or crash-reporting requests**, has no accounts, and needs no credentials. The only network requests are:
+
+| When | Where | What |
+|---|---|---|
+| `vimtg sync`, the greeter's `[s]`, or the TUI's background auto-sync (on launch and hourly, only when card data is missing or more than seven days old) | `api.scryfall.com`, `data.scryfall.io` | The public `oracle_cards` bulk file (card text, legalities, prices). Turn auto-sync off with `:set noautosync` or `VIMTG_NO_AUTOSYNC=1`. |
+| You open the EDHREC pane (`Sr` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days; disable with `VIMTG_NO_EDHREC=1`. |
+| You import a deck URL (`:import <url>` or the greeter's `[i]`) | The site in the URL: Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or MTGGoldfish | That one public deck. |
+
+Requests identify themselves with a `vimtg/<version>` User-Agent and send nothing about your decks except the commander name (EDHREC) or the deck URL you asked to import. Your decks, settings, and history stay on your machine: card data and history in `~/.local/share/vimtg/`, config in `~/.config/vimtg/`, download caches in `~/.cache/vimtg/` (XDG variables are honoured).
+
+## Documentation
+
+- [Deck file format](https://github.com/k8rthik/vimtg/blob/main/docs/deck-format.md)
+- [Keybindings](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md)
+- [Ex commands](https://github.com/k8rthik/vimtg/blob/main/docs/commands.md)
+- [Changelog](https://github.com/k8rthik/vimtg/blob/main/CHANGELOG.md)
+
+The rest of this page is a full feature tour.
+
 ## Contents
 
-- [Quick start](#quick-start)
-- [Project status](#project-status)
 - [The `.deck` format](#the-deck-format)
 - [Feature rundown](#feature-rundown)
   - [Vim editing engine](#vim-editing-engine)
@@ -44,38 +108,9 @@ Built with [Textual](https://textual.textualize.io). Styled in [Catppuccin Mocha
 - [Keybindings](#keybindings)
 - [Commands](#commands)
 - [CLI](#cli)
-- [Architecture](#architecture)
 - [Known gaps](#known-gaps)
-- [Development](#development)
-
-## Quick start
-
-```bash
-git clone https://github.com/k8rthik/vimtg.git
-cd vimtg
-pip install -e .
-
-vimtg sync                # download the card database (~25 MB); the TUI also
-                          # auto-syncs in the background when data is stale
-vimtg burn.deck           # open a deck, vim-style (`vimtg edit burn.deck` also works)
-vimtg                     # or launch the greeter
-```
-
-Requires Python 3.12+. No API keys are needed for anything: Scryfall bulk data, EDHREC, and every deck-site importer use public endpoints.
-
-## Project status
-
-Surveyed 2026-09-09 on `main`.
-
-| | |
-|:--|:--|
-| Source | ~21,000 lines across 117 modules (`src/vimtg/`) |
-| Tests | 2,814 passing (150 files, ~28,300 lines), 94% line coverage; CI runs on Python 3.12 and 3.13 |
-| Lint / types | `ruff check` clean; `mypy --strict` clean on all 117 source files |
-| Git | 118 commits; tags `v0.5.0` through `v0.8.0` |
-| Package version | `0.8.0` in `pyproject.toml` and `vimtg.__version__`, matching the latest tag |
-
-The original ten-phase build (scaffold through packaging) is complete. Work since then has added zones and zone blocks, categories, a persistent VCS with a floating lazygit-style history overlay, interactive merge resolution, split panes, EDHREC recommendations, a live analytics pane, URL importers for six deck sites, sideboard plans, format-aware lint, header counts, and mouse-wheel scrolling. The docs in `docs/` are current with the latest commit. The newest addition is the floating history overlay (`gh`).
+- [Contributing](#contributing)
+- [License and attribution](#license-and-attribution)
 
 ## The `.deck` format
 
@@ -132,7 +167,7 @@ Zones: `DCK` mainboard (implicit when no prefix or block applies), `SB` sideboar
 
 Header counts such as `// Creatures (12)`, `DCK: (60)`, `// Deck: Burn · 60/15 cards`, and `VS: Tron (-4 +4)` are rendered in the editor and never written to disk.
 
-Full spec: [docs/deck-format.md](docs/deck-format.md).
+Full spec: [docs/deck-format.md](https://github.com/k8rthik/vimtg/blob/main/docs/deck-format.md).
 
 ## Feature rundown
 
@@ -233,7 +268,7 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 
 - `:stats` toggles a summary of the mana curve, type breakdown, colour pips, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it).
 - `:analytics` (or `Sa`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
-- The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
+- The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
 - `vimtg info deck.deck` prints counts from the shell.
 
 ### Sample hand
@@ -304,7 +339,7 @@ Where things live (XDG-aware): card database plus snapshots, branches, and HEAD 
 
 ## Keybindings
 
-Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`), one help vocabulary (`?`/`F1`), one job per editor prefix (`g` go, `t` tags, `S` splits, `z` zones, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](docs/keybindings.md).
+Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`), one help vocabulary (`?`/`F1`), one job per editor prefix (`g` go, `t` tags, `S` splits, `z` zones, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
 
 <details>
 <summary><strong>Modes and navigation</strong></summary>
@@ -370,7 +405,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 
 ## Commands
 
-Type `:` to enter command mode. Full reference: [docs/commands.md](docs/commands.md).
+Type `:` to enter command mode. Full reference: [docs/commands.md](https://github.com/k8rthik/vimtg/blob/main/docs/commands.md).
 
 <details>
 <summary><strong>Command reference</strong></summary>
@@ -410,31 +445,6 @@ vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand
 vimtg convert in.dek --to arena -o out.txt
 ```
 
-## Architecture
-
-```
-src/vimtg/
-  domain/      Pure data and rules: Card, Deck, zones, sections, categories,
-               tags, sideboard plans, formats, validation, diff, merge,
-               analytics, probabilities, snapshot tree (frozen dataclasses, no I/O)
-  editor/      Vim engine: buffer, cursor, modes, keymap, motions, operators,
-               registers, marks, macros, dot repeat, layout, placement, lint,
-               sort, splits, plans, config options, help text
-    command_handlers/   One module per ex-command family
-  data/        SQLite schema, FTS5 card repository, Scryfall sync, deck file
-               parser/serializer, snapshot repository
-  services/    Search, deck, import/export, deck-site URL importers, EDHREC,
-               history, VCS, diff, clipboard
-  config/      XDG paths, config.toml reader/writer, category history
-  tui/         Textual layer: app, deck renderer, key translator, theme
-    screens/   Main, greeter, help, history, merge, config
-    widgets/   Deck view, search results, command line, status line, which-key,
-               help panel, analytics, EDHREC, stats, diff, branches, snapshots,
-               conflicts, scrolling math
-```
-
-The editor and domain layers never import Textual. The TUI translates key events into editor calls and renders the result.
-
 ## Known gaps
 
 Found during the survey; none block normal use.
@@ -446,30 +456,16 @@ Found during the survey; none block normal use.
 - **`theme`** has a single value and cycling it does nothing.
 - Argument completion covers `:layout`, `:sort`, `:filter`, and `:category` only. `:validate` takes no argument (it reads `// Format:`, which already completes formats on `i`). Main-screen feedback is a one-line message that the next keypress clears.
 
-## Development
+## Contributing
 
-```bash
-pip install -e ".[dev]"      # or: uv sync --extra dev
-pytest --cov=vimtg           # tests, ResourceWarning is an error
-ruff check src/ tests/
-mypy src/                    # strict
-```
+Bug reports, ideas, and pull requests are welcome. See [CONTRIBUTING.md](https://github.com/k8rthik/vimtg/blob/main/CONTRIBUTING.md) for the development setup, architecture overview, and checks to run, and [SECURITY.md](https://github.com/k8rthik/vimtg/blob/main/SECURITY.md) for reporting vulnerabilities privately.
 
-Tests mirror the source tree under `tests/` with a `db_factory` fixture and autouse XDG isolation, so no test touches your real config or database. TUI screens are tested headlessly through the editor session.
+## License and attribution
 
-| | |
-|:--|:--|
-| **Python** | 3.12+, strict mypy |
-| **TUI** | Textual + Rich |
-| **CLI** | Click |
-| **HTTP** | httpx |
-| **Search** | SQLite FTS5 |
-| **Cards** | Scryfall bulk data (offline) |
-| **Theme** | Catppuccin Mocha |
-| **Build** | Hatchling |
-| **Tests** | pytest, pytest-cov, pytest-asyncio |
-| **Lint** | Ruff |
+<!-- OWNER TODO: license decision pending. Fill in the project license (and add
+     a LICENSE file) before the 1.0 release. -->
 
-## License
+*License: to be confirmed by the maintainer before the 1.0 release.*
 
-MIT
+<!-- OWNER TODO: confirm the attribution wording below. -->
+Card data is provided by [Scryfall](https://scryfall.com); recommendations by [EDHREC](https://edhrec.com). vimtg is unofficial Fan Content permitted under the [Wizards of the Coast Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.

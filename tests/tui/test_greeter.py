@@ -346,6 +346,9 @@ async def test_run_sync_shows_status(
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("s")
+        # The sync runs on a worker thread; on slow runners one pause is
+        # not enough for it to finish and post its status back.
+        await app.workers.wait_for_complete()
         await pilot.pause()
         gv = screen.query_one(GreeterView)
         assert gv._status == "Synced 123 cards"
@@ -367,6 +370,9 @@ async def test_run_sync_handles_failure(
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("s")
+        # The sync runs on a worker thread; on slow runners one pause is
+        # not enough for it to finish and post its status back.
+        await app.workers.wait_for_complete()
         await pilot.pause()
         gv = screen.query_one(GreeterView)
         assert "Sync failed" in gv._status

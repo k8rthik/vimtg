@@ -1,0 +1,4 @@
+# Test fixtures are byte-exact goldens (some use LF, the CSV export uses the
+# csv module's CRLF). Never let checkout (e.g. core.autocrlf on Windows)
+# rewrite their line endings.
+tests/fixtures/** -text
