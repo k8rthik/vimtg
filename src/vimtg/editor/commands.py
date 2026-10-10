@@ -194,6 +194,11 @@ class EditorContext:
     analytics_open: Any = None
     hand_open: Any = None  # HandOpen — sample-hand overlay request
     import_url: str = ""  # deck-site URL to fetch asynchronously
+    # System-clipboard copy request: the TUI owns the terminal, so it
+    # performs the copy and words the result (clipboard_label names it)
+    clipboard_text: str | None = None
+    clipboard_label: str = ""
+    card_sync: str = ""  # :sync request — "sync", or "force" for :sync!
     # Active sideboard plan: seeded from editor state; active_plan_set
     # marks that the handler changed it (to a name, or None to clear)
     active_plan: str | None = None

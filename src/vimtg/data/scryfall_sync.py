@@ -10,11 +10,13 @@ decides how it is parsed.
 import gzip
 import json
 import os
+import sqlite3
 import time
 from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -59,21 +61,129 @@ def _retry_delay(resp: httpx.Response) -> float:
     return min(max(delay, 0.0), MAX_RETRY_AFTER)
 
 
-def describe_sync_error(exc: BaseException) -> str:
-    """A user-facing explanation of a failed sync, with how to retry."""
-    retry = "run `vimtg sync` to retry"
+_PROXY_ENV = ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy")
+
+
+def _proxy_hint() -> str:
+    """' (via proxy <url>)' when a proxy is configured, else ''."""
+    for var in _PROXY_ENV:
+        raw = os.environ.get(var)
+        if raw:
+            # host[:port] only — the URL may carry credentials
+            parsed = urlsplit(raw if "//" in raw else f"//{raw}")
+            host = parsed.hostname or "?"
+            port = f":{parsed.port}" if parsed.port else ""
+            return f" (via proxy {host}{port})"
+    return ""
+
+
+def describe_sync_error(
+    exc: BaseException, retry: str = "run `vimtg sync` to retry"
+) -> str:
+    """A user-facing explanation of a failed sync, with how to retry.
+
+    `retry` is the retry advice for where the message shows (the CLI
+    says `vimtg sync`, the editor says :sync).
+    """
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         if status == 429:
             return f"Scryfall is rate-limiting requests — wait a minute, then {retry}"
+        if status == 407:
+            return (
+                f"The proxy{_proxy_hint()} wants authentication — put the "
+                f"credentials in HTTPS_PROXY, then {retry}"
+            )
         if status >= 500:
             return f"Scryfall is unavailable (HTTP {status}) — {retry} later"
         return f"Scryfall returned HTTP {status} — {retry}"
+    if isinstance(exc, httpx.ProxyError):
+        return (
+            f"The proxy{_proxy_hint()} refused the connection ({exc}) — "
+            f"check HTTPS_PROXY, then {retry}"
+        )
     if isinstance(exc, httpx.TimeoutException):
         return f"Timed out talking to Scryfall — check your connection and {retry}"
+    if isinstance(exc, httpx.ConnectError):
+        text = str(exc)
+        if "CERTIFICATE_VERIFY_FAILED" in text or "certificate" in text.lower():
+            return (
+                "Could not verify Scryfall's TLS certificate — a proxy or "
+                "firewall may be intercepting HTTPS (point SSL_CERT_FILE at "
+                f"its CA bundle), then {retry}"
+            )
+        return (
+            f"Could not reach api.scryfall.com{_proxy_hint()} — you seem to "
+            f"be offline; {retry} once connected"
+        )
     if isinstance(exc, httpx.HTTPError):
         return f"Could not reach Scryfall ({exc}) — check your connection and {retry}"
+    if isinstance(exc, sqlite3.Error):
+        return f"Card database error ({exc}) — {retry}"
     return f"{exc} — {retry}"
+
+
+def _parse_sync_time(last_sync: str | None) -> datetime | None:
+    if not last_sync:
+        return None
+    try:
+        when = datetime.fromisoformat(last_sync)
+    except ValueError:
+        return None
+    return when if when.tzinfo is not None else when.replace(tzinfo=UTC)
+
+
+def card_data_date(last_sync: str | None) -> str | None:
+    """The sync date as YYYY-MM-DD, or None when unknown."""
+    when = _parse_sync_time(last_sync)
+    return when.date().isoformat() if when is not None else None
+
+
+def card_data_age_days(
+    last_sync: str | None, now: datetime | None = None
+) -> int | None:
+    """Whole days since the last sync, or None when unknown."""
+    when = _parse_sync_time(last_sync)
+    if when is None:
+        return None
+    now = now or datetime.now(UTC)
+    return max(0, (now - when).days)
+
+
+NO_CARD_DATA = "no card data - :sync to download"
+
+
+def card_data_badge(
+    count: int, last_sync: str | None, now: datetime | None = None,
+) -> tuple[str, bool]:
+    """(status-line text, needs attention) for the card database.
+
+    Attention means there is nothing to search, or the data is older
+    than MAX_AGE_DAYS.
+    """
+    if count <= 0:
+        return NO_CARD_DATA, True
+    date = card_data_date(last_sync)
+    if date is None:
+        return "card data date unknown - :sync to refresh", True
+    age = card_data_age_days(last_sync, now) or 0
+    return f"card data as of {date}", age > MAX_AGE_DAYS
+
+
+def card_data_note(
+    count: int, last_sync: str | None, now: datetime | None = None,
+) -> str | None:
+    """An informational line for CLI output when card data is stale."""
+    if count <= 0:
+        return None
+    age = card_data_age_days(last_sync, now)
+    date = card_data_date(last_sync)
+    if age is None or date is None or age <= MAX_AGE_DAYS:
+        return None
+    return (
+        f"note: card data as of {date} ({age} days old) — "
+        "run `vimtg sync` to refresh legality and new cards"
+    )
 
 
 def sync_is_due(

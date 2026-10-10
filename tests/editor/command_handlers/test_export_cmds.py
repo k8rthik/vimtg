@@ -128,7 +128,10 @@ class TestImport:
         assert "File not found" in ctx.message
         assert result_buf is buffer
 
-    def test_import_no_file(self) -> None:
+    def test_import_no_file_and_empty_clipboard(self, monkeypatch) -> None:  # noqa: ANN001
+        from vimtg.editor.command_handlers import export_cmds
+
+        monkeypatch.setattr(export_cmds, "read_clipboard", lambda: "")
         buffer = Buffer.from_text("// Empty\n")
         cursor = Cursor(row=0)
         ctx = EditorContext()
@@ -136,10 +139,13 @@ class TestImport:
 
         cmd_import(buffer, cursor, cmd, ctx)
         assert ctx.error is True
-        assert "Usage" in ctx.message
+        assert ":import <file|deck-url>" in ctx.message
 
 
 class TestClipboard:
+    """:clipboard renders the text; the TUI performs the copy (it owns
+    the terminal) — the handler must never write to stdout itself."""
+
     def test_clipboard_default_format_is_arena(self, capsys) -> None:
         buffer = Buffer.from_text(_deck_text())
         cursor = Cursor(row=0)
@@ -147,9 +153,11 @@ class TestClipboard:
         cmd = ParsedCommand(name="clipboard", args="")
 
         cmd_clipboard(buffer, cursor, cmd, ctx)
-        captured = capsys.readouterr()
-        assert captured.out.startswith("\033]52;c;")
-        assert "Copied arena to clipboard" in ctx.message
+        assert capsys.readouterr().out == ""
+        assert ctx.clipboard_text is not None
+        assert "4 Lightning Bolt" in ctx.clipboard_text
+        assert ctx.clipboard_label.startswith("arena (")
+        assert ctx.error is False
 
     def test_clipboard_explicit_format(self, capsys) -> None:
         buffer = Buffer.from_text(_deck_text())
@@ -158,9 +166,9 @@ class TestClipboard:
         cmd = ParsedCommand(name="clipboard", args="mtgo")
 
         cmd_clipboard(buffer, cursor, cmd, ctx)
-        captured = capsys.readouterr()
-        assert captured.out.startswith("\033]52;c;")
-        assert "Copied mtgo to clipboard" in ctx.message
+        assert capsys.readouterr().out == ""
+        assert ctx.clipboard_label.startswith("mtgo (")
+        assert ctx.clipboard_text is not None
 
     def test_clipboard_unknown_format(self) -> None:
         buffer = Buffer.from_text(_deck_text())
@@ -171,6 +179,50 @@ class TestClipboard:
         cmd_clipboard(buffer, cursor, cmd, ctx)
         assert ctx.error is True
         assert "Unknown format" in ctx.message
+        assert ctx.clipboard_text is None
+
+
+class TestImportFromClipboard:
+    def _run(self, monkeypatch, clip: str | None) -> tuple[Buffer, EditorContext]:  # noqa: ANN001
+        from vimtg.editor.command_handlers import export_cmds
+
+        monkeypatch.setattr(export_cmds, "read_clipboard", lambda: clip)
+        buffer = Buffer.from_text(_deck_text())
+        ctx = EditorContext()
+        new_buf, _ = cmd_import(
+            buffer, Cursor(row=0), ParsedCommand(name="import", args=""), ctx
+        )
+        return new_buf, ctx
+
+    def test_bare_import_reads_clipboard_decklist(self, monkeypatch) -> None:  # noqa: ANN001
+        new_buf, ctx = self._run(
+            monkeypatch, "Deck\n4 Ponder\n2 Brainstorm\nnot a card line\n"
+        )
+        text = new_buf.to_text()
+        assert "4 Ponder" in text and "2 Brainstorm" in text
+        assert "Lightning Bolt" not in text  # replaces, like :import <file>
+        assert ctx.modified is True
+        assert "Imported 6 cards from clipboard" in ctx.message
+        assert "1 line(s) skipped" in ctx.message
+
+    def test_bare_import_clipboard_url_is_fetched(self, monkeypatch) -> None:  # noqa: ANN001
+        url = "https://www.moxfield.com/decks/abc123"
+        new_buf, ctx = self._run(monkeypatch, f"  {url}\n")
+        assert ctx.import_url == url
+        assert new_buf.to_text() == _deck_text()
+
+    def test_unreadable_clipboard_fails_without_touching_deck(self, monkeypatch) -> None:  # noqa: ANN001
+        new_buf, ctx = self._run(monkeypatch, None)
+        assert ctx.error is True
+        assert "Clipboard is empty or unreadable" in ctx.message
+        assert new_buf.to_text() == _deck_text()
+
+    def test_clipboard_without_cards_never_wipes_deck(self, monkeypatch) -> None:  # noqa: ANN001
+        new_buf, ctx = self._run(monkeypatch, "hello there\nnothing here")
+        assert ctx.error is True
+        assert "No cards found in clipboard" in ctx.message
+        assert new_buf.to_text() == _deck_text()
+        assert ctx.modified is False
 
 
 class _ResolvingRepo:

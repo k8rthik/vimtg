@@ -38,6 +38,10 @@ class StatusLine(Static):
     cursor_lint_level: reactive[str] = reactive("")  # "error" | "warning"
     plan_status: reactive[str] = reactive("")  # "vs Tron -4/+4" when a plan is active
     plan_unbalanced: reactive[bool] = reactive(False)
+    # Card database state: "card data as of 2026-10-01", sync progress,
+    # or the no-data badge; attention highlights it (no data / stale)
+    card_data: reactive[str] = reactive("")
+    card_data_attention: reactive[bool] = reactive(False)
 
     _CURSOR_LINT_MAX = 60
 
@@ -77,5 +81,8 @@ class StatusLine(Static):
             )
         if self.pending_keys:
             t.append(f"  {self.pending_keys}", style=f"bold {COLORS['quantity']}")
+        if self.card_data:
+            style = f"bold {COLORS['warning']}" if self.card_data_attention else "dim"
+            t.append(f"  {self.card_data}", style=style)
         t.append(f"  Ln {self.cursor_line + 1}/{self.total_lines}", style="dim")
         return t

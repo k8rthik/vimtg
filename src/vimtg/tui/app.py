@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import contextlib
 import os
-import sqlite3
+from functools import partial
 from pathlib import Path
 
-import httpx
 from textual.app import App
 
 from vimtg.config.paths import cache_dir, db_path
@@ -20,9 +19,16 @@ from vimtg.config.settings import Settings, load_settings_checked
 from vimtg.config.settings_writer import save_settings
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
+from vimtg.data.db_recovery import open_database
 from vimtg.data.deck_repository import DeckRepository
 from vimtg.data.file_io import ABSENT, FileStamp, file_stamp
-from vimtg.data.scryfall_sync import ScryfallSync, describe_sync_error, sync_is_due
+from vimtg.data.scryfall_sync import (
+    NO_CARD_DATA,
+    ScryfallSync,
+    card_data_badge,
+    describe_sync_error,
+    sync_is_due,
+)
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers import register_all_commands
 from vimtg.editor.commands import CommandRegistry
@@ -68,6 +74,10 @@ class VimTGApp(App[None]):
         self._card_repo: CardRepository | None = None
         self._deck_repo: DeckRepository | None = None
         self._db: Database | None = None
+        self._sync_running = False
+        self._sync_progress = ""  # status-line text while a sync runs
+        self._card_badge: tuple[str, bool] = (NO_CARD_DATA, True)
+        self._db_warning = ""  # set when the database had to be recovered
 
     @property
     def settings(self) -> Settings:
@@ -84,6 +94,11 @@ class VimTGApp(App[None]):
 
     def on_mount(self) -> None:
         self._init_services()
+        if self._db_warning:
+            self.notify(
+                self._db_warning, title="Card database", severity="error",
+                timeout=30,
+            )
         if self._config_warning:
             self.notify(
                 self._config_warning, title="Config", severity="warning", timeout=15,
@@ -127,16 +142,56 @@ class VimTGApp(App[None]):
         self._deck_repo = DeckRepository()
 
         db_file = db_path()
-        if db_file.exists():
-            self._db = Database(db_file)
-            self._db.initialize()
+        had_db = db_file.exists()
+        # Integrity-checked open: a damaged file is backed up and rebuilt
+        # (deck history salvaged) instead of blocking the launch
+        opened = open_database(db_file)
+        self._db = opened.db
+        self._db_warning = opened.warning
+        if had_db and not opened.warning:
             self._card_repo = CardRepository(self._db)
             self._search_svc = SearchService(card_repo=self._card_repo)
-        else:
-            # Create DB for VCS even without card data
-            db_file.parent.mkdir(parents=True, exist_ok=True)
-            self._db = Database(db_file)
-            self._db.initialize()
+        elif opened.recovered is not None:
+            # Rebuilt without cards: searchable as soon as a :sync lands
+            self._card_repo = CardRepository(self._db)
+            self._search_svc = SearchService(card_repo=self._card_repo)
+        self._card_badge = self._compute_card_badge()
+
+    # ── Card data status ─────────────────────────────────────────
+
+    def _compute_card_badge(self) -> tuple[str, bool]:
+        if self._card_repo is None:
+            return NO_CARD_DATA, True
+        try:
+            return card_data_badge(
+                self._card_repo.count(), self._card_repo.get_last_sync()
+            )
+        except Exception:  # noqa: BLE001 — a status readout must not crash
+            return NO_CARD_DATA, True
+
+    def card_data_status(self) -> tuple[str, bool]:
+        """(status-line text, needs attention) for the card data: sync
+        progress while a sync runs, else what the database holds."""
+        if self._sync_running:
+            return f"syncing card data{self._sync_progress}", False
+        return self._card_badge
+
+    def has_card_data(self) -> bool:
+        return self._card_badge[0] != NO_CARD_DATA
+
+    @property
+    def card_sync_running(self) -> bool:
+        return self._sync_running
+
+    def _refresh_card_status(self) -> None:
+        """Push the card data status to every open editor and greeter."""
+        from vimtg.tui.screens.greeter import GreeterScreen
+        from vimtg.tui.screens.main_screen import MainScreen
+
+        status = self.card_data_status()
+        for screen in self.screen_stack:
+            if isinstance(screen, MainScreen | GreeterScreen):
+                screen.set_card_data_status(*status)
 
     # ── Background card sync ─────────────────────────────────────
 
@@ -149,7 +204,7 @@ class VimTGApp(App[None]):
         """
         if os.environ.get("VIMTG_NO_AUTOSYNC"):
             return
-        if not self._settings.auto_sync_cards:
+        if not self._settings.auto_sync_cards or self._sync_running:
             return
         if self._card_repo is not None and not sync_is_due(self._card_repo):
             return
@@ -161,55 +216,94 @@ class VimTGApp(App[None]):
             )
         self._start_auto_sync()
 
-    def _start_auto_sync(self) -> None:
+    def start_card_sync(self, force: bool = False) -> str:
+        """:sync — start a background sync; returns the status message."""
+        if self._sync_running:
+            return "Card sync already running (progress in the status line)"
+        self._start_auto_sync(force)
+        return "Syncing card data in the background (progress in the status line)"
+
+    def _start_auto_sync(self, force: bool = False) -> None:
+        self._sync_running = True
+        self._sync_progress = ""
+        self._refresh_card_status()
         self.run_worker(
-            self._auto_sync_worker,
+            partial(self._auto_sync_worker, force),
             thread=True,
             group="card-sync",
-            exclusive=True,
             description="Scryfall card sync",
         )
 
-    def _auto_sync_worker(self) -> None:
+    def _auto_sync_worker(self, force: bool = False) -> None:
         """Sync on a worker thread using its own DB connection.
 
         WAL mode allows this writer to run alongside the UI thread's
         reads; sharing one sqlite3 connection across threads would not
-        be safe.
+        be safe. Progress reaches the status line only when its text
+        changes, so the UI thread is not flooded.
         """
+        shown = [""]
+
+        def _progress(phase: str, current: int, total: int) -> None:
+            text = sync_progress_text(phase, current, total)
+            if text != shown[0]:
+                shown[0] = text
+                self.call_from_thread(self._set_sync_progress, text)
+
         db = Database(db_path())
         try:
             db.initialize()
             syncer = ScryfallSync(
                 card_repo=CardRepository(db), cache_dir=cache_dir()
             )
-            count = syncer.sync()
-        except (httpx.HTTPError, RuntimeError, OSError, sqlite3.Error) as exc:
+            count = syncer.sync(force=force, progress=_progress)
+        except Exception as exc:  # noqa: BLE001 — any failure is reported, never fatal
             self.call_from_thread(
-                self.notify,
-                f"Card sync failed: {describe_sync_error(exc)}",
-                title="Card sync",
-                severity="warning",
+                self._fail_auto_sync,
+                describe_sync_error(exc, retry="run :sync to retry"),
             )
             return
         finally:
             db.close()
         self.call_from_thread(self._finish_auto_sync, count)
 
-    def _finish_auto_sync(self, count: int) -> None:
-        """Adopt freshly synced card data on the UI thread."""
+    def _set_sync_progress(self, text: str) -> None:
+        self._sync_progress = f" {text}" if text else ""
+        self._refresh_card_status()
+
+    def _fail_auto_sync(self, message: str) -> None:
+        from vimtg.tui.screens.main_screen import MainScreen
+
+        self._sync_running = False
+        self._sync_progress = ""
+        self._refresh_card_status()
+        self.notify(
+            f"Card sync failed: {message}", title="Card sync",
+            severity="warning", timeout=10,
+        )
+        if isinstance(self.screen, MainScreen):
+            self.screen.show_message(f"E: Card sync failed: {message}", error=True)
+
+    def adopt_card_data(self) -> None:
+        """Use freshly synced card data everywhere (the UI thread's own
+        connection sees the worker's committed rows)."""
         from vimtg.tui.screens.main_screen import MainScreen
 
         if self._card_repo is None and self._db is not None:
             self._card_repo = CardRepository(self._db)
             self._search_svc = SearchService(card_repo=self._card_repo)
-        screen = self.screen
-        if (
-            isinstance(screen, MainScreen)
-            and self._card_repo is not None
-            and self._search_svc is not None
-        ):
-            screen.attach_card_repo(self._card_repo, self._search_svc)
+        if self._card_repo is not None and self._search_svc is not None:
+            for screen in self.screen_stack:
+                if isinstance(screen, MainScreen):
+                    screen.attach_card_repo(self._card_repo, self._search_svc)
+        self._card_badge = self._compute_card_badge()
+        self._refresh_card_status()
+
+    def _finish_auto_sync(self, count: int) -> None:
+        """Adopt freshly synced card data on the UI thread."""
+        self._sync_running = False
+        self._sync_progress = ""
+        self.adopt_card_data()
         self.notify(f"Card database updated ({count} cards)", title="Card sync")
 
     def show_greeter(self) -> None:
@@ -274,3 +368,11 @@ class VimTGApp(App[None]):
         """Find .deck files in current directory, newest first."""
         repo = self._deck_repo or DeckRepository()
         return repo.list_decks(Path.cwd(), by_mtime=True)[:5]
+
+
+def sync_progress_text(phase: str, current: int, total: int) -> str:
+    """Short status-line text for a sync progress callback."""
+    label = "downloading" if phase == "download" else "loading"
+    if total > 0:
+        return f"{label} {min(100, current * 100 // total)}%"
+    return f"{label}..."

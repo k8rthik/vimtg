@@ -17,7 +17,7 @@ from vimtg.config.paths import cache_dir, db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
-from vimtg.data.scryfall_sync import ScryfallSync, describe_sync_error
+from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync_error
 from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService
 from vimtg.services.search_service import SearchService, SearchSyntaxError
@@ -51,8 +51,9 @@ def _friendly_error(exc: OSError | UnicodeDecodeError | sqlite3.Error) -> str:
     if isinstance(exc, sqlite3.Error):
         return (
             f"card database error: {exc}\n"
-            f"Hint: the database at {db_path()} may be corrupt — delete it "
-            "and run `vimtg sync`."
+            f"Hint: the database at {db_path()} may be corrupt — run "
+            "`vimtg sync` (or start vimtg) to rebuild it; deck history is "
+            "salvaged and the damaged file kept as a backup."
         )
     target = exc.filename if exc.filename is not None else ""
     reason = exc.strerror or str(exc)
@@ -225,6 +226,10 @@ def validate(path: str, strict: bool) -> None:
         click.echo(
             "(no card database — legality checks skipped; run 'vimtg sync')"
         )
+    if card_repo is not None:
+        note = card_data_note(card_repo.count(), card_repo.get_last_sync())
+        if note:
+            click.echo(note)
 
     bracket_note = _bracket_note(deck, fmt, resolved)
     if not errors:
@@ -357,11 +362,20 @@ def hand(path: str, seed: int | None, draws: int, plan_name: str) -> None:
 @click.option("--force", is_flag=True, help="Force re-download")
 def sync_cmd(force: bool) -> None:
     """Download card data from Scryfall."""
-    db = Database(db_path())
+    from vimtg.data.db_recovery import open_database
+
+    # A damaged database is backed up and rebuilt (history salvaged)
+    # so the sync can repopulate it
+    opened = open_database(db_path(), sync_hint="downloading it now")
+    if opened.in_memory:
+        opened.db.close()
+        raise click.ClickException(opened.warning)
+    if opened.warning:
+        click.echo(opened.warning, err=True)
     try:
-        _sync(db, force)
+        _sync(opened.db, force)
     finally:
-        db.close()
+        opened.db.close()
 
 
 def _sync(db: Database, force: bool) -> None:
@@ -377,7 +391,7 @@ def _sync(db: Database, force: bool) -> None:
 
     try:
         count = syncer.sync(force=force, progress=_progress)
-    except (httpx.HTTPError, RuntimeError) as exc:
+    except (httpx.HTTPError, RuntimeError, sqlite3.Error) as exc:
         click.echo()  # end the in-place progress line
         raise click.ClickException(
             f"Sync failed: {describe_sync_error(exc)}"
