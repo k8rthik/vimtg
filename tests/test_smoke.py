@@ -8,7 +8,7 @@ from vimtg.cli import main
 
 
 def test_version():
-    assert __version__ == "0.8.0"
+    assert __version__ == "1.0.0rc1"
 
 
 def test_package_version_is_single_sourced():
@@ -37,7 +37,7 @@ def test_cli_version():
     runner = CliRunner()
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.8.0" in result.output
+    assert "1.0.0rc1" in result.output
 
 
 def test_cli_help():
@@ -58,3 +58,14 @@ def test_license_file_ships_in_both_dists():
     text = (root / "LICENSE").read_text()
     assert text.startswith("MIT License")
     assert "Copyright (c) 2026 Keerthik Muruganandam" in text
+
+
+def test_release_metadata_matches_version():
+    # A release must have its own dated CHANGELOG section (under an empty
+    # Unreleased heading) and a classifier that matches a 1.x stable series.
+    root = Path(__file__).parent.parent
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text())
+    assert "Development Status :: 5 - Production/Stable" in pyproject["project"]["classifiers"]
+    changelog = (root / "CHANGELOG.md").read_text()
+    assert f"\n## [{__version__}] - " in changelog
+    assert changelog.index("## [Unreleased]") < changelog.index(f"## [{__version__}]")

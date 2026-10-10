@@ -8,6 +8,8 @@ from 1.0.0 onward.
 
 ## [Unreleased]
 
+## [1.0.0rc1] - 2026-10-10
+
 ### Added
 
 - New-deck wizard: a deck with no cards and a blank name or format asks
@@ -71,6 +73,11 @@ from 1.0.0 onward.
   request templates, Dependabot, and this changelog.
 - Package metadata for PyPI: readme, authors, project URLs, classifiers, and
   keywords. Python 3.14 is supported and tested.
+- vimtg is MIT licensed: a `LICENSE` file ships in the sdist and the wheel,
+  and the package metadata declares `License-Expression: MIT`.
+- The README credits Scryfall (card data) and EDHREC (recommendations), says
+  neither is affiliated with vimtg, and carries the Wizards of the Coast Fan
+  Content Policy notice.
 
 ### Changed
 
@@ -146,6 +153,9 @@ from 1.0.0 onward.
   reach the network.
 - README rewritten for end users (install, quickstart, network and privacy);
   contributor material moved to `CONTRIBUTING.md`.
+- First 1.0 release candidate: the PyPI classifier is now
+  "Development Status :: 5 - Production/Stable", and `SECURITY.md` lists
+  the 1.0 series as supported.
 
 ### Fixed
 
