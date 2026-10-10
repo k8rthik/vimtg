@@ -275,8 +275,16 @@ def convert(input_path: str, from_fmt: str | None, to_fmt: str, output: str | No
     service = ImportExportService()
     text = Path(input_path).read_text(encoding="utf-8")
     src_fmt = DeckFormat(from_fmt) if from_fmt else None
-    deck = service.import_deck(text, src_fmt)
-    result = service.export_deck(deck, DeckFormat(to_fmt))
+    report = service.import_deck_report(text, src_fmt)
+    if report.skipped:
+        # stderr, so `vimtg convert ... > out.txt` stays a clean deck
+        click.echo(
+            f"Skipped {len(report.skipped)} unreadable line(s) in {input_path}:",
+            err=True,
+        )
+        for skipped in report.skipped:
+            click.echo(f"  line {skipped.line_number}: {skipped.text}", err=True)
+    result = service.export_deck(report.deck, DeckFormat(to_fmt))
     if output:
         Path(output).write_text(result, encoding="utf-8")
         click.echo(f"Converted to {output}")

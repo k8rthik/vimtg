@@ -108,11 +108,18 @@ def cmd_import(
         return buffer, cursor
 
     service = ImportExportService(card_repo=ctx.card_repo)
-    deck = service.import_deck(text)
+    report = service.import_deck_report(text)
+    deck = report.deck
     vimtg_text = service.export_deck(deck, DeckFormat.VIMTG)
     new_buffer = Buffer.from_text(vimtg_text)
     ctx.modified = True
     ctx.message = f"Imported {deck.total_cards()} cards from {in_path.name}"
+    if report.skipped:
+        first = report.skipped[0]
+        ctx.message += (
+            f" | {len(report.skipped)} line(s) skipped"
+            f" (line {first.line_number}: {first.text[:40]})"
+        )
 
     resolution = service.resolve_cards(deck)
     if resolution.resolved:

@@ -223,7 +223,7 @@ class VimTGApp(App[None]):
             text = scaffold_deck_body(scaffold_missing_metadata(initial_text))
         elif file_path and file_path.exists():
             try:
-                text = file_path.read_text(encoding="utf-8")
+                text = file_path.read_text(encoding="utf-8-sig")
             except (OSError, UnicodeDecodeError) as exc:
                 # Unreadable/binary file: fail loudly instead of silently
                 # presenting an empty "New Deck" over a real file.

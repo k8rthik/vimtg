@@ -17,7 +17,7 @@ from __future__ import annotations
 import html
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 from urllib.parse import urlparse
 
@@ -25,7 +25,11 @@ import httpx
 
 from vimtg.domain.categories import CATEGORY_NAME_RE
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
-from vimtg.domain.deck_lines import clamp_quantity
+from vimtg.domain.deck_lines import (
+    clamp_quantity,
+    strip_bom,
+    strip_printing_suffix,
+)
 
 _TIMEOUT_SECONDS = 20.0
 _USER_AGENT = "vimtg/0.1 (+local TUI deck editor)"
@@ -50,14 +54,25 @@ class DeckSourceError(Exception):
 
 
 @dataclass(frozen=True)
+class SkippedLine:
+    """A decklist line that is neither a card, a header, nor a comment."""
+
+    line_number: int
+    text: str
+
+
+@dataclass(frozen=True)
 class RemoteDeck:
     """A decklist fetched from an online source.
 
     `name` is the deck's title at the source ('' when unknown).
+    `skipped` lists text lines the parser could not read (text-shaped
+    sources only).
     """
 
     name: str
     deck: Deck
+    skipped: tuple[SkippedLine, ...] = ()
 
 
 def stamped_deck(remote: RemoteDeck, url: str) -> Deck:
@@ -243,17 +258,36 @@ def parse_archidekt(data: dict[str, Any]) -> RemoteDeck:
             continue
         categories = raw.get("categories") or []
         primary = (categories[0] or "").strip().lower() if categories else ""
-        category = ""
         if primary in excluded:
-            section = DeckSection.MAYBEBOARD
-        elif primary in _ARCHIDEKT_ZONES:
-            section = _ARCHIDEKT_ZONES[primary]
+            section, category = DeckSection.MAYBEBOARD, ""
         else:
-            section = DeckSection.MAIN
-            if primary and primary not in _TYPE_CATEGORIES:
-                category = _category_slug(primary)
+            section, category = archidekt_placement(primary)
         entries.append(_entry(name, qty, section, category))
     return RemoteDeck(name=(data.get("name") or "").strip(), deck=_deck(entries))
+
+
+def primary_archidekt_category(categories: str) -> str:
+    """First of a comma-separated Archidekt category list, lowercased,
+    without '{top}'/'{noDeck}' flags: 'Commander{top},Legendary' ->
+    'commander'."""
+    first = categories.split(",", 1)[0]
+    return re.sub(r"\{[^}]*\}", "", first).strip().lower()
+
+
+def archidekt_placement(primary: str) -> tuple[DeckSection, str]:
+    """(section, inline category) for an Archidekt primary category.
+
+    Zone categories (Commander, Companion, Sideboard, Maybeboard) pick
+    the section; a user-made category becomes the @category; stock
+    type groupings are dropped.
+    """
+    if primary in _ARCHIDEKT_ZONES:
+        return _ARCHIDEKT_ZONES[primary], ""
+    if primary == "maybeboard":
+        return DeckSection.MAYBEBOARD, ""
+    if primary and primary not in _TYPE_CATEGORIES:
+        return DeckSection.MAIN, _category_slug(primary)
+    return DeckSection.MAIN, ""
 
 
 def _archidekt_name(raw: dict[str, Any]) -> str | None:
@@ -336,21 +370,19 @@ def _astro_decode(node: Any) -> Any:
 
 
 # ── Text-shaped sources (Deckstats / TappedOut / MTGGoldfish) ──────
+# Also the one parser behind file imports of MTGO .txt and Arena text.
 
-# "4 Card", "4x Card", optional arena-style "(SET) 123" suffix.
-_TEXT_LINE_RE = re.compile(
-    r"""^\s*
-        (?:SB:\s*)?
-        (?P<qty>\d+)\s*[xX]?\s+
-        (?P<name>.+?)
-        (?:\s+\([A-Za-z0-9]{3,5}\)(?:\s+\S+)?)?
-        \s*$
-    """,
-    re.VERBOSE,
-)
-_SB_PREFIX_RE = re.compile(r"^\s*SB:", re.IGNORECASE)
+# "4 Card" / "4x Card"; set/collector/finish suffixes are stripped from
+# the name afterwards (strip_printing_suffix).
+_TEXT_LINE_RE = re.compile(r"^(?P<qty>\d+)\s*[xX]?\s+(?P<name>.+?)\s*$")
+_SB_PREFIX_RE = re.compile(r"^\s*SB:\s*", re.IGNORECASE)
 # Deckstats marks the commander with a trailing "#!Commander" pragma.
 _COMMANDER_PRAGMA_RE = re.compile(r"#!Commander\b", re.IGNORECASE)
+# Archidekt's text export appends categories: "1x Sol Ring [Ramp]",
+# "1x Atraxa (ONE) 196 [Commander{top}]".
+_BRACKET_CATEGORIES_RE = re.compile(r"\s*\[(?P<cats>[^\[\]]*)\]\s*$")
+# A trailing "(24)" count on a header line: "Sideboard (15)", "Lands (24)".
+_HEADER_COUNT_RE = re.compile(r"\s*\(\d+\)\s*$")
 _ZONE_HEADERS: dict[str, DeckSection] = {
     "deck": DeckSection.MAIN,
     "main": DeckSection.MAIN,
@@ -359,59 +391,125 @@ _ZONE_HEADERS: dict[str, DeckSection] = {
     "commander": DeckSection.COMMANDER,
     "commanders": DeckSection.COMMANDER,
     "companion": DeckSection.COMPANION,
+    "companions": DeckSection.COMPANION,
     "sideboard": DeckSection.SIDEBOARD,
     "side": DeckSection.SIDEBOARD,
     "sb": DeckSection.SIDEBOARD,
     "maybeboard": DeckSection.MAYBEBOARD,
     "maybe": DeckSection.MAYBEBOARD,
 }
+# Arena exports open with "About" / "Name <deck name>" before "Deck".
+_ABOUT_HEADER = "about"
+
+
+@dataclass
+class _TextCard:
+    entry: DeckEntry
+    group: int  # blank-line-separated card group, from 0
 
 
 def parse_decklist_text(
-    text: str, name: str, blank_splits: bool = False
+    text: str, name: str, blank_splits: bool | None = False
 ) -> RemoteDeck:
     """Parse a plain-text decklist into a RemoteDeck.
 
-    Understands "N Card" / "Nx Card" lines with optional arena-style
-    "(SET) 123" suffixes, SB: prefixes, Deckstats' "#!Commander" pragma
-    and trailing "# ..." comments, and zone headers as bare words or
-    "//" comments ("Sideboard", "//Main", ...). A "//" header that is
-    not a zone name (Deckstats' "//Lands (24)" groupings) is ignored.
-    `blank_splits` treats the first blank line after a card as the
-    main/sideboard divider (MTGGoldfish's download format).
+    Understands "N Card" / "Nx Card" lines with optional set/collector/
+    finish suffixes ("(SET) 123", "(PLST) ELD-115", "*F*"), SB:
+    prefixes, Deckstats' "#!Commander" pragma and trailing "# ..."
+    comments, Archidekt's "[Category]" suffixes, and zone headers as
+    bare words or "//" comments ("Sideboard", "//Main", "Commander",
+    "Sideboard (15)", ...). A header that is not a zone name
+    (Deckstats' "//Lands (24)" groupings) is ignored. Arena's "About" /
+    "Name ..." preamble supplies the deck name when `name` is empty.
+
+    `blank_splits` decides what a blank line means: True treats the
+    first blank line after a card as the main/sideboard divider
+    (MTGGoldfish's download format); False makes blank lines neutral;
+    None (auto, for files of unknown origin) splits only a headerless
+    list made of exactly two blank-separated groups — the MTGO .txt
+    shape — and leaves anything else alone.
+
+    Lines that cannot be read are reported in RemoteDeck.skipped
+    instead of being dropped silently.
     """
-    entries: list[DeckEntry] = []
+    cards: list[_TextCard] = []
+    skipped: list[SkippedLine] = []
     section = DeckSection.MAIN
-    for raw in text.splitlines():
+    group = 0
+    saw_zone_marker = False
+    in_about = False
+    deck_name = name
+    for line_number, raw in enumerate(strip_bom(text).splitlines(), start=1):
         line = raw.strip()
         if not line:
-            if blank_splits and entries and section == DeckSection.MAIN:
+            if cards and cards[-1].group == group:
+                group += 1
+            if blank_splits is True and cards and section == DeckSection.MAIN:
                 section = DeckSection.SIDEBOARD
             continue
 
         line_section = section
         if _SB_PREFIX_RE.match(line):
             line_section = DeckSection.SIDEBOARD
+            saw_zone_marker = True
+            line = _SB_PREFIX_RE.sub("", line, count=1)
         elif line.startswith(("//", "#")) or not line[0].isdigit():
-            header = line.lstrip("/").strip().rstrip(":").lower()
+            header = _HEADER_COUNT_RE.sub("", line.lstrip("/#").strip())
+            header = header.rstrip(":").strip().lower()
             zone = _ZONE_HEADERS.get(header)
             if zone is not None:
                 section = zone
+                saw_zone_marker = True
+                in_about = False
+            elif header == _ABOUT_HEADER:
+                in_about = True
+            elif in_about and line.lower().startswith("name "):
+                deck_name = deck_name or line[5:].strip()
+            elif not (
+                line.startswith(("//", "#")) or _HEADER_COUNT_RE.search(line)
+            ):
+                skipped.append(SkippedLine(line_number, raw.strip()))
             continue
         if _COMMANDER_PRAGMA_RE.search(line):
             line_section = DeckSection.COMMANDER
+            saw_zone_marker = True
         # Strip trailing "# ..." comments (the #!Commander pragma too)
         line = line.split("#", 1)[0].rstrip()
 
+        category = ""
+        bracket = _BRACKET_CATEGORIES_RE.search(line)
+        if bracket:
+            line = line[: bracket.start()]
+            bracket_section, category = archidekt_placement(
+                primary_archidekt_category(bracket.group("cats"))
+            )
+            if bracket_section != DeckSection.MAIN:
+                line_section = bracket_section
+                saw_zone_marker = True
+
         m = _TEXT_LINE_RE.match(line)
-        if not m:
-            continue
-        card_name = m.group("name").strip()
-        qty = int(m.group("qty"))
+        card_name = strip_printing_suffix(m.group("name")) if m else ""
+        qty = int(m.group("qty")) if m else 0
         if not card_name or qty <= 0:
+            skipped.append(SkippedLine(line_number, raw.strip()))
             continue
-        entries.append(_entry(card_name, qty, line_section))
-    return RemoteDeck(name=name, deck=_deck(entries))
+        cards.append(
+            _TextCard(_entry(card_name, qty, line_section, category), group)
+        )
+
+    entries = [card.entry for card in cards]
+    groups = {card.group for card in cards}
+    if blank_splits is None and not saw_zone_marker and len(groups) == 2:
+        side_group = max(groups)
+        entries = [
+            replace(card.entry, section=DeckSection.SIDEBOARD)
+            if card.group == side_group
+            else card.entry
+            for card in cards
+        ]
+    return RemoteDeck(
+        name=deck_name, deck=_deck(entries), skipped=tuple(skipped)
+    )
 
 
 def _fetch_deckstats(url: str) -> RemoteDeck:

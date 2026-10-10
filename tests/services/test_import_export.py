@@ -148,12 +148,12 @@ class TestArena:
         assert len(deck.sideboard()) == 1
         assert deck.sideboard()[0].card_name == "Pyroblast"
 
-    def test_export_arena_with_resolved(self) -> None:
+    def test_export_arena_with_resolved_has_no_fake_collector_number(self) -> None:
+        # '(SET) 0' named a printing that does not exist; Arena rejects it
         deck = _make_deck(main=[(4, "Lightning Bolt")])
         resolved = {"Lightning Bolt": _make_card("Lightning Bolt", "sta")}
         result = _svc().export_deck(deck, DeckFormat.ARENA, resolved)
-        assert "4 Lightning Bolt (STA) 0" in result
-        assert result.startswith("Deck\n")
+        assert result == "Deck\n4 Lightning Bolt\n"
 
     def test_export_arena_without_resolved(self) -> None:
         deck = _make_deck(main=[(4, "Lightning Bolt")])
