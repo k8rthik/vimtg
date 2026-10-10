@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from pathlib import Path
 
+import httpx
 import pytest
 from textual.app import App
+from textual.pilot import Pilot
 
 from vimtg.tui.screens.greeter import (
     GreeterMode,
@@ -333,6 +337,43 @@ async def test_recent_mode_via_r(
         assert gv._mode == GreeterMode.RECENT
 
 
+async def _wait_until(
+    pilot: Pilot[None], condition: Callable[[], bool], timeout: float = 10.0
+) -> None:
+    """Wait for a background worker's effect instead of guessing a pause.
+
+    Worker threads report back via call_from_thread, which finishes
+    before the worker does — so once the app's workers are done the
+    condition is settled. The deadline only guards against a hang.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        await pilot.app.workers.wait_for_complete()
+        await pilot.pause()
+        if condition():
+            return
+        if time.monotonic() > deadline:
+            raise AssertionError("condition not met before the deadline")
+
+
+def _slow(result: Callable[[], int]) -> Callable[..., int]:
+    """A ScryfallSync.sync stand-in as slow as a loaded CI runner —
+    a single short pause would check the status before it finishes."""
+
+    def sync(self: object, *a: object, **k: object) -> int:
+        time.sleep(0.3)
+        return result()
+
+    return sync
+
+
+def _offline() -> int:
+    raise httpx.ConnectError(
+        "[Errno -3] Temporary failure in name resolution",
+        request=httpx.Request("GET", "https://api.scryfall.com/bulk-data"),
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_sync_shows_status(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -340,17 +381,15 @@ async def test_run_sync_shows_status(
     monkeypatch.chdir(tmp_path)
     from vimtg.data import scryfall_sync
 
-    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", lambda self, *a, **k: 123)
+    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(lambda: 123))
     screen = GreeterScreen()
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("s")
-        # The sync runs on a worker thread; on slow runners one pause is
-        # not enough for it to finish and post its status back.
-        await app.workers.wait_for_complete()
-        await pilot.pause()
         gv = screen.query_one(GreeterView)
+        await pilot.press("s")
+        assert gv._status == "Syncing card data..."
+        await _wait_until(pilot, lambda: not screen._sync_running)
         assert gv._status == "Synced 123 cards"
 
 
@@ -361,21 +400,92 @@ async def test_run_sync_handles_failure(
     monkeypatch.chdir(tmp_path)
     from vimtg.data import scryfall_sync
 
-    def boom(self, *a, **k):
-        raise RuntimeError("network down")
-
-    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", boom)
+    for var in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(_offline))
     screen = GreeterScreen()
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("s")
-        # The sync runs on a worker thread; on slow runners one pause is
-        # not enough for it to finish and post its status back.
-        await app.workers.wait_for_complete()
+        gv = screen.query_one(GreeterView)
+        await _wait_until(pilot, lambda: not screen._sync_running)
+        assert gv._status.startswith("Sync failed: Could not reach api.scryfall.com")
+        assert "press s to retry" in gv._status
+
+
+@pytest.mark.asyncio
+async def test_run_sync_ignores_repeat_while_running(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    from vimtg.data import scryfall_sync
+
+    calls: list[int] = []
+
+    def counted() -> int:
+        calls.append(1)
+        return 7
+
+    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(counted))
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("s")
+        await pilot.press("s")
+        await _wait_until(pilot, lambda: not screen._sync_running)
+        assert calls == [1]
+
+
+class _CardDataHost(_HostApp):
+    """A host that, like VimTGApp, reports card data and adopts syncs."""
+
+    def __init__(self, screen: GreeterScreen) -> None:
+        super().__init__(screen)
+        self.adopted = 0
+
+    def card_data_status(self) -> tuple[str, bool]:
+        from vimtg.data.scryfall_sync import NO_CARD_DATA
+
+        return NO_CARD_DATA, True
+
+    def adopt_card_data(self) -> None:
+        self.adopted += 1
+
+
+@pytest.mark.asyncio
+async def test_greeter_shows_missing_card_data(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _CardDataHost(screen)
+    async with app.run_test() as pilot:
         await pilot.pause()
         gv = screen.query_one(GreeterView)
-        assert "Sync failed" in gv._status
+        assert "no card data - press s to download" in gv.render().plain
+        screen.set_card_data_status("card data as of 2026-10-09", False)
+        assert "card data as of 2026-10-09" in gv.render().plain
+
+
+@pytest.mark.asyncio
+async def test_greeter_sync_hands_cards_to_the_app(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regression: a greeter sync left the app without a card repo, so
+    the editor opened next had no search."""
+    monkeypatch.chdir(tmp_path)
+    from vimtg.data import scryfall_sync
+
+    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(lambda: 5))
+    screen = GreeterScreen()
+    app = _CardDataHost(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("s")
+        await _wait_until(pilot, lambda: not screen._sync_running)
+        assert app.adopted == 1
 
 
 # ---------------------------------------------------------------------------
@@ -543,3 +653,102 @@ async def test_import_missing_file_shows_status(
         await pilot.pause()
         assert "not found" in gv._status.lower()
     assert app.launched == []
+
+
+# ---------------------------------------------------------------------------
+# Pasted decklists
+# ---------------------------------------------------------------------------
+
+_PASTED = "Deck\n4 Lightning Bolt\n20 Mountain\n\nSideboard\n2 Pyroblast\n"
+
+
+@pytest.mark.asyncio
+async def test_paste_decklist_on_menu_opens_editor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from textual import events
+
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.post_message(events.Paste(_PASTED))
+        await pilot.pause()
+    assert len(app.launched) == 1
+    path, text = app.launched[0]
+    assert path is None
+    assert text is not None
+    assert "4 Lightning Bolt" in text and "20 Mountain" in text
+    assert "SB: 2 Pyroblast" in text
+
+
+@pytest.mark.asyncio
+async def test_paste_decklist_in_import_prompt_opens_editor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from textual import events
+
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("i")
+        screen.on_paste(events.Paste(_PASTED))
+        await pilot.pause()
+    assert len(app.launched) == 1
+
+
+@pytest.mark.asyncio
+async def test_paste_url_on_menu_fills_import_prompt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from textual import events
+
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen.on_paste(events.Paste("https://moxfield.com/decks/abc"))
+        gv = screen.query_one(GreeterView)
+        assert gv._mode == GreeterMode.IMPORT
+        assert gv._input == "https://moxfield.com/decks/abc"
+    assert app.launched == []
+
+
+@pytest.mark.asyncio
+async def test_paste_non_decklist_explains(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from textual import events
+
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen.on_paste(events.Paste("dear diary\ntoday I built a deck\n"))
+        gv = screen.query_one(GreeterView)
+        assert gv._mode == GreeterMode.IMPORT
+        assert gv._status.startswith("E: Not a decklist")
+    assert app.launched == []
+
+
+@pytest.mark.asyncio
+async def test_typed_card_line_imports(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("i")
+        gv = screen.query_one(GreeterView)
+        gv._input = "4 Lightning Bolt"
+        await pilot.press("enter")
+        await pilot.pause()
+    assert len(app.launched) == 1
+    assert "4 Lightning Bolt" in (app.launched[0][1] or "")

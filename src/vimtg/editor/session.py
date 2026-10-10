@@ -202,6 +202,9 @@ class HandlerResult:
     analytics_open: AnalyticsOpen | None = None
     hand_open: HandOpen | None = None  # sample-hand overlay (:hand)
     import_url: str = ""  # deck-site URL to fetch asynchronously
+    clipboard_text: str | None = None  # text to put on the system clipboard
+    clipboard_label: str = ""  # what clipboard_text is, for the message
+    card_sync: str = ""  # "sync" / "force": start a background card sync
     focus_next_pane: bool = False
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
@@ -414,6 +417,9 @@ def handle_command(
             analytics_open=ctx.analytics_open,
             hand_open=ctx.hand_open,
             import_url=ctx.import_url,
+            clipboard_text=ctx.clipboard_text,
+            clipboard_label=ctx.clipboard_label,
+            card_sync=ctx.card_sync,
             plan_changed=plan_changed,
         )
     except Exception as exc:

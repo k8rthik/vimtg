@@ -76,6 +76,8 @@ class GreeterView(Static):
         self._mode = GreeterMode.MENU
         self._cursor = 0
         self._status = ""
+        self._card_note = ""  # card database readout (no data, age, sync)
+        self._card_note_attention = False
         self._input = ""  # import prompt text (path or URL)
         self.nav = VimNav()
         self._help_nav = VimNav()
@@ -105,6 +107,9 @@ class GreeterView(Static):
 
         t.append("  Vim-powered MTG deck builder\n", style=_DIM)
         t.append(f"  v{__version__}\n", style=_DIM)
+        if self._card_note:
+            style = f"bold {COLORS['warning']}" if self._card_note_attention else _DIM
+            t.append(f"  {self._card_note}\n", style=style)
         t.append("\n")
 
         for key, label in ACTIONS:
@@ -148,7 +153,9 @@ class GreeterView(Static):
         t = Text()
         t.append("  Import Deck\n", style=f"bold {COLORS['mana_blue']}")
         t.append("  " + "-" * 40 + "\n\n", style=_DIM)
-        t.append("  Paste a deck URL or type a file path:\n\n", style="")
+        t.append(
+            "  Paste a deck URL or a decklist, or type a file path:\n\n", style=""
+        )
         t.append("  > ", style=f"bold {COLORS['quantity']}")
         t.append(self._input)
         t.append("▏\n\n", style=_DIM)
@@ -319,6 +326,24 @@ class GreeterScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield GreeterView(recent_files=self._recent, all_files=self._all_files)
 
+    def on_mount(self) -> None:
+        status = getattr(self.app, "card_data_status", None)
+        if callable(status):
+            self.set_card_data_status(*status())
+
+    def set_card_data_status(self, text: str, attention: bool) -> None:
+        """Called by the app as card data appears, ages or syncs."""
+        from vimtg.data.scryfall_sync import NO_CARD_DATA
+
+        views = self.query(GreeterView)
+        if not views:
+            return  # not composed yet; on_mount pulls the status
+        gv = views.first()
+        # The greeter's sync key is s, not :sync
+        gv._card_note = "no card data - press s to download" if text == NO_CARD_DATA else text
+        gv._card_note_attention = attention
+        gv.refresh()
+
     def on_key(self, event: Key) -> None:
         if event.key == "ctrl+c":
             self.app.exit()
@@ -390,13 +415,51 @@ class GreeterScreen(Screen[None]):
             gv.refresh()
 
     def on_paste(self, event: Paste) -> None:
-        """Pasting a deck URL into the import prompt must not be typed
-        out key by key — terminals deliver it as one Paste event."""
+        """Terminals deliver a paste as one Paste event, not keys.
+
+        A multi-line paste (in the menu or the import prompt) is a
+        decklist: it opens in the editor. A single line goes into the
+        import prompt — a deck URL or a file path, imported on Enter.
+        """
         gv = self.query_one(GreeterView)
-        if gv._mode != GreeterMode.IMPORT:
+        if gv._mode not in (GreeterMode.MENU, GreeterMode.IMPORT):
             return
-        gv._input += " ".join(event.text.split())
+        text = event.text.strip()
+        if not text:
+            return
+        if "\n" in text or "\r" in text:
+            self._import_decklist(text, gv)
+            return
+        if gv._mode == GreeterMode.MENU:
+            gv.set_mode(GreeterMode.IMPORT)
+            gv._input = ""
+            gv._status = ""
+        gv._input += " ".join(text.split())
         gv.refresh()
+
+    def _import_decklist(self, text: str, gv: GreeterView) -> bool:
+        """Open pasted decklist text in the editor; False (with a status
+        message) when it holds no card lines."""
+        from vimtg.services.import_export_service import (
+            DeckFormat,
+            ImportExportService,
+        )
+
+        service = ImportExportService()
+        try:
+            report = service.import_deck_report(text)
+        except ValueError as exc:
+            report = None
+            reason = str(exc)
+        else:
+            reason = "no card lines found (expected lines like '4 Lightning Bolt')"
+        if report is None or not report.deck.entries:
+            gv.set_mode(GreeterMode.IMPORT)
+            gv._status = f"E: Not a decklist: {reason}"
+            gv.refresh()
+            return False
+        self._open_editor(None, service.export_deck(report.deck, DeckFormat.VIMTG))
+        return True
 
     def _handle_file_list_key(
         self,
@@ -456,6 +519,9 @@ class GreeterScreen(Screen[None]):
 
         path = Path(source).expanduser()
         if not path.is_file():
+            # A single typed/pasted card line ("4 Lightning Bolt")
+            if source[:1].isdigit() and self._import_decklist(source, gv):
+                return
             gv._status = f"E: File not found: {source}"
             gv.refresh()
             return
@@ -508,22 +574,31 @@ class GreeterScreen(Screen[None]):
         from vimtg.config.paths import cache_dir, db_path
         from vimtg.data.card_repository import CardRepository
         from vimtg.data.database import Database
-        from vimtg.data.scryfall_sync import ScryfallSync
+        from vimtg.data.scryfall_sync import ScryfallSync, describe_sync_error
 
         def _set_status(text: str) -> None:
             gv = self.query_one(GreeterView)
             gv._status = text
             gv.refresh()
 
+        shown = [""]
+
         def _progress(phase: str, current: int, total: int) -> None:
             if total > 0:
-                pct = current * 100 // total
-                self.app.call_from_thread(
-                    _set_status, f"Sync: {phase} {pct}%"
-                )
+                text = f"Sync: {phase} {current * 100 // total}%"
+                if text != shown[0]:  # don't flood the UI thread
+                    shown[0] = text
+                    self.app.call_from_thread(_set_status, text)
+
+        def _done(text: str, synced: bool) -> None:
+            _set_status(text)
+            adopt = getattr(self.app, "adopt_card_data", None)
+            if synced and callable(adopt):  # editors opened next get cards
+                adopt()
 
         # Own connection: sqlite objects must not cross threads
         db = Database(db_path())
+        synced = False
         try:
             db.initialize()
             repo = CardRepository(db)
@@ -532,12 +607,13 @@ class GreeterScreen(Screen[None]):
             message = f"Synced {count} cards"
             if sync.last_skipped:
                 message += f" ({sync.last_skipped} skipped)"
+            synced = True
         except Exception as exc:  # network/parse errors -> status line
-            message = f"Sync failed: {exc}"
+            message = f"Sync failed: {describe_sync_error(exc, retry='press s to retry')}"
         finally:
             db.close()
             self._sync_running = False
-        self.app.call_from_thread(_set_status, message)
+        self.app.call_from_thread(_done, message, synced)
 
 
 def _find_all_decks() -> list[Path]:

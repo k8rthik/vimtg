@@ -40,8 +40,9 @@ COMMANDS
   :plans        List the plans with their -out +in totals
   :import src   Import deck from a file (auto-detects format) or a
                 deck URL (Moxfield, Archidekt, ManaBox, Deckstats,
-                TappedOut, MTGGoldfish)
+                TappedOut, MTGGoldfish); no argument reads the clipboard
   :clipboard    Copy deck to system clipboard (default arena)
+  :sync         Download card data in the background (:sync! forces)
   :set opt=val  Change a setting (:set shows all)
   :config       Open the settings screen
   :map / :unmap Key remapping for this session
@@ -177,8 +178,11 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "plans": ":plans  List every sideboard plan with its -out +in totals",
     "import": (
-        ":import <file|url>  Import a deck (replaces buffer, undoable)\n"
+        ":import [file|url]  Import a deck (replaces buffer, undoable)\n"
         "\n"
+        "With no argument the decklist (or deck URL) is read from the\n"
+        "system clipboard. To ADD a pasted list to the deck instead,\n"
+        "paste it in normal mode (your terminal's paste key).\n"
         "Files auto-detect their format: vimtg, MTGO text or .dek,\n"
         "Arena (MTGA), Moxfield CSV, Archidekt CSV. A deck URL from\n"
         "Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or\n"
@@ -188,11 +192,20 @@ COMMAND_HELP: dict[str, str] = {
         "remembered as // Source:."
     ),
     "clipboard": (
-        ":clipboard [format]  Copy deck to system clipboard via OSC52\n"
+        ":clipboard [format]  Copy deck to the system clipboard\n"
         "\n"
         "Default format is arena. Use mtgo/moxfield/archidekt/vimtg for others.\n"
-        "Best-effort: terminal must support OSC52 (iTerm2, kitty, Alacritty,\n"
-        "Wezterm, Windows Terminal)."
+        "Uses pbcopy, wl-copy, xclip, xsel or clip.exe when available\n"
+        "(confirmed copy); otherwise asks the terminal via OSC 52, which\n"
+        "cannot be confirmed (iTerm2, kitty, Alacritty, Wezterm and\n"
+        "Windows Terminal support it). Over SSH OSC 52 is tried first."
+    ),
+    "sync": (
+        ":sync[!]  Download Scryfall card data in the background\n"
+        "\n"
+        "Progress shows in the status line; editing continues meanwhile.\n"
+        "Cached data newer than 7 days is reused; :sync! re-downloads.\n"
+        "The status line shows how old the card data is."
     ),
     "tag": (
         ":tag name  Add tag to cards in range (default: current line)\n"

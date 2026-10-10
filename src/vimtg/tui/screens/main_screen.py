@@ -18,13 +18,14 @@ from urllib.parse import urlparse
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Container
-from textual.events import Key
+from textual.events import Key, Paste
 from textual.screen import Screen
 
 from vimtg.config.paths import cache_dir
 from vimtg.config.settings import Settings
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
+from vimtg.data.scryfall_sync import NO_CARD_DATA, card_data_badge
 from vimtg.domain.card import Card
 from vimtg.domain.formats import get_format_rules
 from vimtg.domain.search import SearchSyntaxError
@@ -43,6 +44,7 @@ from vimtg.editor.lint import (
     lint_buffer,
 )
 from vimtg.editor.modes import Mode, ModeManager
+from vimtg.editor.paste_deck import add_deck_entries
 from vimtg.editor.placement import PlacementPolicy, place_mainboard_card
 from vimtg.editor.plan_ops import (
     find_block,
@@ -77,6 +79,7 @@ from vimtg.editor.splits import (
     SplitDirection,
     SplitOpen,
 )
+from vimtg.services.clipboard import copy_message, copy_to_clipboard
 from vimtg.services.deck_sources import (
     DeckSourceError,
     RemoteDeck,
@@ -119,6 +122,8 @@ if TYPE_CHECKING:
 _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
+OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
+SYNCING_SEARCH_NOTICE = "Card database is still downloading — search works once :sync finishes"
 
 _NAMED_KEYS = frozenset({
     "escape", "enter", "tab", "backspace", "delete",
@@ -229,6 +234,8 @@ class MainScreen(Screen[None]):
         # Nesting depth of _process_key (mappings and macros re-enter it);
         # only the outermost call catches, so a crash stops the replay
         self._key_depth = 0
+        # Card database readout for the status line (text, attention)
+        self._card_status: tuple[str, bool] = ("", False)
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -257,6 +264,7 @@ class MainScreen(Screen[None]):
             self._state.resolved_cards = resolve_cards(
                 self._state.buffer, self.card_repo,
             )
+        self._card_status = self._initial_card_status()
         self._sync_widgets()
         if self.file_path is not None and pending_recovery(
             self.file_path, self._state.buffer.to_text()
@@ -265,6 +273,133 @@ class MainScreen(Screen[None]):
                 "Found unsaved changes from a crash: :recover to load them, "
                 ":recover! to discard"
             )
+
+    # ── Card data status ─────────────────────────────────────────
+
+    def _initial_card_status(self) -> tuple[str, bool]:
+        """The app's card data readout; computed here for hosts without one."""
+        status = getattr(self.app, "card_data_status", None)
+        if callable(status):
+            text, attention = status()
+            return str(text), bool(attention)
+        if self.card_repo is None:
+            return NO_CARD_DATA, True
+        try:
+            return card_data_badge(self.card_repo.count(), self.card_repo.get_last_sync())
+        except sqlite3.Error:
+            return NO_CARD_DATA, True
+
+    def set_card_data_status(self, text: str, attention: bool) -> None:
+        """Called by the app as card data appears, ages or syncs."""
+        self._card_status = (text, attention)
+        lines = self.query("#status-line").results(StatusLine)
+        for sl in lines:  # none before compose; on_mount pulls the status
+            sl.card_data, sl.card_data_attention = self._card_status
+
+    def _card_data_available(self) -> bool:
+        """True when card search has a populated database behind it."""
+        if self.search_service is None:
+            return False
+        has_data = getattr(self.app, "has_card_data", None)
+        return bool(has_data()) if callable(has_data) else True
+
+    def _offline_notice(self) -> str:
+        if getattr(self.app, "card_sync_running", False):
+            return SYNCING_SEARCH_NOTICE
+        return OFFLINE_SEARCH_NOTICE
+
+    def show_message(self, text: str, *, error: bool = False) -> None:
+        """Public: put a status message on the command line."""
+        self.query_one("#command-line", CommandLine).set_message(text, error=error)
+
+    # ── Clipboard ────────────────────────────────────────────────
+
+    def on_paste(self, event: Paste) -> None:
+        """Terminal paste (bracketed paste arrives as one event).
+
+        In a text prompt — card search, the : line, a tag or comment —
+        the text is inserted at the cursor (newlines folded to spaces).
+        In normal mode it is read as a decklist and added to the deck as
+        one undo step. Visual mode ignores it.
+        """
+        event.stop()
+        event.prevent_default()
+        if not event.text.strip() or self.query_one("#help-panel", HelpPanel).display:
+            return
+        try:
+            self._handle_paste(event.text)
+        except Exception as exc:  # same safety net as a keypress
+            self.recover_from_crash(exc)
+
+    def _handle_paste(self, text: str) -> None:
+        s = self._state
+        if s.mode_mgr.is_insert() or s.mode_mgr.is_command() or (
+            s.mode_mgr.current == Mode.SEARCH
+        ):
+            action = self.keymap.paste(" ".join(text.split()))
+            if action is None:
+                return
+            hr = self._dispatch_special(action)
+            if hr:
+                self._apply_handler_result(hr)
+            self._sync_widgets()
+            return
+        if s.mode_mgr.is_normal():
+            self.keymap.reset()  # a half-typed sequence ('2d') is dropped
+            self._paste_decklist(text)
+
+    def _paste_decklist(self, text: str) -> None:
+        """Add a pasted decklist to the deck (one undo step) and report
+        how many cards went in and which lines were skipped."""
+        from vimtg.services.import_export_service import ImportExportService
+
+        s = self._state
+        try:
+            report = ImportExportService().import_deck_report(text)
+        except ValueError as exc:
+            self.show_message(f"E: Cannot read pasted text: {exc}", error=True)
+            return
+        deck = report.deck
+        if not deck.entries:
+            self.show_message(
+                "E: Nothing pasted: no card lines found "
+                "(expected lines like '4 Lightning Bolt')",
+                error=True,
+            )
+            return
+
+        def type_line(name: str) -> str | None:
+            card = s.resolved_cards.get(name)
+            if card is None and self.card_repo is not None:
+                card = self.card_repo.get_by_name(name)
+            return card.type_line if card is not None else None
+
+        result = add_deck_entries(
+            s.buffer, deck, auto_sort=s.settings.auto_sort, type_line=type_line
+        )
+        s.buffer = result.buffer
+        if result.first_row is not None:
+            s.cursor = s.cursor.move_to(result.first_row, 0)
+        s.modified = True
+        s.history.record(s.buffer, f"paste {result.cards} cards")
+        if self.card_repo:
+            s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
+        message = f"Pasted {result.cards} cards ({len(deck.entries)} lines)"
+        if report.skipped:
+            first = report.skipped[0]
+            message += (
+                f" | {len(report.skipped)} line(s) skipped"
+                f" (line {first.line_number}: {first.text[:40]})"
+            )
+        self._sync_widgets()
+        self.show_message(message)
+
+    def _copy_to_clipboard(self, text: str, label: str) -> None:
+        """Copy via a native clipboard tool, else OSC 52 through Textual
+        (never raw bytes on stdout while Textual owns the terminal)."""
+        result = copy_to_clipboard(text, osc52=self.app.copy_to_clipboard)
+        message, error = copy_message(result, label)
+        self.show_message(message, error=error)
 
     # ── Key dispatch ─────────────────────────────────────────────
 
@@ -570,7 +705,11 @@ class MainScreen(Screen[None]):
         self.keymap.reset_text()
         cl = self.query_one("#command-line", CommandLine)
         cl.show("")
-        cl.message = "Type card name to search..."
+        cl.message = (
+            "Type card name to search..."
+            if self._card_data_available() or self._in_plan_zone()
+            else f"{self._offline_notice()} — Esc to cancel"
+        )
 
     def _apply_handler_result(self, hr: HandlerResult) -> None:
         s = self._state
@@ -678,6 +817,10 @@ class MainScreen(Screen[None]):
             self.app.push_screen(HandScreen(hr.hand_open))
         if hr.import_url:
             self._start_url_import(hr.import_url)
+        if hr.clipboard_text is not None:
+            self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label)
+        if hr.card_sync:
+            self._start_card_sync(force=hr.card_sync == "force")
         if hr.focus_next_pane:
             self._toggle_pane_focus()
         if hr.run_ex_command:
@@ -710,6 +853,12 @@ class MainScreen(Screen[None]):
                 self._update_search_results(
                     plan_search(s.buffer, s.resolved_cards, query)
                 )
+            elif len(query) >= 2 and not self._card_data_available():
+                # Say why nothing can match instead of an empty overlay
+                sr.results = []
+                sr.error = ""
+                sr.notice = self._offline_notice()
+                sr.display = True
             elif len(query) >= 2 and self.search_service:
                 self._latest_search = query
                 self._run_search(query)
@@ -773,6 +922,8 @@ class MainScreen(Screen[None]):
             # No card selected — the o/O scratch blank is discarded
             discard_pending_insert(self._state)
             cl.hide()
+            if not self._card_data_available() and not self._in_plan_zone():
+                cl.set_message(f"Nothing added: {self._offline_notice()}", error=True)
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
@@ -1176,6 +1327,18 @@ class MainScreen(Screen[None]):
         s.modified = True
         s.history.record(s.buffer, f"added {rec.name} (EDHREC)")
         cl.set_message(f"Added {rec.name}")
+
+    def _in_plan_zone(self) -> bool:
+        """Card search inside a VS: block searches the deck, not the DB."""
+        s = self._state
+        return insertion_zone(s.buffer, s.cursor.row) == LineType.PLAN_ENTRY
+
+    def _start_card_sync(self, force: bool) -> None:
+        start = getattr(self.app, "start_card_sync", None)
+        if not callable(start):
+            self.show_message("E: Card sync is not available here", error=True)
+            return
+        self.show_message(str(start(force=force)))
 
     def attach_card_repo(
         self, card_repo: CardRepository, search_service: SearchService,
@@ -1591,6 +1754,7 @@ class MainScreen(Screen[None]):
     def _update_search_results(self, results: list[Card]) -> None:
         sr = self.query_one("#search-results", SearchResults)
         sr.error = ""
+        sr.notice = ""
         sr.results = results
         sr.selected = 0
         sr.display = bool(results)
@@ -1770,6 +1934,7 @@ class MainScreen(Screen[None]):
         sl.cursor_lint = cursor_err.message if cursor_err else ""
         sl.cursor_lint_level = cursor_err.level if cursor_err else ""
         sl.plan_status, sl.plan_unbalanced = self._plan_status()
+        sl.card_data, sl.card_data_attention = self._card_status
 
         # VCS status — a DB hiccup here must not crash the render path
         vcs = self._vcs_service  # Don't lazily init on every sync
