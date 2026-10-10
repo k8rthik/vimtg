@@ -94,7 +94,7 @@ class CardRepository:
 
         return result
 
-    def search_advanced(self, query: SearchQuery) -> list[Card]:
+    def search_advanced(self, query: SearchQuery, limit: int = 50) -> list[Card]:
         """Build SQL from SearchQuery filters."""
         conn = self._db.connect()
         conditions: list[str] = []
@@ -109,6 +109,11 @@ class CardRepository:
         if query.type_contains:
             conditions.append("c.type_line LIKE ?")
             params.append(f"%{query.type_contains}%")
+        # Colours are stored as a JSON array of symbols (``["R","G"]``);
+        # every requested colour must be present, like Scryfall's ``c:rg``.
+        for color in query.colors_include:
+            conditions.append("c.colors LIKE ?")
+            params.append(f'%"{color.value}"%')
         if query.cmc_eq is not None:
             conditions.append("c.cmc = ?")
             params.append(query.cmc_eq)
@@ -129,8 +134,8 @@ class CardRepository:
             params.append(f"%{query.oracle_contains}%")
 
         where = " AND ".join(conditions) if conditions else "1=1"
-        sql = f"SELECT * FROM cards c WHERE {where} LIMIT 50"  # noqa: S608
-        rows = conn.execute(sql, params).fetchall()
+        sql = f"SELECT * FROM cards c WHERE {where} LIMIT ?"  # noqa: S608
+        rows = conn.execute(sql, [*params, limit]).fetchall()
         return [row_to_card(row) for row in rows]
 
     def autocomplete(self, prefix: str, limit: int = 20) -> list[str]:

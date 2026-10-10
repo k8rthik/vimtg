@@ -123,8 +123,10 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        shorts=("prev sideboard plan", "next sideboard plan")),
     _b(("ctrl_d", "ctrl_u"), "Half page down / up", NAVIGATION, label="Ctrl-D/U",
        quick="Navigation", brief="half page"),
-    _b(("0", "$"), "Line start / end", NAVIGATION),
-    _b(("h", "l"), "Line start / end (no horizontal cursor)", NAVIGATION),
+    _b(("H", "M", "L"), "Top / middle / bottom of the visible deck view", NAVIGATION,
+       note="A count offsets H and L: 3H is the third visible line"),
+    _b(("n", "N"), "Repeat the last / or :find forward / backward", NAVIGATION,
+       quick="Navigation", brief="next/prev match"),
     # ── Editing ───────────────────────────────────────────
     _b("dd", "Delete the card line", EDITING, quick="Editing", brief="delete card"),
     _b("yy", "Yank (copy) the card line", EDITING, quick="Editing", brief="yank card"),

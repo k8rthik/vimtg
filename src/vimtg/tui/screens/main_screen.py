@@ -31,7 +31,7 @@ from vimtg.editor.buffer import Buffer, LineType, insertion_zone
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
-from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
+from vimtg.editor.keymap import VIEW_MOTIONS, KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import load_remapper
 from vimtg.editor.layout import follow_line
 from vimtg.editor.lint import (
@@ -340,6 +340,8 @@ class MainScreen(Screen[None]):
         s = self._state
         hr = None
         if action.action_type == "motion":
+            if action.action in VIEW_MOTIONS:
+                s.view_band = self.query_one("#deck-view", DeckView).cursor_band()
             hr = handle_motion(s, action)
         elif action.action_type == "operator":
             hr = handle_operator(s, action)

@@ -70,6 +70,8 @@ class DeckView(Static):
     # the screen applies them, so the view reasons from its own request
     # and the screen applies only the latest one.
     _pending_cursor_row: int | None = None
+    # The [start, end) buffer-line window of the last render
+    _window: tuple[int, int] | None = None
 
     # Header count annotations, cached per Buffer — buffers are
     # immutable, so identity is a sound cache key.
@@ -142,6 +144,7 @@ class DeckView(Static):
         cursor_row = min(self.cursor.row, total - 1)
         cursor_lines = self._render_buffer_line(cursor_row, counts)
         start, end = self._visible_range(cursor_row, len(cursor_lines))
+        self._window = (start, end)
 
         output = Text()
         for i in range(start, end):
@@ -150,6 +153,20 @@ class DeckView(Static):
                 output.append(line)
                 output.append("\n")
         return output
+
+    def cursor_band(self) -> tuple[int, int] | None:
+        """Inclusive (top, bottom) rows the cursor can move to without
+        scrolling the view — the rendered window minus the scrolloff
+        margin, except where the window meets the buffer's ends. This
+        is what H / M / L target. None before the first render."""
+        if self.buffer is None or self._window is None:
+            return None
+        total = self.buffer.line_count()
+        start, end = self._window
+        margin = min(_SCROLLOFF, max(0, (end - start - 1) // 2))
+        top = start if start == 0 else start + margin
+        bottom = end - 1 if end >= total else end - 1 - margin
+        return top, max(top, bottom)
 
     # ── Mouse wheel ──────────────────────────────────────────────
 

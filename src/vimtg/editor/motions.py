@@ -34,14 +34,6 @@ def motion_up(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
     return cursor.move_to(pos, cursor.col)
 
 
-def motion_line_start(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
-    return cursor.move_to(cursor.row, 0)
-
-
-def motion_line_end(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
-    return cursor.move_to(cursor.row, len(buffer.get_line(cursor.row).text))
-
-
 def motion_first_line(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
     return cursor.move_to(0, 0)
 
@@ -151,15 +143,59 @@ def motion_half_page_up(cursor: Cursor, buffer: Buffer, count: int = 1) -> Curso
     return cursor.move_to(new_row, cursor.col)
 
 
+def _nearest_non_blank(buffer: Buffer, row: int, top: int, bottom: int, step: int) -> int:
+    """`row` if it is not blank, else the first non-blank row stepping
+    by `step` (then the other way) within [top, bottom]; `row` when the
+    whole band is blank."""
+    for direction in (step, -step):
+        pos = row
+        while top <= pos <= bottom:
+            if buffer.get_line(pos).line_type != LineType.BLANK:
+                return pos
+            pos += direction
+    return row
+
+
+def _clamp_band(buffer: Buffer, band: tuple[int, int]) -> tuple[int, int]:
+    last = max(0, buffer.line_count() - 1)
+    top = max(0, min(band[0], last))
+    return top, max(top, min(band[1], last))
+
+
+def motion_view_top(
+    cursor: Cursor, buffer: Buffer, band: tuple[int, int], count: int = 1,
+) -> Cursor:
+    """H — the count-th line from the top of the visible band."""
+    top, bottom = _clamp_band(buffer, band)
+    row = min(top + count - 1, bottom)
+    return cursor.move_to(_nearest_non_blank(buffer, row, top, bottom, 1), 0)
+
+
+def motion_view_middle(
+    cursor: Cursor, buffer: Buffer, band: tuple[int, int], count: int = 1,
+) -> Cursor:
+    """M — the middle line of the visible band."""
+    top, bottom = _clamp_band(buffer, band)
+    row = (top + bottom) // 2
+    return cursor.move_to(_nearest_non_blank(buffer, row, top, bottom, 1), 0)
+
+
+def motion_view_bottom(
+    cursor: Cursor, buffer: Buffer, band: tuple[int, int], count: int = 1,
+) -> Cursor:
+    """L — the count-th line from the bottom of the visible band."""
+    top, bottom = _clamp_band(buffer, band)
+    row = max(bottom - (count - 1), top)
+    return cursor.move_to(_nearest_non_blank(buffer, row, top, bottom, -1), 0)
+
+
 MotionFn = Callable[[Cursor, Buffer, int], Cursor]
+# View motions also take the (top, bottom) rows the deck view shows
+ViewMotionFn = Callable[[Cursor, Buffer, tuple[int, int], int], Cursor]
 
 MOTION_REGISTRY: dict[str, MotionFn] = {
     "j": motion_down,
     "k": motion_up,
-    "h": motion_line_start,
-    "l": motion_line_end,
-    "0": motion_line_start,
-    "$": motion_line_end,
     "gg": motion_first_line,
     "G": motion_last_line,
     "w": motion_next_card,
@@ -170,4 +206,11 @@ MOTION_REGISTRY: dict[str, MotionFn] = {
     "]]": motion_section_header_next,
     "ctrl_d": motion_half_page_down,
     "ctrl_u": motion_half_page_up,
+}
+
+# H / M / L depend on the viewport, so they are not operator targets
+VIEW_MOTIONS: dict[str, ViewMotionFn] = {
+    "H": motion_view_top,
+    "M": motion_view_middle,
+    "L": motion_view_bottom,
 }

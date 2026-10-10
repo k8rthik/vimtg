@@ -30,17 +30,17 @@ class SearchService:
         syntax (t:creature, c:r, cmc<=2, r:rare, o:draw, set:mh2)."""
         sq = self.parse_query(query)
         if any(getattr(sq, f) for f in _FILTER_FIELDS):
-            return self.advanced_search(query)[:limit]
+            return self.advanced_search(query, limit=limit)
         return self.fuzzy_search(query, limit=limit)
 
-    def advanced_search(self, query: str) -> list[Card]:
+    def advanced_search(self, query: str, limit: int = 50) -> list[Card]:
         sq = self.parse_query(query)
         if sq.is_empty():
             return []
         has_filters = any(getattr(sq, f) for f in _FILTER_FIELDS)
         if sq.text and not has_filters:
-            return self._repo.search(sq.text)
-        return self._repo.search_advanced(sq)
+            return self._repo.search(sq.text, limit=limit)
+        return self._repo.search_advanced(sq, limit=limit)
 
     def autocomplete(self, prefix: str) -> list[str]:
         return self._repo.autocomplete(prefix)

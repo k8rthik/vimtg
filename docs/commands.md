@@ -37,7 +37,7 @@ Examples:
 
 | Command | Description |
 |---------|-------------|
-| `:find pattern` | Jump to the next card matching `pattern` (also bound to `/`) |
+| `:find pattern` | Jump to the next card matching `pattern` (also bound to `/`; `n` / `N` repeat it forward / backward) |
 | `:search query` | Open the card database search overlay |
 
 ## Categories & layout
