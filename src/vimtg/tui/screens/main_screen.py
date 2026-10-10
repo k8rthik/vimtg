@@ -422,7 +422,7 @@ class MainScreen(Screen[None]):
 
         s = self._state
         try:
-            report = ImportExportService().import_deck_report(text)
+            report = ImportExportService(card_repo=self.card_repo).import_deck_report(text)
         except ValueError as exc:
             self.show_message(f"E: Cannot read pasted text: {exc}", error=True)
             return
@@ -442,7 +442,11 @@ class MainScreen(Screen[None]):
             return card.type_line if card is not None else None
 
         result = add_deck_entries(
-            s.buffer, deck, auto_sort=s.settings.auto_sort, type_line=type_line
+            s.buffer,
+            deck,
+            auto_sort=s.settings.auto_sort,
+            type_line=type_line,
+            card_key=self._paste_card_key(),
         )
         s.buffer = result.buffer
         if result.first_row is not None:
@@ -460,6 +464,30 @@ class MainScreen(Screen[None]):
             )
         self._sync_widgets()
         self.show_message(message)
+
+    def _paste_card_key(self) -> Callable[[str], str]:
+        """Card identity for paste merging: the oracle id when the card
+        is known (so 'Insectile Aberration' merges into 'Delver of
+        Secrets'), else the normalised name. Memoised for one paste."""
+        from vimtg.domain.card_names import normalize_card_name
+
+        s = self._state
+        memo: dict[str, str] = {}
+
+        def key(name: str) -> str:
+            norm = normalize_card_name(name)
+            if norm not in memo:
+                card = s.resolved_cards.get(name)
+                if card is None and self.card_repo is not None:
+                    card = self.card_repo.get_by_name(name)
+                memo[norm] = (
+                    f"oracle:{card.oracle_id}"
+                    if card is not None and card.oracle_id
+                    else normalize_card_name(card.name) if card is not None else norm
+                )
+            return memo[norm]
+
+        return key
 
     def _copy_to_clipboard(self, text: str, label: str) -> None:
         """Copy via a native clipboard tool, else OSC 52 through Textual
@@ -1173,14 +1201,19 @@ class MainScreen(Screen[None]):
             return
         from vimtg.services.deck_sources import stamped_deck
         from vimtg.services.import_export_service import (
-            DeckFormat,
+            NO_FORMAT_NOTE,
             ImportExportService,
+            canonicalize_names,
+            merge_duplicate_entries,
+            structured_deck_text,
         )
 
         s = self._state
-        deck = stamped_deck(remote, url)
         service = ImportExportService(card_repo=self.card_repo)
-        s.buffer = Buffer.from_text(service.export_deck(deck, DeckFormat.VIMTG))
+        deck = stamped_deck(remote, url)
+        resolution = service.resolve_cards(deck)
+        deck = merge_duplicate_entries(canonicalize_names(deck, resolution.resolved))
+        s.buffer = Buffer.from_text(structured_deck_text(deck, resolution.resolved))
         s.cursor = Cursor()
         s.modified = True
         s.history.record(s.buffer, f"import {remote.name or url}")
@@ -1189,11 +1222,12 @@ class MainScreen(Screen[None]):
         message = f"Imported {deck.total_cards()} cards"
         if remote.name:
             message += f" — {remote.name}"
-        resolution = service.resolve_cards(deck)
         if resolution.unresolved:
             from vimtg.domain.errors import CardsNotFoundWarning
 
             message += f" | {CardsNotFoundWarning(len(resolution.unresolved))}"
+        if not deck.metadata.format:
+            message += f" | {NO_FORMAT_NOTE}"
         self.query_one("#command-line", CommandLine).set_message(message)
         self._sync_widgets()
 

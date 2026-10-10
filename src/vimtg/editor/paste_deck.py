@@ -5,8 +5,10 @@ parser (Arena, MTGO, Moxfield/Archidekt CSV, vimtg — auto-detected) and
 merges every entry into its own zone: a card the zone already has gains
 the copies, a new main-deck card goes where the placement policy files
 it (type or category section), and a sideboard/commander/... card goes
-into that zone's block. The caller records the whole paste as one undo
-step.
+into that zone's block. A card "the zone already has" is matched by
+card, not spelling: "Fire/Ice" merges into "Fire // Ice", and with card
+data "Insectile Aberration" into "Delver of Secrets". The caller records
+the whole paste as one undo step.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from vimtg.domain.card_names import normalize_card_name
 from vimtg.domain.deck import Deck, DeckSection
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.operators import ALPHA_ZONES, insert_zone_line
@@ -29,6 +32,9 @@ SECTION_ZONES = {
 
 # Card name -> its type line, when the card database knows it
 TypeLookup = Callable[[str], str | None]
+# Card name -> identity of the card it names (two names with the same
+# key are one card); the default only folds spelling
+CardKey = Callable[[str], str]
 
 
 @dataclass(frozen=True)
@@ -38,13 +44,15 @@ class PasteResult:
     cards: int  # copies added, over all entries
 
 
-def _find_line(buffer: Buffer, name: str, zone: LineType) -> int | None:
-    key = name.casefold()
+def _find_line(
+    buffer: Buffer, name: str, zone: LineType, card_key: CardKey
+) -> int | None:
+    key = card_key(name)
     for i in range(buffer.line_count()):
         if buffer.get_line(i).line_type != zone:
             continue
         existing = buffer.card_name_at(i)
-        if existing is not None and existing.casefold() == key:
+        if existing is not None and card_key(existing) == key:
             return i
     return None
 
@@ -55,12 +63,13 @@ def add_deck_entries(
     *,
     auto_sort: bool,
     type_line: TypeLookup = lambda _name: None,
+    card_key: CardKey = normalize_card_name,
 ) -> PasteResult:
     """Merge every entry of `deck` into `buffer` (see module doc)."""
     cards = 0
     for entry in deck.entries:
         zone = SECTION_ZONES[entry.section]
-        existing = _find_line(buffer, entry.card_name, zone)
+        existing = _find_line(buffer, entry.card_name, zone, card_key)
         if existing is not None:
             qty = buffer.quantity_at(existing) or 0
             buffer = buffer.set_quantity(existing, qty + entry.quantity)
@@ -83,5 +92,7 @@ def add_deck_entries(
     first_row = None
     if deck.entries:
         first = deck.entries[0]
-        first_row = _find_line(buffer, first.card_name, SECTION_ZONES[first.section])
+        first_row = _find_line(
+            buffer, first.card_name, SECTION_ZONES[first.section], card_key
+        )
     return PasteResult(buffer, first_row, cards)

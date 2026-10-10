@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from vimtg.domain.card_names import CardMap
+from vimtg.domain.card_names import CardMap, normalize_card_name
 from vimtg.domain.card_types import is_basic_land
 from vimtg.domain.deck import Deck, DeckEntry, DeckSection
 from vimtg.domain.formats import FormatRules, get_format_rules, known_formats
@@ -135,26 +135,41 @@ def _lowercase_lookup(
     return CardMap(resolved)
 
 
-def _counted_copies(deck: Deck) -> dict[str, int]:
-    """Total copies per card name across mainboard, sideboard, commander.
+def _card_key(name: str, lookup: dict[str, Card]) -> str:
+    """Identity of the card a deck line names, for copy counting.
 
-    Keyed by lowercase name: card resolution is case-insensitive, so
-    '4 Lightning Bolt' + '4 lightning bolt' is 8 copies of one card,
-    not two clean playsets.
+    The resolved card's oracle id when known, so 'Fire // Ice' +
+    'Fire/Ice' and 'Delver of Secrets' + 'Insectile Aberration' are one
+    card; otherwise the normalised name ('Lightning Bolt' and 'lightning
+    bolt' still meet).
     """
+    card = lookup.get(name)
+    if card is not None:
+        if card.oracle_id:
+            return f"oracle:{card.oracle_id}"
+        return normalize_card_name(card.name)
+    return normalize_card_name(name)
+
+
+def _counted_copies(
+    deck: Deck, lookup: dict[str, Card]
+) -> dict[str, int]:
+    """Total copies per card across mainboard, sideboard, commander,
+    keyed by _card_key: '4 Lightning Bolt' + '4 lightning bolt' is 8
+    copies of one card, not two clean playsets."""
     combined: dict[str, int] = {}
     for entry in deck.entries:
         if entry.section in _COPY_SECTIONS:
-            key = entry.card_name.lower()
+            key = _card_key(entry.card_name, lookup)
             combined[key] = combined.get(key, 0) + entry.quantity
     return combined
 
 
-def _display_names(deck: Deck) -> dict[str, str]:
-    """First-seen original spelling per lowercase card name, for messages."""
+def _display_names(deck: Deck, lookup: dict[str, Card]) -> dict[str, str]:
+    """First-seen original spelling per card key, for messages."""
     names: dict[str, str] = {}
     for entry in deck.entries:
-        names.setdefault(entry.card_name.lower(), entry.card_name)
+        names.setdefault(_card_key(entry.card_name, lookup), entry.card_name)
     return names
 
 
@@ -164,14 +179,12 @@ def _generic_checks(
     """Format-agnostic rules: 4-of, 60-card minimum, 15-card sideboard."""
     errors: list[ValidationError] = []
 
-    display = _display_names(deck)
-    for name, qty in _counted_copies(deck).items():
+    display = _display_names(deck, lookup)
+    for key, qty in _counted_copies(deck, lookup).items():
+        name = display[key]
         if qty > _copy_limit_for(name, lookup.get(name), 4):
             errors.append(
-                ValidationError(
-                    "warning",
-                    f"More than 4 copies of {display.get(name, name)}",
-                )
+                ValidationError("warning", f"More than 4 copies of {name}")
             )
 
     main_count = sum(e.quantity for e in deck.mainboard())
@@ -206,7 +219,7 @@ def _check_legality(
     if not lookup:
         return []
     errors: list[ValidationError] = []
-    copies = _counted_copies(deck)
+    copies = _counted_copies(deck, lookup)
     for entry in deck.entries:
         card = lookup.get(entry.card_name.lower())
         if card is None or not card.legalities:
@@ -250,7 +263,7 @@ def _check_legality(
         elif (
             status == "restricted"
             and entry.section in _COPY_SECTIONS
-            and copies.get(entry.card_name.lower(), 0) > 1
+            and copies.get(_card_key(entry.card_name, lookup), 0) > 1
         ):
             errors.append(
                 ValidationError(
@@ -305,30 +318,33 @@ def _check_copy_limit(
     deck: Deck, lookup: dict[str, Card], rules: FormatRules
 ) -> list[ValidationError]:
     """Flag every entry-line of a card exceeding the format's copy limit."""
-    copies = _counted_copies(deck)
+    copies = _counted_copies(deck, lookup)
+    display = _display_names(deck, lookup)
     limits = {
-        name: _copy_limit_for(name, lookup.get(name), rules.copy_limit)
-        for name in copies
+        key: _copy_limit_for(display[key], lookup.get(display[key]), rules.copy_limit)
+        for key in copies
     }
-    over = {name for name, qty in copies.items() if qty > limits[name]}
+    over = {key for key, qty in copies.items() if qty > limits[key]}
     if not over:
         return []
 
-    def describe(name: str) -> str:
-        limit = int(limits[name])
+    def describe(key: str) -> str:
+        limit = int(limits[key])
         word = "copy" if limit == 1 else "copies"
         return f"max {limit} {word} in {rules.name}"
 
-    return [
-        ValidationError(
-            "error",
-            f"{entry.card_name}: {copies[entry.card_name.lower()]} copies "
-            f"({describe(entry.card_name.lower())})",
-            line_number=entry.line_number,
-        )
-        for entry in deck.entries
-        if entry.card_name.lower() in over and entry.section in _COPY_SECTIONS
-    ]
+    errors: list[ValidationError] = []
+    for entry in deck.entries:
+        key = _card_key(entry.card_name, lookup)
+        if key in over and entry.section in _COPY_SECTIONS:
+            errors.append(
+                ValidationError(
+                    "error",
+                    f"{entry.card_name}: {copies[key]} copies ({describe(key)})",
+                    line_number=entry.line_number,
+                )
+            )
+    return errors
 
 
 def _check_deck_size(

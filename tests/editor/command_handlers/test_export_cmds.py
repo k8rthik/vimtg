@@ -30,7 +30,9 @@ class TestExport:
         cmd = ParsedCommand(name="export", args="mtgo")
 
         result_buf, _ = cmd_export(buffer, cursor, cmd, ctx)
-        assert "Exported mtgo" in ctx.message
+        # No file name: the export goes to the clipboard (the TUI copies)
+        assert ctx.clipboard_text is not None and "Lightning Bolt" in ctx.clipboard_text
+        assert ctx.clipboard_label.startswith("mtgo export (")
         assert result_buf is buffer
 
     def test_export_arena(self) -> None:
@@ -40,7 +42,9 @@ class TestExport:
         cmd = ParsedCommand(name="export", args="arena")
 
         cmd_export(buffer, cursor, cmd, ctx)
-        assert "Exported arena" in ctx.message
+        # No file name: the export goes to the clipboard (the TUI copies)
+        assert ctx.clipboard_text is not None and "Lightning Bolt" in ctx.clipboard_text
+        assert ctx.clipboard_label.startswith("arena export (")
 
     def test_export_moxfield(self) -> None:
         buffer = Buffer.from_text(_deck_text())
@@ -49,7 +53,9 @@ class TestExport:
         cmd = ParsedCommand(name="export", args="moxfield")
 
         cmd_export(buffer, cursor, cmd, ctx)
-        assert "Exported moxfield" in ctx.message
+        # No file name: the export goes to the clipboard (the TUI copies)
+        assert ctx.clipboard_text is not None and "Lightning Bolt" in ctx.clipboard_text
+        assert ctx.clipboard_label.startswith("moxfield export (")
 
     def test_export_archidekt(self) -> None:
         buffer = Buffer.from_text(_deck_text())
@@ -58,7 +64,9 @@ class TestExport:
         cmd = ParsedCommand(name="export", args="archidekt")
 
         cmd_export(buffer, cursor, cmd, ctx)
-        assert "Exported archidekt" in ctx.message
+        # No file name: the export goes to the clipboard (the TUI copies)
+        assert ctx.clipboard_text is not None and "Lightning Bolt" in ctx.clipboard_text
+        assert ctx.clipboard_label.startswith("archidekt export (")
 
     def test_export_to_file(self) -> None:
         buffer = Buffer.from_text(_deck_text())
@@ -66,7 +74,8 @@ class TestExport:
         ctx = EditorContext()
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             out_path = f.name
-        cmd = ParsedCommand(name="export", args=f"mtgo {out_path}")
+        # The temp file exists, so overwriting it takes the bang
+        cmd = ParsedCommand(name="export", args=f"mtgo {out_path}", bang=True)
 
         cmd_export(buffer, cursor, cmd, ctx)
         assert f"Exported mtgo to {out_path}" in ctx.message
@@ -234,6 +243,9 @@ class _ResolvingRepo:
 
     def get_by_name(self, name: str):  # noqa: ANN201
         return self._known.get(name.lower())
+
+    def get_by_names(self, names: list[str]) -> dict[str, object]:
+        return {n: c for n in names if (c := self.get_by_name(n)) is not None}
 
     def search(self, query: str, limit: int = 50) -> list:
         return self._fts.get(query, [])[:limit]

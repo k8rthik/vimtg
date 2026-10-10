@@ -129,8 +129,9 @@ So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
 
 | Command | Description |
 |---------|-------------|
-| `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `moxfield`, `archidekt`, or `vimtg` |
-| `:import file` | Replace the buffer with `file`, auto-detecting format |
+| `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard |
+| `:export! fmt file` | Same, overwriting an existing `file` (`:export` refuses with E13). The open deck's own file is never an export target |
+| `:import file` | Replace the buffer with `file`, auto-detecting format. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
 | `:import` | Same, with the decklist (or deck URL) on the system clipboard |
 | `:clipboard [fmt]` | Copy the deck to the system clipboard (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
 
