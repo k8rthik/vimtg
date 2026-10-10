@@ -195,9 +195,9 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Offline Scryfall data**: `vimtg sync` downloads the `oracle_cards` bulk file, streams it into SQLite, and builds an FTS5 index over name, type line, and oracle text. Tokens, emblems, and art-series cards are skipped. Downloads are content-length checked and written atomically; a corrupt cache is deleted and reported. Each sync replaces the card table in one transaction, so a card Scryfall re-keys or drops never lingers as a stale duplicate; deck history is never touched.
 - **Card names**: cards resolve by full name or any face, so `Fable of the Mirror-Breaker`, `Stomp`, `Fire/Ice`, `lightning bolt`, and `Lim-Dul's Vault` all find their card in lint, validation, stats, export, and the inline card details.
 - **Auto-sync**: the TUI checks on launch and hourly, and syncs on a worker thread when the database is missing or older than seven days. A toast reports success or failure, and search and lint light up retroactively once data arrives. Disable with `:set noautosync` or the `VIMTG_NO_AUTOSYNC` environment variable.
-- **Query syntax**: plain words do FTS5 prefix matching. Scryfall-style filters are recognised: `t:`/`type:`, `o:`/`oracle:` (quoted phrases allowed), `cmc=N`, `cmc<=N`, `cmc>=N`, `set:`, `r:`/`rarity:`, `c:`/`color:` (`c:rg` requires every listed colour; colourless cards never match). Filtered queries return up to `search_limit` results, the same as name search, and `vimtg search` accepts the same syntax.
-- **Format filtering**: in the editor, search results are filtered to cards legal or restricted in the deck's declared format when that format is known.
-- **Card model**: name, mana cost, CMC, type line, oracle text, colours, colour identity, P/T, set, rarity, five price sources (USD, USD foil, EUR, EUR foil, tix), legalities, layout, keywords. Transform and modal DFCs use the front face; split and adventure cards join both faces.
+- **Query syntax**: Scryfall-style, shared by the overlay, `:search`, and `vimtg search`. Bare words prefix-match card names (any face); `!"Exact Name"`; `t:`, `o:` (with `/regex/`), `kw:`, `m:`; `c:`/`id:` with colour letters or names (`c:boros`, `id<=esper`) and `= != < <= > >=`; `mv`, `pow`, `tou`, `usd`/`eur`/`tix` comparisons; `r:`, `set:`, `f:`/`banned:`/`restricted:`; `is:commander`, `is:dfc`/`mdfc`/`split`/`adventure`; `-` negation, `or`, and parentheses. Unknown keys and bad values are reported by name. Full reference: [docs/search.md](docs/search.md).
+- **Format filtering**: in the editor, search results are filtered to cards legal or restricted in the deck's declared format when that format is known, before `search_limit` is applied.
+- **Card model**: name, mana cost, CMC, type line, oracle text, colours, colour identity, P/T, set, rarity, five price sources (USD, USD foil, EUR, EUR foil, tix), legalities, layout, keywords. Transform and modal DFCs use the front face (search also reads the back face's rules text); split and adventure cards join both faces.
 
 ### Adding cards
 
@@ -437,7 +437,7 @@ vimtg burn.deck                        # open a deck (vim-style); a new path is 
 vimtg edit [file]                      # same, explicit
 vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats; --force overwrites)
 vimtg sync [--force]                   # download or refresh the card database
-vimtg search "t:creature cmc<=2" -n 40 # search cards
+vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md)
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
 vimtg info deck.deck                   # counts summary
 vimtg guide deck.deck [--markdown]     # sideboard plans

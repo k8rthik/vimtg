@@ -20,7 +20,7 @@ from vimtg.data.deck_repository import DeckRepository
 from vimtg.data.scryfall_sync import ScryfallSync, describe_sync_error
 from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService
-from vimtg.services.search_service import SearchService
+from vimtg.services.search_service import SearchService, SearchSyntaxError
 
 if TYPE_CHECKING:
     from vimtg.domain.card import Card
@@ -388,15 +388,20 @@ def _sync(db: Database, force: bool) -> None:
 
 
 @main.command()
-@click.argument("query")
+@click.argument("query", nargs=-1, required=True)
 @click.option("--limit", "-n", default=20, help="Max results")
-def search(query: str, limit: int) -> None:
-    """Search for cards."""
+def search(query: tuple[str, ...], limit: int) -> None:
+    """Search for cards with Scryfall-style syntax, e.g.
+    'vimtg search t:creature c:r mv<=2'. Put '--' before a query that
+    starts with '-': 'vimtg search -- -t:land c:boros'."""
     repo = _make_card_repo()
     if repo.count() == 0:
         raise click.ClickException(str(DatabaseNotInitializedError()))
     service = SearchService(card_repo=repo)
-    results = service.search(query, limit=limit)
+    try:
+        results = service.search(" ".join(query), limit=limit)
+    except SearchSyntaxError as exc:
+        raise click.ClickException(str(exc)) from exc
 
     if not results:
         click.echo("No cards found.")

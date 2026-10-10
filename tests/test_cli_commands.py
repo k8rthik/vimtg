@@ -560,3 +560,26 @@ def test_sync_failure_is_friendly(
     result = runner.invoke(main, ["sync"])
     assert result.exit_code == 1
     assert "run `vimtg sync` to retry" in result.output
+
+
+def test_search_full_syntax_and_unquoted_terms(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The CLI shares the overlay's parser; separate shell words are
+    one query."""
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "--", "-t:creature", "(c:w", "or", "c:u)"])
+    assert result.exit_code == 0, result.output
+    assert "Rest in Peace" in result.output
+    assert "Fire // Ice" in result.output
+    assert "Delver" not in result.output
+    assert "Lightning Bolt" not in result.output
+
+
+def test_search_unknown_key_is_an_error(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "foo:bar"])
+    assert result.exit_code == 1
+    assert "Unknown search key 'foo'" in result.output
