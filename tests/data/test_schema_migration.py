@@ -98,7 +98,8 @@ def test_v08_database_upgrades_in_place(tmp_path: Path) -> None:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 
         columns = {r[1] for r in conn.execute("PRAGMA table_info(cards)")}
-        assert {"oracle_id", "produced_mana", "game_changer"} <= columns
+        assert {"oracle_id", "produced_mana", "game_changer",
+                "full_oracle_text"} <= columns
 
         repo = CardRepository(db)
         # Stale duplicate removed, newest row kept; lookups now agree
@@ -115,6 +116,13 @@ def test_v08_database_upgrades_in_place(tmp_path: Path) -> None:
         # Old rows read back with the new fields defaulted
         assert fire_ice.produced_mana == ()
         assert fire_ice.game_changer is False
+        assert fire_ice.full_oracle_text == ""
+        # Rules-text search falls back to oracle_text until a re-sync
+        from vimtg.services.search_service import SearchService
+
+        assert [c.name for c in SearchService(repo).search("o:deal")] == [
+            "Fire // Ice", "Lightning Bolt"
+        ]
         # Last sync forgotten so the next sync backfills new fields
         assert repo.get_last_sync() is None
 

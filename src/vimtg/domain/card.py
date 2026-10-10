@@ -146,6 +146,18 @@ def _face_colors(data: dict[str, Any]) -> list[str]:
     return [c.value for c in Color if c.value in found]
 
 
+def _full_oracle_text(data: dict[str, Any], oracle_text: str) -> str:
+    """Every face's rules text joined like split cards ("\n//\n"),
+    or "" when that is just ``oracle_text`` already."""
+    faces = data.get("card_faces")
+    if not faces or not isinstance(faces, list):
+        return ""
+    joined = "\n//\n".join(
+        str(f.get("oracle_text") or "") for f in faces if isinstance(f, dict)
+    )
+    return "" if joined == oracle_text else joined
+
+
 def _oracle_id(data: dict[str, Any]) -> str | None:
     """Top-level oracle_id, or the front face's (reversible cards)."""
     oracle_id = data.get("oracle_id")
@@ -182,6 +194,9 @@ class Card:
     produced_mana: tuple[str, ...] = ()
     # On the Commander Game Changers list (Scryfall ``game_changer``).
     game_changer: bool = False
+    # Rules text of every face, for search, when ``oracle_text`` holds
+    # only the front face (transform and modal DFCs); "" otherwise.
+    full_oracle_text: str = ""
 
     @classmethod
     def from_scryfall(cls, data: dict[str, Any]) -> "Card":
@@ -228,6 +243,7 @@ class Card:
             oracle_id=_oracle_id(data),
             produced_mana=tuple(data.get("produced_mana") or ()),
             game_changer=bool(data.get("game_changer", False)),
+            full_oracle_text=_full_oracle_text(data, face_fields["oracle_text"]),
         )
 
     @property

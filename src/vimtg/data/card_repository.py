@@ -3,9 +3,10 @@ from collections.abc import Iterable
 
 from vimtg.data.card_mapper import card_to_row, row_to_card
 from vimtg.data.database import Database
+from vimtg.data.search_sql import compile_search, fts_name_query
 from vimtg.domain.card import Card
 from vimtg.domain.card_names import CardMap, name_aliases, normalize_card_name
-from vimtg.domain.search import SearchQuery
+from vimtg.domain.search import Node, ranking_words
 
 _INSERT_SQL = """
     INSERT OR REPLACE INTO cards (
@@ -13,8 +14,8 @@ _INSERT_SQL = """
         colors, color_identity, power, toughness, set_code, rarity,
         price_usd, price_usd_foil, price_eur, price_eur_foil, price_tix,
         legalities, image_uri, layout, keywords,
-        oracle_id, produced_mana, game_changer
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        oracle_id, produced_mana, game_changer, full_oracle_text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _ALIAS_SQL = """
@@ -121,17 +122,17 @@ class CardRepository:
         if not fts_query:
             return []
 
-        conn = self._db.connect()
-        rows = conn.execute(
-            """
-            SELECT c.* FROM cards c
-            JOIN cards_fts f ON c.rowid = f.rowid
-            WHERE cards_fts MATCH ?
-            ORDER BY rank
-            LIMIT ?
-            """,
-            (fts_query, limit),
-        ).fetchall()
+        with self._db.reader() as conn:
+            rows = conn.execute(
+                """
+                SELECT c.* FROM cards c
+                JOIN cards_fts f ON c.rowid = f.rowid
+                WHERE cards_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
+                """,
+                (fts_query, limit),
+            ).fetchall()
         return [row_to_card(row) for row in rows]
 
     def get_by_name(self, name: str) -> Card | None:
@@ -170,48 +171,29 @@ class CardRepository:
 
         return result
 
-    def search_advanced(self, query: SearchQuery, limit: int = 50) -> list[Card]:
-        """Build SQL from SearchQuery filters."""
-        conn = self._db.connect()
-        conditions: list[str] = []
-        params: list[object] = []
+    def search_parsed(self, query: Node, limit: int = 50) -> list[Card]:
+        """Cards matching a parsed search (vimtg.domain.search).
 
-        fts_query = _prepare_fts_query(query.text) if query.text else ""
-        if fts_query:
-            conditions.append(
-                "c.rowid IN (SELECT rowid FROM cards_fts WHERE cards_fts MATCH ?)"
+        Ranked by how well bare name words match, then by name. Runs on
+        its own reader connection, so concurrent searches from worker
+        threads never share a cursor.
+        """
+        where, params = compile_search(query)
+        words = ranking_words(query)
+        if words:
+            sql = (
+                "SELECT c.* FROM cards c LEFT JOIN ("  # noqa: S608
+                "SELECT rowid AS rid, rank AS score FROM cards_fts "
+                "WHERE cards_fts MATCH ?) r ON r.rid = c.rowid "
+                f"WHERE {where} "
+                "ORDER BY r.score IS NULL, r.score, c.name LIMIT ?"
             )
-            params.append(fts_query)
-        if query.type_contains:
-            conditions.append("c.type_line LIKE ?")
-            params.append(f"%{query.type_contains}%")
-        # Colours are stored as a JSON array of symbols (``["R","G"]``);
-        # every requested colour must be present, like Scryfall's ``c:rg``.
-        for color in query.colors_include:
-            conditions.append("c.colors LIKE ?")
-            params.append(f'%"{color.value}"%')
-        if query.cmc_eq is not None:
-            conditions.append("c.cmc = ?")
-            params.append(query.cmc_eq)
-        if query.cmc_lte is not None:
-            conditions.append("c.cmc <= ?")
-            params.append(query.cmc_lte)
-        if query.cmc_gte is not None:
-            conditions.append("c.cmc >= ?")
-            params.append(query.cmc_gte)
-        if query.set_code:
-            conditions.append("c.set_code = ?")
-            params.append(query.set_code)
-        if query.rarity:
-            conditions.append("c.rarity = ?")
-            params.append(query.rarity.value)
-        if query.oracle_contains:
-            conditions.append("c.oracle_text LIKE ?")
-            params.append(f"%{query.oracle_contains}%")
-
-        where = " AND ".join(conditions) if conditions else "1=1"
-        sql = f"SELECT * FROM cards c WHERE {where} LIMIT ?"  # noqa: S608
-        rows = conn.execute(sql, [*params, limit]).fetchall()
+            args: list[object] = [fts_name_query(words), *params, limit]
+        else:
+            sql = f"SELECT c.* FROM cards c WHERE {where} ORDER BY c.name LIMIT ?"  # noqa: S608
+            args = [*params, limit]
+        with self._db.reader() as conn:
+            rows = conn.execute(sql, args).fetchall()
         return [row_to_card(row) for row in rows]
 
     def autocomplete(self, prefix: str, limit: int = 20) -> list[str]:
@@ -220,17 +202,17 @@ class CardRepository:
         if not fts_query:
             return []
 
-        conn = self._db.connect()
-        rows = conn.execute(
-            """
-            SELECT DISTINCT c.name FROM cards c
-            JOIN cards_fts f ON c.rowid = f.rowid
-            WHERE cards_fts MATCH ?
-            ORDER BY rank
-            LIMIT ?
-            """,
-            (fts_query, limit),
-        ).fetchall()
+        with self._db.reader() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT c.name FROM cards c
+                JOIN cards_fts f ON c.rowid = f.rowid
+                WHERE cards_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
+                """,
+                (fts_query, limit),
+            ).fetchall()
         return [row["name"] for row in rows]
 
     def count(self) -> int:

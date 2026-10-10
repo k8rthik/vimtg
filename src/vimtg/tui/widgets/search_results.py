@@ -40,6 +40,9 @@ class SearchResults(Static):
     price_source: reactive[str] = reactive("usd")
     currency_symbol: reactive[str] = reactive("$")
     show_prices: reactive[bool] = reactive(True)
+    # Why the current query can't run (unknown key, bad value); shown
+    # in place of results so the typed query stays visible below.
+    error: reactive[str] = reactive("")
     _scroll_offset: int = 0
 
     def watch_results(self, _results: list[Card]) -> None:
@@ -47,6 +50,8 @@ class SearchResults(Static):
         self._scroll_offset = 0
 
     def render(self) -> Text:
+        if self.error:
+            return Text(f" {self.error}", style=f"bold {COLORS['error']}")
         if not self.results:
             return Text("")
 

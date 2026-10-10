@@ -173,7 +173,7 @@ A mistyped sequence is dropped silently and the which-key popup closes.
 
 | Key | Action |
 |-----|--------|
-| typing | Updates the query; results appear from two characters |
+| typing | Updates the query ([search syntax](search.md)); results appear from two characters, or the error naming an unknown key or bad value |
 | `Tab` / `Ctrl-J` / `Ctrl-N` / `Down` | Next result |
 | `Shift-Tab` / `Ctrl-K` / `Ctrl-P` / `Up` | Previous result |
 | `Enter` | Confirm (a duplicate in the same zone bumps its quantity) |
