@@ -105,6 +105,7 @@ from vimtg.tui.widgets.which_key import WhichKey
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
+    from vimtg.data.file_io import FileStamp
     from vimtg.domain.deck_merge import CardKey
     from vimtg.services.search_service import SearchService
     from vimtg.services.vcs_service import (
@@ -167,6 +168,7 @@ class MainScreen(Screen[None]):
         save_fn: Callable[[Path, str], None] | None = None,
         settings: Settings | None = None,
         db: Database | None = None,
+        disk_stamp: FileStamp | None = None,
     ) -> None:
         super().__init__()
         # Normalize up front so a hand-written deck's section cleanup is
@@ -186,6 +188,7 @@ class MainScreen(Screen[None]):
         )
         self._state.history.initialize(buffer)
         self._state.clean_text = buffer.to_text()
+        self._state.disk_stamp = disk_stamp
         self.file_path = file_path
         self.registry = registry or CommandRegistry()
         self._state.cmd_completer = CommandCompleter(self.registry)
@@ -1199,12 +1202,22 @@ class MainScreen(Screen[None]):
 
     def _on_settings_saved(self, new_settings: Settings) -> None:
         self._state.settings = new_settings
+        from vimtg.config.settings_writer import SettingsWriteError
         from vimtg.tui.app import VimTGApp
         app = self.app
+        error = ""
         if isinstance(app, VimTGApp):
-            app.update_settings(new_settings)
+            try:
+                app.update_settings(new_settings)
+            except (SettingsWriteError, OSError) as exc:
+                error = f"E: Settings applied but not saved: {exc}"
         self._sync_widgets()
-        self.query_one("#command-line", CommandLine).set_message("Settings saved")
+        cl = self.query_one("#command-line", CommandLine)
+        if error:
+            cl.set_message(error, error=True)
+            self.notify(error, title="Settings", severity="error", timeout=10)
+        else:
+            cl.set_message("Settings saved")
 
     # ── VCS integration ─────────────────────────────────────
 

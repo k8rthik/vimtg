@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from vimtg.data.file_io import file_stamp
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -19,17 +20,42 @@ def _resolve_write_path(cmd: ParsedCommand, ctx: EditorContext) -> Path:
     """Determine the target path for a :w command.
 
     Priority: explicit arg > existing file_path > auto-generated slug.
+    An explicit name expands ~ and resolves relative to the working
+    directory, gaining a .deck suffix when it has none.
     """
     if cmd.args:
         name = cmd.args.strip()
         if not name.endswith(".deck"):
             name += ".deck"
-        return Path.cwd() / name
+        return Path.cwd() / Path(name).expanduser()
 
     if ctx.file_path is not None:
         return ctx.file_path
 
     return generate_unique_path(Path.cwd())
+
+
+def _same_file(a: Path, b: Path | None) -> bool:
+    return b is not None and a.resolve() == b.resolve()
+
+
+def _write_conflict(target: Path, ctx: EditorContext) -> str | None:
+    """Why writing `target` without ! could destroy data, or None.
+
+    Writing to another existing file is vim's E13. Writing back to the
+    deck's own file is refused when the file changed on disk since it
+    was read (another editor, a sync tool, a git checkout).
+    """
+    if not _same_file(target, ctx.file_path):
+        if target.exists():
+            return f"E13: File exists: {target.name} (add ! to override)"
+        return None
+    if ctx.disk_stamp is not None and file_stamp(target) != ctx.disk_stamp:
+        return (
+            f"{target.name} changed on disk since it was read "
+            "(add ! to override)"
+        )
+    return None
 
 
 def cmd_write(
@@ -38,7 +64,12 @@ def cmd_write(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Save deck to file via ctx.save_fn."""
+    """Save deck to file via ctx.save_fn.
+
+    `:w name` writes to `name` and makes it the deck's file from then
+    on (vim's :saveas). Overwriting another existing file, or a file
+    that changed on disk since it was read, needs `:w!`.
+    """
     if ctx.save_fn is None:
         ctx.fail("Save not available")
         return buffer, cursor
@@ -49,6 +80,12 @@ def cmd_write(
         ctx.fail(str(exc))
         return buffer, cursor
 
+    if not cmd.bang:
+        conflict = _write_conflict(target, ctx)
+        if conflict is not None:
+            ctx.fail(conflict)
+            return buffer, cursor
+
     try:
         ctx.save_fn(target, buffer.to_text())
     except OSError as exc:
@@ -56,6 +93,7 @@ def cmd_write(
         return buffer, cursor
 
     ctx.file_path = target
+    ctx.disk_stamp = file_stamp(target)
     ctx.file_saved = True
     ctx.modified = False
     ctx.message = f"Written: {target.name}"

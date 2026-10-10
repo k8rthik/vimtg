@@ -1,10 +1,12 @@
 """Tests for ScryfallSync bulk data download and import."""
 
+import gzip
 import json
 from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from vimtg.data.card_repository import CardRepository
@@ -165,7 +167,15 @@ def _mock_stream(chunks: list[bytes], content_length: int | None = None):
     resp.raise_for_status = MagicMock()
     total = content_length if content_length is not None else sum(len(c) for c in chunks)
     resp.headers = {"content-length": str(total)}
-    resp.iter_bytes = MagicMock(return_value=iter(chunks))
+    resp.status_code = 200
+    resp.num_bytes_downloaded = 0
+
+    def _iter_bytes(chunk_size: int | None = None):
+        for chunk in chunks:
+            resp.num_bytes_downloaded += len(chunk)
+            yield chunk
+
+    resp.iter_bytes = MagicMock(side_effect=_iter_bytes)
     cm = MagicMock()
     cm.__enter__ = MagicMock(return_value=resp)
     cm.__exit__ = MagicMock(return_value=False)
@@ -492,3 +502,200 @@ class TestResyncReplacesCardTable:
         assert single is not None and single.legalities == {"modern": "banned"}
         assert card_repo.get_by_names(["Lightning Bolt"])["Lightning Bolt"] == single
         assert card_repo.get_last_sync() is not None
+
+
+# --- HTTP layer: real httpx responses through a MockTransport ---
+
+
+def _transport_stream(handler):  # type: ignore[no-untyped-def]
+    """Stand-in for httpx.stream backed by a MockTransport (no network)."""
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _stream(method, url, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs.pop("timeout", None)
+        follow = kwargs.pop("follow_redirects", False)
+        with (
+            httpx.Client(
+                transport=httpx.MockTransport(handler), follow_redirects=follow,
+            ) as client,
+            client.stream(method, url, **kwargs) as resp,
+        ):
+            yield resp
+
+    return _stream
+
+
+def _wire(status: int, body: bytes, headers: dict[str, str] | None = None) -> httpx.Response:
+    """A response streamed off the "wire" like a real one (not preloaded)."""
+    return httpx.Response(status, stream=httpx.ByteStream(body), headers=headers)
+
+
+def _transport_get(handler):  # type: ignore[no-untyped-def]
+    def _get(url, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs.pop("timeout", None)
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            return client.get(url, **kwargs)
+
+    return _get
+
+
+ORACLE_MANIFEST = {
+    "object": "list",
+    "has_more": False,
+    "data": [
+        {
+            "object": "bulk_data",
+            "type": "oracle_cards",
+            "name": "Oracle Cards",
+            "content_type": "application/jsonl",
+            "content_encoding": "gzip",
+            "download_uri": None,
+            "jsonl_download_uri": (
+                "https://data.scryfall.io/oracle-cards/oracle-cards-20261010.jsonl.gz"
+            ),
+        }
+    ],
+}
+
+
+class TestHttpLayer:
+    def test_requests_send_user_agent_and_accept(self, syncer: ScryfallSync) -> None:
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200, json=ORACLE_MANIFEST)
+
+        with patch("vimtg.data.scryfall_sync.httpx.get", _transport_get(handler)):
+            url = syncer.get_bulk_data_url()
+        assert url.endswith(".jsonl.gz")
+        assert seen[0].headers["user-agent"].startswith("vimtg/")
+        assert "application/json" in seen[0].headers["accept"]
+
+    def test_manifest_429_retries_after_retry_after(
+        self, syncer: ScryfallSync, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sleeps: list[float] = []
+        monkeypatch.setattr("vimtg.data.scryfall_sync._sleep", sleeps.append)
+        responses = [
+            httpx.Response(429, headers={"Retry-After": "3"}),
+            httpx.Response(200, json=ORACLE_MANIFEST),
+        ]
+
+        with patch(
+            "vimtg.data.scryfall_sync.httpx.get",
+            _transport_get(lambda request: responses.pop(0)),
+        ):
+            assert syncer.get_bulk_data_url().endswith(".jsonl.gz")
+        assert sleeps == [3.0]
+
+    def test_manifest_429_gives_up_after_max_attempts(
+        self, syncer: ScryfallSync, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vimtg.data.scryfall_sync import MAX_ATTEMPTS, describe_sync_error
+
+        sleeps: list[float] = []
+        monkeypatch.setattr("vimtg.data.scryfall_sync._sleep", sleeps.append)
+        with (
+            patch(
+                "vimtg.data.scryfall_sync.httpx.get",
+                _transport_get(lambda request: httpx.Response(429)),
+            ),
+            pytest.raises(httpx.HTTPStatusError) as info,
+        ):
+            syncer.get_bulk_data_url()
+        assert len(sleeps) == MAX_ATTEMPTS - 1
+        assert "rate-limiting" in describe_sync_error(info.value)
+        assert "vimtg sync" in describe_sync_error(info.value)
+
+    def test_download_429_then_success(
+        self, syncer: ScryfallSync, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sleeps: list[float] = []
+        monkeypatch.setattr("vimtg.data.scryfall_sync._sleep", sleeps.append)
+        responses = [
+            httpx.Response(429, headers={"Retry-After": "999"}),
+            _wire(200, b"body", {"Content-Length": "4"}),
+        ]
+        dest = tmp_path / "oracle_cards.json"
+        with patch(
+            "vimtg.data.scryfall_sync.httpx.stream",
+            _transport_stream(lambda request: responses.pop(0)),
+        ):
+            syncer.download("https://data.scryfall.io/x.json", dest)
+        assert dest.read_bytes() == b"body"
+        assert sleeps == [60.0]  # Retry-After is capped
+
+    def test_content_encoded_download_not_called_truncated(
+        self, syncer: ScryfallSync, tmp_path: Path
+    ) -> None:
+        """Content-Length counts the encoded body; decoded is longer."""
+        body = b'{"object":"card"}\n' * 500
+        wire = gzip.compress(body)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return _wire(
+                200, wire, {"Content-Encoding": "gzip", "Content-Length": str(len(wire))},
+            )
+
+        dest = tmp_path / "oracle_cards.jsonl"
+        with patch("vimtg.data.scryfall_sync.httpx.stream", _transport_stream(handler)):
+            syncer.download("https://data.scryfall.io/x.jsonl", dest)
+        assert dest.read_bytes() == body
+
+    def test_truncated_download_still_rejected(
+        self, syncer: ScryfallSync, tmp_path: Path
+    ) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return _wire(200, b"short", {"Content-Length": "100"})
+
+        dest = tmp_path / "oracle_cards.json"
+        with (
+            patch("vimtg.data.scryfall_sync.httpx.stream", _transport_stream(handler)),
+            pytest.raises((RuntimeError, httpx.HTTPError)),
+        ):
+            syncer.download("https://data.scryfall.io/x.json", dest)
+        assert not dest.exists()
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_download_replaces_existing_cache_file(
+        self, syncer: ScryfallSync, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`sync --force` with a cache present: rename onto an existing file
+        fails on Windows, so the download must use os.replace."""
+
+        def windows_rename(self: Path, target: object) -> None:
+            raise FileExistsError(183, "Cannot create a file when that file already exists")
+
+        monkeypatch.setattr(Path, "rename", windows_rename)
+        dest = tmp_path / "oracle_cards.json"
+        dest.write_bytes(b"old cache")
+        with patch(
+            "vimtg.data.scryfall_sync.httpx.stream",
+            _transport_stream(lambda request: _wire(200, b"new", {"Content-Length": "3"})),
+        ):
+            syncer.download("https://data.scryfall.io/x.json", dest)
+        assert dest.read_bytes() == b"new"
+
+
+class TestDescribeSyncError:
+    def test_network_error(self) -> None:
+        from vimtg.data.scryfall_sync import describe_sync_error
+
+        msg = describe_sync_error(httpx.ConnectError("boom"))
+        assert "run `vimtg sync` to retry" in msg
+
+    def test_server_error(self) -> None:
+        from vimtg.data.scryfall_sync import describe_sync_error
+
+        request = httpx.Request("GET", "https://api.scryfall.com/bulk-data")
+        exc = httpx.HTTPStatusError(
+            "x", request=request, response=httpx.Response(503, request=request),
+        )
+        assert "unavailable" in describe_sync_error(exc)
+
+    def test_runtime_error(self) -> None:
+        from vimtg.data.scryfall_sync import describe_sync_error
+
+        assert describe_sync_error(RuntimeError("feed changed")).startswith("feed changed")

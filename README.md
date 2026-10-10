@@ -268,7 +268,7 @@ Two layers, both stored in the local SQLite database and keyed by deck path.
 
 ### Configuration
 
-Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed values fall back to defaults per field and never block startup. Change them for the session with `:set key=value` (`:set number`, `:set nonumber`, bare `:set` lists all) or persistently in the `:config` screen (`j`/`k`, `h`/`l` cycle, `s` save, `q` close).
+Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed values fall back to defaults per field and never block startup. A file that is not valid TOML loads as defaults with a warning, and `:config` refuses to save over it (it backs it up to `config.toml.bak` instead) until it is fixed. Change them for the session with `:set key=value` (`:set number`, `:set nonumber`, bare `:set` lists all) or persistently in the `:config` screen (`j`/`k`, `h`/`l` cycle, `s` save, `q` close).
 
 | Option | Values | Default | Meaning |
 |---|---|---|---|
@@ -366,7 +366,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](docs/commands
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]`, `:q`, `:q!`, `:wq`, `:x`, `:e file`, `:home`, `:recover` | File and navigation (`:recover` loads the crash-recovery copy) |
+| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e file`, `:home`, `:recover` | File and navigation (`:w file` binds the deck to `file`, like `:saveas`; overwriting another file or outside changes needs `:w!`; `:recover` loads the crash-recovery copy) |
 | `:sort [field]`, `:sort!` | Sort section or range |
 | `:s/old/new/[gi]` | Substitute (literal) |
 | `:g/pat/d`, `:v/pat/d` | Delete matching / non-matching cards in any zone (`d` only) |
@@ -387,9 +387,9 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](docs/commands
 
 ```bash
 vimtg                                  # greeter
-vimtg burn.deck                        # open a deck (vim-style)
+vimtg burn.deck                        # open a deck (vim-style); a new path is created on :w
 vimtg edit [file]                      # same, explicit
-vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats)
+vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats; --force overwrites)
 vimtg sync [--force]                   # download or refresh the card database
 vimtg search "t:creature cmc<=2" -n 40 # search cards
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)

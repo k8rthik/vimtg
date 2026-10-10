@@ -441,3 +441,122 @@ def test_validate_strict_without_db_fails(
     result = runner.invoke(main, ["validate", "--strict", str(deck_file)])
     assert "--strict needs a card database" in result.output
     assert result.exit_code == 1
+
+
+# --- file safety: `new` ---
+
+
+def test_new_refuses_to_overwrite(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    deck = tmp_path / "Burn.deck"
+    deck.write_text("4 Lightning Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["new", "Burn"])
+    assert result.exit_code != 0
+    assert "already exists" in result.output
+    assert "--force" in result.output
+    assert deck.read_text(encoding="utf-8") == "4 Lightning Bolt\n"
+
+
+def test_new_refuses_to_overwrite_output(runner: CliRunner, tmp_path: Path) -> None:
+    deck = tmp_path / "x.deck"
+    deck.write_text("keep\n", encoding="utf-8")
+    result = runner.invoke(main, ["new", "X", "-o", str(deck)])
+    assert result.exit_code != 0
+    assert deck.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_new_force_overwrites(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    deck = tmp_path / "Burn.deck"
+    deck.write_text("old\n", encoding="utf-8")
+    result = runner.invoke(main, ["new", "Burn", "--force"])
+    assert result.exit_code == 0
+    assert "// Deck: Burn" in deck.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("name", ["", "   ", "a/b", "a\\b", ".hidden", ".deck"])
+def test_new_rejects_bad_names(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(main, ["new", name])
+    assert result.exit_code == 2, result.output
+    assert "Traceback" not in result.output
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_new_does_not_double_deck_suffix(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(main, ["new", "t.deck"])
+    assert result.exit_code == 0
+    assert [p.name for p in tmp_path.iterdir()] == ["t.deck"]
+    assert "// Deck: t\n" in (tmp_path / "t.deck").read_text(encoding="utf-8")
+
+
+def test_new_slash_in_name_allowed_with_output(runner: CliRunner, tmp_path: Path) -> None:
+    out = tmp_path / "rg.deck"
+    result = runner.invoke(main, ["new", "R/G Aggro", "-o", str(out)])
+    assert result.exit_code == 0
+    assert "// Deck: R/G Aggro" in out.read_text(encoding="utf-8")
+
+
+# --- friendly errors instead of tracebacks ---
+
+
+def _assert_clean_error(result, *needles: str) -> None:  # type: ignore[no-untyped-def]
+    assert result.exit_code == 1, result.output
+    assert not isinstance(result.exception, OSError | UnicodeDecodeError)
+    assert "Traceback" not in result.output
+    assert "Error:" in result.output
+    for needle in needles:
+        assert needle in result.output
+
+
+def test_info_non_utf8_file(runner: CliRunner, tmp_path: Path) -> None:
+    deck = tmp_path / "latin1.deck"
+    deck.write_bytes("4 Lim-Dûl's Vault\n".encode("latin-1"))
+    result = runner.invoke(main, ["info", str(deck)])
+    _assert_clean_error(result, "UTF-8", "Hint:")
+
+
+def test_info_directory(runner: CliRunner, tmp_path: Path) -> None:
+    result = runner.invoke(main, ["info", str(tmp_path)])
+    _assert_clean_error(result, "directory")
+
+
+def test_convert_output_into_missing_directory(runner: CliRunner, tmp_path: Path) -> None:
+    src = tmp_path / "in.txt"
+    src.write_text("4 Lightning Bolt\n", encoding="utf-8")
+    out = tmp_path / "nonexistent" / "x.txt"
+    result = runner.invoke(main, ["convert", str(src), "--to", "mtgo", "-o", str(out)])
+    _assert_clean_error(result, "No such file or directory", "Hint:")
+
+
+def test_corrupt_database(runner: CliRunner) -> None:
+    from vimtg.config.paths import db_path
+
+    db_path().write_bytes(b"this is not a sqlite database" * 100)
+    result = runner.invoke(main, ["search", "bolt"])
+    assert result.exit_code == 1, result.output
+    assert "card database" in result.output
+    assert "vimtg sync" in result.output
+
+
+def test_sync_failure_is_friendly(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import httpx
+
+    def boom(self, force=False, progress=None):  # type: ignore[no-untyped-def]
+        raise httpx.ConnectError("dns failure")
+
+    monkeypatch.setattr(cli.ScryfallSync, "sync", boom)
+    result = runner.invoke(main, ["sync"])
+    assert result.exit_code == 1
+    assert "run `vimtg sync` to retry" in result.output

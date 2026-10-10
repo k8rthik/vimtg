@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
 import re
-import tempfile
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
+from vimtg.data.file_io import atomic_write_text
 from vimtg.domain.categories import format_inline_category
 from vimtg.domain.deck import (
     CommentLine,
@@ -345,22 +344,8 @@ class DeckRepository:
         return path.read_text(encoding="utf-8-sig")
 
     def save(self, path: Path, text: str) -> None:
-        """Atomic write: stage to a unique temp file, then replace.
-
-        mkstemp avoids two instances racing on the same predictable
-        temp name (burn.deck and burn.tmp colliding, etc.).
-        """
-        fd, tmp_path = tempfile.mkstemp(
-            dir=path.parent, prefix=f".{path.name}.", suffix=".tmp",
-        )
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(text)
-            os.replace(tmp_path, path)
-        except Exception:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-            raise
+        """Atomic write that keeps symlinks and permissions (see file_io)."""
+        atomic_write_text(path, text)
 
     def list_decks(self, directory: Path, by_mtime: bool = False) -> list[Path]:
         """List .deck files, sorted by name (default) or newest first."""
