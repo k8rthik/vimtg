@@ -6,14 +6,20 @@ import csv
 import io
 import re
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from vimtg.domain.card import Card
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
-from vimtg.domain.deck_lines import clamp_quantity
+from vimtg.domain.deck_lines import clamp_quantity, strip_bom, strip_printing_suffix
+from vimtg.services.deck_sources import (
+    SkippedLine,
+    archidekt_placement,
+    parse_decklist_text,
+    primary_archidekt_category,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -45,6 +51,77 @@ def _row_quantity(row: Mapping[str, str | None]) -> int:
     except ValueError:
         return 1
     return clamp_quantity(qty) if qty > 0 else 1
+
+
+def _csv_name(row: Mapping[str, str | None]) -> str:
+    """The card name of a CSV row, without any printing suffix."""
+    # DictReader yields None (not the default) for short rows
+    return strip_printing_suffix(row.get("Name") or "")
+
+
+def _normalize_text(text: str) -> str:
+    """Drop a UTF-8 BOM and fold CRLF/CR line endings to LF."""
+    return strip_bom(text).replace("\r\n", "\n").replace("\r", "\n")
+
+
+def merge_duplicate_entries(deck: Deck) -> Deck:
+    """Merge entries naming the same card (ignoring case) in the same
+    section and category: 'Lightning Bolt' + 'lightning bolt' become
+    one entry with the summed quantity, spelled like the first one.
+    Tags are unioned; the first entry's comment wins."""
+    merged: dict[tuple[DeckSection, str, str], DeckEntry] = {}
+    for e in deck.entries:
+        key = (e.section, e.card_name.casefold(), e.category)
+        first = merged.get(key)
+        if first is None:
+            merged[key] = e
+            continue
+        merged[key] = replace(
+            first,
+            quantity=clamp_quantity(first.quantity + e.quantity),
+            tags=first.tags | e.tags,
+            comment=first.comment or e.comment,
+        )
+    if len(merged) == len(deck.entries):
+        return deck
+    return replace(deck, entries=tuple(merged.values()))
+
+
+def front_face_name(name: str, card: Card | None = None) -> str:
+    """The name MTGO and Arena expect for a multi-faced card: the front
+    face of a DFC or adventure card ('Brazen Borrower // Petty Theft'
+    -> 'Brazen Borrower'). Single-faced names are unchanged.
+
+    Split cards ('Fire // Ice') are listed under both halves by the
+    clients, so when `card` says the layout is split the full name is
+    kept. Without card data a ' // ' name falls back to its front face.
+
+    SEAM: names are split on the canonical ' // ' only. When the card
+    repository grows a front-face resolver (another workstream), route
+    unresolved/non-canonical spellings through it here; this function
+    must stay free of database access so exports work offline.
+    """
+    if card is not None and card.layout in _FULL_NAME_LAYOUTS:
+        return name
+    return name.split(" // ", 1)[0].strip() or name
+
+
+# Scryfall layouts whose "A // B" name is what MTGO/Arena list
+_FULL_NAME_LAYOUTS = frozenset({"split"})
+
+
+def _client_name(name: str, resolved: Mapping[str, Card]) -> str:
+    """front_face_name, using the resolved card's layout when known."""
+    return front_face_name(name, resolved.get(name))
+
+
+@dataclass(frozen=True)
+class ImportReport:
+    """An imported deck plus every input line the importer could not
+    read (instead of dropping them silently)."""
+
+    deck: Deck
+    skipped: tuple[SkippedLine, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -110,25 +187,40 @@ class ImportExportService:
 
     def import_deck(self, text: str, fmt: DeckFormat | None = None) -> Deck:
         """Parse text into a Deck. Auto-detects format when *fmt* is None."""
+        return self.import_deck_report(text, fmt).deck
+
+    def import_deck_report(
+        self, text: str, fmt: DeckFormat | None = None
+    ) -> ImportReport:
+        """Parse text into a Deck and report the lines that were skipped.
+
+        A BOM and CRLF line endings are tolerated in every format, and
+        case-insensitive duplicate card names are merged.
+        """
+        text = _normalize_text(text)
         if fmt is None:
             fmt = self.detect_format(text)
         match fmt:
             case DeckFormat.VIMTG:
                 from vimtg.data.deck_repository import parse_deck_text
 
-                return parse_deck_text(text)
-            case DeckFormat.MTGO:
-                return self._import_mtgo(text)
+                skipped: list[SkippedLine] = []
+                deck = parse_deck_text(
+                    text,
+                    on_skip=lambda n, line: skipped.append(SkippedLine(n, line)),
+                )
+                report = ImportReport(deck, tuple(skipped))
+            case DeckFormat.MTGO | DeckFormat.ARENA:
+                report = self._import_text(text)
             case DeckFormat.MTGO_DEK:
-                return self._import_mtgo_dek(text)
-            case DeckFormat.ARENA:
-                return self._import_arena(text)
+                report = ImportReport(self._import_mtgo_dek(text))
             case DeckFormat.MOXFIELD:
-                return self._import_moxfield(text)
+                report = self._import_moxfield(text)
             case DeckFormat.ARCHIDEKT:
-                return self._import_archidekt(text)
+                report = self._import_archidekt(text)
             case DeckFormat.GUIDE:
                 raise ValueError("The sideboard guide is an export-only format")
+        return replace(report, deck=merge_duplicate_entries(report.deck))
 
     def export_deck(
         self,
@@ -143,9 +235,9 @@ class ImportExportService:
 
                 return serialize_deck(deck)
             case DeckFormat.MTGO:
-                return self._export_mtgo(deck)
+                return self._export_mtgo(deck, resolved or {})
             case DeckFormat.MTGO_DEK:
-                return self._export_mtgo_dek(deck)
+                return self._export_mtgo_dek(deck, resolved or {})
             case DeckFormat.ARENA:
                 return self._export_arena(deck, resolved or {})
             case DeckFormat.MOXFIELD:
@@ -194,35 +286,27 @@ class ImportExportService:
         )
 
     # ------------------------------------------------------------------
-    # MTGO
+    # MTGO / Arena text
     # ------------------------------------------------------------------
 
-    def _import_mtgo(self, text: str) -> Deck:
-        """Parse MTGO format: 'N CardName', 'Sideboard' header switches zone."""
-        entries: list[DeckEntry] = []
-        section = DeckSection.MAIN
-        for line in text.strip().split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            if line.lower() == "sideboard":
-                section = DeckSection.SIDEBOARD
-                continue
-            m = re.match(r"^(\d+)\s+(.+)$", line)
-            if m:
-                entries.append(
-                    DeckEntry(
-                        clamp_quantity(int(m.group(1))),
-                        m.group(2).strip(),
-                        section,
-                    )
-                )
-        return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
+    def _import_text(self, text: str) -> ImportReport:
+        """Parse MTGO .txt, Arena, and similar plain-text decklists.
 
-    def _export_mtgo(self, deck: Deck) -> str:
+        One parser (deck_sources.parse_decklist_text) handles both, so
+        headers, 'Nx' quantities, set/collector/foil suffixes, and the
+        MTGO blank-line sideboard divider work whichever format was
+        detected or requested.
+        """
+        remote = parse_decklist_text(text, name="", blank_splits=None)
+        deck = remote.deck
+        if remote.name:
+            deck = replace(deck, metadata=replace(deck.metadata, name=remote.name))
+        return ImportReport(deck, remote.skipped)
+
+    def _export_mtgo(self, deck: Deck, resolved: dict[str, Card]) -> str:
         lines: list[str] = []
         for e in deck.mainboard():
-            lines.append(f"{e.quantity} {e.card_name}")
+            lines.append(f"{e.quantity} {_client_name(e.card_name, resolved)}")
         # MTGO's text form has no command zone — its convention parks
         # the commander (and companion) in the sideboard, which also
         # keeps them from being silently dropped on conversion
@@ -231,7 +315,7 @@ class ImportExportService:
             lines.append("")
             lines.append("Sideboard")
             for e in side:
-                lines.append(f"{e.quantity} {e.card_name}")
+                lines.append(f"{e.quantity} {_client_name(e.card_name, resolved)}")
         return "\n".join(lines) + "\n"
 
     # ------------------------------------------------------------------
@@ -264,7 +348,7 @@ class ImportExportService:
             entries.append(DeckEntry(clamp_quantity(qty), name, section))
         return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
 
-    def _export_mtgo_dek(self, deck: Deck) -> str:
+    def _export_mtgo_dek(self, deck: Deck, resolved: dict[str, Card]) -> str:
         """Serialize to MTGO's .dek XML. Like the text export, commander
         and companion park in the sideboard so nothing is dropped."""
         from xml.sax.saxutils import quoteattr
@@ -282,7 +366,7 @@ class ImportExportService:
             flag = "true" if in_side else "false"
             lines.append(
                 f'  <Cards Quantity="{entry.quantity}" Sideboard="{flag}" '
-                f"Name={quoteattr(entry.card_name)} />"
+                f"Name={quoteattr(_client_name(entry.card_name, resolved))} />"
             )
         lines.append("</Deck>")
         return "\n".join(lines) + "\n"
@@ -291,45 +375,15 @@ class ImportExportService:
     # Arena
     # ------------------------------------------------------------------
 
-    def _import_arena(self, text: str) -> Deck:
-        """Parse Arena format: 'N CardName (SET) CollectorNum'."""
-        entries: list[DeckEntry] = []
-        section = DeckSection.MAIN
-        for line in text.strip().split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            low = line.lower()
-            if low == "deck":
-                section = DeckSection.MAIN
-                continue
-            if low == "companion":
-                section = DeckSection.COMPANION
-                continue
-            if low == "sideboard":
-                section = DeckSection.SIDEBOARD
-                continue
-            if low == "commander":
-                section = DeckSection.COMMANDER
-                continue
-            m = re.match(r"^(\d+)\s+(.+?)(?:\s+\([A-Za-z0-9]{3,5}\)\s*\d*)?$", line)
-            if m:
-                entries.append(
-                    DeckEntry(
-                        clamp_quantity(int(m.group(1))),
-                        m.group(2).strip(),
-                        section,
-                    )
-                )
-        return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
-
     @staticmethod
     def _arena_entry(e: DeckEntry, resolved: dict[str, Card]) -> str:
-        """Format one Arena line, appending '(SET) 0' when the card resolves."""
-        card = resolved.get(e.card_name)
-        if card:
-            return f"{e.quantity} {e.card_name} ({card.set_code.upper()}) 0"
-        return f"{e.quantity} {e.card_name}"
+        """Format one Arena line: quantity and front-face name.
+
+        No '(SET) N' suffix — vimtg does not track collector numbers,
+        and Arena rejects a line whose set/number pair is wrong, while
+        a bare name always imports.
+        """
+        return f"{e.quantity} {_client_name(e.card_name, resolved)}"
 
     def _export_arena(self, deck: Deck, resolved: dict[str, Card]) -> str:
         lines: list[str] = []
@@ -357,13 +411,13 @@ class ImportExportService:
     # Moxfield (CSV with Section column)
     # ------------------------------------------------------------------
 
-    def _import_moxfield(self, text: str) -> Deck:
+    def _import_moxfield(self, text: str) -> ImportReport:
         reader = csv.DictReader(io.StringIO(text))
         entries: list[DeckEntry] = []
+        skipped: list[SkippedLine] = []
         for row in reader:
             qty = _row_quantity(row)
-            # DictReader yields None (not the default) for short rows
-            name = row.get("Name") or ""
+            name = _csv_name(row)
             section_str = (row.get("Section") or "mainboard").lower()
             if "side" in section_str:
                 section = DeckSection.SIDEBOARD
@@ -377,7 +431,9 @@ class ImportExportService:
                 section = DeckSection.MAIN
             if name:
                 entries.append(DeckEntry(qty, name, section))
-        return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
+            elif _row_has_content(row):
+                skipped.append(_skipped_row(reader, row))
+        return ImportReport(_plain_deck(entries), tuple(skipped))
 
     @staticmethod
     def _moxfield_row(
@@ -408,25 +464,60 @@ class ImportExportService:
     # Archidekt (CSV without Section column)
     # ------------------------------------------------------------------
 
-    def _import_archidekt(self, text: str) -> Deck:
+    def _import_archidekt(self, text: str) -> ImportReport:
+        """Parse Archidekt's CSV export. A 'Categories' (or 'Category')
+        column places each card by its first category, exactly like the
+        Archidekt URL import: Commander/Companion/Sideboard/Maybeboard
+        pick the zone, a user category becomes the @category."""
         reader = csv.DictReader(io.StringIO(text))
         entries: list[DeckEntry] = []
+        skipped: list[SkippedLine] = []
         for row in reader:
             qty = _row_quantity(row)
-            name = row.get("Name", "")
-            if name:
-                entries.append(DeckEntry(qty, name, DeckSection.MAIN))
-        return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
+            name = _csv_name(row)
+            if not name:
+                if _row_has_content(row):
+                    skipped.append(_skipped_row(reader, row))
+                continue
+            categories = row.get("Categories") or row.get("Category") or ""
+            section, category = archidekt_placement(primary_archidekt_category(categories))
+            entries.append(DeckEntry(qty, name, section, category=category))
+        return ImportReport(_plain_deck(entries), tuple(skipped))
 
     def _export_archidekt(self, deck: Deck) -> str:
+        """Quantity/Name/Categories CSV. Zones travel as Archidekt's own
+        zone categories so a re-import (here or on Archidekt) keeps the
+        commander, sideboard, and maybeboard apart from the deck."""
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["Quantity", "Name"])
+        writer.writerow(["Quantity", "Name", "Categories"])
         for e in deck.entries:
-            # Maybeboard is a scratchpad outside the deck — flattening
-            # it into a sectionless list would merge it into the deck
-            # proper on re-import
-            if e.section == DeckSection.MAYBEBOARD:
-                continue
-            writer.writerow([e.quantity, e.card_name])
+            writer.writerow(
+                [e.quantity, e.card_name, _ARCHIDEKT_ZONE_CATEGORY.get(e.section, e.category)]
+            )
         return output.getvalue()
+
+
+# Archidekt category names for the non-main zones (main-deck cards
+# carry their @category, if any)
+_ARCHIDEKT_ZONE_CATEGORY: dict[DeckSection, str] = {
+    DeckSection.COMMANDER: "Commander",
+    DeckSection.COMPANION: "Companion",
+    DeckSection.SIDEBOARD: "Sideboard",
+    DeckSection.MAYBEBOARD: "Maybeboard",
+}
+
+
+def _plain_deck(entries: list[DeckEntry]) -> Deck:
+    return Deck(metadata=DeckMetadata(), entries=tuple(entries), comments=())
+
+
+def _row_has_content(row: Mapping[str, str | None]) -> bool:
+    """False for an all-empty row (',,,,'), which is just a blank line."""
+    return any((v or "").strip() for v in row.values() if isinstance(v, str))
+
+
+def _skipped_row(reader: csv.DictReader[str], row: Mapping[str, str | None]) -> SkippedLine:
+    """A CSV row without a card name, reported by its line number."""
+    cells = [v for v in row.values() if isinstance(v, str) and v]
+    return SkippedLine(reader.line_num, ",".join(cells))

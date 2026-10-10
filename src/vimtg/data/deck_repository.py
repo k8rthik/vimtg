@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -38,6 +40,8 @@ from vimtg.domain.deck_lines import (
     parse_plan_entry,
     parse_plan_header_parts,
     parse_zone_header,
+    strip_bom,
+    strip_printing_suffix,
     zone_block_contexts,
 )
 from vimtg.domain.deck_lines import (
@@ -98,6 +102,11 @@ _BLOCK_SECTIONS = {
 }
 
 
+# A hand-typed (or MTGO-pasted) bare "Sideboard" line: unprefixed card
+# lines after it are sideboard cards, as in MTGO/Arena text lists
+_SIDEBOARD_HEADER_PATTERN = re.compile(r"^sideboard\s*:?$", re.IGNORECASE)
+
+
 def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
     """Parse one SB:/CMD:/mainboard card line, or None if not a card line."""
     for pattern, section in _ENTRY_PATTERNS:
@@ -106,6 +115,10 @@ def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
             name, category, card_tags, comment = parse_card_parts(
                 match.group(2).strip()
             )
+            # Pasted Arena/Moxfield lines carry "(SET) 123 *F*"
+            name = strip_printing_suffix(name)
+            if not name:
+                return None
             return DeckEntry(
                 quantity=clamp_quantity(int(match.group(1))),
                 card_name=name,
@@ -118,7 +131,9 @@ def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
     return None
 
 
-def parse_deck_text(text: str) -> Deck:
+def parse_deck_text(
+    text: str, on_skip: Callable[[int, str], None] | None = None
+) -> Deck:
     """Parse deck text into a Deck domain object.
 
     Rules:
@@ -131,8 +146,14 @@ def parse_deck_text(text: str) -> Deck:
     - A bare 'DCK:'/'CMD:'/... line opens a Python-style zone block:
       bare card lines indented beneath it belong to that zone
       (explicit prefixes always win).
-    - Blank/invalid lines are skipped gracefully.
+    - A bare 'Sideboard' line (MTGO/Arena style) makes the unprefixed
+      card lines after it sideboard cards.
+    - Pasted '(SET) 123' / '*F*' printing suffixes are stripped from
+      card names; a leading UTF-8 BOM is ignored.
+    - Blank/invalid lines are skipped gracefully; `on_skip(line_number,
+      line)` is told about each invalid one.
     """
+    text = strip_bom(text)
     raw_lines = text.split("\n") if text else []
     block_contexts = zone_block_contexts(raw_lines)
 
@@ -140,6 +161,7 @@ def parse_deck_text(text: str) -> Deck:
     comments: list[CommentLine] = []
     metadata_lines: list[str] = []
     plans: list[SideboardPlan] = []
+    in_sideboard = False
 
     for line_number, raw_line in enumerate(raw_lines, start=1):
         line = raw_line.strip()
@@ -159,6 +181,9 @@ def parse_deck_text(text: str) -> Deck:
 
         # Bare zone block headers are structural, like section headers
         if parse_zone_header(line) is not None:
+            continue
+        if _SIDEBOARD_HEADER_PATTERN.match(line):
+            in_sideboard = True
             continue
 
         # 'VS: name' opens a sideboard plan; its indented lines follow
@@ -186,9 +211,12 @@ def parse_deck_text(text: str) -> Deck:
                 if block == PLAN_TAG:
                     continue  # unsigned line handled above; never a card
                 entry = replace(entry, section=_BLOCK_SECTIONS[block])
+            elif entry.section == DeckSection.MAIN and in_sideboard:
+                entry = replace(entry, section=DeckSection.SIDEBOARD)
             entries.append(entry)
-
-        # Invalid line — skip gracefully
+        elif on_skip is not None:
+            # Invalid line — skipped gracefully, but reported when asked
+            on_skip(line_number, line)
 
     metadata = _parse_metadata_block(tuple(metadata_lines))
 
@@ -313,7 +341,8 @@ class DeckRepository:
     """Filesystem operations for .deck files."""
 
     def load(self, path: Path) -> str:
-        return path.read_text(encoding="utf-8")
+        # utf-8-sig drops a BOM that Windows editors prepend
+        return path.read_text(encoding="utf-8-sig")
 
     def save(self, path: Path, text: str) -> None:
         """Atomic write: stage to a unique temp file, then replace.

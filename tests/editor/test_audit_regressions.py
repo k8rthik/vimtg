@@ -191,10 +191,18 @@ class TestImportExportZones:
         assert len(back.commanders()) == 1
         assert len(back.companions()) == 1
 
-    def test_archidekt_export_excludes_maybeboard(self):
-        assert "Opt" not in ImportExportService().export_deck(
-            self._deck(), DeckFormat.ARCHIDEKT
+    def test_archidekt_maybeboard_never_merges_into_the_deck(self):
+        # The Categories column carries the zone, so the maybeboard is
+        # exported and comes back as maybeboard, not as main-deck cards
+        svc = ImportExportService()
+        back = svc.import_deck(
+            svc.export_deck(self._deck(), DeckFormat.ARCHIDEKT),
+            DeckFormat.ARCHIDEKT,
         )
+        assert [e.card_name for e in back.maybeboard()] == ["Opt"]
+        assert "Opt" not in {e.card_name for e in back.mainboard()}
+        assert len(back.commanders()) == 1
+        assert len(back.companions()) == 1
 
     def test_mtgo_export_parks_commander_in_sideboard(self):
         out = ImportExportService().export_deck(self._deck(), DeckFormat.MTGO)

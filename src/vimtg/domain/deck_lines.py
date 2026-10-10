@@ -267,6 +267,39 @@ def parse_card_suffix(raw_name: str) -> tuple[str, frozenset[str], str]:
     name, _, tags, comment = parse_card_parts(raw_name)
     return name, tags, comment
 
+# Printing details other deck sites append after a card name: Arena's
+# "(SET) 123", Moxfield's "(PLST) ELD-115" / "(CMM) 400a" and finish
+# markers ("*F*" foil, "*E*" etched). They name a printing, not a
+# card, so they never belong in vimtg's card name. The set code must
+# be 2-6 alphanumerics so parenthesised name parts ("B.F.M. (Big Furry
+# Monster)") are left alone.
+_FINISH_SUFFIX_RE = re.compile(r"\s+\*[A-Za-z]{1,8}\*\s*$")
+_PRINTING_SUFFIX_RE = re.compile(r"\s+\([A-Za-z0-9]{2,6}\)(?:\s+[^\s()]+)?\s*$")
+
+# A UTF-8 byte-order mark that editors (Notepad, Excel) prepend to text.
+BOM = "\ufeff"
+
+
+def strip_printing_suffix(name: str) -> str:
+    """Strip a trailing set/collector/finish suffix from a card name.
+
+    'Goblin Guide (ZEN) 126 *F*' -> 'Goblin Guide'. Names without a
+    suffix come back unchanged (apart from surrounding whitespace).
+    """
+    name = name.strip()
+    while True:
+        stripped = _FINISH_SUFFIX_RE.sub("", name)
+        stripped = _PRINTING_SUFFIX_RE.sub("", stripped)
+        if stripped == name:
+            return name
+        name = stripped.strip()
+
+
+def strip_bom(text: str) -> str:
+    """Drop a leading UTF-8 byte-order mark, if any."""
+    return text[1:] if text.startswith(BOM) else text
+
+
 # Sanity bound on parsed quantities: a hand-typed extra digit (or a
 # hostile file) must not make stats/diff allocate per-copy work for
 # a billion cards.
