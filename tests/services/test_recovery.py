@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -72,8 +73,10 @@ def test_copy_records_its_original_path(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
     saved = write_recovery(deck, "4 Lightning Bolt\n")
     assert saved is not None
-    raw = saved.read_text()
-    assert raw.startswith(HEADER) and str(deck.resolve()) in raw.splitlines()[0]
+    first = saved.read_text().splitlines()[0]
+    assert first.startswith(HEADER)
+    # JSON, so a Windows path's backslashes are escaped: decode, don't grep
+    assert json.loads(first[len(HEADER):]) == {"path": str(deck.resolve())}
     # The header is never part of the recovered text
     assert read_recovery(deck) == "4 Lightning Bolt\n"
     assert read_copy(saved) == "4 Lightning Bolt\n"
