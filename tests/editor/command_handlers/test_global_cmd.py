@@ -194,3 +194,65 @@ class TestGlobalCursorAdjustment:
         )
         assert new_cur.row <= new_buf.line_count() - 1
         assert new_cur.row >= 0
+
+
+ZONED = (
+    "// Deck: Zones\n"
+    "1 Sol Ring\n"
+    "SB: 2 Duress\n"
+    "MB: 1 Sol Talisman\n"
+    "CMD: 1 Atraxa, Praetors' Voice\n"
+    "CMP: 1 Lurrus of the Dream-Den\n"
+    "SB:\n"
+    "  1 Solemn Simulacrum\n"
+    "VS: Tron\n"
+    "  -1 Sol Ring\n"
+)
+
+
+class TestGlobalAllZones:
+    def test_global_sees_every_zone(self) -> None:
+        buffer = Buffer.from_text(ZONED)
+        ctx = EditorContext()
+        new_buf, _ = cmd_global(buffer, Cursor(row=0), _make_cmd(args="/sol/d"), ctx)
+        lines = _line_texts(new_buf)
+        assert "1 Sol Ring" not in lines
+        assert "MB: 1 Sol Talisman" not in lines
+        assert "  1 Solemn Simulacrum" not in lines
+        assert "3 lines deleted" in ctx.message
+        # the plan entry and the empty block header survive
+        assert "  -1 Sol Ring" in lines
+        assert "SB:" in lines
+
+    def test_global_matches_commander_and_companion(self) -> None:
+        buffer = Buffer.from_text(ZONED)
+        ctx = EditorContext()
+        new_buf, _ = cmd_global(
+            buffer, Cursor(row=0), _make_cmd(args="/^CM[DP]:/d"), ctx,
+        )
+        lines = _line_texts(new_buf)
+        assert not any(line.startswith(("CMD:", "CMP:")) for line in lines)
+        assert "2 lines deleted" in ctx.message
+
+    def test_inverse_keeps_non_card_lines(self) -> None:
+        buffer = Buffer.from_text(ZONED)
+        ctx = EditorContext()
+        new_buf, _ = cmd_global(
+            buffer, Cursor(row=0), _make_cmd(name="v", args="/Atraxa/d"), ctx,
+        )
+        lines = _line_texts(new_buf)
+        assert lines == [
+            "// Deck: Zones",
+            "CMD: 1 Atraxa, Praetors' Voice",
+            "SB:",
+            "VS: Tron",
+            "  -1 Sol Ring",
+        ]
+
+    def test_block_card_deletion_keeps_zone_context(self) -> None:
+        text = "SB:\n  1 Duress\n  2 Negate\n"
+        buffer = Buffer.from_text(text)
+        ctx = EditorContext()
+        new_buf, _ = cmd_global(buffer, Cursor(row=0), _make_cmd(args="/Duress/d"), ctx)
+        assert _line_texts(new_buf) == ["SB:", "  2 Negate"]
+        assert new_buf.get_line(1).line_type.value == "sideboard"

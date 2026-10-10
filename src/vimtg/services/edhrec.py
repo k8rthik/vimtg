@@ -20,9 +20,11 @@ from pathlib import Path
 
 import httpx
 
+from vimtg import __version__
+
 EDHREC_COMMANDER_URL = "https://json.edhrec.com/pages/commanders/{slug}.json"
 EDHREC_CARD_URL = "https://edhrec.com/commanders/{slug}"
-USER_AGENT = "vimtg/0.1.0"
+USER_AGENT = f"vimtg/{__version__}"
 TIMEOUT_SECONDS = 30
 CACHE_MAX_AGE_DAYS = 7
 

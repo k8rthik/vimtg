@@ -17,11 +17,12 @@ from typing import Any
 
 import httpx
 
+from vimtg import __version__
 from vimtg.data.card_repository import CardRepository
 from vimtg.domain.card import Card
 
 BULK_DATA_URL = "https://api.scryfall.com/bulk-data"
-USER_AGENT = "vimtg/0.1.0"
+USER_AGENT = f"vimtg/{__version__}"
 MAX_AGE_DAYS = 7
 CHUNK_SIZE = 65536
 SKIP_LAYOUTS = frozenset({"token", "double_faced_token", "emblem", "art_series"})
