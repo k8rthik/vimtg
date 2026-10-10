@@ -79,3 +79,34 @@ def test_wheel_moves_window_and_drags_cursor(monkeypatch) -> None:
     # The view reasons from its own outstanding request (row 6), which is
     # inside the band at offset 0 — no second request
     assert requests == [6]
+
+
+def test_cursor_band_none_before_render() -> None:
+    dv = _view(lines=10, height=5)
+    assert dv.cursor_band() is None
+    assert DeckView().cursor_band() is None
+
+
+def test_cursor_band_respects_scrolloff_mid_buffer(monkeypatch) -> None:
+    dv = _view(lines=60, height=20)
+    dv.auto_expand = False
+    monkeypatch.setattr(
+        type(dv), "size", property(lambda self: self._size_override)  # type: ignore[attr-defined]
+    )
+    dv.cursor = Cursor(row=30, col=0)
+    dv.render()
+    start, end = dv._window  # type: ignore[misc]
+    assert start > 0 and end < 60
+    assert dv.cursor_band() == (start + 3, end - 1 - 3)
+
+
+def test_cursor_band_reaches_buffer_ends(monkeypatch) -> None:
+    dv = _view(lines=10, height=20)
+    dv.auto_expand = False
+    monkeypatch.setattr(
+        type(dv), "size", property(lambda self: self._size_override)  # type: ignore[attr-defined]
+    )
+    dv.cursor = Cursor(row=4, col=0)
+    dv.render()
+    # The whole deck fits: no margin at either end
+    assert dv.cursor_band() == (0, 9)

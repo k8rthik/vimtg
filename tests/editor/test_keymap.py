@@ -22,33 +22,46 @@ class TestSimpleMotions:
         assert action.action == "k"
         assert action.action_type == "motion"
 
-    def test_simple_motion_h(self) -> None:
-        km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("h")
-        assert result == KeyResult.COMPLETE
-        assert action is not None
-        assert action.action == "h"
+    def test_column_motions_are_unbound(self) -> None:
+        """No column cursor, so h/l/0/$ do nothing in normal mode."""
+        for key in ("h", "l", "0", "$"):
+            km = KeyMap(mode=Mode.NORMAL)
+            result, action = km.feed(key)
+            assert result == KeyResult.NO_MATCH, key
+            assert action is None
 
-    def test_simple_motion_l(self) -> None:
-        km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("l")
-        assert result == KeyResult.COMPLETE
-        assert action is not None
-        assert action.action == "l"
+    def test_view_motions(self) -> None:
+        for key in ("H", "M", "L"):
+            km = KeyMap(mode=Mode.NORMAL)
+            result, action = km.feed(key)
+            assert result == KeyResult.COMPLETE
+            assert action is not None
+            assert action.action_type == "motion"
+            assert action.action == key
 
-    def test_motion_zero_beginning_of_line(self) -> None:
+    def test_view_motion_count(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("0")
-        assert result == KeyResult.COMPLETE
-        assert action is not None
-        assert action.action == "0"
+        km.feed("3")
+        _, action = km.feed("H")
+        assert action is not None and action.count == 3
 
-    def test_motion_dollar_end_of_line(self) -> None:
+    def test_view_motions_are_not_operator_targets(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("$")
-        assert result == KeyResult.COMPLETE
-        assert action is not None
-        assert action.action == "$"
+        km.feed("d")
+        result, action = km.feed("L")
+        assert result == KeyResult.NO_MATCH
+        assert action is None
+
+    def test_n_and_shift_n_are_specials(self) -> None:
+        for key in ("n", "N"):
+            km = KeyMap(mode=Mode.NORMAL)
+            km.feed("2")
+            result, action = km.feed(key)
+            assert result == KeyResult.COMPLETE
+            assert action is not None
+            assert action.action_type == "special"
+            assert action.action == key
+            assert action.count == 2
 
 
 class TestCountMotion:

@@ -129,7 +129,7 @@ def test_convert_roundtrip_vimtg(runner: CliRunner, tmp_path: Path) -> None:
 def test_version_flag(runner: CliRunner) -> None:
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "vimtg, version 0.1.0" in result.output
+    assert "vimtg, version 0.8.0" in result.output
 
 
 def test_help_lists_subcommands(runner: CliRunner) -> None:
@@ -171,6 +171,16 @@ def test_search_outputs_results(
     result = runner.invoke(main, ["search", "bolt"])
     assert result.exit_code == 0
     assert "Lightning Bolt" in result.output
+
+
+def test_search_applies_filters(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "c:w"])
+    assert result.exit_code == 0
+    assert "Rest in Peace" in result.output
+    assert "Lightning Bolt" not in result.output
 
 
 def test_search_no_results(

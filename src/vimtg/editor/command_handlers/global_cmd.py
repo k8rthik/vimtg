@@ -1,25 +1,23 @@
 """Global command: :g/pattern/cmd, :v/pattern/cmd — TUI-agnostic, zero Textual imports.
 
 Executes a sub-command on lines matching (or not matching) a regex pattern.
-Only card/sideboard lines are considered for matching.
+Card lines in every zone are considered for matching — mainboard,
+sideboard, maybeboard, command zone, and companion — matched against
+the full line text, so `^SB:` or `@ramp` work. Headers, comments,
+metadata, and sideboard-plan entries never match.
 """
 
 from __future__ import annotations
 
 import re
 
-from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
-
-_MATCHABLE_TYPES = frozenset({
-    LineType.CARD_ENTRY,
-    LineType.SIDEBOARD_ENTRY,
-})
 
 
 def _parse_global_args(
@@ -52,7 +50,7 @@ def cmd_global(
     :v/pattern/cmd — Execute on lines NOT matching pattern.
 
     Supported sub-commands:
-    - d: delete the line
+    - d: delete the line (the only one; anything else is an error)
     """
     is_inverse = cmd.name == "v"
     parsed = _parse_global_args(cmd.args)
@@ -69,12 +67,11 @@ def cmd_global(
         ctx.fail(f"Invalid pattern: {pattern}")
         return buffer, cursor
 
-    # Find matching lines (only card/sideboard lines)
+    # Find matching lines (card lines in any zone)
     matching: list[int] = []
     for i in range(buffer.line_count()):
-        line = buffer.get_line(i)
-        if line.line_type in _MATCHABLE_TYPES:
-            matches = bool(regex.search(line.text))
+        if buffer.is_card_line(i):
+            matches = bool(regex.search(buffer.get_line(i).text))
             if matches != is_inverse:
                 matching.append(i)
 

@@ -22,13 +22,14 @@ current line, `'a,'b` for marks).
 | `:%sort name` | Sort the entire deck alphabetically |
 | `:s/old/new/[flags]` | Substitute. Flags: `g` (all), `i` (case-insensitive) |
 | `:%s/Bolt/Helix/g` | Substitute across the deck |
-| `:g/pattern/cmd` | Run `cmd` on every line matching `pattern` |
-| `:v/pattern/cmd` | Inverse: run on every line **not** matching |
+| `:g/pattern/cmd` | Run `cmd` on every card line matching `pattern`, in any zone (mainboard, sideboard, maybeboard, command zone, companion). `d` is the only supported `cmd`. Headers, comments, metadata, and plan entries never match |
+| `:v/pattern/cmd` | Inverse: run on every card line **not** matching |
 
 Examples:
 
 ```
-:g/Creature/d            delete every line matching "Creature"
+:g/Creature/d            delete every card line matching "Creature"
+:g/^SB:/d                delete every SB:-prefixed sideboard card
 :%s/Mountain/Plains/g    swap every Mountain for Plains
 :1,20sort cmc            sort lines 1–20 by mana cost
 ```
@@ -37,7 +38,7 @@ Examples:
 
 | Command | Description |
 |---------|-------------|
-| `:find pattern` | Jump to the next card matching `pattern` (also bound to `/`) |
+| `:find pattern` | Jump to the next card matching `pattern` (also bound to `/`; `n` / `N` repeat it forward / backward) |
 | `:search query` | Open the card database search overlay |
 
 ## Categories & layout

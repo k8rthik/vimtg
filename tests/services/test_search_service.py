@@ -180,6 +180,59 @@ class TestAdvancedSearch:
         names = [c.name for c in results]
         assert "Lightning Bolt" in names
 
+    def test_color_filter_reaches_sql(self, search_svc: SearchService) -> None:
+        names = {c.name for c in search_svc.advanced_search("c:w")}
+        assert names == {"Rest in Peace"}
+
+    def test_color_filter_requires_every_colour(
+        self, search_svc: SearchService
+    ) -> None:
+        names = {c.name for c in search_svc.advanced_search("c:ur")}
+        assert names == {"Fire // Ice"}
+
+    def test_color_filter_excludes_colourless(
+        self, search_svc: SearchService
+    ) -> None:
+        results = search_svc.advanced_search("c:r")
+        assert results
+        assert all(Color.RED in c.colors for c in results)
+        assert "Mountain" not in {c.name for c in results}
+
+    def test_color_combines_with_type(self, search_svc: SearchService) -> None:
+        names = {c.name for c in search_svc.advanced_search("c:r t:instant")}
+        assert "Lightning Bolt" in names
+        assert "Goblin Guide" not in names
+        assert "Rest in Peace" not in names
+
+    def test_color_with_text(self, search_svc: SearchService) -> None:
+        names = {c.name for c in search_svc.advanced_search("c:u fire")}
+        assert names == {"Fire // Ice"}
+
+    def test_limit_honoured(self, search_svc: SearchService) -> None:
+        assert len(search_svc.advanced_search("c:r", limit=2)) == 2
+
+    def test_limit_above_fifty(self, db_factory: Callable[..., Database]) -> None:
+        repo = CardRepository(db_factory())
+        template = json.loads((FIXTURES_DIR / "scryfall_sample.json").read_text())[1]
+        cards = [
+            Card.from_scryfall({**template, "id": f"id-{i}", "name": f"Bolt {i}"})
+            for i in range(80)
+        ]
+        repo.bulk_insert(cards)
+        svc = SearchService(card_repo=repo)
+        assert len(svc.advanced_search("t:instant", limit=75)) == 75
+        assert len(svc.search("t:instant", limit=75)) == 75
+        assert len(svc.advanced_search("bolt", limit=60)) == 60
+
+
+class TestSearchRouting:
+    def test_color_only_query_is_filtered(self, search_svc: SearchService) -> None:
+        names = {c.name for c in search_svc.search("c:w")}
+        assert names == {"Rest in Peace"}
+
+    def test_limit_passed_through(self, search_svc: SearchService) -> None:
+        assert len(search_svc.search("c:r", limit=3)) == 3
+
 
 class TestAutocomplete:
     def test_gob_prefix(self, search_svc: SearchService) -> None:
