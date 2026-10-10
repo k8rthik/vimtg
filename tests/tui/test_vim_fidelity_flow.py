@@ -543,10 +543,13 @@ class TestExCommands:
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f"6G yy dd :e {other}<CR>")
+            # Spaces only separate in _keys: type them as <Space>, so a
+            # Windows path (C:\...) is not glued onto the command name
+            target = str(other).replace(" ", "<Space>")
+            _feed(scr, f"6G yy dd :e<Space>{target}<CR>")
             assert _screen(app) is scr  # refused: unsaved changes
             assert "E37" in _message(scr)
-            _feed(scr, f":e! {other}<CR>")
+            _feed(scr, f":e!<Space>{target}<CR>")
             await pilot.pause()
             new = _screen(app)
             assert new is not scr
