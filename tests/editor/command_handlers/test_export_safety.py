@@ -81,6 +81,7 @@ class TestExportOverwrite:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows ~
         ctx = EditorContext()
         _export("arena ~/arena.txt", ctx)
         assert not ctx.error

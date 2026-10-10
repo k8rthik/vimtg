@@ -84,6 +84,7 @@ def test_tilde_output_is_expanded(
     deck_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Windows ~
     result = CliRunner().invoke(
         main, ["convert", str(deck_file), "--to", "arena", "-o", "~/arena.txt"]
     )
