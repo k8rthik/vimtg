@@ -47,6 +47,7 @@ COMMANDS
   :undo :redo   One undo / redo step
   :reg :marks   Show registers / marks
   :find pattern Jump to matching card
+  :search [q]   Open card search (as o) with query q
   :stats        Deck statistics
   :validate     Check format legality (uses // Format:)
   :hand [seed]  Sample hand / goldfish (draw, mulligan; Sd)
@@ -212,6 +213,13 @@ COMMAND_HELP: dict[str, str] = {
         ":find pattern  Jump to next card matching pattern\n"
         "\n"
         "n / N repeat the last pattern forward / backward"
+    ),
+    "search": (
+        ":search [query]  Open the card database search overlay\n"
+        "\n"
+        "Works like o: the chosen card is added below the cursor, in the\n"
+        "cursor's zone. The query is pre-filled and uses the Scryfall-style\n"
+        "syntax (t:creature c:g mv<=3 ...); see docs/search.md."
     ),
     "export": (
         ":export format [file]  Export deck "

@@ -10,25 +10,173 @@ from 1.0.0 onward.
 
 ### Added
 
+- New-deck wizard: a deck with no cards and a blank name or format asks
+  for both (`Tab` completes formats, `Esc` skips); commander and brawl
+  answers add a `CMD:` block. The first `:w` of an unnamed deck names
+  the file after `// Deck:`.
+- First-run help: `:help` opens on a GETTING STARTED section, the idle
+  hint reads `F1 help | o add card | i edit line | :w save | :q quit`,
+  and empty decks show a tips panel (`:tips`, `:tips off`, `:tips on`).
+- `:messages` (`:mes`) lists the last 100 messages, including pop-up
+  notices (card sync failures, database recovery, config warnings);
+  `:messages clear` empties it.
+- The status line shows `recording @a (q stops)` while a macro records.
+- Sample hand: `:hand [seed=N]` (`Sd`) and `vimtg hand` draw an opening
+  seven with London mulligans, draw-next and reshuffle, plus land-count
+  odds by turn on the play and draw. The active sideboard plan is used.
+- Commander decks show a Game Changer count and an estimated bracket in
+  the analytics pane and in `vimtg validate` (informational only).
+- Search syntax shared by the `o`/`O` overlay, `:search` and
+  `vimtg search`: `-` negation, `or`, parentheses, quoted phrases,
+  `!"Exact Name"`, `/regex/` on name/type/oracle, `c:`/`id:` with every
+  comparison and colour words (`boros`, `esper`), `mv`/`pow`/`tou`/
+  `usd`/`eur`/`tix` comparisons, `r:`, `set:`, `f:`/`banned:`/
+  `restricted:`, `kw:`, `m:` and `is:`/`not:`. See `docs/search.md`.
+- Search additions: `produces:`, `is:permanent`/`spell`/`hybrid`/
+  `phyrexian`, field-to-field comparisons such as `pow>tou`, back-face
+  power and toughness, `order:`/`direction:`; `kw:partner` also finds
+  "Partner with", and typographic quotes match straight ones. `year:` and
+  `date:` are reported as unsupported.
+- `:search [query]` opens the card search overlay pre-filled with the
+  query, and `:help search` describes it.
+- `:sync` / `:sync!` download card data in the background with progress
+  in the status line, which also shows how old the card data is.
+- `:clipboard` copies through the system clipboard tool (pbcopy,
+  wl-copy, xclip, xsel, clip.exe) or OSC 52. Pasting a decklist in
+  normal mode adds it as one undo step; bare `:import` reads the
+  clipboard; the greeter opens a pasted decklist.
+- Ex commands `:{n}`, `:$`, `:e[!] [file]`, `:[range]d [x]`,
+  `:[range]y [x]`, `:[range]m {n}`, `:[range]t {n}` (`:co`), `:undo`,
+  `:redo`, `:reg`, `:marks`, `:recover` / `:recover!`, `:saveas`.
+- Unsaved work is kept as a recovery copy on Ctrl-C, Ctrl-Q, `:home`,
+  SIGHUP and SIGTERM (`:q!`, `ZQ`, `:e!` and `:home!` discard it).
+  Recovery copies are per deck path, and the greeter lists orphaned ones
+  (`R`).
+- `:` and search prompts keep a persisted Up/Down history and support
+  `Ctrl-W`, `Ctrl-U`, `Ctrl-B`/`Ctrl-E` and Left/Right editing.
+- `zz`/`zt`/`zb` scroll; `"_` is a black-hole register and `"+`/`"*`
+  copy to the system clipboard; `ZZ` / `ZQ` run `:wq` / `:q!`.
+- Formats: standardbrawl, oathbreaker, paupercommander, duel,
+  premodern, timeless, penny, explorer, alchemy, and gladiator. Format
+  names are case-insensitive and accept the aliases search accepts
+  (`EDH`, `PDH`, `Historic Brawl`). `vimtg validate --strict` fails on
+  warnings.
+- `:export fmt` with no file copies the export to the clipboard;
+  `:export!` overwrites an existing file.
+- `vimtg convert` lists the lines it could not import; `:import`
+  reports how many were skipped.
 - `python -m vimtg` is guarded by `if __name__ == "__main__"`, so importing
   `vimtg.__main__` no longer launches the CLI.
 - Project hygiene for 1.0: `CONTRIBUTING.md`, `SECURITY.md`, issue and pull
   request templates, Dependabot, and this changelog.
 - Package metadata for PyPI: readme, authors, project URLs, classifiers, and
-  keywords.
+  keywords. Python 3.14 is supported and tested.
 
 ### Changed
 
+- **Keys:** in the editor `?` is backward search (`F1` or `:help` opens
+  help, `g?` the quick-reference panel); `n`/`N` repeat the last search
+  in the same/opposite direction; `*`/`#` search for the card under the
+  cursor. Other screens still use `?` for help.
+- **Operators:** `dw`/`cw` change one card, `db` deletes the card above,
+  `d}`/`d{` stop at the section boundary, and `d8G`/`y5G` stop at the
+  given line (`gg` takes a count). `.` repeats `o`/`O`/`c` with their
+  card, puts, tags, categories, comments, `i`, `:s` and visual changes.
+  Visual `x`, `+`/`-`, `z` zone moves and `zi`/`zo` act on the whole
+  selection.
+- `:s` is a case-insensitive regex like `/` (`&` and `\1` in the
+  replacement, `I` flag for case); `:g`/`:g!` run `d`, `p`, `y [x]` and
+  `s///`. `zc` is refused outside commander formats.
+- `v`/`V` toggle off with the same key and switch kind with the other.
+  `u` undoes one change at a time; only `+`/`-` bursts merge.
+- Brawl is the 100-card format. Commander eligibility follows CR 903.3
+  (Vehicles and Spacecraft with P/T, "can be your commander",
+  Backgrounds; planeswalkers in Brawl, Oathbreaker signature spells),
+  companions must fit the commander's colour identity, and copy limits
+  honour "any number" / "up to N" oracle text. An oversized sideboard is
+  an error.
+- Card names resolve by full name or any face, ignoring case, accents,
+  ligatures and separators ("Stomp", "Fire/Ice", "Aether Vial").
+- Mana analytics: MDFC spells count as spells, fetch lands and
+  any-colour lands count as sources, and the commander is included;
+  the land recommendation follows Karsten's fits. Hybrid symbols ask for
+  whichever colour the lands cover best, Phyrexian and `{2/W}` symbols
+  never raise a source requirement, and fetch lands count only for
+  colours of lands in the deck they can find. Split cards count both
+  halves' pips, judge requirements per half, and use the cheaper half for
+  the curve. `:stats` uses and names the configured price source.
+- Validation: a companion counts toward the 15-card sideboard, and an
+  Oathbreaker without a Signature Spell is an error.
+- Imports: MTGO and Arena files use one decklist parser (`Nx`
+  quantities, section headers, printing suffixes such as
+  `(SET) 123`), Archidekt categories place zones, and BOM/CRLF files
+  are accepted. Imports normalise names to each card's official name,
+  count copies per card, and are laid out like a new deck (`// Deck:`,
+  `// Format:`, zone blocks); a headerless Commander list puts the
+  commander in the command zone; bare `Card` lines are one copy. URL
+  imports carry the site's format and Moxfield signature spells.
+- Exports write official card names: the front face for double-faced and
+  adventure cards, `A // B` for split cards, the full name in CSV.
+  `vimtg convert` resolves names against the synced card database, and
+  `vimtg -> vimtg` copies the deck unchanged.
+- `:w` refuses to overwrite another existing file or a deck changed on
+  disk since it was read (`:w!` overrides); `vimtg new` refuses to
+  overwrite without `--force`; `vimtg missing.deck` opens an empty deck
+  bound to that path. `:export` refuses an existing file (E13) and never
+  overwrites the open deck; `vimtg convert -o` refuses an existing file
+  without `--force` and never overwrites its input.
+- Every ex command that changes the deck marks it modified and is one
+  undo step (`:sort` was not undoable); `cc` plus the new card is one
+  step. `:x`/`ZZ` do not rewrite an unmodified deck, and `:w` notices a
+  deck file deleted on disk.
+- `:set` and the `:config` screen edit `config.toml` in place, keeping
+  comments and layout.
+- Saving no longer writes empty metadata lines the file never had.
+- The greeter's recent decks include decks from any directory.
+- Below 30x8 the terminal shows a "too small" notice instead of a
+  garbled layout.
 - The package version is single-sourced from `vimtg.__version__`;
   `pyproject.toml` no longer carries its own copy.
 - Runtime dependencies are capped below their next major release
   (`textual<9`, `click<9`, `httpx<1`, `rich<16`); the minimums are now
   Textual 2.0 and click 8.2 (the oldest releases the test suite passes on).
-- CI runs on Linux, macOS, and Windows with Python 3.12 and 3.13, enforces
-  92% coverage, tests the lowest supported dependency versions, and builds
-  and smoke-tests the wheel. The test suite can no longer reach the network.
+- CI runs on Linux, macOS, and Windows with Python 3.12, 3.13 and 3.14,
+  enforces 92% coverage, tests the lowest supported dependency versions,
+  and builds and smoke-tests the wheel. The test suite can no longer
+  reach the network.
 - README rewritten for end users (install, quickstart, network and privacy);
   contributor material moved to `CONTRIBUTING.md`.
+
+### Fixed
+
+- Unexpected errors in the editor no longer close it: the buffer is
+  written to a recovery file and `:recover` offers it on reopen. Two
+  decks with the same file name no longer share a recovery copy.
+- Crashes from undo/redo past the buffer end and from `v` in visual
+  mode; opening a hand-written deck no longer marks it modified.
+- Re-syncing card data replaces the table in one transaction, so no
+  stale duplicate printings remain; transform and modal DFCs get their
+  face colours.
+- A damaged card database is backed up (`cards.db.corrupt-<time>`) and
+  rebuilt with the readable history instead of failing to start.
+- Fast typing in card search no longer fails on a shared database
+  connection; unknown search keys and bad values are reported by name.
+- Stale split and multi-face card rows force one re-sync (schema v2), so
+  split-card costs and back-face power/toughness are right.
+- Card search with no matches says "No matches" instead of showing
+  nothing.
+- Long card names are cut with an ellipsis instead of running into the
+  mana cost.
+- A wrong-shaped `[keybindings]` table or a wrong-typed setting in
+  `config.toml` no longer crashes startup: each bad entry is skipped and
+  reported.
+- `vimtg search "mv>"` reports the incomplete term instead of printing
+  "No cards found."; `vimtg --help` shows the whole search summary.
+- `config.toml` and decks are written atomically; an unparseable
+  `config.toml` is backed up and never overwritten.
+- Clearer sync errors (offline, proxy, TLS interception) and Scryfall
+  rate-limit backoff; CLI file and database errors exit cleanly with a
+  hint.
 
 ## [0.8.0] - 2026-10-09
 
@@ -141,9 +289,3 @@ from 1.0.0 onward.
 - Config loading, VCS/SQLite paths, and parsing edge cases are hardened.
 - Card sync integrity, CLI network errors, and a non-blocking greeter sync.
 - Help, which-key, and screen hints match the real keymap.
-
-[Unreleased]: https://github.com/k8rthik/vimtg/compare/v0.8.0...HEAD
-[0.8.0]: https://github.com/k8rthik/vimtg/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/k8rthik/vimtg/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/k8rthik/vimtg/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/k8rthik/vimtg/releases/tag/v0.5.0

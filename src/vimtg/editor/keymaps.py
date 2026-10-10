@@ -78,7 +78,7 @@ class KeyRemapper:
         try:
             with open(config_path, "rb") as f:
                 data = tomllib.load(f)
-        except (tomllib.TOMLDecodeError, OSError):
+        except (tomllib.TOMLDecodeError, UnicodeDecodeError, OSError):
             return 0  # a broken config must not prevent startup
 
         bindings = data.get("keybindings", {})
@@ -93,15 +93,18 @@ class KeyRemapper:
             "command": Mode.COMMAND,
         }
 
-        # Top-level bindings apply to all modes
+        # Top-level bindings apply to all modes. Wrong-shaped entries are
+        # skipped here; config.settings.keybinding_problems reports them.
         for key, value in bindings.items():
-            if isinstance(value, str):
+            if key not in mode_map and isinstance(value, str):
                 self.remap(key, value)
                 count += 1
 
         # Mode-specific bindings
         for mode_name, mode_enum in mode_map.items():
             mode_bindings = bindings.get(mode_name, {})
+            if not isinstance(mode_bindings, dict):
+                continue
             for key, value in mode_bindings.items():
                 if isinstance(value, str):
                     self.remap(key, value, mode_enum)

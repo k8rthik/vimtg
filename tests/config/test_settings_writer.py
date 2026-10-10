@@ -208,3 +208,67 @@ class TestSaveSettingsSafety:
         assert sorted(p.name for p in path.parent.iterdir()) == [
             "config.toml", "config.toml.bak",
         ]
+
+
+class TestInPlaceEdit:
+    """`:set nonumber` used to rewrite config.toml from scratch, dropping
+    every comment; saving now edits the [editor] lines in place."""
+
+    _CONFIG = (
+        "# my vimtg config\n"
+        "[editor]\n"
+        "# numbers off on the laptop\n"
+        "show_line_numbers = true  # keep\n"
+        'price_source = "a#b"   # quoted hash\n'
+        "\n"
+        "[keybindings]\n"
+        's = ":w"  # save\n'
+    )
+
+    def _save(self, tmp_path, monkeypatch: pytest.MonkeyPatch, text: str, settings: Settings):  # type: ignore[no-untyped-def]
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        config_dir = tmp_path / "vimtg"
+        config_dir.mkdir()
+        config_file = config_dir / "config.toml"
+        config_file.write_text(text, encoding="utf-8")
+        save_settings(settings)
+        return config_file.read_text(encoding="utf-8")
+
+    def test_comments_and_order_survive(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out = self._save(
+            tmp_path, monkeypatch, self._CONFIG,
+            Settings(show_line_numbers=False, price_source="eur"),
+        )
+        assert out.startswith("# my vimtg config\n[editor]\n# numbers off on the laptop\n")
+        assert "show_line_numbers = false  # keep\n" in out
+        assert 'price_source = "eur"   # quoted hash\n' in out
+        assert 's = ":w"  # save\n' in out
+        # Keys the file lacked are added inside [editor], before [keybindings]
+        assert out.index("search_limit = 50") < out.index("[keybindings]")
+
+        import tomllib
+
+        data = tomllib.loads(out)
+        assert data["editor"]["show_line_numbers"] is False
+        assert data["keybindings"] == {"s": ":w"}
+
+    def test_config_without_editor_table_gets_one_appended(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out = self._save(
+            tmp_path, monkeypatch, '# maps\n[keybindings]\ns = ":w"\n', Settings(),
+        )
+        assert out.startswith('# maps\n[keybindings]\ns = ":w"\n\n[editor]\n')
+
+    def test_layout_it_cannot_edit_falls_back_to_a_full_rewrite(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out = self._save(
+            tmp_path, monkeypatch, "# dotted\neditor.theme = \"dark\"\n",
+            Settings(show_prices=False),
+        )
+        import tomllib
+
+        assert tomllib.loads(out)["editor"]["show_prices"] is False

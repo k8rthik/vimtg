@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import os
 import signal
+from collections import deque
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
@@ -20,6 +22,7 @@ from typing import Any
 from rich.console import RenderableType
 from textual.app import App
 from textual.events import Resize
+from textual.notifications import SeverityLevel
 
 from vimtg.config import app_state
 from vimtg.config.paths import cache_dir, db_path
@@ -49,6 +52,7 @@ from vimtg.services.deck_service import (
 from vimtg.services.recovery import RecoveryCopy
 from vimtg.services.search_service import SearchService
 from vimtg.tui.theme import COLORS
+from vimtg.tui.widgets.command_line import MESSAGE_HISTORY
 
 # How often a long-lived session re-checks whether cards are stale.
 # Staleness itself is MAX_AGE_DAYS in scryfall_sync — this only bounds
@@ -67,6 +71,8 @@ TERMINATING_SIGNALS: tuple[signal.Signals, ...] = tuple(
     sig for name in ("SIGHUP", "SIGTERM")
     if (sig := getattr(signal, name, None)) is not None
 )
+
+_NOTIFY_TAKES_MARKUP = "markup" in inspect.signature(App.notify).parameters
 
 
 class VimTGApp(App[None]):
@@ -105,6 +111,9 @@ class VimTGApp(App[None]):
         self._db_warning = ""  # set when the database had to be recovered
         # (signal, the handler it had before) for each one routed here
         self._signals_installed: list[tuple[signal.Signals, SignalHandler]] = []
+        # (is_error, text) of every message and pop-up notice this session,
+        # oldest first: shared by every editor's command line for :messages
+        self.message_log: deque[tuple[bool, str]] = deque(maxlen=MESSAGE_HISTORY)
 
     @property
     def settings(self) -> Settings:
@@ -118,6 +127,29 @@ class VimTGApp(App[None]):
         """
         self._settings = new_settings
         save_settings(new_settings)
+
+    def notify(
+        self,
+        message: str,
+        *,
+        title: str = "",
+        severity: SeverityLevel = "information",
+        timeout: float | None = None,
+        markup: bool = True,
+    ) -> None:
+        """Show a pop-up notice and keep it for :messages."""
+        # A notice repeating the message just put on the command line
+        # (which recorded it already) is not logged twice
+        last = self.message_log[-1][1] if self.message_log else ""
+        if last.removeprefix("E: ") != message.removeprefix("E: "):
+            text = f"{title}: {message}" if title else message
+            self.message_log.append((severity == "error", text))
+        if _NOTIFY_TAKES_MARKUP:
+            super().notify(
+                message, title=title, severity=severity, timeout=timeout, markup=markup,
+            )
+        else:  # Textual < 2.1 has no markup parameter
+            super().notify(message, title=title, severity=severity, timeout=timeout)
 
     def on_mount(self) -> None:
         self._install_signal_handlers()
@@ -384,12 +416,12 @@ class VimTGApp(App[None]):
         self._sync_running = False
         self._sync_progress = ""
         self._refresh_card_status()
+        if isinstance(self.screen, MainScreen):
+            self.screen.show_message(f"E: Card sync failed: {message}", error=True)
         self.notify(
             f"Card sync failed: {message}", title="Card sync",
             severity="warning", timeout=10,
         )
-        if isinstance(self.screen, MainScreen):
-            self.screen.show_message(f"E: Card sync failed: {message}", error=True)
 
     def adopt_card_data(self) -> None:
         """Use freshly synced card data everywhere (the UI thread's own

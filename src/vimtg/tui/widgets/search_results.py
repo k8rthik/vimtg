@@ -7,7 +7,7 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from vimtg.domain.card import Card
-from vimtg.tui.deck_renderer import format_mana
+from vimtg.tui.deck_renderer import fit_name, format_mana
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.scrolling import (
     compute_scroll_offset,
@@ -81,7 +81,7 @@ class SearchResults(Static):
             line.append(" > " if is_sel else "   ")
 
             # Card name
-            line.append(f"{card.name:<28}", style="bold" if is_sel else "")
+            line.append(f"{fit_name(card.name, 28):<28}", style="bold" if is_sel else "")
 
             # Mana cost
             line.append(format_mana(card.mana_cost))

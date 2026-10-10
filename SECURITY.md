@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-vimtg is pre-1.0. Security fixes land on `main` and ship in the next
-release; only the latest release is supported.
+Security fixes land on `main` and ship in the next release; only the
+latest release is supported.
 
 | Version | Supported |
 |---|---|

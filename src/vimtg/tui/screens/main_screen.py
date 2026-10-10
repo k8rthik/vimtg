@@ -10,6 +10,7 @@ import contextlib
 import os
 import sqlite3
 import traceback
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -295,6 +296,11 @@ class MainScreen(Screen[None]):
         yield CommandLine(id="command-line")
 
     def on_mount(self) -> None:
+        # :messages is app-wide, as in vim: it survives :e and includes
+        # pop-up notices (sync failures, database and config warnings)
+        log = getattr(self.app, "message_log", None)  # duck-typed app
+        if isinstance(log, deque):
+            self.query_one("#command-line", CommandLine).history = log
         # Start overlay panels hidden (Textual display=False = CSS display:none)
         self.query_one("#search-results", SearchResults).display = False
         self.query_one("#help-panel", HelpPanel).display = False
@@ -1007,6 +1013,8 @@ class MainScreen(Screen[None]):
             self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)
         if hr.ui_request:
             self._handle_ui_request(hr.ui_request)
+        if hr.search_open is not None:
+            self._open_card_search(hr.search_open)
         if hr.edit_file is not None:
             self._edit_file(hr.edit_file)
 
@@ -1023,6 +1031,12 @@ class MainScreen(Screen[None]):
         new_screen = app.screen
         if isinstance(new_screen, MainScreen):
             new_screen._state.registers = registers
+
+    def _open_card_search(self, query: str) -> None:
+        """:search — open the card search exactly as `o` does (ignoring any
+        :map of o), then type the query into it."""
+        for key in ("o", *query):
+            self._process_key(key, resolve=False)
 
     def _handle_ui_request(self, request: str) -> None:
         """:messages and :tips — screen-level views with no buffer change."""
@@ -1899,7 +1913,9 @@ class MainScreen(Screen[None]):
         sr.notice = ""
         sr.results = results
         sr.selected = 0
-        sr.display = bool(results)
+        # An empty result says so instead of silently hiding the overlay
+        sr.notice = "" if results else "No matches"
+        sr.display = True
         # Show top match as ghost completion in command line
         cl = self.query_one("#command-line", CommandLine)
         if results:
