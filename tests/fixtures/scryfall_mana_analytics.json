@@ -1,0 +1,853 @@
+[
+ {
+  "object": "card",
+  "id": "0000a001-5c1d-4e5a-9f0e-00000000a001",
+  "oracle_id": "1111a001-0a0b-4c0d-8e0f-00000000a001",
+  "name": "Arid Mesa",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "mh2",
+  "set_name": "MH2",
+  "rarity": "rare",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Land",
+  "mana_cost": "",
+  "colors": [],
+  "oracle_text": "{T}, Pay 1 life, Sacrifice Arid Mesa: Search your library for a Mountain or Plains card, put it onto the battlefield, then shuffle.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/arid-mesa.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/arid-mesa.jpg",
+   "large": "https://cards.scryfall.io/large/front/arid-mesa.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a002-5c1d-4e5a-9f0e-00000000a002",
+  "oracle_id": "1111a002-0a0b-4c0d-8e0f-00000000a002",
+  "name": "Evolving Wilds",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "cmm",
+  "set_name": "CMM",
+  "rarity": "common",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Land",
+  "mana_cost": "",
+  "colors": [],
+  "oracle_text": "{T}, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/evolving-wilds.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/evolving-wilds.jpg",
+   "large": "https://cards.scryfall.io/large/front/evolving-wilds.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a003-5c1d-4e5a-9f0e-00000000a003",
+  "oracle_id": "1111a003-0a0b-4c0d-8e0f-00000000a003",
+  "name": "Command Tower",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "cmm",
+  "set_name": "CMM",
+  "rarity": "common",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Land",
+  "mana_cost": "",
+  "colors": [],
+  "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/command-tower.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/command-tower.jpg",
+   "large": "https://cards.scryfall.io/large/front/command-tower.jpg"
+  },
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "0000a004-5c1d-4e5a-9f0e-00000000a004",
+  "oracle_id": "1111a004-0a0b-4c0d-8e0f-00000000a004",
+  "name": "City of Brass",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "mh2",
+  "set_name": "MH2",
+  "rarity": "rare",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Land",
+  "mana_cost": "",
+  "colors": [],
+  "oracle_text": "Whenever City of Brass becomes tapped, it deals 1 damage to you.\n{T}: Add one mana of any color.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/city-of-brass.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/city-of-brass.jpg",
+   "large": "https://cards.scryfall.io/large/front/city-of-brass.jpg"
+  },
+  "produced_mana": [
+   "B",
+   "G",
+   "R",
+   "U",
+   "W"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "0000a005-5c1d-4e5a-9f0e-00000000a005",
+  "oracle_id": "1111a005-0a0b-4c0d-8e0f-00000000a005",
+  "name": "Krosan Verge",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [
+   "G",
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "cmm",
+  "set_name": "CMM",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Land",
+  "mana_cost": "",
+  "colors": [],
+  "oracle_text": "Krosan Verge enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice Krosan Verge: Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/krosan-verge.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/krosan-verge.jpg",
+   "large": "https://cards.scryfall.io/large/front/krosan-verge.jpg"
+  },
+  "produced_mana": [
+   "C"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "0000a006-5c1d-4e5a-9f0e-00000000a006",
+  "oracle_id": "1111a006-0a0b-4c0d-8e0f-00000000a006",
+  "name": "Plains",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "fdn",
+  "set_name": "FDN",
+  "rarity": "common",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Basic Land — Plains",
+  "mana_cost": "",
+  "colors": [],
+  "oracle_text": "({T}: Add {W}.)",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/plains.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/plains.jpg",
+   "large": "https://cards.scryfall.io/large/front/plains.jpg"
+  },
+  "produced_mana": [
+   "W"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "0000a007-5c1d-4e5a-9f0e-00000000a007",
+  "oracle_id": "1111a007-0a0b-4c0d-8e0f-00000000a007",
+  "name": "Mountain",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 0.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "fdn",
+  "set_name": "FDN",
+  "rarity": "common",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Basic Land — Mountain",
+  "mana_cost": "",
+  "colors": [],
+  "oracle_text": "({T}: Add {R}.)",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/mountain.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/mountain.jpg",
+   "large": "https://cards.scryfall.io/large/front/mountain.jpg"
+  },
+  "produced_mana": [
+   "R"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "0000a008-5c1d-4e5a-9f0e-00000000a008",
+  "oracle_id": "1111a008-0a0b-4c0d-8e0f-00000000a008",
+  "name": "Boggart Ram-Gang",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "G",
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "shm",
+  "set_name": "SHM",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Creature — Goblin Warrior",
+  "mana_cost": "{R/G}{R/G}{R/G}",
+  "colors": [
+   "G",
+   "R"
+  ],
+  "oracle_text": "Haste\nWither (This deals damage to creatures in the form of -1/-1 counters.)",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/boggart-ram-gang.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/boggart-ram-gang.jpg",
+   "large": "https://cards.scryfall.io/large/front/boggart-ram-gang.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a009-5c1d-4e5a-9f0e-00000000a009",
+  "oracle_id": "1111a009-0a0b-4c0d-8e0f-00000000a009",
+  "name": "Dismember",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "nph",
+  "set_name": "NPH",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Instant",
+  "mana_cost": "{1}{B/P}{B/P}",
+  "colors": [
+   "B"
+  ],
+  "oracle_text": "({B/P} can be paid with either {B} or 2 life.)\nTarget creature gets -5/-5 until end of turn.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/dismember.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/dismember.jpg",
+   "large": "https://cards.scryfall.io/large/front/dismember.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a010-5c1d-4e5a-9f0e-00000000a010",
+  "oracle_id": "1111a010-0a0b-4c0d-8e0f-00000000a010",
+  "name": "Spectral Procession",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 6.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "shm",
+  "set_name": "SHM",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Sorcery",
+  "mana_cost": "{2/W}{2/W}{2/W}",
+  "colors": [
+   "W"
+  ],
+  "oracle_text": "({2/W} can be paid with any two mana or with {W}. This card's mana value is 6.)\nCreate three 1/1 white Spirit creature tokens with flying.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/spectral-procession.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/spectral-procession.jpg",
+   "large": "https://cards.scryfall.io/large/front/spectral-procession.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a011-5c1d-4e5a-9f0e-00000000a011",
+  "oracle_id": "1111a011-0a0b-4c0d-8e0f-00000000a011",
+  "name": "Lightning Helix",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 2.0,
+  "color_identity": [
+   "R",
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "rav",
+  "set_name": "RAV",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Instant",
+  "mana_cost": "{R}{W}",
+  "colors": [
+   "R",
+   "W"
+  ],
+  "oracle_text": "Lightning Helix deals 3 damage to any target and you gain 3 life.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/lightning-helix.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/lightning-helix.jpg",
+   "large": "https://cards.scryfall.io/large/front/lightning-helix.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a012-5c1d-4e5a-9f0e-00000000a012",
+  "oracle_id": "1111a012-0a0b-4c0d-8e0f-00000000a012",
+  "name": "Agadeem's Awakening // Agadeem, the Undercrypt",
+  "lang": "en",
+  "layout": "modal_dfc",
+  "cmc": 3.0,
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "znr",
+  "set_name": "ZNR",
+  "rarity": "mythic",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Sorcery // Land",
+  "card_faces": [
+   {
+    "object": "card_face",
+    "name": "Agadeem's Awakening",
+    "mana_cost": "{X}{B}{B}{B}",
+    "type_line": "Sorcery",
+    "oracle_text": "Return from your graveyard to the battlefield any number of target creature cards that each have a different mana value X or less.",
+    "colors": [
+     "B"
+    ]
+   },
+   {
+    "object": "card_face",
+    "name": "Agadeem, the Undercrypt",
+    "mana_cost": "",
+    "type_line": "Land",
+    "oracle_text": "As Agadeem, the Undercrypt enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {B}.",
+    "colors": []
+   }
+  ],
+  "produced_mana": [
+   "B"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "0000a013-5c1d-4e5a-9f0e-00000000a013",
+  "oracle_id": "1111a013-0a0b-4c0d-8e0f-00000000a013",
+  "name": "Brightclimb Pathway // Grimclimb Pathway",
+  "lang": "en",
+  "layout": "modal_dfc",
+  "cmc": 0.0,
+  "color_identity": [
+   "B",
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "znr",
+  "set_name": "ZNR",
+  "rarity": "rare",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Land // Land",
+  "card_faces": [
+   {
+    "object": "card_face",
+    "name": "Brightclimb Pathway",
+    "mana_cost": "",
+    "type_line": "Land",
+    "oracle_text": "{T}: Add {W}.",
+    "colors": []
+   },
+   {
+    "object": "card_face",
+    "name": "Grimclimb Pathway",
+    "mana_cost": "",
+    "type_line": "Land",
+    "oracle_text": "{T}: Add {B}.",
+    "colors": []
+   }
+  ],
+  "produced_mana": [
+   "B",
+   "W"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "0000a014-5c1d-4e5a-9f0e-00000000a014",
+  "oracle_id": "1111a014-0a0b-4c0d-8e0f-00000000a014",
+  "name": "Aurelia, the Warleader",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 6.0,
+  "color_identity": [
+   "R",
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "gtc",
+  "set_name": "GTC",
+  "rarity": "mythic",
+  "prices": {
+   "usd": "5.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": "4.00",
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "type_line": "Legendary Creature — Angel",
+  "mana_cost": "{2}{R}{R}{W}{W}",
+  "colors": [
+   "R",
+   "W"
+  ],
+  "oracle_text": "Flying, vigilance, haste\nWhenever Aurelia, the Warleader attacks for the first time each turn, untap all creatures you control. After this phase, there is an additional combat phase.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/aurelia-the-warleader.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/aurelia-the-warleader.jpg",
+   "large": "https://cards.scryfall.io/large/front/aurelia-the-warleader.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a015-5c1d-4e5a-9f0e-00000000a015",
+  "oracle_id": "1111a015-0a0b-4c0d-8e0f-00000000a015",
+  "name": "Smothering Tithe",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 4.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "rna",
+  "set_name": "RNA",
+  "rarity": "rare",
+  "prices": {
+   "usd": "20.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": "18.00",
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": true,
+  "type_line": "Enchantment",
+  "mana_cost": "{3}{W}",
+  "colors": [
+   "W"
+  ],
+  "oracle_text": "Whenever an opponent draws a card, that player may pay {2}. If the player doesn't, you create a Treasure token.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/smothering-tithe.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/smothering-tithe.jpg",
+   "large": "https://cards.scryfall.io/large/front/smothering-tithe.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a016-5c1d-4e5a-9f0e-00000000a016",
+  "oracle_id": "1111a016-0a0b-4c0d-8e0f-00000000a016",
+  "name": "Enlightened Tutor",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "mir",
+  "set_name": "MIR",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": true,
+  "type_line": "Instant",
+  "mana_cost": "{W}",
+  "colors": [
+   "W"
+  ],
+  "oracle_text": "Search your library for an artifact or enchantment card, reveal it, then shuffle and put that card on top.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/enlightened-tutor.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/enlightened-tutor.jpg",
+   "large": "https://cards.scryfall.io/large/front/enlightened-tutor.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a017-5c1d-4e5a-9f0e-00000000a017",
+  "oracle_id": "1111a017-0a0b-4c0d-8e0f-00000000a017",
+  "name": "Gamble",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 1.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "usg",
+  "set_name": "USG",
+  "rarity": "rare",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": true,
+  "type_line": "Sorcery",
+  "mana_cost": "{R}",
+  "colors": [
+   "R"
+  ],
+  "oracle_text": "Search your library for a card, put that card into your hand, discard a card at random, then shuffle.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/gamble.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/gamble.jpg",
+   "large": "https://cards.scryfall.io/large/front/gamble.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a018-5c1d-4e5a-9f0e-00000000a018",
+  "oracle_id": "1111a018-0a0b-4c0d-8e0f-00000000a018",
+  "name": "Jeska's Will",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "cmr",
+  "set_name": "CMR",
+  "rarity": "rare",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": true,
+  "type_line": "Sorcery",
+  "mana_cost": "{2}{R}",
+  "colors": [
+   "R"
+  ],
+  "oracle_text": "Choose one. If you control a commander as you cast this spell, you may choose both instead.\n• Add {R} for each card in target opponent's hand.\n• Exile the top three cards of your library. You may play them this turn.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/jeskas-will.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/jeskas-will.jpg",
+   "large": "https://cards.scryfall.io/large/front/jeskas-will.jpg"
+  }
+ },
+ {
+  "object": "card",
+  "id": "0000a019-5c1d-4e5a-9f0e-00000000a019",
+  "oracle_id": "1111a019-0a0b-4c0d-8e0f-00000000a019",
+  "name": "Teferi's Protection",
+  "lang": "en",
+  "layout": "normal",
+  "cmc": 3.0,
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [],
+  "legalities": {
+   "standard": "not_legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "commander": "legal"
+  },
+  "set": "c17",
+  "set_name": "C17",
+  "rarity": "rare",
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "usd_etched": null,
+   "eur": null,
+   "eur_foil": null,
+   "tix": null
+  },
+  "game_changer": true,
+  "type_line": "Instant",
+  "mana_cost": "{2}{W}",
+  "colors": [
+   "W"
+  ],
+  "oracle_text": "Until your next turn, your life total can't change and you gain protection from everything. All permanents you control phase out.",
+  "image_uris": {
+   "small": "https://cards.scryfall.io/small/front/teferis-protection.jpg",
+   "normal": "https://cards.scryfall.io/normal/front/teferis-protection.jpg",
+   "large": "https://cards.scryfall.io/large/front/teferis-protection.jpg"
+  }
+ }
+]

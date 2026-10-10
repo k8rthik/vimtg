@@ -58,10 +58,10 @@ class TestCountManaPips:
         result = count_mana_pips("{3}")
         assert result == {}
 
-    def test_hybrid_ignored(self) -> None:
-        """Hybrid symbols like {R/G} are not single-letter, so ignored."""
+    def test_hybrid_counts_each_color(self) -> None:
+        """A hybrid symbol is a pip of each of its colours."""
         result = count_mana_pips("{R/G}{R}")
-        assert result == {Color.RED: 1}
+        assert result == {Color.RED: 2, Color.GREEN: 1}
 
 
 # --- ManaCurve ---
@@ -256,10 +256,13 @@ class TestComputeStats:
             _entry(4, "Lightning Bolt"),
             _entry(4, "Lava Spike"),
             _entry(4, "Eidolon of the Great Revel"),
-            _entry(4, "Mountain"),
+            _entry(24, "Mountain"),
+            _entry(16, "Lava Spike"),
         ))
         stats = compute_stats(deck, card_map)
-        assert 20 <= stats.recommended_lands <= 28
+        # 60 cards, avg MV ~1.1 -> Karsten 60-card fit, low 20s
+        assert stats.recommended_lands is not None
+        assert 20 <= stats.recommended_lands <= 24
 
     def test_empty_deck(self) -> None:
         deck = _make_deck(())
@@ -272,7 +275,7 @@ class TestComputeStats:
         assert stats.land_count == 0
         assert stats.nonland_count == 0
         assert stats.total_price_usd is None
-        assert stats.recommended_lands == 24
+        assert stats.recommended_lands is None
 
     def test_unresolved_cards_graceful(self) -> None:
         """Cards not in resolved_cards are silently skipped."""

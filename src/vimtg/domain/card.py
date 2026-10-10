@@ -241,7 +241,13 @@ class Card:
 
     @property
     def is_land(self) -> bool:
-        return "Land" in self.type_line
+        """True when the front face is a land.
+
+        Modal DFC spells with a land back ('Instant // Land') are cast
+        as spells and count as such; pathways ('Land // Land') and
+        Westvale-style transforms ('Land // Creature') are lands.
+        """
+        return "Land" in self.type_line.split("//")[0]
 
     @property
     def is_instant_or_sorcery(self) -> bool:

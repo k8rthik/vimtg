@@ -152,9 +152,9 @@ by id. Note that merge and rebase results are normalized on write
 
 | Command | Description |
 |---------|-------------|
-| `:stats` | Toggle the mana-curve / type / color / price panel |
+| `:stats` | Toggle the mana-curve / type / color / price panel; the price names its source, e.g. `$12.34 (usd)` |
 | `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency |
-| `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base, draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck |
+| `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
 
 ## Sideboard plans
 

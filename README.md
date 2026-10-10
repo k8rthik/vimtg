@@ -216,7 +216,7 @@ Formats with rules (names are Scryfall legality keys): standard, pioneer, modern
 - **Live gutter signs**: `✗` error and `!` warning in a two-character column. The reason appears in the status line when the cursor is on the line. The status line also totals `✗N` and `!N`.
 - **Checks**: invalid quantity, unknown card, unknown format, banned/not-legal/restricted cards (warnings only in the maybeboard), copy limits across main + side + command zone with basic lands exempt and oracle text honoured ("any number of cards named" Relentless Rats, "up to seven" Seven Dwarves), minimum or exact deck size, sideboard allowed and size (over the limit is an error), companion count, quantity, actual Companion ability, and colour identity in commander formats, commander present, quantity 1, at most two, eligible (legendary creature or Vehicle, "can be your commander", or a Background beside a "Choose a Background" commander; Brawl also allows planeswalkers, Pauper Commander any creature, Oathbreaker a planeswalker plus Signature Spell), partner-pair heuristic, and colour identity of every mainboard card.
 - **Plan lint**: an out must be in the mainboard, an in must be in the sideboard, never more copies than the zone holds, a missing sign is an error; unbalanced ins/outs, duplicate plan names, and a card listed twice are warnings.
-- `:validate` prints the full list; `vimtg validate deck.deck` does the same from the shell and exits non-zero on errors. `vimtg validate --strict` also fails on warnings such as unknown card names, and needs a synced card database.
+- `:validate` prints the full list; `vimtg validate deck.deck` does the same from the shell and exits non-zero on errors. `vimtg validate --strict` also fails on warnings such as unknown card names, and needs a synced card database. For Commander decks it also prints an `info:` line with the Game Changer count and an estimated bracket. This line never fails validation, even with `--strict`.
 
 ### Sideboard plans
 
@@ -230,8 +230,9 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 
 ### Analytics
 
-- `:stats` toggles a summary of the mana curve, type breakdown, colour pips, and total price.
-- `:analytics` (or `Sa`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size) and a `✓`/`✗ need N more` verdict, and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
+- `:stats` toggles a summary of the mana curve, type breakdown, colour pips, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it).
+- `:analytics` (or `Sa`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
+- The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
 - `vimtg info deck.deck` prints counts from the shell.
 
 ### Split panes and EDHREC
