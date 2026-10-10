@@ -210,12 +210,12 @@ Most commands take a vim range: `%`, `5,10`, `.`, `$`, or a mark pair.
 
 ### Format-aware validation and live lint
 
-Formats with rules: standard, pioneer, modern, legacy, vintage, pauper, historic, commander, brawl. Legality comes entirely from the synced Scryfall data; there are no hard-coded ban lists.
+Formats with rules (names are Scryfall legality keys): standard, pioneer, modern, legacy, vintage, pauper, historic, timeless, premodern, penny (Penny Dreadful), commander, brawl (100-card Brawl), standardbrawl (60-card), oathbreaker, paupercommander, duel (Duel Commander). Any other `// Format:` value gets a warning listing these. Legality comes entirely from the synced Scryfall data; there are no hard-coded ban lists.
 
 - **Live gutter signs**: `✗` error and `!` warning in a two-character column. The reason appears in the status line when the cursor is on the line. The status line also totals `✗N` and `!N`.
-- **Checks**: invalid quantity, unknown card, unknown format, banned/not-legal/restricted cards (warnings only in the maybeboard), copy limits across main + side + command zone with basic lands exempt, minimum or exact deck size, sideboard allowed and size, companion count, quantity, and actual Companion ability, commander present, quantity 1, at most two, legendary, partner-pair heuristic, and colour identity of every mainboard card.
+- **Checks**: invalid quantity, unknown card, unknown format, banned/not-legal/restricted cards (warnings only in the maybeboard), copy limits across main + side + command zone with basic lands exempt and oracle text honoured ("any number of cards named" Relentless Rats, "up to seven" Seven Dwarves), minimum or exact deck size, sideboard allowed and size (over the limit is an error), companion count, quantity, actual Companion ability, and colour identity in commander formats, commander present, quantity 1, at most two, eligible (legendary creature or Vehicle, "can be your commander", or a Background beside a "Choose a Background" commander; Brawl also allows planeswalkers, Pauper Commander any creature, Oathbreaker a planeswalker plus Signature Spell), partner-pair heuristic, and colour identity of every mainboard card.
 - **Plan lint**: an out must be in the mainboard, an in must be in the sideboard, never more copies than the zone holds, a missing sign is an error; unbalanced ins/outs, duplicate plan names, and a card listed twice are warnings.
-- `:validate` prints the full list; `vimtg validate deck.deck` does the same from the shell and exits non-zero on errors.
+- `:validate` prints the full list; `vimtg validate deck.deck` does the same from the shell and exits non-zero on errors. `vimtg validate --strict` also fails on warnings such as unknown card names, and needs a synced card database.
 
 ### Sideboard plans
 
@@ -276,7 +276,7 @@ Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed value
 | `auto_sort` | bool (`autosort`) | on | File new cards by type or category instead of at the cursor |
 | `sort_order` | cmc, name, qty, type, color, tag, category, power, toughness, rarity, price | cmc | Default order for `:sort` and layouts |
 | `search_limit` | 10–500 | 50 | Max search results |
-| `default_format` | blank, standard, pioneer, modern, legacy, vintage, commander, pauper | blank | Format used when the deck declares none |
+| `default_format` | blank or any format listed under [validation](#format-aware-validation-and-live-lint) | blank | Format used when the deck declares none |
 | `confirm_quit` | bool (`confirmquit`) | on | Require `:q!` when modified |
 | `auto_snapshot` | bool | on | Commit to the VCS on `:w` |
 | `auto_sync_cards` | bool (`autosync`) | on | Background card download when missing or stale |
@@ -387,7 +387,7 @@ vimtg edit [file]                      # same, explicit
 vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats)
 vimtg sync [--force]                   # download or refresh the card database
 vimtg search "t:creature cmc<=2" -n 40 # search cards
-vimtg validate deck.deck               # legality report; exit 1 on errors
+vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
 vimtg info deck.deck                   # counts summary
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg convert in.dek --to arena -o out.txt

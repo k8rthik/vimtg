@@ -107,7 +107,13 @@ def _try_card_repo() -> CardRepository | None:
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
-def validate(path: str) -> None:
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Exit non-zero on warnings too (e.g. unknown card names); "
+    "requires a card database.",
+)
+def validate(path: str, strict: bool) -> None:
     """Validate a deck file (format-aware when a card database exists)."""
     from vimtg.config.settings import load_settings
 
@@ -120,8 +126,16 @@ def validate(path: str) -> None:
     resolved = None
     if card_repo is not None:
         resolved, _unresolved = service.resolve_cards(deck)
-    errors = service.validate(deck, resolved, fmt)
+    errors = service.validate(
+        deck, resolved, fmt, card_db=card_repo is not None
+    )
 
+    if strict and card_repo is None:
+        click.echo(
+            f"{file_path.name}: error: --strict needs a card database to "
+            "check card names; run 'vimtg sync'"
+        )
+        sys.exit(1)
     if fmt and card_repo is None:
         click.echo(
             "(no card database — legality checks skipped; run 'vimtg sync')"
@@ -135,7 +149,7 @@ def validate(path: str) -> None:
     for err in errors:
         line_part = f"{err.line_number}:" if err.line_number is not None else ""
         click.echo(f"{file_path.name}:{line_part} {err.level}: {err.message}")
-        if err.level == "error":
+        if err.level == "error" or strict:
             has_errors = True
 
     if has_errors:
