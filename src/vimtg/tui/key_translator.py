@@ -61,6 +61,8 @@ _MODIFIER_NORMALIZE: dict[str, str] = {
     "ctrl+p": "ctrl_p",
     "ctrl+s": "ctrl_s",
     "ctrl+w": "ctrl_w",
+    "ctrl+b": "ctrl_b",
+    "ctrl+e": "ctrl_e",
     "shift+tab": "shift_tab",
 }
 

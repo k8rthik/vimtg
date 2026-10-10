@@ -1,7 +1,10 @@
 """Immutable vim-style register storage for yank/delete/paste.
 
 Supports named registers (a-z), numbered registers (0-9),
-and uppercase-appends (A-Z append to a-z).
+uppercase-appends (A-Z append to a-z), the black hole register "_
+(callers skip storing — see operators.store_lines), and the clipboard
+register "+ ("* is the same register; the session mirrors writes to
+the system clipboard).
 
 TUI-agnostic: no Textual imports.
 """
@@ -9,6 +12,20 @@ TUI-agnostic: no Textual imports.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+BLACK_HOLE = "_"
+CLIPBOARD = "+"
+# Every register name a '"x' prefix accepts besides letters and digits
+SPECIAL_REGISTERS = frozenset({'"', BLACK_HOLE, CLIPBOARD, "*"})
+
+
+def canonical_register(name: str) -> str:
+    """The register `name` reads and writes: "* and "+ are one register."""
+    return CLIPBOARD if name == "*" else name
+
+
+def is_clipboard_register(name: str | None) -> bool:
+    return name is not None and canonical_register(name) == CLIPBOARD
 
 
 @dataclass(frozen=True)
@@ -27,10 +44,11 @@ class RegisterStore:
 
     def get(self, name: str) -> Register:
         """Return register by name, or an empty register if unset."""
-        return self._registers.get(name, Register(content=()))
+        return self._registers.get(canonical_register(name), Register(content=()))
 
     def set(self, name: str, content: tuple[str, ...], linewise: bool = True) -> RegisterStore:
         """Return new RegisterStore with register set. Uppercase appends to lowercase."""
+        name = canonical_register(name)
         new = RegisterStore()
         new._registers = dict(self._registers)
         if name.isupper():
@@ -64,3 +82,19 @@ class RegisterStore:
     def unnamed(self) -> Register:
         """Return the unnamed register (")."""
         return self.get('"')
+
+    def names(self) -> tuple[str, ...]:
+        """Names of the registers holding something, in :registers order:
+        unnamed, numbered, named, then the rest."""
+        def order(name: str) -> tuple[int, str]:
+            if name == '"':
+                return (0, name)
+            if name.isdigit():
+                return (1, name)
+            if name.isalpha():
+                return (2, name)
+            return (3, name)
+
+        return tuple(
+            sorted((n for n, r in self._registers.items() if r.content), key=order)
+        )

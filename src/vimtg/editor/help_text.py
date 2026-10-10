@@ -20,8 +20,14 @@ COMMANDS
   :recover      Load the crash-recovery copy (:recover! discards it)
   :sort [field] Sort by cmc/name/qty/type/color/tag/category/
                 power/toughness/rarity/price (default: sort_order)
-  :s/old/new/g  Substitute across deck
-  :g/pat/d      Delete matching cards
+  :{n}          Go to line n
+  :e[!] [file]  Edit another deck (:e! reloads, dropping changes)
+  :s/pat/rep/g  Substitute (regex; & and \\1 in rep)
+  :g/pat/cmd    Run d, p, y [x], or s/// on matching cards
+  :d / :y [x]   Delete / yank lines (range) into register x
+  :m {n} :t {n} Move / copy lines below line n
+  :undo :redo   One undo / redo step
+  :reg :marks   Show registers / marks
   :find pattern Jump to matching card
   :stats        Deck statistics
   :validate     Check format legality (uses // Format:)
@@ -137,18 +143,40 @@ COMMAND_HELP: dict[str, str] = {
         "follows the sort_order setting."
     ),
     "s": (
-        ":s/old/new/[flags]  Substitute text\n"
+        ":s/pat/rep/[flags]  Substitute text\n"
         "\n"
+        "pat is a regex, case-insensitive like / and :g; an empty pat\n"
+        "reuses the last search. In rep, & is the match, \\1-\\9 groups,\n"
+        "\\& a literal &.\n"
         ":%s/old/new/g  whole file\n"
-        "Flags: g (all occurrences), i (case-insensitive)"
+        "Flags: g (all occurrences), I (match case), i (ignore case)\n"
+        ". repeats the last :s on the cursor line"
     ),
     "g": (
         ":g/pattern/cmd  Execute command on matching card lines\n"
-        "(every zone; d is the only command)\n"
+        "(every zone; :v or :g! for non-matching lines)\n"
         "\n"
-        ":g/Bolt/d      delete lines matching 'Bolt'\n"
-        ":v/SB:/d       delete card lines without an SB: prefix"
+        ":g/Bolt/d          delete lines matching 'Bolt'\n"
+        ":g/Bolt/p          list the matches\n"
+        ":g/Bolt/y a        yank them into register a\n"
+        ":g/@ramp/s/^4/3/   substitute on each match\n"
+        ":v/SB:/d           delete card lines without an SB: prefix"
     ),
+    "e": (
+        ":e [file]  Edit another deck in place of this one\n"
+        "\n"
+        ":e file   open file (deck.deck for 'deck'; a new file is a new deck)\n"
+        ":e! file  the same, discarding unsaved changes\n"
+        ":e!       reload this deck from disk\n"
+        "Registers carry over."
+    ),
+    "d": ":[range]d [x]  Delete lines into register x (default: unnamed)",
+    "y": ":[range]y [x]  Yank lines into register x (default: unnamed)",
+    "m": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor)",
+    "t": ":[range]t {n}  Copy lines below line n (also :co, :copy)",
+    "undo": ":undo / :redo  One undo / redo step (also u / Ctrl-R)",
+    "registers": ":reg [x...]  Show register contents (also :registers, :di)",
+    "marks": ":marks  Show marks with their line numbers",
     "find": (
         ":find pattern  Jump to next card matching pattern\n"
         "\n"

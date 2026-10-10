@@ -40,6 +40,20 @@ class LineBuffer:
         new_text = self.text[:self.cursor] + self.text[self.cursor + 1:]
         return LineBuffer(text=new_text, cursor=self.cursor)
 
+    def delete_word_backward(self) -> LineBuffer:
+        """Ctrl-W: delete the word before the cursor (and the spaces
+        between it and the cursor)."""
+        pos = self.cursor
+        while pos > 0 and self.text[pos - 1].isspace():
+            pos -= 1
+        while pos > 0 and not self.text[pos - 1].isspace():
+            pos -= 1
+        return LineBuffer(text=self.text[:pos] + self.text[self.cursor:], cursor=pos)
+
+    def delete_to_start(self) -> LineBuffer:
+        """Ctrl-U: delete everything before the cursor."""
+        return LineBuffer(text=self.text[self.cursor:], cursor=0)
+
     def move_left(self) -> LineBuffer:
         """Move cursor one position left."""
         if self.cursor == 0:

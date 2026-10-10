@@ -31,6 +31,12 @@ from vimtg.domain.formats import get_format_rules
 from vimtg.domain.search import SearchSyntaxError
 from vimtg.domain.sideboard_plan import apply_plan, find_plan
 from vimtg.editor.buffer import Buffer, LineType, insertion_zone
+from vimtg.editor.card_insert import (
+    discard_pending_insert,
+    find_card_line,
+    place_new_card,
+)
+from vimtg.editor.cmdline_history import CommandHistory
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
@@ -45,7 +51,6 @@ from vimtg.editor.lint import (
 )
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.paste_deck import add_deck_entries
-from vimtg.editor.placement import PlacementPolicy, place_mainboard_card
 from vimtg.editor.plan_ops import (
     find_block,
     plan_search,
@@ -53,13 +58,13 @@ from vimtg.editor.plan_ops import (
     row_deltas,
 )
 from vimtg.editor.registers import RegisterStore
-from vimtg.editor.sections import matched_indent, normalize_sections
+from vimtg.editor.sections import normalize_sections
 from vimtg.editor.session import (
     EditorState,
     HandlerResult,
     InsertSubmode,
+    confirm_card_search,
     count_cards,
-    discard_pending_insert,
     handle_command,
     handle_command_special,
     handle_comment_input_special,
@@ -71,7 +76,6 @@ from vimtg.editor.session import (
     handle_operator,
     handle_tag_input_special,
     resolve_cards,
-    take_insert_position,
 )
 from vimtg.editor.splits import (
     AnalyticsOpen,
@@ -145,9 +149,6 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     return _GENERIC_HINT
 
 
-_matched_indent = matched_indent
-
-
 @dataclass
 class _SplitPane:
     """State of the split pane (second deck or EDHREC)."""
@@ -191,6 +192,7 @@ class MainScreen(Screen[None]):
             resolved_cards={},
             settings=settings or Settings(),
             card_repo=card_repo,
+            cmd_history=CommandHistory.load(),
         )
         self._state.history.initialize(buffer)
         self._state.clean_text = buffer.to_text()
@@ -415,7 +417,7 @@ class MainScreen(Screen[None]):
         hp = self.query_one("#help-panel", HelpPanel)
         if hp.display:
             key = translate(event.key)
-            if key in ("?", "escape"):
+            if key in ("?", "escape", "q"):
                 hp.display = False
             else:
                 hp.scroll_by_key(key)
@@ -625,6 +627,11 @@ class MainScreen(Screen[None]):
             cl.text = action.text or ""
             cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
             hr = handle_command_special(s, action)
+            if hr.command_replace is not None:
+                # Up/Down history recall
+                cl.text = hr.command_replace
+                cl.cursor_pos = len(hr.command_replace)
+                self.keymap.set_command_text(hr.command_replace)
             if hr.command_accept:
                 cl.text = hr.command_accept
                 cl.cursor_pos = len(hr.command_accept)
@@ -740,7 +747,9 @@ class MainScreen(Screen[None]):
             s.mode_mgr.transition(Mode.SEARCH)
             self.keymap.set_mode(Mode.SEARCH)
             self.keymap.reset_text()
-            self.query_one("#command-line", CommandLine).show("/")
+            self.query_one("#command-line", CommandLine).show(
+                "?" if s.search_backward else "/"
+            )
         if hr.enter_visual:
             s.mode_mgr.transition(hr.enter_visual)
             self.keymap.set_mode(hr.enter_visual)
@@ -825,6 +834,24 @@ class MainScreen(Screen[None]):
             self._toggle_pane_focus()
         if hr.run_ex_command:
             self._execute_ex(hr.run_ex_command)
+        if hr.scroll_view:
+            self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)
+        if hr.edit_file is not None:
+            self._edit_file(hr.edit_file)
+
+    def _edit_file(self, path: Path) -> None:
+        """:e — replace this editor with one on `path` (registers carry
+        over, as in vim)."""
+        app = self.app
+        open_deck = getattr(app, "open_deck", None)  # duck-typed navigation
+        if not callable(open_deck):
+            return
+        registers = self._state.registers
+        app.pop_screen()
+        open_deck(path)
+        new_screen = app.screen
+        if isinstance(new_screen, MainScreen):
+            new_screen._state.registers = registers
 
     # ── Search and insert ────────────────────────────────────────
 
@@ -871,53 +898,9 @@ class MainScreen(Screen[None]):
         card = sr.get_selected()
         if card:
             s = self._state
-            # Copies to write, from the count on the o/O that opened
-            # the search ('4o'); consumed so it never leaks forward
-            copies = s.insert_quantity
-            s.insert_quantity = 1
-            # The cursor's zone decides where the card goes: opening a
-            # line inside the CMD:/SB: block (or among prefix lines of a
-            # zone) adds the card to THAT zone
-            zone = insertion_zone(s.buffer, s.cursor.row)
-            # Check for duplicate — increment quantity instead of adding new line
-            duplicate_line = (
-                None if zone == LineType.PLAN_ENTRY
-                else self._find_card_line(card.name, zone)
-            )
-            if zone == LineType.PLAN_ENTRY:
-                self._insert_plan_entry(card.name, copies)
-            elif duplicate_line is not None:
-                qty = s.buffer.quantity_at(duplicate_line) or 0
-                s.buffer = s.buffer.set_quantity(duplicate_line, qty + copies)
-                open_row, removed = take_insert_position(s)
-                if removed and duplicate_line > open_row:
-                    duplicate_line -= 1
-                s.cursor = s.cursor.move_to(
-                    min(duplicate_line, s.buffer.line_count() - 1), 0
-                )
-            elif zone != LineType.CARD_ENTRY:
-                self._insert_zone_card(card.name, zone, copies)
-            else:
-                # Remove the scratch blank BEFORE the placement math —
-                # creating a header can shift rows past a stale cursor
-                open_row, _ = take_insert_position(s)
-                row = self._place_new_card(card, card.name, copies, open_row)
-                s.cursor = s.cursor.move_to(row, 0)
-            s.modified = True
-            s.history.record(s.buffer, f"added {card.name}")
+            cl.set_message(confirm_card_search(s, card))
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
-            from vimtg.editor.operators import ZONE_LABELS
-
-            zone_note = (
-                f" to {ZONE_LABELS[zone]}"
-                if zone not in (LineType.CARD_ENTRY, LineType.PLAN_ENTRY)
-                else ""
-            )
-            added = f"{copies}x {card.name}" if copies > 1 else card.name
-            cl.set_message(
-                f"Added {added}{zone_note}  (+/- to change qty, dd to remove)"
-            )
         else:
             # No card selected — the o/O scratch blank is discarded
             discard_pending_insert(self._state)
@@ -932,57 +915,8 @@ class MainScreen(Screen[None]):
         self, card: Card | None, name: str, qty: int, open_row: int | None
     ) -> int:
         """Write a fresh mainboard line where the placement policy says
-        (type section, category section, or where it was opened) and
-        return its row. Stamps the category the section implies."""
-        s = self._state
-        policy = PlacementPolicy(
-            auto_sort=s.settings.auto_sort,
-            type_line=card.type_line if card is not None else None,
-        )
-        placed = place_mainboard_card(s.buffer, policy, open_row=open_row)
-        s.buffer = placed.buffer.insert_line(placed.row, f"{placed.indent}{qty} {name}")
-        if placed.category:
-            s.buffer = s.buffer.set_category(placed.row, placed.category)
-        return placed.row
-
-    def _insert_plan_entry(self, name: str, qty: int) -> None:
-        """Write a signed plan line where the user opened it: '+N' for a
-        card the sideboard holds, '-N' for a mainboard card (a card in
-        neither zone gets '+' and a lint error)."""
-        s = self._state
-        open_row, _ = take_insert_position(s)
-        sign = (
-            "+" if self._find_card_line(name, LineType.SIDEBOARD_ENTRY) is not None
-            else "-" if self._find_card_line(name, LineType.CARD_ENTRY) is not None
-            else "+"
-        )
-        indent = _matched_indent(s.buffer, open_row)
-        s.buffer = s.buffer.insert_line(open_row, f"{indent}{sign}{qty} {name}")
-        s.cursor = s.cursor.move_to(open_row, 0)
-
-    def _insert_zone_card(self, name: str, zone: LineType, qty: int) -> None:
-        """Add a card to a non-main zone. With auto-sort on, sideboard
-        and maybeboard lines stay alphabetical; otherwise (and for the
-        commander/companion zones, where order matters) the card lands
-        where the line was opened, in the zone's own style."""
-        from vimtg.editor.operators import (
-            ALPHA_ZONES,
-            insert_zone_line,
-            zone_line_text,
-        )
-
-        s = self._state
-        open_row, _ = take_insert_position(s)
-        body = f"{qty} {name}"
-        if s.settings.auto_sort and zone in ALPHA_ZONES:
-            s.buffer, dest_row, _count = insert_zone_line(
-                s.buffer, zone, body, sort_name=name
-            )
-            s.cursor = s.cursor.move_to(dest_row, 0)
-            return
-        text = zone_line_text(s.buffer, open_row, zone, body)
-        s.buffer = s.buffer.insert_line(open_row, text)
-        s.cursor = s.cursor.move_to(open_row, 0)
+        and return its row (see editor.card_insert.place_new_card)."""
+        return place_new_card(self._state, card, name, qty, open_row)
 
     # ── Split panes and EDHREC ───────────────────────────────────
 
@@ -992,7 +926,7 @@ class MainScreen(Screen[None]):
         prev_settings = s.settings
         hr = handle_command(
             s, ParsedAction("command_submit", "enter", text=text),
-            self.registry, self.file_path, self.save_fn,
+            self.registry, self.file_path, self.save_fn, record_history=False,
         )
         if s.settings is not prev_settings:
             self._on_settings_saved(s.settings)
@@ -1694,21 +1628,9 @@ class MainScreen(Screen[None]):
     def _find_card_line(
         self, card_name: str, zone: LineType | None = None
     ) -> int | None:
-        """Find an existing line with this card name in `zone`.
-
-        Duplicate detection is zone-scoped: adding a card where the
-        cursor is must increment a copy in THAT zone, never one in
-        another zone. Defaults to the mainboard.
-        """
-        target = zone if zone is not None else LineType.CARD_ENTRY
-        buf = self._state.buffer
-        for i in range(buf.line_count()):
-            if (
-                buf.get_line(i).line_type == target
-                and buf.card_name_at(i) == card_name
-            ):
-                return i
-        return None
+        """Find an existing line with this card name in `zone` (default
+        the mainboard) — see editor.card_insert.find_card_line."""
+        return find_card_line(self._state.buffer, card_name, zone)
 
     @work(thread=True)
     def _run_search(self, query: str) -> None:
