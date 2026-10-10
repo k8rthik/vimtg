@@ -181,6 +181,10 @@ A mistyped sequence is dropped silently and the which-key popup closes.
 | `Esc` | Cancel |
 
 Completion is fuzzy: `:so` matches `sort`, `:st` matches `sort` and `stats`.
+After a space it completes the argument: `:layout ` offers `type` / `category`,
+`:sort c` offers `category`, `cmc`, `color`, `:filter core+fl` completes the
+deck tag after the last `+`, `|`, or `-`, and `:cat dr` completes a category
+from the deck, your history, or the presets.
 
 ## Screens
 

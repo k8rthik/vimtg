@@ -173,6 +173,16 @@ def test_search_outputs_results(
     assert "Lightning Bolt" in result.output
 
 
+def test_search_applies_filters(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "c:w"])
+    assert result.exit_code == 0
+    assert "Rest in Peace" in result.output
+    assert "Lightning Bolt" not in result.output
+
+
 def test_search_no_results(
     runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
 ) -> None:

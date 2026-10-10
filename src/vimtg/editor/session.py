@@ -39,6 +39,7 @@ from vimtg.editor.dot_repeat import DotRepeat, RepeatableAction
 from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.layout import (
     LAYOUT_CATEGORY,
+    LAYOUT_MODES,
     LAYOUT_TYPE,
     detect_layout,
     follow_line,
@@ -1107,6 +1108,24 @@ def handle_line_edit_special(state: EditorState, action: ParsedAction) -> Handle
     return HandlerResult()
 
 
+def command_argument_candidates(state: EditorState, command: str) -> tuple[str, ...]:
+    """Tab-completion candidates for `command`'s argument, best first:
+    layout modes, sort fields, the deck's tags (most used first) for
+    :filter, and the category pool gc uses for :category."""
+    if command == "layout":
+        return LAYOUT_MODES
+    if command == "sort":
+        return tuple(sorted(SORT_FIELDS))
+    if command == "filter":
+        counts = state.buffer.tag_counts()
+        return tuple(sorted(counts, key=lambda tag: (-counts[tag], tag)))
+    if command == "category":
+        return completion_candidates(
+            state.buffer.category_counts(), load_category_history(),
+        )
+    return ()
+
+
 def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     """Process command-mode special keys for fuzzy completion."""
     key = action.action
@@ -1117,7 +1136,9 @@ def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerR
         return HandlerResult()
 
     if key in ("char", "backspace", "delete"):
-        state.cmd_completion = completer.complete(text)
+        state.cmd_completion = completer.complete(
+            text, lambda command: command_argument_candidates(state, command),
+        )
         ghost = completer.current_ghost(state.cmd_completion)
         return HandlerResult(command_ghost=ghost)
 
