@@ -130,5 +130,81 @@ class TestSaveSettings:
 
         # No leftover temp files in the config dir.
         cfg_dir = tmp_path / "vimtg"
-        leftover = list(cfg_dir.glob("config_*.tmp")) if cfg_dir.exists() else []
+        leftover = list(cfg_dir.glob("*.tmp")) if cfg_dir.exists() else []
         assert leftover == []
+
+
+class TestSaveSettingsSafety:
+    """Saving from :config must never corrupt or wipe config.toml."""
+
+    @staticmethod
+    def _config(tmp_path, monkeypatch: pytest.MonkeyPatch, text: str):
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        cfg = tmp_path / "vimtg"
+        cfg.mkdir()
+        path = cfg / "config.toml"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_quoted_keybinding_keys_stay_valid_toml(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import tomllib
+
+        from vimtg.config.settings import load_settings_checked
+
+        path = self._config(
+            tmp_path, monkeypatch,
+            '[editor]\nprice_source = "usd"\n\n'
+            '[keybindings.normal]\n"ctrl+s" = ":w"\n"<leader>q" = ":q!"\n',
+        )
+        save_settings(Settings(price_source="eur"))
+
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        assert data["keybindings"]["normal"] == {"ctrl+s": ":w", "<leader>q": ":q!"}
+        settings, warning = load_settings_checked()
+        assert warning is None
+        assert settings.price_source == "eur"
+
+    def test_other_value_types_survive(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import tomllib
+
+        path = self._config(
+            tmp_path, monkeypatch,
+            '[editor]\ntheme = "dark"\nunknown_key = 1.5\n\n'
+            '[extra]\nlist = [1, 2]\nnote = "tab\\there"\n'
+            'inline = {a = 1}\n',
+        )
+        before = tomllib.loads(path.read_text(encoding="utf-8"))
+        save_settings(Settings())
+        after = tomllib.loads(path.read_text(encoding="utf-8"))
+        assert after["extra"] == before["extra"]
+        assert after["editor"]["unknown_key"] == 1.5
+
+    def test_control_characters_escaped(self) -> None:
+        import tomllib
+
+        toml = settings_to_toml(Settings(theme="a\nb\x01c"))
+        assert tomllib.loads(toml)["editor"]["theme"] == "a\nb\x01c"
+
+    def test_unparseable_config_not_overwritten_and_backed_up(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vimtg.config.settings_writer import SettingsWriteError
+
+        broken = '[keybindings]\nctrl+s = ":w"\n'  # what the old writer produced
+        path = self._config(tmp_path, monkeypatch, broken)
+        with pytest.raises(SettingsWriteError, match="not valid TOML"):
+            save_settings(Settings(price_source="eur"))
+        assert path.read_text(encoding="utf-8") == broken
+        backup = path.with_name("config.toml.bak")
+        assert backup.read_text(encoding="utf-8") == broken
+
+        # Retrying reuses the identical backup instead of piling up copies
+        with pytest.raises(SettingsWriteError):
+            save_settings(Settings())
+        assert sorted(p.name for p in path.parent.iterdir()) == [
+            "config.toml", "config.toml.bak",
+        ]

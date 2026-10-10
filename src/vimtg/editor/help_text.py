@@ -79,7 +79,12 @@ def _build_overview() -> str:
 HELP_OVERVIEW = _build_overview()
 
 COMMAND_HELP: dict[str, str] = {
-    "w": ":w [file]  Save deck to file",
+    "w": (
+        ":w [file]  Save deck to file\n"
+        "\n"
+        ":w file  writes to file and makes it the deck's file (like :saveas)\n"
+        ":w!      overwrite another existing file, or a file changed on disk"
+    ),
     "q": ":q        Quit (:q! force quit with unsaved changes)",
     "wq": ":wq      Save and quit",
     "recover": (

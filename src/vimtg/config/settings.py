@@ -58,25 +58,35 @@ def validate_settings(settings: Settings) -> list[str]:
 
 
 def load_settings() -> Settings:
-    """Load settings from config.toml, falling back to defaults.
+    """Load settings from config.toml, falling back to defaults."""
+    return load_settings_checked()[0]
+
+
+def load_settings_checked() -> tuple[Settings, str | None]:
+    """Load settings plus a warning when config.toml could not be read.
 
     A malformed or invalid config must never prevent the app from
     starting — bad files fall back to defaults, invalid values are
-    replaced per-field.
+    replaced per-field — but an unparseable file must not go unnoticed
+    either: the warning tells the user why their settings vanished.
     """
     config_path = config_dir() / "config.toml"
     if not config_path.exists():
-        return Settings()
+        return Settings(), None
 
     try:
         with open(config_path, "rb") as f:
             data = tomllib.load(f)
-    except (tomllib.TOMLDecodeError, OSError):
-        return Settings()
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+        return Settings(), (
+            f"{config_path} is not valid TOML ({exc}); using default settings"
+        )
+    except OSError as exc:
+        return Settings(), f"Cannot read {config_path}: {exc}; using default settings"
 
     editor = data.get("editor", {})
     if not isinstance(editor, dict):
-        return Settings()
+        return Settings(), f"{config_path}: [editor] is not a table; using default settings"
 
     defaults = Settings()
 
@@ -116,4 +126,4 @@ def load_settings() -> Settings:
         replacements["sort_order"] = defaults.sort_order
     if replacements:
         settings = replace(settings, **replacements)  # type: ignore[arg-type]
-    return settings
+    return settings, None
