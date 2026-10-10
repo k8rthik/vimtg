@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS cards (
     keywords TEXT DEFAULT '[]',
     oracle_id TEXT,
     produced_mana TEXT DEFAULT '[]',
-    game_changer INTEGER DEFAULT 0
+    game_changer INTEGER DEFAULT 0,
+    full_oracle_text TEXT
 )
 """
 
@@ -124,6 +125,9 @@ _CARD_V1_MIGRATIONS = (
     ("oracle_id", "ALTER TABLE cards ADD COLUMN oracle_id TEXT"),
     ("produced_mana", "ALTER TABLE cards ADD COLUMN produced_mana TEXT DEFAULT '[]'"),
     ("game_changer", "ALTER TABLE cards ADD COLUMN game_changer INTEGER DEFAULT 0"),
+    # Every face's rules text, for search; NULL until the next sync
+    # (search falls back to oracle_text).
+    ("full_oracle_text", "ALTER TABLE cards ADD COLUMN full_oracle_text TEXT"),
 )
 
 

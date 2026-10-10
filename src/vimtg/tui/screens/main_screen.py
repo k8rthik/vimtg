@@ -27,6 +27,7 @@ from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.domain.formats import get_format_rules
+from vimtg.domain.search import SearchSyntaxError
 from vimtg.domain.sideboard_plan import apply_plan, find_plan
 from vimtg.editor.buffer import Buffer, LineType, insertion_zone
 from vimtg.editor.command_completer import CommandCompleter
@@ -193,6 +194,8 @@ class MainScreen(Screen[None]):
         self.registry = registry or CommandRegistry()
         self._state.cmd_completer = CommandCompleter(self.registry)
         self.search_service = search_service
+        # Query of the newest card search started from the prompt.
+        self._latest_search: str | None = None
         self.card_repo = card_repo
         self.save_fn = save_fn
         self.keymap = KeyMap()
@@ -708,6 +711,7 @@ class MainScreen(Screen[None]):
                     plan_search(s.buffer, s.resolved_cards, query)
                 )
             elif len(query) >= 2 and self.search_service:
+                self._latest_search = query
                 self._run_search(query)
             elif len(query) < 2:
                 sr.display = False
@@ -1547,26 +1551,46 @@ class MainScreen(Screen[None]):
     def _run_search(self, query: str) -> None:
         if self.search_service:
             settings = self._state.settings
-            results = self.search_service.search(
-                query, limit=settings.search_limit
-            )
             # Same format resolution as lint: the deck's declared
             # "// Format:" wins over the global default. Only filter on
             # formats we actually know — an unknown or misspelled format
-            # must not silently empty the results.
+            # must not silently empty the results. Restricted cards are
+            # playable (1 copy), so they stay. Filtering happens in the
+            # query, before search_limit, so it never truncates results.
             deck = parse_deck_text(self._state.buffer.to_text())
             fmt = effective_format(deck, settings.default_format)
-            if fmt and get_format_rules(fmt) is not None:
-                # Restricted cards are playable (1 copy) — hiding them
-                # from search would make vintage staples unfindable
-                results = [
-                    c for c in results
-                    if c.legalities.get(fmt) in ("legal", "restricted")
-                ]
-            self.app.call_from_thread(self._update_search_results, results)
+            rules = get_format_rules(fmt) if fmt else None
+            try:
+                results = self.search_service.search(
+                    query,
+                    limit=settings.search_limit,
+                    legal_in=rules.name if rules is not None else None,
+                )
+            except SearchSyntaxError as exc:
+                self.app.call_from_thread(self._show_search_error, query, str(exc))
+                return
+            self.app.call_from_thread(self._apply_search_results, query, results)
+
+    def _search_is_current(self, query: str) -> bool:
+        """Workers finish out of order under fast typing; only the one
+        for the latest query typed may update the overlay."""
+        return self._latest_search is None or self._latest_search == query
+
+    def _apply_search_results(self, query: str, results: list[Card]) -> None:
+        if self._search_is_current(query):
+            self._update_search_results(results)
+
+    def _show_search_error(self, query: str, message: str) -> None:
+        if not self._search_is_current(query):
+            return
+        self._update_search_results([])
+        sr = self.query_one("#search-results", SearchResults)
+        sr.error = message
+        sr.display = True
 
     def _update_search_results(self, results: list[Card]) -> None:
         sr = self.query_one("#search-results", SearchResults)
+        sr.error = ""
         sr.results = results
         sr.selected = 0
         sr.display = bool(results)

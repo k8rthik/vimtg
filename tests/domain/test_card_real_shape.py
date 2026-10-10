@@ -93,3 +93,28 @@ class TestNewFields:
         assert card.produced_mana == ()
         assert card.game_changer is False
         assert card.oracle_id is None
+
+
+class TestFullOracleText:
+    """Search needs every face's rules text; oracle_text stays the front."""
+
+    def test_transform_keeps_back_face_text(
+        self, real_shape_cards: list[dict[str, Any]]
+    ) -> None:
+        delver = _card(real_shape_cards, "Delver of Secrets // Insectile Aberration")
+        assert "Flying" not in delver.oracle_text
+        assert delver.full_oracle_text.endswith("\n//\nFlying")
+        assert delver.full_oracle_text.startswith(delver.oracle_text)
+
+    def test_mdfc_keeps_back_face_text(
+        self, real_shape_cards: list[dict[str, Any]]
+    ) -> None:
+        valakut = _card(real_shape_cards, "Valakut Awakening // Valakut Stoneforge")
+        assert "pay 3 life" in valakut.full_oracle_text
+
+    def test_empty_when_oracle_text_already_complete(
+        self, real_shape_cards: list[dict[str, Any]]
+    ) -> None:
+        assert _card(real_shape_cards, "Fire // Ice").full_oracle_text == ""
+        assert _card(real_shape_cards, "Bonecrusher Giant // Stomp").full_oracle_text == ""
+        assert _card(real_shape_cards, "Lightning Bolt").full_oracle_text == ""

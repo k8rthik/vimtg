@@ -63,7 +63,13 @@ def row_to_card(row: sqlite3.Row) -> Card:
         oracle_id=_str_or_none(_optional(row, "oracle_id")),
         produced_mana=tuple(json.loads(str(_optional(row, "produced_mana") or "[]"))),
         game_changer=bool(_optional(row, "game_changer")),
+        full_oracle_text=_full_text(row),
     )
+
+
+def _full_text(row: sqlite3.Row) -> str:
+    stored = _optional(row, "full_oracle_text")
+    return "" if stored is None or stored == row["oracle_text"] else str(stored)
 
 
 def _str_or_none(value: object) -> str | None:
@@ -97,4 +103,5 @@ def card_to_row(card: Card) -> tuple[object, ...]:
         card.oracle_id,
         json.dumps(list(card.produced_mana)),
         int(card.game_changer),
+        card.full_oracle_text or card.oracle_text,
     )
