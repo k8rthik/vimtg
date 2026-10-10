@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-Security fixes land on `main` and ship in the next release; only the
-latest release is supported.
+Security fixes land on `main` and ship in the next 1.0.x release; only
+the latest 1.0.x release is supported.
 
 | Version | Supported |
 |---|---|
-| latest release | yes |
-| anything older | no — please upgrade |
+| 1.0.x (latest release, including release candidates) | yes |
+| 0.x and older | no — please upgrade |
 
 ## Reporting a vulnerability
 

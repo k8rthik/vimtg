@@ -23,7 +23,7 @@ body:
     attributes:
       label: vimtg version
       description: Output of `vimtg --version`.
-      placeholder: "vimtg, version 0.8.0"
+      placeholder: "vimtg, version 1.0.0rc1"
     validations:
       required: true
   - type: input
