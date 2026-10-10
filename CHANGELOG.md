@@ -32,6 +32,11 @@ from 1.0.0 onward.
   comparison and colour words (`boros`, `esper`), `mv`/`pow`/`tou`/
   `usd`/`eur`/`tix` comparisons, `r:`, `set:`, `f:`/`banned:`/
   `restricted:`, `kw:`, `m:` and `is:`/`not:`. See `docs/search.md`.
+- Search additions: `produces:`, `is:permanent`/`spell`/`hybrid`/
+  `phyrexian`, field-to-field comparisons such as `pow>tou`, back-face
+  power and toughness, `order:`/`direction:`; `kw:partner` also finds
+  "Partner with", and typographic quotes match straight ones. `year:` and
+  `date:` are reported as unsupported.
 - `:search [query]` opens the card search overlay pre-filled with the
   query, and `:help search` describes it.
 - `:sync` / `:sync!` download card data in the background with progress
@@ -42,14 +47,22 @@ from 1.0.0 onward.
   clipboard; the greeter opens a pasted decklist.
 - Ex commands `:{n}`, `:$`, `:e[!] [file]`, `:[range]d [x]`,
   `:[range]y [x]`, `:[range]m {n}`, `:[range]t {n}` (`:co`), `:undo`,
-  `:redo`, `:reg`, `:marks`, `:recover` / `:recover!`.
+  `:redo`, `:reg`, `:marks`, `:recover` / `:recover!`, `:saveas`.
+- Unsaved work is kept as a recovery copy on Ctrl-C, Ctrl-Q, `:home`,
+  SIGHUP and SIGTERM (`:q!`, `ZQ`, `:e!` and `:home!` discard it).
+  Recovery copies are per deck path, and the greeter lists orphaned ones
+  (`R`).
 - `:` and search prompts keep a persisted Up/Down history and support
   `Ctrl-W`, `Ctrl-U`, `Ctrl-B`/`Ctrl-E` and Left/Right editing.
 - `zz`/`zt`/`zb` scroll; `"_` is a black-hole register and `"+`/`"*`
   copy to the system clipboard; `ZZ` / `ZQ` run `:wq` / `:q!`.
 - Formats: standardbrawl, oathbreaker, paupercommander, duel,
-  premodern, timeless, and penny. `vimtg validate --strict` fails on
+  premodern, timeless, penny, explorer, alchemy, and gladiator. Format
+  names are case-insensitive and accept the aliases search accepts
+  (`EDH`, `PDH`, `Historic Brawl`). `vimtg validate --strict` fails on
   warnings.
+- `:export fmt` with no file copies the export to the clipboard;
+  `:export!` overwrites an existing file.
 - `vimtg convert` lists the lines it could not import; `:import`
   reports how many were skipped.
 - `python -m vimtg` is guarded by `if __name__ == "__main__"`, so importing
@@ -85,17 +98,37 @@ from 1.0.0 onward.
 - Card names resolve by full name or any face, ignoring case, accents,
   ligatures and separators ("Stomp", "Fire/Ice", "Aether Vial").
 - Mana analytics: MDFC spells count as spells, fetch lands and
-  any-colour lands count as sources, hybrid and Phyrexian pips count,
-  the commander is included, and the land recommendation follows
-  Karsten's fits. `:stats` uses and names the configured price source.
+  any-colour lands count as sources, and the commander is included;
+  the land recommendation follows Karsten's fits. Hybrid symbols ask for
+  whichever colour the lands cover best, Phyrexian and `{2/W}` symbols
+  never raise a source requirement, and fetch lands count only for
+  colours of lands in the deck they can find. Split cards count both
+  halves' pips, judge requirements per half, and use the cheaper half for
+  the curve. `:stats` uses and names the configured price source.
+- Validation: a companion counts toward the 15-card sideboard, and an
+  Oathbreaker without a Signature Spell is an error.
 - Imports: MTGO and Arena files use one decklist parser (`Nx`
   quantities, section headers, printing suffixes such as
   `(SET) 123`), Archidekt categories place zones, and BOM/CRLF files
-  are accepted. MTGO/Arena/`.dek` exports use front-face names.
+  are accepted. Imports normalise names to each card's official name,
+  count copies per card, and are laid out like a new deck (`// Deck:`,
+  `// Format:`, zone blocks); a headerless Commander list puts the
+  commander in the command zone; bare `Card` lines are one copy. URL
+  imports carry the site's format and Moxfield signature spells.
+- Exports write official card names: the front face for double-faced and
+  adventure cards, `A // B` for split cards, the full name in CSV.
+  `vimtg convert` resolves names against the synced card database, and
+  `vimtg -> vimtg` copies the deck unchanged.
 - `:w` refuses to overwrite another existing file or a deck changed on
   disk since it was read (`:w!` overrides); `vimtg new` refuses to
   overwrite without `--force`; `vimtg missing.deck` opens an empty deck
-  bound to that path.
+  bound to that path. `:export` refuses an existing file (E13) and never
+  overwrites the open deck; `vimtg convert -o` refuses an existing file
+  without `--force` and never overwrites its input.
+- Every ex command that changes the deck marks it modified and is one
+  undo step (`:sort` was not undoable); `cc` plus the new card is one
+  step. `:x`/`ZZ` do not rewrite an unmodified deck, and `:w` notices a
+  deck file deleted on disk.
 - `:set` and the `:config` screen edit `config.toml` in place, keeping
   comments and layout.
 - Saving no longer writes empty metadata lines the file never had.
@@ -117,7 +150,8 @@ from 1.0.0 onward.
 ### Fixed
 
 - Unexpected errors in the editor no longer close it: the buffer is
-  written to a recovery file and `:recover` offers it on reopen.
+  written to a recovery file and `:recover` offers it on reopen. Two
+  decks with the same file name no longer share a recovery copy.
 - Crashes from undo/redo past the buffer end and from `v` in visual
   mode; opening a hand-written deck no longer marks it modified.
 - Re-syncing card data replaces the table in one transaction, so no
@@ -127,6 +161,8 @@ from 1.0.0 onward.
   rebuilt with the readable history instead of failing to start.
 - Fast typing in card search no longer fails on a shared database
   connection; unknown search keys and bad values are reported by name.
+- Stale split and multi-face card rows force one re-sync (schema v2), so
+  split-card costs and back-face power/toughness are right.
 - Card search with no matches says "No matches" instead of showing
   nothing.
 - Long card names are cut with an ellipsis instead of running into the
