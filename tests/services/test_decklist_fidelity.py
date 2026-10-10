@@ -304,6 +304,12 @@ class TestSkippedReport:
         report = _svc().import_deck_report(_read("archidekt_categories.csv"))
         assert report.skipped == (SkippedLine(8, "3,Normal,Burn"),)
 
+    def test_moxfield_csv_rows_without_a_name_are_reported(self) -> None:
+        text = "Count,Name,Section\n4,Lightning Bolt,mainboard\n2,,sideboard\n,,\n"
+        report = _svc().import_deck_report(text, DeckFormat.MOXFIELD)
+        assert report.skipped == (SkippedLine(3, "2,sideboard"),)
+        assert [e.card_name for e in report.deck.entries] == ["Lightning Bolt"]
+
     def test_convert_prints_report_to_stderr(self, tmp_path: Path) -> None:
         src = tmp_path / "in.txt"
         src.write_text("4 Lightning Bolt\nnot a card\n", encoding="utf-8")
