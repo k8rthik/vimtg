@@ -11,10 +11,19 @@ def test_version():
     assert __version__ == "0.8.0"
 
 
-def test_package_version_matches_pyproject():
-    pyproject = Path(__file__).parent.parent / "pyproject.toml"
-    declared = tomllib.loads(pyproject.read_text())["project"]["version"]
-    assert declared == __version__
+def test_package_version_is_single_sourced():
+    # pyproject must not carry its own literal version: hatch reads it from
+    # vimtg.__version__, so the two can never drift apart.
+    pyproject = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
+    assert "version" not in pyproject["project"]
+    assert "version" in pyproject["project"]["dynamic"]
+    assert pyproject["tool"]["hatch"]["version"]["path"] == "src/vimtg/__init__.py"
+
+
+def test_installed_metadata_matches_package_version():
+    from importlib.metadata import version
+
+    assert version("vimtg") == __version__
 
 
 def test_user_agents_carry_the_version():
