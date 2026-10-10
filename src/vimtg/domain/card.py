@@ -109,8 +109,12 @@ def _build_from_face_layout(data: dict[str, Any]) -> dict[str, Any]:
 def _build_from_split_layout(data: dict[str, Any]) -> dict[str, Any]:
     faces = data["card_faces"]
     combined_text = "\n//\n".join(f.get("oracle_text", "") for f in faces)
+    # Both halves, the way Scryfall writes it: "{1}{R} // {1}{U}".
+    cost = data.get("mana_cost") or " // ".join(
+        str(f.get("mana_cost") or "") for f in faces
+    )
     return {
-        "mana_cost": faces[0].get("mana_cost", ""),
+        "mana_cost": cost,
         "oracle_text": combined_text,
         "power": None,
         "toughness": None,
@@ -158,6 +162,16 @@ def _full_oracle_text(data: dict[str, Any], oracle_text: str) -> str:
     return "" if joined == oracle_text else joined
 
 
+def _face_stats(data: dict[str, Any]) -> tuple[tuple[str | None, str | None], ...]:
+    """(power, toughness) per face; () for a single-faced card."""
+    faces = data.get("card_faces")
+    if not faces or not isinstance(faces, list):
+        return ()
+    return tuple(
+        (f.get("power"), f.get("toughness")) for f in faces if isinstance(f, dict)
+    )
+
+
 def _oracle_id(data: dict[str, Any]) -> str | None:
     """Top-level oracle_id, or the front face's (reversible cards)."""
     oracle_id = data.get("oracle_id")
@@ -197,6 +211,9 @@ class Card:
     # Rules text of every face, for search, when ``oracle_text`` holds
     # only the front face (transform and modal DFCs); "" otherwise.
     full_oracle_text: str = ""
+    # (power, toughness) of every face of a multi-face card, for search
+    # (a transform card's back face has its own); () otherwise.
+    face_stats: tuple[tuple[str | None, str | None], ...] = ()
 
     @classmethod
     def from_scryfall(cls, data: dict[str, Any]) -> "Card":
@@ -244,6 +261,7 @@ class Card:
             produced_mana=tuple(data.get("produced_mana") or ()),
             game_changer=bool(data.get("game_changer", False)),
             full_oracle_text=_full_oracle_text(data, face_fields["oracle_text"]),
+            face_stats=_face_stats(data),
         )
 
     @property

@@ -197,14 +197,33 @@ def _generic_checks(
             )
         )
 
-    side_count = sum(e.quantity for e in deck.sideboard())
+    side_count, note = _sideboard_count(deck)
     if side_count > 15:
         errors.append(
             ValidationError(
-                "warning", f"Sideboard has {side_count} cards (maximum 15)"
+                "warning", f"Sideboard has {side_count} cards{note} (maximum 15)"
             )
         )
     return errors
+
+
+def _sideboard_count(deck: Deck) -> tuple[int, str]:
+    """Sideboard size with the companion counted, and a note saying so.
+
+    In formats with a sideboard the companion is one of its (up to 15)
+    cards: since the June 2020 companion rules change it is revealed
+    from the sideboard (Comprehensive Rules 702.139). A companion
+    already listed in SB: is not counted twice.
+    """
+    side_count = sum(e.quantity for e in deck.sideboard())
+    in_side = {e.card_name.lower() for e in deck.sideboard()}
+    extra = sum(
+        e.quantity for e in deck.companions()
+        if e.card_name.lower() not in in_side
+    )
+    if not extra:
+        return side_count, ""
+    return side_count + extra, " including the companion"
 
 
 # Formats where Scryfall's "restricted" means "commander only", not
@@ -394,12 +413,12 @@ def _check_sideboard(
             )
             for entry in sideboard
         ]
-    side_count = sum(e.quantity for e in sideboard)
+    side_count, note = _sideboard_count(deck)
     if side_count > rules.max_sideboard:
         return [
             ValidationError(
                 "error",
-                f"Sideboard has {side_count} cards "
+                f"Sideboard has {side_count} cards{note} "
                 f"(maximum {rules.max_sideboard} in {rules.name})",
             )
         ]
@@ -686,6 +705,14 @@ def _check_oathbreaker_zone(
     if commanders and not walkers:
         errors.append(
             ValidationError("error", "No Oathbreaker (planeswalker) in CMD:")
+        )
+    if walkers and len(spells) < len(walkers):
+        errors.append(
+            ValidationError(
+                "error",
+                f"{len(walkers)} Oathbreaker(s) but {len(spells)} Signature "
+                "Spell(s) in CMD: (each Oathbreaker needs one)",
+            )
         )
     if len(spells) > max(len(walkers), 1):
         errors.append(

@@ -183,6 +183,15 @@ def test_search_applies_filters(
     assert "Lightning Bolt" not in result.output
 
 
+def test_search_shows_full_split_cost(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "fire"])
+    assert result.exit_code == 0
+    assert "{1}{R} // {1}{U}" in result.output
+
+
 def test_search_no_results(
     runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
 ) -> None:

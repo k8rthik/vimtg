@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import itertools
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 from vimtg.domain.card import Card, Color, color_from_symbol
 from vimtg.domain.card_types import primary_type
 from vimtg.domain.deck import Deck, DeckSection
+from vimtg.domain.formats import normalize_format
+from vimtg.domain.mana import (
+    cost_halves,
+    is_hybrid,
+    is_phyrexian,
+    mana_symbols,
+    mana_value,
+    symbol_colors,
+)
 
 # Zones whose cards are part of the deck you play: the commander is
 # cast from the command zone, so it counts toward totals, curve, pips.
@@ -179,16 +190,35 @@ def _karsten_needed(pips: int, cmc: float, mainboard_count: int) -> int:
     return round(row[turn] * mainboard_count / _KARSTEN_BASELINE_DECK)
 
 
-def _basic_colors(deck: Deck, resolved_cards: dict[str, Card]) -> set[Color]:
-    """Colours the deck's basic lands tap for (what a 'basic land' fetch finds)."""
-    found: set[Color] = set()
+@dataclass(frozen=True)
+class _DeckLand:
+    """A played land as a fetch target: its land subtypes, whether it
+    is basic, and the colours it taps for."""
+
+    subtypes: frozenset[str]
+    basic: bool
+    colors: frozenset[Color]
+
+
+def _deck_lands(deck: Deck, resolved_cards: dict[str, Card]) -> list[_DeckLand]:
+    """The played lands a fetch land could find in this deck."""
+    lands: list[_DeckLand] = []
     for entry in deck.entries:
         if entry.section not in _PLAYED_SECTIONS:
             continue
         card = resolved_cards.get(entry.card_name)
-        if card is not None and card.is_land and "Basic" in card.type_line:
-            found.update(_produced_colors(card))
-    return found
+        if card is None or not card.is_land:
+            continue
+        front = card.type_line.split("//")[0]
+        supertypes, _, subtypes = front.partition("\u2014")
+        lands.append(
+            _DeckLand(
+                subtypes=frozenset(subtypes.lower().split()),
+                basic="Basic" in supertypes,
+                colors=frozenset(_produced_colors(card)),
+            )
+        )
+    return lands
 
 
 def _produced_colors(card: Card) -> set[Color]:
@@ -210,29 +240,121 @@ def _produced_colors(card: Card) -> set[Color]:
     return typed | set(card.color_identity)
 
 
-def _fetch_colors(card: Card, basic_colors: set[Color]) -> set[Color]:
-    """Colours a fetch land can find, from its oracle text.
+def _fetch_colors(card: Card, deck_lands: list[_DeckLand]) -> set[Color]:
+    """Colours a fetch land can find among this deck's lands.
 
-    'Search your library for a Mountain or Plains card' -> R, W (the
-    named basic land types). 'Search your library for a basic land
-    card' (Evolving Wilds, Fabled Passage) -> the colours of the basic
-    lands in this deck. Conservative: anything else finds nothing.
+    'Search your library for an Island or Swamp card' (Polluted Delta)
+    finds the deck's lands with one of those land types and counts for
+    the colours they tap for: a Steam Vents makes it a red source too,
+    and with no Swamp-typed land it is no black source. 'Search your
+    library for a basic land card' (Evolving Wilds) finds the deck's
+    basic lands; 'a basic Forest card' only basic Forests.
+    Conservative: anything else finds nothing.
     """
     found: set[Color] = set()
     for clause in _SEARCH_CLAUSE.findall(card.oracle_text.lower()):
-        named = {c for name, c in _BASIC_TYPE_COLORS.items() if name in clause}
-        if named:
-            found |= named
-        elif "basic land" in clause:
-            found |= basic_colors
+        named = {name for name in _BASIC_TYPE_COLORS if name in clause}
+        basic_only = "basic" in clause
+        if not named and "basic land" not in clause:
+            continue
+        for land in deck_lands:
+            if basic_only and not land.basic:
+                continue
+            if named and not named & land.subtypes:
+                continue
+            found |= land.colors
     return found
 
 
-def land_source_colors(card: Card, basic_colors: set[Color]) -> set[Color]:
+def land_source_colors(card: Card, deck_lands: list[_DeckLand]) -> set[Color]:
     """Colours a land counts as a source for: what it produces plus
-    what it can fetch. Command Tower and City of Brass list every
-    colour in produced_mana; Arid Mesa produces nothing but fetches."""
-    return _produced_colors(card) | _fetch_colors(card, basic_colors)
+    what it can fetch from this deck. Command Tower and City of Brass
+    list every colour in produced_mana; Arid Mesa produces nothing but
+    fetches."""
+    return _produced_colors(card) | _fetch_colors(card, deck_lands)
+
+
+def curve_mana_value(card: Card) -> float:
+    """Mana value a card occupies on the curve.
+
+    A split card is cast one half at a time, so it sits at its cheaper
+    half (Fire // Ice at 2, not Scryfall's combined 4). Everything else
+    uses its mana value.
+    """
+    halves = cost_halves(card.mana_cost)
+    if len(halves) > 1:
+        return min(mana_value(h) for h in halves)
+    return card.cmc
+
+
+def _cast_options(card: Card) -> list[tuple[str, float]]:
+    """(cost, turn it is cast on) for each way to cast the card: both
+    halves of a split card, otherwise the one cost at its mana value."""
+    halves = cost_halves(card.mana_cost)
+    if len(halves) > 1:
+        return [(h, mana_value(h)) for h in halves]
+    return [(card.mana_cost, card.cmc)]
+
+
+def _requirement_options(cost: str) -> list[Counter[Color]]:
+    """Every way to colour a cost's pips, as per-colour pip counts.
+
+    Single-colour symbols are fixed. A two-colour hybrid symbol ({G/W})
+    can be paid with either colour, so it contributes one pip to one of
+    them: each distinct split of the hybrid symbols is an option.
+    Phyrexian symbols (payable with life) and {2/W} (payable with
+    generic mana) never need a coloured source.
+    """
+    fixed: Counter[Color] = Counter()
+    hybrids: Counter[tuple[Color, ...]] = Counter()
+    for symbol in mana_symbols(cost):
+        colors = symbol_colors(symbol)
+        if not colors or is_phyrexian(symbol):
+            continue
+        if not is_hybrid(symbol):
+            fixed[colors[0]] += 1
+        elif len(colors) > 1:
+            hybrids[colors] += 1
+    per_symbol: list[list[Counter[Color]]] = []
+    for colors, count in hybrids.items():
+        # How many of `count` identical symbols go to each colour
+        splits = [
+            Counter(dict(zip(colors, parts, strict=True)))
+            for parts in itertools.product(range(count + 1), repeat=len(colors))
+            if sum(parts) == count
+        ]
+        per_symbol.append(splits)
+    options: list[Counter[Color]] = []
+    for combo in itertools.product(*per_symbol):
+        total = Counter(fixed)
+        for part in combo:
+            total.update(part)
+        options.append(+total)
+    return options
+
+
+def _cheapest_requirement(
+    cost: str,
+    turn: float,
+    mainboard_count: int,
+    sources: dict[Color, int],
+) -> dict[Color, int]:
+    """Karsten-needed sources per colour for one cost, choosing the
+    hybrid colouring the deck's lands satisfy best: least shortfall,
+    then fewest total sources asked for."""
+    best: tuple[int, int, dict[Color, int]] | None = None
+    for option in _requirement_options(cost):
+        needed = {
+            color: _karsten_needed(pips, turn, mainboard_count)
+            for color, pips in option.items()
+        }
+        shortfall = sum(
+            max(0, n - sources.get(c, 0)) for c, n in needed.items()
+        )
+        key = (shortfall, sum(needed.values()))
+        if best is None or key < best[:2]:
+            best = (*key, needed)
+    return best[2] if best is not None else {}
 
 
 def compute_mana_base(
@@ -243,17 +365,20 @@ def compute_mana_base(
     A land (by front face) counts as a source for every colour in
     land_source_colors. The per-colour requirement is the deck's most
     demanding card (commander included) under the Karsten table,
-    scaled by mainboard size.
+    scaled by mainboard size; hybrid symbols ask for whichever colour
+    the lands cover best, Phyrexian symbols ask for nothing, and each
+    half of a split card is judged on its own.
     """
     played = [e for e in deck.entries if e.section in _PLAYED_SECTIONS]
     mainboard_count = sum(
         e.quantity for e in played if e.section == DeckSection.MAIN
     )
-    basic_colors = _basic_colors(deck, resolved_cards)
+    deck_lands = _deck_lands(deck, resolved_cards)
     pips_by_color: dict[Color, int] = {}
     needed_by_color: dict[Color, int] = {}
     sources_by_color: dict[Color, int] = {}
     total_lands = 0
+    spells: list[Card] = []
 
     for entry in played:
         card = resolved_cards.get(entry.card_name)
@@ -261,19 +386,25 @@ def compute_mana_base(
             continue
         if card.is_land:
             total_lands += entry.quantity
-            for color in land_source_colors(card, basic_colors):
+            for color in land_source_colors(card, deck_lands):
                 sources_by_color[color] = (
                     sources_by_color.get(color, 0) + entry.quantity
                 )
             continue
+        spells.append(card)
         for color, pips in count_mana_pips(card.mana_cost).items():
             pips_by_color[color] = (
                 pips_by_color.get(color, 0) + pips * entry.quantity
             )
-            needed = _karsten_needed(pips, card.cmc, mainboard_count)
-            needed_by_color[color] = max(
-                needed_by_color.get(color, 0), needed
+
+    # Requirements need the finished source counts (hybrid choice).
+    for card in spells:
+        for cost, turn in _cast_options(card):
+            needed = _cheapest_requirement(
+                cost, turn, mainboard_count, sources_by_color
             )
+            for color, n in needed.items():
+                needed_by_color[color] = max(needed_by_color.get(color, 0), n)
 
     requirements = tuple(
         ColorRequirement(
@@ -292,15 +423,15 @@ def count_mana_pips(mana_cost: str) -> dict[Color, int]:
     """Count color pips in a mana cost string like '{2}{R}{R}'.
 
     A hybrid symbol is a pip of each of its colours ({R/G} -> R and G,
-    {2/W} -> W); a Phyrexian symbol is a pip of its colour ({R/P} -> R),
-    since paying life instead is not a mana source.
+    {2/W} -> W); a Phyrexian symbol is a pip of its colour ({R/P} -> R).
+    A split card's cost ('{1}{R} // {1}{U}') counts both halves. These
+    are totals only: the source requirement treats hybrid and Phyrexian
+    symbols differently (see compute_mana_base).
     """
     pips: dict[Color, int] = {}
-    for symbol in re.findall(r"\{([^}]+)\}", mana_cost):
-        for part in symbol.split("/"):
-            color = color_from_symbol(part) if len(part) == 1 else None
-            if color is not None:
-                pips[color] = pips.get(color, 0) + 1
+    for symbol in mana_symbols(mana_cost):
+        for color in symbol_colors(symbol):
+            pips[color] = pips.get(color, 0) + 1
     return pips
 
 
@@ -341,7 +472,7 @@ def estimate_bracket(
 def is_commander_deck(deck: Deck) -> bool:
     """Whether Commander brackets apply: format 'commander', or no
     format with a card in the command zone."""
-    fmt = deck.metadata.format.strip().lower()
+    fmt = normalize_format(deck.metadata.format)
     if fmt:
         return fmt == "commander"
     return any(e.section == DeckSection.COMMANDER for e in deck.entries)
@@ -385,9 +516,10 @@ def compute_stats(
             land_count += qty
         else:
             nonland_count += qty
-            cmc_int = min(int(card.cmc), 7)
+            curve_mv = curve_mana_value(card)
+            cmc_int = min(int(curve_mv), 7)
             curve[cmc_int] = curve.get(cmc_int, 0) + qty
-            cmcs.extend(card.cmc for _ in range(qty))
+            cmcs.extend(curve_mv for _ in range(qty))
 
         primary = _classify_type(card.type_line)
         if primary is not None:

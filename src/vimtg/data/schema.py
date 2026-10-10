@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS cards (
     oracle_id TEXT,
     produced_mana TEXT DEFAULT '[]',
     game_changer INTEGER DEFAULT 0,
-    full_oracle_text TEXT
+    full_oracle_text TEXT,
+    face_stats TEXT
 )
 """
 
@@ -49,7 +50,9 @@ CARD_NAMES_INDEXES = (
 #   0 -> v0.8 and earlier (no PRAGMA user_version set)
 #   1 -> oracle_id / produced_mana / game_changer, card_names aliases,
 #        stale duplicate card rows removed
-SCHEMA_VERSION = 1
+#   2 -> split cards store both halves' cost ("{1}{R} // {1}{U}"),
+#        face_stats (per-face power/toughness)
+SCHEMA_VERSION = 2
 
 CARDS_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
@@ -128,6 +131,9 @@ _CARD_V1_MIGRATIONS = (
     # Every face's rules text, for search; NULL until the next sync
     # (search falls back to oracle_text).
     ("full_oracle_text", "ALTER TABLE cards ADD COLUMN full_oracle_text TEXT"),
+    # Per-face [power, toughness] as JSON; NULL until the next sync
+    # (search falls back to the front face's power/toughness).
+    ("face_stats", "ALTER TABLE cards ADD COLUMN face_stats TEXT"),
 )
 
 
@@ -159,6 +165,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     version: int = conn.execute("PRAGMA user_version").fetchone()[0]
     if version < 1:
         _migrate_to_v1(conn)
+    if version < 2:
+        _migrate_to_v2(conn)
 
 
 def _migrate_to_v1(conn: sqlite3.Connection) -> None:
@@ -196,7 +204,33 @@ def _migrate_to_v1(conn: sqlite3.Connection) -> None:
             conn.execute("INSERT INTO cards_fts(cards_fts) VALUES('rebuild')")
         if rows:
             conn.execute("DELETE FROM sync_metadata WHERE key = 'last_sync'")
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.execute("PRAGMA user_version = 1")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+
+def _migrate_to_v2(conn: sqlite3.Connection) -> None:
+    """Rows stored before v2 lack data only Scryfall has: a split
+    card's right-half cost, a multi-face card's per-face power and
+    toughness.
+
+    When any such row exists, forget the last sync so the next
+    (automatic) sync rebuilds the cards table; until then everything
+    reads the old values. Card tables only; history tables are not
+    touched.
+    """
+    try:
+        stale = conn.execute(
+            "SELECT 1 FROM cards WHERE (layout = 'split' "
+            "AND COALESCE(mana_cost, '') NOT LIKE '% // %') "
+            "OR (layout IN ('transform', 'modal_dfc', 'meld', 'flip', "
+            "'adventure', 'reversible_card') AND face_stats IS NULL) LIMIT 1"
+        ).fetchone()
+        if stale is not None:
+            conn.execute("DELETE FROM sync_metadata WHERE key = 'last_sync'")
+        conn.execute("PRAGMA user_version = 2")
         conn.commit()
     except BaseException:
         conn.rollback()

@@ -33,26 +33,48 @@ o:/deals \d damage/                   regex on rules text
 | `name:text` | substring of the name |
 | `t:` `type:` | type line substring, any face |
 | `o:` `oracle:` `fo:` | rules text substring, any face (back faces of transform and modal DFCs included). Accepts `/regex/` |
-| `kw:` `keyword:` | a whole keyword (`kw:flying`) |
-| `m:` `mana:` | mana cost contains symbols: `m:rr` or `m:{R}{R}` |
+| `kw:` `keyword:` | a whole keyword (`kw:flying`); also its "with" form, so `kw:partner` finds Partner and Partner with |
+| `m:` `mana:` | mana cost contains symbols: `m:rr` or `m:{R}{R}`. Split cards store both halves (`{3}{U} // {4}{W}{W}`), so `m:ww` finds Commit // Memory |
+| `produces:` | mana the card can produce: `produces:g`, `produces:ur` (at least those), `produces=c` (exactly colourless), `produces<=ub`; colour words and guilds work too |
 | `c:` `color:` | colours (see below) |
 | `id:` `ci:` `identity:` | colour identity (see below) |
 | `mv` `cmc` `manavalue` | mana value |
-| `pow` `power`, `tou` `toughness` | power / toughness (cards without one never match; `*` counts as 0) |
+| `pow` `power`, `tou` `toughness` | power / toughness of **any face** (Delver of Secrets matches `pow>=3` by its back face; cards without one never match; `*` counts as 0). Compare two stats with `pow>tou`, `tou<=mv`, `pow=cmc` |
 | `r:` `rarity:` | `common`, `uncommon`, `rare`, `mythic`, `special`, `bonus` (or `c`/`u`/`r`/`m`); ordered, so `r>=rare` works |
 | `s:` `set:` `e:` `edition:` | set code of the stored printing |
 | `f:` `format:` `legal:` | playable in the format: legal **or restricted** |
 | `banned:`, `restricted:` | banned / restricted in the format |
 | `usd` `eur` `tix` | price comparisons; cards without that price never match |
-| `is:` / `not:` | `commander`, `dfc`, `mdfc`, `transform` (`tdfc`), `split`, `adventure`, `flip`, `meld`, `gamechanger` (`gc`) |
+| `is:` / `not:` | `commander`, `dfc`, `mdfc`, `transform` (`tdfc`), `split`, `adventure`, `flip`, `meld`, `gamechanger` (`gc`), `permanent` (front face is an artifact, creature, enchantment, land, planeswalker or battle), `spell` (front face is not a land), `hybrid` (a hybrid symbol in the cost, `{2/W}` included), `phyrexian` (a Phyrexian symbol in the cost) |
+| `order:` `direction:` | sort results instead of ranking by name: `order:` `name`, `cmc` (`mv`), `power`, `toughness`, `rarity`, `usd`, `eur`, `tix`, `set`; `direction:asc` or `desc`. Cards without the value sort last |
 
-Numeric keys and colours take any comparison operator: `:` `=` `!=` `<` `<=`
+Typographic quotes and apostrophes fold to plain ones, so a pasted
+`o:“can’t be countered”` finds "can't be countered".
+
+Numeric keys, colours and `produces:` take any comparison operator: `:` `=` `!=` `<` `<=`
 `>` `>=` (`:` means `=` for numbers and rarity). Text keys take `:` only.
 
 Formats are Scryfall's legality keys (`standard`, `pioneer`, `modern`,
 `legacy`, `vintage`, `pauper`, `commander`, `brawl`, `standardbrawl`,
 `oathbreaker`, `paupercommander`, `duel`, `premodern`, `penny`, `historic`,
-`timeless`, …) plus `edh` and `pdh`.
+`timeless`, `explorer`, `alchemy`, `gladiator`, …). Names are
+case-insensitive, ignore spaces and hyphens, and accept these aliases:
+`edh`/`cedh` (commander), `pdh` (paupercommander), `historicbrawl`
+(brawl), `duelcommander` (duel), `pennydreadful` (penny). Deck
+validation reads `// Format:` with the same table, so `// Format: EDH`
+and `f:edh` mean the same format.
+
+Formats with deck-construction rules in validation, besides the
+paper formats: Explorer, Alchemy, Historic and Timeless (60-card
+minimum, up to 15 sideboard cards, 4 copies) and Gladiator (at least 100
+cards, one copy of each card but basic lands, no sideboard, no
+commander). Sources: the official format pages
+<https://magic.wizards.com/en/formats/explorer>,
+<https://magic.wizards.com/en/formats/alchemy>,
+<https://magic.wizards.com/en/formats/historic>,
+<https://magic.wizards.com/en/formats/timeless> and
+<https://magic.wizards.com/en/formats/gladiator>. `future`, `oldschool`
+and `predh` work in searches only.
 
 `is:commander` follows the Commander rules: a legendary creature, Vehicle,
 Spacecraft with P/T or Background, or a card whose text says it can be your
@@ -83,9 +105,10 @@ and capped at `search_limit` (`vimtg search -n N` on the command line). In the
 editor, cards not playable in the deck's declared format are filtered out before
 the limit is applied.
 
-An unknown key (`foo:bar`), colour, rarity, format, `is:` value, malformed
-number, or invalid regex is reported by name in the overlay (or as a CLI error)
-instead of being ignored. Unfinished syntax at the end of what you are typing —
+An unknown key (`foo:bar`), colour, rarity, format, `is:` value, sort
+order, malformed number, or invalid regex is reported by name in the overlay (or as a CLI error)
+instead of being ignored. `year:` and `date:` are not supported, because
+vimtg stores one printing per card, and say so. Unfinished syntax at the end of what you are typing —
 an open quote or parenthesis, a trailing `-` or `or`, an empty `t:` — is
 tolerated so as-you-type search keeps working.
 

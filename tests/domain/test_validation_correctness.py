@@ -329,7 +329,7 @@ class TestFormatTable:
         assert _has(_errors(errs), "requires exactly 60")
 
     def test_unknown_format_lists_supported(self):
-        errs = validate_deck(parse_deck_text("60 Island\n"), fmt="edh")
+        errs = validate_deck(parse_deck_text("60 Island\n"), fmt="kitchen-table")
         msg = next(m for m in _warnings(errs) if m.startswith("Unknown format"))
         for name in FORMAT_RULES:
             assert name in msg

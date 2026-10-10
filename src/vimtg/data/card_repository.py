@@ -3,10 +3,10 @@ from collections.abc import Iterable
 
 from vimtg.data.card_mapper import card_to_row, row_to_card
 from vimtg.data.database import Database
-from vimtg.data.search_sql import compile_search, fts_name_query
+from vimtg.data.search_sql import compile_search, fts_name_query, order_by
 from vimtg.domain.card import Card
 from vimtg.domain.card_names import CardMap, name_aliases, normalize_card_name
-from vimtg.domain.search import Node, ranking_words
+from vimtg.domain.search import Node, SearchOrder, ranking_words
 
 _INSERT_SQL = """
     INSERT OR REPLACE INTO cards (
@@ -14,8 +14,8 @@ _INSERT_SQL = """
         colors, color_identity, power, toughness, set_code, rarity,
         price_usd, price_usd_foil, price_eur, price_eur_foil, price_tix,
         legalities, image_uri, layout, keywords,
-        oracle_id, produced_mana, game_changer, full_oracle_text
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        oracle_id, produced_mana, game_changer, full_oracle_text, face_stats
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 _ALIAS_SQL = """
@@ -171,16 +171,25 @@ class CardRepository:
 
         return result
 
-    def search_parsed(self, query: Node, limit: int = 50) -> list[Card]:
+    def search_parsed(
+        self, query: Node, limit: int = 50, order: SearchOrder | None = None
+    ) -> list[Card]:
         """Cards matching a parsed search (vimtg.domain.search).
 
-        Ranked by how well bare name words match, then by name. Runs on
+        Ranked by how well bare name words match, then by name, unless
+        ``order`` (order:/direction:) asks for another sort. Runs on
         its own reader connection, so concurrent searches from worker
         threads never share a cursor.
         """
         where, params = compile_search(query)
         words = ranking_words(query)
-        if words:
+        if order is not None:
+            sql = (
+                f"SELECT c.* FROM cards c WHERE {where} "  # noqa: S608
+                f"ORDER BY {order_by(order)} LIMIT ?"
+            )
+            args: list[object] = [*params, limit]
+        elif words:
             sql = (
                 "SELECT c.* FROM cards c LEFT JOIN ("  # noqa: S608
                 "SELECT rowid AS rid, rank AS score FROM cards_fts "
@@ -188,7 +197,7 @@ class CardRepository:
                 f"WHERE {where} "
                 "ORDER BY r.score IS NULL, r.score, c.name LIMIT ?"
             )
-            args: list[object] = [fts_name_query(words), *params, limit]
+            args = [fts_name_query(words), *params, limit]
         else:
             sql = f"SELECT c.* FROM cards c WHERE {where} ORDER BY c.name LIMIT ?"  # noqa: S608
             args = [*params, limit]
