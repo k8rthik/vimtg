@@ -42,6 +42,8 @@ async def test_new_deck_scaffolds_blocks_and_insert_lands_inside(
     deck.write_text("// Format: commander\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")  # skip the new-deck name prompt
         screen = _screen(app)
         text = screen._state.buffer.to_text()
         assert "CMD:" in text.splitlines()

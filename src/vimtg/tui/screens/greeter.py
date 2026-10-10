@@ -48,7 +48,24 @@ ACTIONS = [
     ("q", "Quit"),
 ]
 
+LOGO_WIDTH = max(len(line) for line in LOGO_LINES)
+MENU_RECENT = 5  # recent decks listed on the menu (all of them under `r`)
+
 _DIM = f"dim {COLORS['comment']}"
+
+
+def _where(path: Path) -> str:
+    """Where a recent deck lives, '' for the current directory."""
+    try:
+        parent = path.parent.resolve()
+        if parent == Path.cwd().resolve():
+            return ""
+        home = Path.home().resolve()
+        if parent.is_relative_to(home):
+            return "~/" + str(parent.relative_to(home)) if parent != home else "~"
+        return str(parent)
+    except (OSError, RuntimeError):
+        return ""
 _SELECTED_STYLE = f"on {COLORS['cursor_bg']}"
 
 
@@ -82,6 +99,7 @@ class GreeterView(Static):
         self.nav = VimNav()
         self._help_nav = VimNav()
         self._help_offset = 0
+        self._shown_recent = min(len(self._recent), MENU_RECENT)
 
     def render(self) -> Text:
         if self._mode == GreeterMode.HELP:
@@ -97,38 +115,77 @@ class GreeterView(Static):
     # -- Render methods ------------------------------------------------
 
     def _render_menu(self) -> Text:
+        """The menu, shedding extras to fit the terminal: the logo goes
+        first, then the tagline, then recent decks; on very short
+        terminals the actions pack two to a line."""
+        width = self.size.width or 80
+        height = self.size.height or 40
+        # The card-database note matters (no data, sync failing): it is
+        # kept with the status line rather than shed with the tagline
+        status_lines = (1 if self._status else 0) + (1 if self._card_note else 0)
+        # Always shown: the actions (one per line plus a blank, or two
+        # per line when that does not fit), any status, and the hint
+        compact = height < len(ACTIONS) + 1 + status_lines + 1
+        action_lines = (len(ACTIONS) + 1) // 2 if compact else len(ACTIONS) + 1
+        room = height - action_lines - status_lines - 1
+        show_logo = width >= LOGO_WIDTH + 2 and room >= len(LOGO_LINES) + 1 + 3
+        if show_logo:
+            room -= len(LOGO_LINES) + 1
+        show_tagline = room >= 3
+        if show_tagline:
+            room -= 3
+        shown_recent = min(len(self._recent), MENU_RECENT, max(0, room - 2))
+
         t = Text()
+        if show_logo:
+            for line in LOGO_LINES:
+                logo_line = Text(f"  {line}\n")
+                logo_line.stylize(f"bold {COLORS['mana_red']}")
+                t.append_text(logo_line)
+            t.append("\n")
 
-        for line in LOGO_LINES:
-            logo_line = Text(f"  {line}\n")
-            logo_line.stylize(f"bold {COLORS['mana_red']}")
-            t.append_text(logo_line)
-        t.append("\n")
-
-        t.append("  Vim-powered MTG deck builder\n", style=_DIM)
-        t.append(f"  v{__version__}\n", style=_DIM)
+        if show_tagline:
+            t.append("  Vim-powered MTG deck builder\n", style=_DIM)
+            t.append(f"  v{__version__}\n", style=_DIM)
         if self._card_note:
             style = f"bold {COLORS['warning']}" if self._card_note_attention else _DIM
-            t.append(f"  {self._card_note}\n", style=style)
-        t.append("\n")
-
-        for key, label in ACTIONS:
-            t.append(f"  [{key}]", style=f"bold {COLORS['quantity']}")
-            t.append(f"  {label}\n", style="")
-        t.append("\n")
-
-        if self._recent:
-            t.append("  Recent\n", style=f"bold {COLORS['mana_blue']}")
-            for i, path in enumerate(self._recent[:5]):
-                num = i + 1
-                t.append(f"  [{num}]", style=f"bold {COLORS['quantity']}")
-                t.append(f"  {path.name}\n", style="dim")
+            note = self._card_note
+            if len(note) > width - 2:  # one line, even at 30 columns
+                note = note[: max(1, width - 3)] + "…"
+            t.append(f"  {note}\n", style=style)
+        if show_tagline:
             t.append("\n")
+
+        if compact:
+            for i in range(0, len(ACTIONS), 2):
+                for key, label in ACTIONS[i:i + 2]:
+                    # First word only ("Recent"), so two fit in 30 columns
+                    t.append(f" [{key}]", style=f"bold {COLORS['quantity']}")
+                    t.append(f" {label.split()[0]:<7}")
+                t.append("\n")
+        else:
+            for key, label in ACTIONS:
+                t.append(f"  [{key}]", style=f"bold {COLORS['quantity']}")
+                t.append(f"  {label}\n", style="")
+            t.append("\n")
+
+        if shown_recent:
+            t.append("  Recent\n", style=f"bold {COLORS['mana_blue']}")
+            for i, path in enumerate(self._recent[:shown_recent]):
+                t.append(f"  [{i + 1}]", style=f"bold {COLORS['quantity']}")
+                t.append(f"  {path.name}", style="dim")
+                where = _where(path)
+                if where:
+                    t.append(f"  {where}", style=_DIM)
+                t.append("\n")
+            t.append("\n")
+        self._shown_recent = shown_recent
 
         if self._status:
             t.append(f"  {self._status}\n", style=f"bold {COLORS['mana_green']}")
 
-        t.append("  Press a highlighted key to continue\n", style=_DIM)
+        t.append("  Press a highlighted key\n" if compact
+                 else "  Press a highlighted key to continue\n", style=_DIM)
         return t
 
     def _render_help(self) -> Text:
@@ -204,6 +261,9 @@ class GreeterView(Static):
                 f"{path.name}",
                 style="bold" if is_selected else "",
             )
+            where = _where(path)
+            if where:
+                line.append(f"  {where}", style="dim")
 
             try:
                 mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime(
@@ -389,7 +449,7 @@ class GreeterScreen(Screen[None]):
         elif key in ("?", "f1"):
             gv.set_mode(GreeterMode.HELP)
             gv.refresh()
-        elif key.isdigit() and int(key) >= 1 and int(key) <= len(self._recent):
+        elif key.isdigit() and 1 <= int(key) <= gv._shown_recent:
             self._open_editor(file_path=self._recent[int(key) - 1])
 
     def _handle_help_key(self, key: str, gv: GreeterView) -> None:

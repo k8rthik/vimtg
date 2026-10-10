@@ -36,9 +36,11 @@ Recognized at the top of the file:
 | `Source` | Optional (URL or provenance note) |
 | `Tags` | Deck-level tags, comma-separated |
 
-Values may be empty (`// Format:`) — new decks are scaffolded with empty
-`// Deck:`, `// Format:`, and `// Tags:` lines, and any deck missing them
-gets them added (in the buffer only) on open. Press `i` on a metadata line
+Values may be empty (`// Format:`) — any deck missing the `// Deck:`,
+`// Format:`, or `// Tags:` lines gets them added in the editor on open,
+so they can be filled in place. They are display-only until they have a
+value: saving never writes an empty line the file did not already have
+(existing metadata, empty or not, round-trips unchanged). Press `i` on a metadata line
 to edit just the value; the `// Key:` prefix is locked.
 
 The `Format` value drives live legality checking: illegal cards get a

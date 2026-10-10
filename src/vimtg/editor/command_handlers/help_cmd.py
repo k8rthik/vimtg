@@ -28,6 +28,39 @@ def cmd_help(
     return buffer, cursor
 
 
+def cmd_messages(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:messages shows recent messages and errors; :messages clear empties it."""
+    arg = (cmd.args or "").strip()
+    if arg not in ("", "clear"):
+        ctx.fail(f"Invalid argument: {arg}")
+        return buffer, cursor
+    ctx.ui_request = "messages_clear" if arg == "clear" else "messages"
+    return buffer, cursor
+
+
+def cmd_tips(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:tips shows the getting-started tips; :tips off|on turns them off/on for good."""
+    arg = (cmd.args or "").strip().lower()
+    requests = {"": "tips_show", "on": "tips_on", "off": "tips_off"}
+    if arg not in requests:
+        ctx.fail(f"Invalid argument: {arg} (use :tips, :tips on, :tips off)")
+        return buffer, cursor
+    ctx.ui_request = requests[arg]
+    return buffer, cursor
+
+
 def register_help_commands(registry: CommandRegistry) -> None:
-    """Register :help and :h commands."""
+    """Register :help/:h, :messages/:mes and :tips."""
     registry.register("help", cmd_help, aliases=["h"])
+    registry.register("messages", cmd_messages, aliases=["mes"])
+    registry.register("tips", cmd_tips)

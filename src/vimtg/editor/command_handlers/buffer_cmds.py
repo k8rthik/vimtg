@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from vimtg.data.file_io import file_stamp
+from vimtg.domain.deck_lines import match_metadata
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -12,14 +13,27 @@ from vimtg.editor.commands import (
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
-from vimtg.editor.slug import generate_unique_path
+from vimtg.editor.slug import unique_deck_path
 from vimtg.services.recovery import discard_recovery, read_recovery
 
 
-def _resolve_write_path(cmd: ParsedCommand, ctx: EditorContext) -> Path:
+def _deck_name(buffer: Buffer) -> str:
+    """The value of the deck's first '// Deck:' line ('' when unnamed)."""
+    for i in range(buffer.line_count()):
+        meta = match_metadata(buffer.get_line(i).text)
+        if meta is not None and meta[0].lower() == "deck":
+            return meta[1].strip()
+    return ""
+
+
+def _resolve_write_path(
+    cmd: ParsedCommand, ctx: EditorContext, buffer: Buffer
+) -> Path:
     """Determine the target path for a :w command.
 
-    Priority: explicit arg > existing file_path > auto-generated slug.
+    Priority: explicit arg > existing file_path > a file named after the
+    deck's '// Deck:' name (slugified, never an existing file) > a
+    random MTG-themed slug when the deck is unnamed.
     An explicit name expands ~ and resolves relative to the working
     directory, gaining a .deck suffix when it has none.
     """
@@ -32,7 +46,7 @@ def _resolve_write_path(cmd: ParsedCommand, ctx: EditorContext) -> Path:
     if ctx.file_path is not None:
         return ctx.file_path
 
-    return generate_unique_path(Path.cwd())
+    return unique_deck_path(Path.cwd(), _deck_name(buffer))
 
 
 def _same_file(a: Path, b: Path | None) -> bool:
@@ -75,7 +89,7 @@ def cmd_write(
         return buffer, cursor
 
     try:
-        target = _resolve_write_path(cmd, ctx)
+        target = _resolve_write_path(cmd, ctx, buffer)
     except RuntimeError as exc:
         ctx.fail(str(exc))
         return buffer, cursor

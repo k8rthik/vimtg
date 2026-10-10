@@ -48,9 +48,18 @@ class HelpScreen(Screen[None]):
     }}
     """
 
-    def __init__(self, topic: str | None = None) -> None:
+    def __init__(
+        self,
+        topic: str | None = None,
+        *,
+        body: str | None = None,
+        title: str = "vimtg Help",
+    ) -> None:
+        """`body` replaces the help text (e.g. :messages), under `title`."""
         super().__init__()
         self._topic = topic
+        self._body = body
+        self._title = title
         self._nav = VimNav()
 
     def compose(self) -> ComposeResult:
@@ -60,8 +69,9 @@ class HelpScreen(Screen[None]):
     def on_mount(self) -> None:
         body = self.query_one("#help-body", Static)
         text = Text()
-        text.append(f"\n{_HEADER}\n\n", style=f"bold {COLORS['mode_command']}")
-        text.append(get_help(self._topic))
+        header = f"═══ {self._title} ".ljust(len(_HEADER), "═")
+        text.append(f"\n{header}\n\n", style=f"bold {COLORS['mode_command']}")
+        text.append(self._body if self._body is not None else get_help(self._topic))
         text.append("\n")
         body.update(text)
 
