@@ -8,7 +8,7 @@ current line, `'a,'b` for marks).
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]` | Save deck. Without an argument, writes back to the loaded file. `:w file` writes to `file` (`~` expands, `.deck` is appended when missing) and makes it the deck's file from then on, like vim's `:saveas`. Refuses to overwrite another existing file (E13) or a file that changed on disk since it was read |
+| `:w [file]` | Save deck. Without an argument, writes back to the loaded file; a deck with no file yet is written to the current directory as its `// Deck:` name slugified (`Mono-Red Burn` → `mono-red-burn.deck`, `-2`, `-3`… when taken; a random name when the deck is unnamed). Empty `// Deck:` / `// Format:` / `// Tags:` lines the file never had are not written. `:w file` writes to `file` (`~` expands, `.deck` is appended when missing) and makes it the deck's file from then on, like vim's `:saveas`. Refuses to overwrite another existing file (E13) or a file that changed on disk since it was read |
 | `:w! [file]` | Save even over an existing file or outside changes |
 | `:q` | Quit. Errors if there are unsaved changes (E37) |
 | `:q!` | Quit, discarding changes |
@@ -252,3 +252,6 @@ missing or older than a week (`:set noautosync` turns this off; the
 |---------|-------------|
 | `:help` | Open full-screen help overview (also `F1`; `g?` toggles the quick-reference panel) |
 | `:help cmd` | Open help for a specific command |
+| `:messages` | Show the last 100 command-line messages and errors (alias `:mes`; `:messages clear` empties it). Messages vanish at the next key; errors stay up while you move the cursor |
+| `:tips` | Show the getting-started tips panel (`Esc` hides it) |
+| `:tips off` / `:tips on` | Stop / resume showing the tips under empty decks (remembered across sessions) |

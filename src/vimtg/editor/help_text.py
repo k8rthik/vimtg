@@ -4,6 +4,22 @@ from __future__ import annotations
 
 from vimtg.editor.keyspec import format_overview_group, overview_groups
 
+_GETTING_STARTED = """
+GETTING STARTED
+  Modes         vimtg is modal, like vim: NORMAL mode moves and edits
+                with single keys; o / i open a prompt to type into;
+                Esc always returns to NORMAL
+  o             Add a card: type part of its name, Tab/Down picks,
+                Enter adds it (+/- change the quantity after)
+  :w            Save (a new deck is named after its // Deck: line)
+  :q            Quit (:q! quits without saving, :wq saves and quits)
+  F1, :help     This full help (g? toggles a quick-reference panel)
+  q             Careful: q starts recording a macro (the status line
+                says "recording @a"); press q again to stop
+  :messages     Show recent messages and errors again
+  :tips         Show the getting-started tips (:tips off hides them)
+""".strip()
+
 _COUNTS = """
 COUNTS
   {n}key        Repeat/scale any motion or edit: 5j down 5 lines,
@@ -53,6 +69,8 @@ COMMANDS
   :config       Open the settings screen
   :map / :unmap Key remapping for this session
   :help         This help
+  :messages     Recent messages and errors (:messages clear)
+  :tips         Getting-started tips (:tips off / :tips on)
 """.strip()
 
 _VCS_COMMANDS = """
@@ -69,7 +87,7 @@ VERSION CONTROL
 def _build_overview() -> str:
     """The keybinding sections come from the key spec; the ex-command
     sections are prose kept here."""
-    parts = [_COUNTS]
+    parts = [_GETTING_STARTED, _COUNTS]
     for title, rows in overview_groups():
         if title == "VERSION CONTROL":
             parts.append(format_overview_group(title, rows) + "\n" + "\n".join(
@@ -91,7 +109,12 @@ COMMAND_HELP: dict[str, str] = {
         ":w [file]  Save deck to file\n"
         "\n"
         ":w file  writes to file and makes it the deck's file (like :saveas)\n"
-        ":w!      overwrite another existing file, or a file changed on disk"
+        ":w!      overwrite another existing file, or a file changed on disk\n"
+        "\n"
+        "A deck with no file yet is written to the current directory,\n"
+        "named after its // Deck: line (Burn -> burn.deck, burn-2.deck\n"
+        "if taken). Empty // Format: or // Tags: lines the file never\n"
+        "had are not written."
     ),
     "q": ":q        Quit (:q! force quit with unsaved changes)",
     "wq": ":wq      Save and quit",
@@ -261,6 +284,20 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "retag": ":retag /old/new/  Rename a tag across the entire deck",
     "help": ":help [command]  Open full-screen help (also F1; q closes)",
+    "messages": (
+        ":messages  Show recent messages and errors (alias :mes)\n"
+        "\n"
+        "Status messages vanish at the next key (errors stay up while\n"
+        "you move the cursor); :messages lists the last 100 again.\n"
+        ":messages clear  empties the list"
+    ),
+    "tips": (
+        ":tips [on|off]  The getting-started tips panel\n"
+        "\n"
+        ":tips      show the tips now (Esc hides them)\n"
+        ":tips off  stop showing them under empty decks (remembered)\n"
+        ":tips on   show them again under empty decks"
+    ),
     "history": (
         ":history  Open the lazygit-style history overlay (also gh)\n"
         "\n"

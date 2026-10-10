@@ -55,8 +55,12 @@ Inside the editor:
 
 1. Press `o` to open a card search below the cursor, type `lightning bolt`, and press `Enter` (`Tab` cycles through matches). Prefix a count for copies: `4o`.
 2. Move with `j`/`k`, `gg`/`G`; bump a quantity with `+`/`-`; delete a line with `dd`; undo with `u`.
-3. `:w` saves (and snapshots the deck in its history), `:q` quits, `:wq` does both.
-4. Press `?` (or `F1`) any time for help.
+3. `:w` saves (and snapshots the deck in its history), `:q` quits, `:q!` quits without saving, `:wq` does both.
+4. Press `F1` (or type `:help`) any time for help; it opens on a "Getting started" section. `g?` toggles a quick-reference panel.
+
+A deck with no cards and a blank name or format (greeter `n`, `vimtg new "Burn"` without `-f`, or `vimtg name.deck` for a file that does not exist yet) first asks for its name and format: `Tab` completes the format, `Esc` skips. A new deck's first `:w` writes `<deck-name>.deck` in the current directory.
+
+vimtg is modal like vim: `Esc` always returns to normal mode. A stray `q` starts recording a macro (the status line says `recording @a (q stops)`); press `q` again to stop. Missed a message? `:messages` shows the recent ones.
 
 Back in the shell, `vimtg info Burn.deck` summarises the deck and `vimtg validate Burn.deck` checks legality for its `// Format:`. Running `vimtg` with no arguments opens a greeter with recent decks, import, and sync.
 
@@ -313,7 +317,7 @@ Two layers, both stored in the local SQLite database and keyed by deck path.
 
 ### Greeter
 
-`vimtg` with no arguments opens a greeter with the logo, version, and the five most recent `.deck` files in the current directory. Keys: `n` new deck, `e` file browser, `i` import from a file path or deck URL (bracketed paste supported), `s` sync cards with inline progress, `r` recent files, `1`–`5` open a recent deck, `?` help, `q` quit. `:home` returns here from the editor.
+`vimtg` with no arguments opens a greeter with the logo, version, and recent decks: the ones you opened or saved lately from any directory (remembered in `~/.local/state/vimtg/state.json`), then the newest `.deck` files in the current directory. On short terminals the logo and recents give way so the menu always fits. Keys: `n` new deck (asks for its name and format), `e` file browser, `i` import from a file path or deck URL (bracketed paste supported), `s` sync cards with inline progress, `r` recent files, `1`–`5` open a recent deck, `?` help, `q` quit. `:home` returns here from the editor.
 
 ### Configuration
 
@@ -338,6 +342,10 @@ Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed value
 Where things live (XDG-aware): card database plus snapshots, branches, and HEAD in `~/.local/share/vimtg/cards.db`; config and the category history in `~/.config/vimtg/`; Scryfall bulk files and the EDHREC cache in `~/.cache/vimtg/`. Deck files are ordinary files wherever you keep them; there is no managed deck directory.
 
 ### Help
+
+Empty decks show a short "Getting started" tips panel under the deck (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100.
+
+Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and a split pane steps aside while the terminal is too narrow for it.
 
 `F1` or `:help` opens the full-screen help; `g?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `g`/`G`, or the wheel). In the editor `?` is vim's backward search, not help; `:help <command>` opens one of thirty per-command topics. The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
 
@@ -418,7 +426,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e[!] [file]`, `:{n}`, `:home`, `:recover` | File and navigation (`:w file` binds the deck to `file`, like `:saveas`; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
+| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e[!] [file]`, `:{n}`, `:home`, `:recover` | File and navigation (`:w file` binds the deck to `file`, like `:saveas`; a deck with no file yet is named after its `// Deck:` line; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
 | `:[range]d [x]`, `:[range]y [x]`, `:[range]m {n}`, `:[range]t {n}` (`:co`), `:undo`, `:redo`, `:reg`, `:marks` | Line commands, as in vim |
 | `:sort [field]`, `:sort!` | Sort section or range |
 | `:s/pat/rep/[gI]` | Substitute (regex like `/`, case-insensitive unless `I`; `&` and `\1` in the replacement) |
@@ -434,6 +442,8 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 | `:history` (or `gh`), `:commit msg`, `:checkpoint name`, `:branch [name]`, `:branch! name`, `:merge target`, `:rebase branch` | Version control |
 | `:set [key=value]`, `:config`, `:map`, `:unmap` | Configuration |
 | `:help [command]` | Help |
+| `:messages`, `:messages clear` | Recent messages and errors |
+| `:tips`, `:tips off`, `:tips on` | Getting-started tips panel |
 
 </details>
 

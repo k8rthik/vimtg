@@ -89,6 +89,40 @@ class TestCmdWrite:
         assert ctx.error is False
         assert "Written" in ctx.message
 
+    def test_write_no_path_names_file_after_deck(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A new deck's first :w is named from '// Deck:', not a random slug."""
+        monkeypatch.chdir(tmp_path)
+        saved: list[Path] = []
+        buf = Buffer.from_text("// Deck: Mono-Red Burn!\n// Format: modern\n\n4 Lightning Bolt\n")
+        ctx = EditorContext(save_fn=lambda p, t: saved.append(p))
+        cmd_write(buf, Cursor(), _make_cmd("w"), ctx)
+        assert saved == [tmp_path / "mono-red-burn.deck"]
+        assert ctx.file_path == tmp_path / "mono-red-burn.deck"
+
+    def test_write_deck_name_never_collides(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "burn.deck").write_text("keep me\n", encoding="utf-8")
+        saved: list[Path] = []
+        buf = Buffer.from_text("// Deck: Burn\n\n4 Lightning Bolt\n")
+        ctx = EditorContext(save_fn=lambda p, t: saved.append(p))
+        cmd_write(buf, Cursor(), _make_cmd("w"), ctx)
+        assert saved == [tmp_path / "burn-2.deck"]
+        assert ctx.error is False
+
+    def test_write_unnamed_deck_falls_back_to_random_slug(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        saved: list[Path] = []
+        buf = Buffer.from_text("// Deck:\n\n4 Lightning Bolt\n")
+        ctx = EditorContext(save_fn=lambda p, t: saved.append(p))
+        cmd_write(buf, Cursor(), _make_cmd("w"), ctx)
+        assert saved[0].name.endswith("-deck.deck")
+
     def test_write_no_save_fn_errors(self) -> None:
         buf = _sample_buffer()
         ctx = EditorContext(file_path=Path("/tmp/test.deck"), save_fn=None)

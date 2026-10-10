@@ -91,7 +91,12 @@ def test_empty_hint_falls_back_to_generic() -> None:
     cl = CommandLine()
     cl.hint = ""
     rendered = cl.render()
-    assert "Press F1 for help" in rendered.plain
+    assert "F1 help" in rendered.plain
+    # In the editor ? is backward search, never advertised as help
+    assert "?" not in rendered.plain
+    # New users learn how to save and leave from the idle hint
+    assert ":w save" in rendered.plain
+    assert ":q quit" in rendered.plain
 
 
 def test_hide_does_not_clear_hint() -> None:

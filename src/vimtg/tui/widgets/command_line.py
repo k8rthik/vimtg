@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import deque
+
 from rich.text import Text
 from textual.reactive import reactive
 from textual.widgets import Static
@@ -9,7 +11,10 @@ from textual.widgets import Static
 from vimtg.tui.theme import COLORS
 
 # Single source for the idle hint — main_screen shows the same string
-GENERIC_HINT = "Press F1 for help  |  : command  |  o add card  |  i edit line"
+GENERIC_HINT = "F1 help  |  o add card  |  i edit line  |  :w save  |  :q quit"
+
+# Messages kept for :messages
+MESSAGE_HISTORY = 100
 
 
 class CommandLine(Static):
@@ -22,6 +27,17 @@ class CommandLine(Static):
     ghost: reactive[str] = reactive("")  # Inline fuzzy completion preview
     hint: reactive[str] = reactive("")  # Context-sensitive persistent hint
     cursor_pos: reactive[int] = reactive(0)  # Cursor position within text
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        # (is_error, text) of every set_message, oldest first
+        self.history: deque[tuple[bool, str]] = deque(maxlen=MESSAGE_HISTORY)
+        # Bumped whenever the message changes, so a caller can tell
+        # "still the message I saw" from "a new one"
+        self.message_serial = 0
+
+    def watch_message(self) -> None:
+        self.message_serial += 1
 
     def render(self) -> Text:
         if self.message:
@@ -76,3 +92,6 @@ class CommandLine(Static):
         self.cursor_pos = 0
         self.message = msg
         self.error = error
+        self.message_serial += 1
+        if msg:
+            self.history.append((error, msg))

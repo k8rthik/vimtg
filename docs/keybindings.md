@@ -40,7 +40,7 @@ Everything below is normal mode unless flagged otherwise.
 | `v` / `V` | Visual / visual-line selection |
 | `:` | Ex command line |
 | `/` / `?` | Search forward / backward for a card (a regex, case-insensitive, like `:g` and `:s`). An empty pattern repeats the last one |
-| `Esc` | Back to normal mode; cancels a pending key sequence |
+| `Esc` | Back to normal mode; cancels a pending key sequence (in normal mode it also hides the getting-started tips) |
 | `F1` | Full-screen help (also `:help`) |
 | `g?` | Toggle the quick-reference panel (`q`, `Esc`, or `?` closes it) |
 | `ZZ` / `ZQ` | Save and quit (`:wq`) / quit discarding changes (`:q!`) |
@@ -250,12 +250,24 @@ Every screen accepts the shared vocabulary:
 
 | Key | Action |
 |-----|--------|
-| `n` / `e` / `i` / `s` / `r` | New deck / open a file / import a file or URL / sync cards / recent decks |
-| `1`-`5` | Open the nth recent deck |
+| `n` / `e` / `i` / `s` / `r` | New deck (asks for name and format) / open a file / import a file or URL / sync cards / recent decks (from any directory) |
+| `1`-`5` | Open the nth recent deck listed |
 | `?` / `F1` | Help overview (scrolls with the shared keys) |
 | `q` | Quit vimtg. `Esc` does nothing on the menu; in a sub-mode it goes back |
 | lists | Shared navigation, `Enter` open, `n` new deck, `q`/`Esc` back |
 | import | Type or paste a path or URL, `Enter` import, `Esc` back |
+
+### New-deck prompt
+
+Shown for a deck with no cards and a blank `// Deck:` name or `// Format:`.
+
+| Key | Action |
+|-----|--------|
+| type | Fill in the deck name / format |
+| `Enter` | Next question / done |
+| `Tab` | On the format: complete, cycling through the matches |
+| `Up` / `Down` | Switch question |
+| `Esc` | Skip (both lines stay editable with `i`) |
 
 ### Settings (`:config`)
 

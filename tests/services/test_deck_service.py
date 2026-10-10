@@ -171,10 +171,13 @@ class TestScaffoldMissingMetadata:
         once = scaffold_missing_metadata("4 Bolt\n")
         assert scaffold_missing_metadata(once) is once
 
-    def test_new_deck_always_includes_scaffold_keys(
+    def test_new_deck_writes_only_metadata_with_content(
         self, service: DeckService
     ) -> None:
-        text = service.new_deck(name="", fmt="")
-        assert "// Deck:" in text
-        assert "// Format:" in text
-        assert "// Tags:" in text
+        """`vimtg new burn` must not write empty // Format: / // Tags:
+        lines; the editor scaffolds them back in when the file opens."""
+        text = service.new_deck(name="Burn", fmt="")
+        assert text.startswith("// Deck: Burn\n")
+        assert "// Format:" not in text
+        assert "// Tags:" not in text
+        assert "// Format:" in scaffold_missing_metadata(text)

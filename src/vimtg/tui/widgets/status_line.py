@@ -49,6 +49,13 @@ class StatusLine(Static):
         t = Text()
         mode_text, mode_color = MODE_DISPLAY.get(self.mode, ("", "white"))
         t.append(f" {mode_text} ", style=f"bold {mode_color}")
+        if self.recording_register:
+            # Right after the mode, where it survives a narrow terminal:
+            # a stray q starts recording, and this is how to get out
+            t.append(
+                f" recording @{self.recording_register} (q stops) ",
+                style=f"bold {COLORS['bg']} on {COLORS['error']}",
+            )
         t.append(f" {self.filename}", style="bold")
         if self.modified:
             t.append(" [+]", style=f"bold {COLORS['mana_red']}")
@@ -74,11 +81,6 @@ class StatusLine(Static):
             t.append(f"  [{self.vcs_branch}]", style=f"bold {COLORS['mana_green']}")
             if self.vcs_snapshot_count:
                 t.append(f" ({self.vcs_snapshot_count})", style="dim")
-        if self.recording_register:
-            t.append(
-                f"  recording @{self.recording_register}",
-                style=f"bold {COLORS['error']}",
-            )
         if self.pending_keys:
             t.append(f"  {self.pending_keys}", style=f"bold {COLORS['quantity']}")
         if self.card_data:

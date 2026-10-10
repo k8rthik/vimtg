@@ -223,6 +223,8 @@ class EditorContext:
     undo_request: str = ""
     # :e — the deck to open in place of this one
     edit_path: Path | None = None
+    # Screen-level view with no buffer change (":messages", ":tips")
+    ui_request: str = ""
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""
