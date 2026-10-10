@@ -129,7 +129,7 @@ def test_convert_roundtrip_vimtg(runner: CliRunner, tmp_path: Path) -> None:
 def test_version_flag(runner: CliRunner) -> None:
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "vimtg, version 0.8.0" in result.output
+    assert "vimtg, version 1.0.0rc1" in result.output
 
 
 def test_help_lists_subcommands(runner: CliRunner) -> None:
