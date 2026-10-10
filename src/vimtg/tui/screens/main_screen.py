@@ -669,6 +669,10 @@ class MainScreen(Screen[None]):
             self._open_edhrec(hr.edhrec_open)
         if hr.analytics_open is not None:
             self._open_analytics(hr.analytics_open)
+        if hr.hand_open is not None:
+            from vimtg.tui.screens.hand_screen import HandScreen
+
+            self.app.push_screen(HandScreen(hr.hand_open))
         if hr.import_url:
             self._start_url_import(hr.import_url)
         if hr.focus_next_pane:

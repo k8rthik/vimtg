@@ -155,6 +155,37 @@ by id. Note that merge and rebase results are normalized on write
 | `:stats` | Toggle the mana-curve / type / color / price panel; the price names its source, e.g. `$12.34 (usd)` |
 | `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency |
 | `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
+| `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Sd`): see below |
+
+### Sample hand
+
+`:hand` shuffles the main deck and draws an opening seven. Only
+mainboard cards go into the library (respecting quantities); sideboard,
+maybeboard, commander and companion cards stay out. A Commander deck
+shows its commander in the command zone and draws from the 99. With a
+sideboard plan active (`:plan`), the post-board deck is used.
+
+| Key | Action |
+|-----|--------|
+| `n` / `Space` | Draw the next card |
+| `m` | London mulligan: shuffle, draw seven, then owe one card to the bottom per mulligan (the first is free in Commander, Brawl, Oathbreaker and Pauper Commander) |
+| `j` / `k` | Select a card in hand |
+| `b` | Put the selected card on the bottom (after a mulligan) |
+| `r` | Reshuffle and deal a fresh hand |
+| `q` / `Esc` | Close |
+
+Drawing waits until the mulligan's cards are on the bottom, and a hand
+cannot be mulliganed once kept (after a draw or a bottom). The overlay
+shows the land count in hand and hypergeometric odds for a seven-card
+hand: P(at least 1 land), P(at least 2 lands), and the chance of having
+hit every land drop through turn N (N = 1 to 5) on the play and on the
+draw. Lands are recognised from the card database (any card whose type
+line contains Land); without one, only basic lands count.
+
+`seed=N` (or just `N`) seeds the shuffle: the same seed and key presses
+give the same hands. From the shell, `vimtg hand FILE [--seed N]
+[--draws N] [--plan NAME]` prints a sample hand, any extra draws and
+the same odds.
 
 ## Sideboard plans
 

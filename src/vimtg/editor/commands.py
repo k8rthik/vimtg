@@ -192,6 +192,7 @@ class EditorContext:
     split_close: bool = False
     edhrec_open: Any = None
     analytics_open: Any = None
+    hand_open: Any = None  # HandOpen — sample-hand overlay request
     import_url: str = ""  # deck-site URL to fetch asynchronously
     # Active sideboard plan: seeded from editor state; active_plan_set
     # marks that the handler changed it (to a name, or None to clear)

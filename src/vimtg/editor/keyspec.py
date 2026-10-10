@@ -9,7 +9,7 @@ Prefix namespaces (normal mode), each with one meaning:
 
     g   go / global      gg gc gC gl gh
     t   tags             ta tr tt tf tl tc tn tp
-    S   splits & panes   Sv Sh Ss Sc Sr Sa
+    S   splits & panes   Sv Sh Ss Sc Sr Sa Sd
     z   zones            zs zm zd zc zp  zi zo
     m   marks (set)      m{a-z}
     '   marks (jump)     '{a-z}
@@ -177,6 +177,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        brief="splits/EDHREC"),
     _b("Sr", "EDHREC recommendations for the commander (:edhrec)", SPLITS, shorts=("EDHREC recs",)),
     _b("Sa", "Live analytics pane (:analytics)", SPLITS, shorts=("analytics",)),
+    _b("Sd", "Sample hand / goldfish overlay (:hand)", SPLITS, shorts=("sample hand",)),
     _b("Ss", "Switch focus between the editor and the pane", SPLITS, shorts=("switch pane",),
        note="In a pane: j/k move, gg/G top/bottom, Ctrl-D/U half page, "
             "h/l switch EDHREC tabs, Enter adds the selected card, Esc returns"),
