@@ -202,7 +202,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Auto-sync**: the TUI checks on launch and hourly, and syncs on a worker thread when the database is missing or older than seven days. A toast reports success or failure, and search and lint light up retroactively once data arrives. Disable with `:set noautosync` or the `VIMTG_NO_AUTOSYNC` environment variable.
 - **`:sync`** (`:sync!` to re-download) runs the same background sync on demand; editing continues and the status line shows its progress. The status line always says what card data you have: `card data as of <date>` (highlighted once older than seven days), or `no card data - :sync to download` while there is none. Offline, card search says so instead of showing an empty list, and `vimtg validate` adds an informational note when the data is more than a week old. Sync errors explain themselves: offline, a proxy refusing or wanting credentials, TLS interception.
 - **Damaged database**: on launch (and on `vimtg sync`) the database gets an integrity check. A damaged file never blocks the editor: it is copied byte for byte to `cards.db.corrupt-<timestamp>`, a fresh database is built with every deck-history row (snapshots, branches, HEADs) that can still be read, and a warning says how much history came back and where the backup is. Card data is then re-downloaded with `:sync`.
-- **Query syntax**: Scryfall-style, shared by the overlay, `:search`, and `vimtg search`. Bare words prefix-match card names (any face); `!"Exact Name"`; `t:`, `o:` (with `/regex/`), `kw:`, `m:`; `c:`/`id:` with colour letters or names (`c:boros`, `id<=esper`) and `= != < <= > >=`; `mv`, `pow`, `tou`, `usd`/`eur`/`tix` comparisons; `r:`, `set:`, `f:`/`banned:`/`restricted:`; `is:commander`, `is:dfc`/`mdfc`/`split`/`adventure`; `-` negation, `or`, and parentheses. Unknown keys and bad values are reported by name. Full reference: [docs/search.md](docs/search.md).
+- **Query syntax**: Scryfall-style, shared by the overlay, `:search`, and `vimtg search`. Bare words prefix-match card names (any face); `!"Exact Name"`; `t:`, `o:` (with `/regex/`), `kw:`, `m:`; `c:`/`id:` with colour letters or names (`c:boros`, `id<=esper`) and `= != < <= > >=`; `mv`, `pow`, `tou`, `usd`/`eur`/`tix` comparisons; `r:`, `set:`, `f:`/`banned:`/`restricted:`; `is:commander`, `is:dfc`/`mdfc`/`split`/`adventure`; `-` negation, `or`, and parentheses. Unknown keys and bad values are reported by name. Full reference: [docs/search.md](https://github.com/k8rthik/vimtg/blob/main/docs/search.md).
 - **Format filtering**: in the editor, search results are filtered to cards legal or restricted in the deck's declared format when that format is known, before `search_limit` is applied.
 - **Card model**: name, mana cost, CMC, type line, oracle text, colours, colour identity, P/T, set, rarity, five price sources (USD, USD foil, EUR, EUR foil, tix), legalities, layout, keywords. Transform and modal DFCs use the front face (search also reads the back face's rules text); split and adventure cards join both faces.
 
@@ -254,7 +254,7 @@ Most commands take a vim range: `%`, `5,10`, `.`, `$`, or a mark pair.
 
 ### Format-aware validation and live lint
 
-Formats with rules (names are Scryfall legality keys): standard, pioneer, modern, legacy, vintage, pauper, historic, timeless, explorer, alchemy, gladiator (100-card singleton, no sideboard), premodern, penny (Penny Dreadful), commander, brawl (100-card Brawl), standardbrawl (60-card), oathbreaker, paupercommander, duel (Duel Commander). Names are case-insensitive and accept the aliases card search accepts (`EDH`, `PDH`, `Historic Brawl`, `Standard Brawl`, `Duel Commander`; see [docs/search.md](docs/search.md)). Any other `// Format:` value gets a warning listing these. Legality comes entirely from the synced Scryfall data; there are no hard-coded ban lists.
+Formats with rules (names are Scryfall legality keys): standard, pioneer, modern, legacy, vintage, pauper, historic, timeless, explorer, alchemy, gladiator (100-card singleton, no sideboard), premodern, penny (Penny Dreadful), commander, brawl (100-card Brawl), standardbrawl (60-card), oathbreaker, paupercommander, duel (Duel Commander). Names are case-insensitive and accept the aliases card search accepts (`EDH`, `PDH`, `Historic Brawl`, `Standard Brawl`, `Duel Commander`; see [docs/search.md](https://github.com/k8rthik/vimtg/blob/main/docs/search.md)). Any other `// Format:` value gets a warning listing these. Legality comes entirely from the synced Scryfall data; there are no hard-coded ban lists.
 
 - **Live gutter signs**: `✗` error and `!` warning in a two-character column. The reason appears in the status line when the cursor is on the line. The status line also totals `✗N` and `!N`.
 - **Checks**: invalid quantity, unknown card, unknown format, banned/not-legal/restricted cards (warnings only in the maybeboard), copy limits across main + side + command zone with basic lands exempt and oracle text honoured ("any number of cards named" Relentless Rats, "up to seven" Seven Dwarves), minimum or exact deck size, sideboard allowed and size (over the limit is an error; a companion counts toward the 15 unless it is already listed in `SB:`), companion count, quantity, actual Companion ability, and colour identity in commander formats, commander present, quantity 1, at most two, eligible (legendary creature or Vehicle, "can be your commander", or a Background beside a "Choose a Background" commander; Brawl also allows planeswalkers, Pauper Commander any creature, Oathbreaker a planeswalker plus its Signature Spell, and a missing Signature Spell is an error), partner-pair heuristic, and colour identity of every mainboard card.
@@ -323,7 +323,7 @@ Two layers, both stored in the local SQLite database and keyed by deck path.
 
 ### Configuration
 
-Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed values fall back to defaults per field and never block startup. A file that is not valid TOML loads as defaults with a warning, and `:config` refuses to save over it (it backs it up to `config.toml.bak` instead) until it is fixed. Change them for the session with `:set key=value` (`:set number`, `:set nonumber`, bare `:set` lists all) or persistently in the `:config` screen (`j`/`k`, `h`/`l` cycle, `s` save, `q` close).
+Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed values fall back to defaults per field and never block startup. A file that is not valid TOML loads as defaults with a warning, and `:config` refuses to save over it (it backs it up to `config.toml.bak` instead) until it is fixed. Change them with `:set key=value` (`:set number`, `:set nonumber`, bare `:set` lists all) or in the `:config` screen (`j`/`k`, `h`/`l` cycle, `s` save, `q` close). Both save to `config.toml` right away, so a change lasts across sessions (unlike vim's `:set`). Saving edits the file in place: comments, other tables such as `[keybindings]`, and key order are kept; only a file laid out in a way the editor cannot update line by line (dotted `editor.key` names, an inline `editor = {…}` table) is rewritten without its comments. A wrong-typed value or a wrong-shaped `[keybindings]` entry is skipped with a warning naming it (also kept in `:messages`).
 
 | Option | Values | Default | Meaning |
 |---|---|---|---|
@@ -345,7 +345,7 @@ Where things live (XDG-aware): card database plus snapshots, branches, and HEAD 
 
 ### Help
 
-Empty decks show a short "Getting started" tips panel under the deck (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100.
+Empty decks show a short "Getting started" tips panel under the deck (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100, together with pop-up notices (card sync results, database recovery, config warnings).
 
 Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and a split pane steps aside while the terminal is too narrow for it.
 
@@ -467,14 +467,14 @@ vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing ou
 
 ## Known gaps
 
-Found during the survey; none block normal use.
+Known limitations; none block normal use.
 
-- **No text objects, no till-motion (`t` is the tag prefix).** `:s` is a literal substitution despite the `/pattern/` syntax.
-- **`:g` and `:v` only support `d`.** Running arbitrary ex commands per matching line would need a per-line dispatch path the command registry does not have.
-- **Brawl** has no exact deck size, so a 60-card Brawl deck gets the generic 60-card minimum check.
+- **No text objects and no till-motion** (`t` is the tag prefix): the cursor moves by card line, not by character.
+- **`:g`/`:v` run `d`, `p`, `y`, and `s///` only.** `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, marks as range addresses, and `+N`/`-N` offsets are not supported ([details](https://github.com/k8rthik/vimtg/blob/main/docs/commands.md)).
 - **History stats need the card database.** Without a synced database the Stats panel shows no deltas.
 - **`theme`** has a single value and cycling it does nothing.
-- Argument completion covers `:layout`, `:sort`, `:filter`, and `:category` only. `:validate` takes no argument (it reads `// Format:`, which already completes formats on `i`). Main-screen feedback is a one-line message that the next keypress clears.
+- **`:set` persists.** Unlike vim, it saves to `config.toml` at once; there is no session-only setting.
+- Argument completion covers `:layout`, `:sort`, `:filter`, and `:category` only. `:validate` takes no argument (it reads `// Format:`, which already completes formats on `i`).
 
 ## Contributing
 

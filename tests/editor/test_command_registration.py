@@ -70,3 +70,28 @@ def test_duplicate_registration_raises() -> None:
         registry.register("dup", handler)
     with pytest.raises(ValueError, match="already registered"):
         registry.register("other", handler, aliases=["dup"])
+
+
+def test_every_command_in_docs_is_registered(registry: CommandRegistry) -> None:
+    """docs/commands.md documented :search while it was an unknown command."""
+    import re
+    from pathlib import Path
+
+    doc = (Path(__file__).parents[2] / "docs" / "commands.md").read_text(encoding="utf-8")
+    names = {
+        m.group(1)
+        for m in re.finditer(r"^\| `:(?:\[range\])?([a-z]+)", doc, re.MULTILINE)
+    }
+    assert "search" in names
+    missing = sorted(
+        n for n in names if n not in registry._commands and n not in registry._aliases
+    )
+    assert missing == []
+
+
+def test_search_command_requests_the_overlay(registry: CommandRegistry) -> None:
+    ctx = _execute(registry, "search t:creature c:r")
+    assert not ctx.error
+    assert ctx.search_open == "t:creature c:r"
+    assert _execute(registry, "search").search_open == ""
+    assert _execute(registry, "help search").open_help_screen

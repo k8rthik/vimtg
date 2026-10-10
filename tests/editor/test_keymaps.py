@@ -59,6 +59,29 @@ class TestKeyRemapper:
         assert r.resolve("Q", Mode.NORMAL) == ":q!"
         assert r.resolve("Q", Mode.INSERT) == "Q"  # mode-specific
 
+    def test_wrong_shape_mode_table_is_skipped(self, tmp_path: Path) -> None:
+        """`normal = "x"` used to crash startup ('str' has no .items())."""
+        config = tmp_path / "config.toml"
+        config.write_text(
+            '[keybindings]\nnormal = "x"\ninsert = ["a"]\nctrl_s = ":w"\n'
+        )
+        r = KeyRemapper()
+        assert r.load_from_config(config) == 1
+        assert r.resolve("ctrl_s", Mode.NORMAL) == ":w"
+        assert r.resolve("normal", Mode.NORMAL) == "normal"
+
+    def test_non_string_targets_are_skipped(self, tmp_path: Path) -> None:
+        config = tmp_path / "config.toml"
+        config.write_text('[keybindings.normal]\ns = 1\nQ = ":q!"\n')
+        r = KeyRemapper()
+        assert r.load_from_config(config) == 1
+        assert r.resolve("s", Mode.NORMAL) == "s"
+
+    def test_undecodable_config_is_ignored(self, tmp_path: Path) -> None:
+        config = tmp_path / "config.toml"
+        config.write_bytes(b"[keybindings]\ns = \"\xff\xfe\"\n")
+        assert KeyRemapper().load_from_config(config) == 0
+
     def test_load_missing_config(self, tmp_path: Path) -> None:
         r = KeyRemapper()
         count = r.load_from_config(tmp_path / "nonexistent.toml")

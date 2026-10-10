@@ -216,3 +216,30 @@ class TestHeaderCountRender:
             0, buf, cursor_row=1, resolved={}, header_count=HeaderCount(9)
         )
         assert "(9)" not in lines[0].plain
+
+
+def test_long_card_name_truncated_with_gap_before_mana() -> None:
+    """'Eidolon of the Great Revel{R}{R}' — a 26+ character name ran
+    straight into the mana cost."""
+    name = "Eidolon of the Great Revel"
+    buf = Buffer.from_text(f"4 {name}\n4 Lightning Bolt\n")
+    card = _make_card(name=name, mana_cost="{R}{R}", type_line="Enchantment Creature")
+    line = render_line(0, buf, cursor_row=1, resolved={name: card})[0].plain
+    assert "Eidolon of the Great Rev… {R}{R}" in line
+    assert "Revel{R}" not in line
+
+
+def test_name_one_short_of_the_column_keeps_its_gap() -> None:
+    name = "A" * 25
+    buf = Buffer.from_text(f"1 {name}\n")
+    card = _make_card(name=name, mana_cost="{1}")
+    line = render_line(0, buf, cursor_row=0, resolved={name: card})[0].plain
+    assert f"{name} {{1}}" in line
+
+
+def test_unresolved_long_name_is_shown_whole() -> None:
+    """Nothing follows an unresolved card's name, and the whole name
+    is what the user needs to spot the typo."""
+    name = "Eidolon of the Great Revvel Typo"
+    buf = Buffer.from_text(f"4 {name}\n")
+    assert name in render_line(0, buf, cursor_row=0, resolved={})[0].plain

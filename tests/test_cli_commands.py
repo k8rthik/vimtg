@@ -201,6 +201,36 @@ def test_search_no_results(
     assert "No cards found." in result.output
 
 
+@pytest.mark.parametrize("query", [["mv>"], ["t:creature", "mv>"], ["-t:"], ["(c:)"]])
+def test_search_incomplete_term_is_an_error(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch,
+    query: list[str],
+) -> None:
+    """`vimtg search "mv>"` used to print "No cards found."."""
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "--", *query])
+    assert result.exit_code == 1
+    assert "needs a value" in result.output
+    assert "No cards found." not in result.output
+
+
+@pytest.mark.parametrize("query", ['o:"deals 3: damage"', "o:/x: y/", "Fire // Ice"])
+def test_search_colon_inside_a_value_is_not_an_empty_term(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch,
+    query: str,
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", query])
+    assert result.exit_code == 0, result.output
+
+
+def test_top_level_help_shows_whole_search_summary(runner: CliRunner) -> None:
+    """Click cut the summary at "e.g." ("...syntax, e.g.")."""
+    result = runner.invoke(main, ["--help"])
+    assert "Search for cards with Scryfall-style syntax." in result.output
+    assert "e.g." not in result.output
+
+
 # --- sync command ---
 
 

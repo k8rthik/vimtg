@@ -140,5 +140,90 @@ def save_settings(settings: Settings) -> Path:
     data = dict(existing)
     editor = existing.get("editor")
     data["editor"] = {**(editor if isinstance(editor, dict) else {}), **asdict(settings)}
-    atomic_write_text(config_path, dumps_toml(data))
+    text = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+    updated = update_editor_in_place(text, asdict(settings), data)
+    atomic_write_text(config_path, updated if updated is not None else dumps_toml(data))
     return config_path
+
+
+# ── In-place editing: keep the user's comments and layout ──────────
+
+_HEADER = re.compile(r"^\s*\[\[?\s*([^\]]*?)\s*\]\]?\s*(#.*)?$")
+_KEY_LINE = re.compile(r"^(\s*)(\"[^\"]*\"|'[^']*'|[A-Za-z0-9_-]+)(\s*=\s*)(.*)$")
+
+
+def _value_end(rest: str) -> int:
+    """Index just past the TOML scalar at the start of `rest` (before any
+    trailing whitespace and comment)."""
+    if rest.startswith('"'):
+        i = 1
+        while i < len(rest):
+            if rest[i] == "\\":
+                i += 2
+                continue
+            if rest[i] == '"':
+                return i + 1
+            i += 1
+        return len(rest)
+    if rest.startswith("'"):
+        end = rest.find("'", 1)
+        return len(rest) if end < 0 else end + 1
+    hash_at = rest.find("#")
+    return len(rest[: hash_at if hash_at >= 0 else len(rest)].rstrip())
+
+
+def update_editor_in_place(
+    text: str, values: dict[str, Any], expected: dict[str, Any],
+) -> str | None:
+    """`text` with the [editor] keys in `values` set, everything else —
+    comments, blank lines, key order, other tables — untouched.
+
+    Returns None when the file is laid out in a way this line editor
+    does not handle (dotted keys, an inline table, multi-line values):
+    the result must parse back to exactly `expected`, or it is not used.
+    """
+    lines = text.splitlines()
+    start = end = None
+    for i, line in enumerate(lines):
+        m = _HEADER.match(line)
+        if not m:
+            continue
+        if start is not None and end is None:
+            end = i
+        if m.group(1) == "editor" and not line.lstrip().startswith("[["):
+            start, end = i, None
+    if start is not None and end is None:
+        end = len(lines)
+
+    pending = dict(values)
+    if start is not None and end is not None:
+        last_key = start
+        for i in range(start + 1, end):
+            m = _KEY_LINE.match(lines[i])
+            if not m:
+                continue
+            last_key = i
+            key = m.group(2).strip("\"'")
+            if key not in pending:
+                continue
+            rest = m.group(4)
+            cut = _value_end(rest)
+            lines[i] = (
+                m.group(1) + m.group(2) + m.group(3)
+                + _format_value(pending.pop(key)) + rest[cut:]
+            )
+        added = [f"{_format_key(k)} = {_format_value(v)}" for k, v in pending.items()]
+        lines[last_key + 1:last_key + 1] = added
+    else:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append("[editor]")
+        lines.extend(f"{_format_key(k)} = {_format_value(v)}" for k, v in pending.items())
+
+    result = "\n".join(lines) + "\n"
+    try:
+        if tomllib.loads(result) != expected:
+            return None
+    except tomllib.TOMLDecodeError:
+        return None
+    return result

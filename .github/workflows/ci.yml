@@ -5,13 +5,19 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # release.yml runs this whole workflow as its gate before publishing
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # "ci-" keeps this group distinct from release.yml's own when it calls
+  # this workflow (group names are case-insensitive).
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # A newer push to a PR branch supersedes its old run; runs on main always
+  # finish, so a quick second merge cannot cancel the first one's results.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 defaults:
   run:
@@ -45,7 +51,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
     env:
       # Shared runners are noisy; perf tests catch order-of-magnitude
       # regressions, not drift. macOS/Windows runners get more headroom.

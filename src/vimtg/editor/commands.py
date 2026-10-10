@@ -267,6 +267,8 @@ class EditorContext:
     recovery_id: str | None = None
     # Screen-level view with no buffer change (":messages", ":tips")
     ui_request: str = ""
+    # :search — open the card search overlay with this query (None = no)
+    search_open: str | None = None
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""

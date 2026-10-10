@@ -20,13 +20,18 @@ uv run vimtg --version       # run the app from the checkout
 ## Checks
 
 Run these before opening a pull request; CI runs the same commands on Linux,
-macOS, and Windows with Python 3.12 and 3.13.
+macOS, and Windows with Python 3.12, 3.13, and 3.14.
 
 ```bash
 uv run pytest --cov=vimtg --cov-fail-under=92   # tests + coverage gate
 uv run ruff check src/ tests/                   # lint
 uv run mypy --strict src/                       # types
 ```
+
+CI type-checks `src/` only, and nothing runs a formatter: `tests/` is
+linted by ruff but is not type-checked, and no `ruff format` check runs.
+Type hints in tests are welcome but not enforced; match the surrounding
+style.
 
 Notes on the test suite:
 
@@ -64,7 +69,8 @@ floor, update `pyproject.toml` and run `uv lock`.
 The version lives only in `src/vimtg/__init__.py` (`__version__`);
 `pyproject.toml` reads it from there. Releases are tagged `vX.Y.Z`, and the
 tag must match `__version__`. `.github/workflows/release.yml` (PyPI trusted
-publishing) is a draft and stays inert until the maintainer enables it.
+publishing) runs the full CI workflow as a gate before it publishes; it is a
+draft and stays inert until the maintainer enables it.
 
 ## Architecture
 

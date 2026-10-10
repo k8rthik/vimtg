@@ -244,6 +244,7 @@ class HandlerResult:
     ui_request: str = ""  # screen-level view (:messages, :tips)
     # :q! / :e! / :home! dropped unsaved changes on purpose
     discard_changes: bool = False
+    search_open: str | None = None  # :search — open the card search overlay
 
 
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -585,6 +586,7 @@ def handle_command(
             edit_file=ctx.edit_path,
             ui_request=ctx.ui_request,
             discard_changes=ctx.discard_requested,
+            search_open=ctx.search_open,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)

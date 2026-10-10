@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import re
 import sqlite3
 import sys
 from dataclasses import replace
@@ -413,19 +414,32 @@ def _sync(db: Database, force: bool) -> None:
         click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse")
 
 
-@main.command()
+# A search key with its operator but no value ("mv>", "t:"). The overlay
+# ignores one while it is still being typed; a finished command line
+# query has no excuse, so the CLI reports it instead of searching less.
+_EMPTY_TERM = re.compile(r"(?:^|(?<=[\s(-]))([A-Za-z]+(?:!=|<=|>=|:|=|<|>))(?=$|[\s)])")
+
+
+@main.command(short_help="Search for cards with Scryfall-style syntax.")
 @click.argument("query", nargs=-1, required=True)
 @click.option("--limit", "-n", default=20, help="Max results")
 def search(query: tuple[str, ...], limit: int) -> None:
-    """Search for cards with Scryfall-style syntax, e.g.
+    """Search for cards with Scryfall-style syntax, for example
     'vimtg search t:creature c:r mv<=2'. Put '--' before a query that
     starts with '-': 'vimtg search -- -t:land c:boros'."""
+    text = " ".join(query)
+    # Quoted phrases and /regexes/ are values, not terms
+    empty = _EMPTY_TERM.search(re.sub(r'"[^"]*"|/[^/]*/', "_", text))
+    if empty:
+        raise click.ClickException(
+            f"Search term '{empty.group(1)}' needs a value (e.g. 'mv>=3', 't:creature')"
+        )
     repo = _make_card_repo()
     if repo.count() == 0:
         raise click.ClickException(str(DatabaseNotInitializedError()))
     service = SearchService(card_repo=repo)
     try:
-        results = service.search(" ".join(query), limit=limit)
+        results = service.search(text, limit=limit)
     except SearchSyntaxError as exc:
         raise click.ClickException(str(exc)) from exc
 
