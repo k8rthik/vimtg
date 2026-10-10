@@ -1,0 +1,143 @@
+# DRAFT — inert until the owner opts in.
+#
+# Nothing here runs unless the repository variable RELEASE_ENABLED is set to
+# "true" (Settings → Secrets and variables → Actions → Variables). It uses
+# PyPI trusted publishing (OIDC): there are no API tokens or secrets in this
+# file, and none should ever be added. Before enabling:
+#
+#   1. On pypi.org, add a trusted publisher for project "vimtg":
+#        owner k8rthik, repo vimtg, workflow release.yml, environment pypi.
+#      Do the same on test.pypi.org with environment testpypi.
+#   2. In GitHub → Settings → Environments, create "pypi" (add required
+#      reviewers) and "testpypi". Optionally restrict both to tags v*.
+#   3. Set the RELEASE_ENABLED variable to "true".
+#
+# Flow: pushing tag vX.Y.Z builds, waits for approval on the "pypi"
+# environment, publishes, then creates a GitHub Release whose notes are the
+# matching CHANGELOG.md section with the dists attached. A tag containing
+# "rc" (vX.Y.ZrcN) publishes to TestPyPI and creates a pre-release instead.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build dists
+    if: vars.RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.12"
+      - name: Tag matches vimtg.__version__
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/vimtg/__init__.py)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match __version__ $version"
+            exit 1
+          fi
+      - run: uv build
+      - run: uvx twine check --strict dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  testpypi:
+    name: Publish to TestPyPI (rc tags)
+    needs: build
+    if: contains(github.ref_name, 'rc')
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/vimtg
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  pypi:
+    name: Publish to PyPI
+    needs: build
+    if: ${{ !contains(github.ref_name, 'rc') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/vimtg
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+
+  github-release:
+    name: GitHub Release
+    needs: [pypi, testpypi]
+    if: >-
+      always() &&
+      (needs.pypi.result == 'success' || needs.testpypi.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          section="$version"
+          case "$version" in *rc*) section="Unreleased" ;; esac
+          awk -v s="$section" '
+            $0 ~ "^## \\[" s "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::no CHANGELOG.md section for [$section]"
+            exit 1
+          fi
+      - name: Create release
+        env:
+          # The workflow's own short-lived token; no stored secret.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          case "$GITHUB_REF_NAME" in *rc*) flags+=(--prerelease) ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "vimtg ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md \
+            --verify-tag \
+            "${flags[@]}"

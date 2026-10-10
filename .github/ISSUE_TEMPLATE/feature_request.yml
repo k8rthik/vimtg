@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a command, motion, format rule, or other improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the deckbuilding or editing task you are trying to do.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: |
+        Keys, ex-commands, or deck-file syntax you have in mind. If vim (or
+        an MTG convention) already has an equivalent, say which.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context

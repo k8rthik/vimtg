@@ -17,7 +17,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 @pytest.fixture
 def card_repo(db_factory: Callable[..., Database]) -> CardRepository:
     repo = CardRepository(db_factory())
-    with open(FIXTURES_DIR / "scryfall_sample.json") as f:
+    with open(FIXTURES_DIR / "scryfall_sample.json", encoding="utf-8") as f:
         cards_data = json.load(f)
     cards = [Card.from_scryfall(d) for d in cards_data]
     repo.bulk_insert(cards)
@@ -213,7 +213,8 @@ class TestAdvancedSearch:
 
     def test_limit_above_fifty(self, db_factory: Callable[..., Database]) -> None:
         repo = CardRepository(db_factory())
-        template = json.loads((FIXTURES_DIR / "scryfall_sample.json").read_text())[1]
+        fixture = FIXTURES_DIR / "scryfall_sample.json"
+        template = json.loads(fixture.read_text(encoding="utf-8"))[1]
         cards = [
             Card.from_scryfall({**template, "id": f"id-{i}", "name": f"Bolt {i}"})
             for i in range(80)

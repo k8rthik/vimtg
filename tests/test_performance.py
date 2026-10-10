@@ -3,11 +3,16 @@
 These run as part of the regular suite but with generous thresholds — they
 catch order-of-magnitude regressions, not microbenchmark drift. Tighten the
 budgets locally if you're profiling.
+
+Every test here is marked ``perf``. Shared CI runners (especially macOS and
+Windows) are noisy, so budgets are multiplied by ``VIMTG_PERF_BUDGET_SCALE``
+(default 1); deselect them entirely with ``-m "not perf"``.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -21,11 +26,18 @@ from vimtg.editor.buffer import Buffer
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+pytestmark = pytest.mark.perf
+
+
+def budget(seconds: float) -> float:
+    """Scale a time budget by ``VIMTG_PERF_BUDGET_SCALE`` for slow runners."""
+    return seconds * float(os.environ.get("VIMTG_PERF_BUDGET_SCALE", "1"))
+
 
 @pytest.fixture
 def card_repo_loaded(db_factory: Callable[..., Database]) -> CardRepository:
     repo = CardRepository(db_factory())
-    with open(FIXTURES_DIR / "scryfall_sample.json") as f:
+    with open(FIXTURES_DIR / "scryfall_sample.json", encoding="utf-8") as f:
         cards_data = json.load(f)
     cards = [Card.from_scryfall(d) for d in cards_data]
     repo.bulk_insert(cards)
@@ -45,7 +57,7 @@ class TestSearchPerformance:
         start = time.perf_counter()
         card_repo_loaded.search("lightning bolt", limit=50)
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.1, f"search took {elapsed * 1000:.1f}ms"
+        assert elapsed < budget(0.1), f"search took {elapsed * 1000:.1f}ms"
 
     def test_repeated_search_amortizes(self, card_repo_loaded: CardRepository) -> None:
         # Warm-up + 50 iterations should still average well under the budget.
@@ -54,7 +66,7 @@ class TestSearchPerformance:
         for _ in range(50):
             card_repo_loaded.search("a", limit=50)
         avg = (time.perf_counter() - start) / 50
-        assert avg < 0.05, f"avg search {avg * 1000:.1f}ms over 50 iters"
+        assert avg < budget(0.05), f"avg search {avg * 1000:.1f}ms over 50 iters"
 
 
 class TestBufferPerformance:
@@ -66,7 +78,7 @@ class TestBufferPerformance:
         for _ in range(100):
             buf = buf.set_line(50, "4 Replacement Card")
         avg = (time.perf_counter() - start) / 100
-        assert avg < 0.01, f"set_line avg {avg * 1000:.2f}ms"
+        assert avg < budget(0.01), f"set_line avg {avg * 1000:.2f}ms"
 
     def test_insert_line_under_10ms(self) -> None:
         buf = Buffer.from_text(_large_deck_text(500))
@@ -74,18 +86,28 @@ class TestBufferPerformance:
         for i in range(100):
             buf = buf.insert_line(10 + i, f"1 Inserted {i}")
         avg = (time.perf_counter() - start) / 100
-        assert avg < 0.01, f"insert_line avg {avg * 1000:.2f}ms"
+        assert avg < budget(0.01), f"insert_line avg {avg * 1000:.2f}ms"
 
     def test_from_text_under_50ms(self) -> None:
         text = _large_deck_text(500)
         start = time.perf_counter()
         Buffer.from_text(text)
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.05, f"from_text took {elapsed * 1000:.1f}ms for 500 lines"
+        assert elapsed < budget(0.05), f"from_text took {elapsed * 1000:.1f}ms for 500 lines"
 
     def test_to_text_roundtrip_under_50ms(self) -> None:
         buf = Buffer.from_text(_large_deck_text(500))
         start = time.perf_counter()
         buf.to_text()
         elapsed = time.perf_counter() - start
-        assert elapsed < 0.05, f"to_text took {elapsed * 1000:.1f}ms"
+        assert elapsed < budget(0.05), f"to_text took {elapsed * 1000:.1f}ms"
+
+
+class TestBudgetScale:
+    def test_default_scale_is_identity(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("VIMTG_PERF_BUDGET_SCALE", raising=False)
+        assert budget(0.05) == pytest.approx(0.05)
+
+    def test_env_scales_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("VIMTG_PERF_BUDGET_SCALE", "4")
+        assert budget(0.05) == pytest.approx(0.2)
