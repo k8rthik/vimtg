@@ -34,7 +34,7 @@ classifiers = [
 ]
 dependencies = [
     "textual>=2.0,<9",
-    "click>=8.1,<9",
+    "click>=8.2,<9",
     "httpx>=0.27,<1",
     "rich>=13.3.3,<16",
 ]

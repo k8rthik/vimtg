@@ -21,10 +21,16 @@ pytestmark = pytest.mark.filterwarnings("ignore:A test tried to use socket")
 def test_raw_socket_to_public_host_is_blocked() -> None:
     # 192.0.2.0/24 is TEST-NET-1: never routable, so even if the guard were
     # off this could not touch a real service.
-    with pytest.raises(SocketConnectBlockedError):
-        socket.create_connection(("192.0.2.1", 443), timeout=1)
+    with (
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock,
+        pytest.raises(SocketConnectBlockedError),
+    ):
+        sock.connect(("192.0.2.1", 443))
 
 
+# httpcore never closes the socket whose connect() was blocked; that leak is
+# an artefact of the guard, not of vimtg.
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 def test_httpx_request_to_public_host_is_blocked() -> None:
     with pytest.raises(SocketConnectBlockedError):
         httpx.get("https://192.0.2.1/bulk-data", timeout=1)

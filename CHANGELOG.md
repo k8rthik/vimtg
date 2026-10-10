@@ -22,8 +22,8 @@ from 1.0.0 onward.
 - The package version is single-sourced from `vimtg.__version__`;
   `pyproject.toml` no longer carries its own copy.
 - Runtime dependencies are capped below their next major release
-  (`textual<9`, `click<9`, `httpx<1`, `rich<16`) and the minimum Textual is
-  now 2.0 (the oldest release the test suite passes on).
+  (`textual<9`, `click<9`, `httpx<1`, `rich<16`); the minimums are now
+  Textual 2.0 and click 8.2 (the oldest releases the test suite passes on).
 - CI runs on Linux, macOS, and Windows with Python 3.12 and 3.13, enforces
   92% coverage, tests the lowest supported dependency versions, and builds
   and smoke-tests the wheel. The test suite can no longer reach the network.
