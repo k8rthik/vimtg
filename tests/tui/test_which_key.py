@@ -69,7 +69,7 @@ class TestPendingKeyOverride:
 
     def test_unknown_pending_key_falls_back(self) -> None:
         w = WhichKey()
-        w.pending_key = "Z"  # not in PENDING_HINTS
+        w.pending_key = "Y"  # not in PENDING_HINTS
         assert "Navigation:" in w.render().plain
 
     def test_all_documented_pending_keys_render(self) -> None:

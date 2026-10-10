@@ -280,7 +280,12 @@ class Buffer:
         return Buffer(tuple(new_lines))
 
     def insert_line(self, n: int, text: str) -> Buffer:
-        """Return new Buffer with a line inserted at position n."""
+        """Return new Buffer with a line inserted at position n.
+
+        n is clamped to [0, line_count], so a cursor row that trails a
+        shrunken buffer appends instead of raising.
+        """
+        n = max(0, min(n, len(self._lines)))
         texts = self._texts()
         texts.insert(n, text)
         incoming = zone_running_context(texts, n)

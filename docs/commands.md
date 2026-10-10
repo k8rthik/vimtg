@@ -12,6 +12,7 @@ current line, `'a,'b` for marks).
 | `:q` | Quit. Errors if there are unsaved changes (E37) |
 | `:q!` | Quit, discarding changes |
 | `:wq` | Save and quit |
+| `:recover` | Load the crash-recovery copy of this deck (`:recover!` deletes it). Written to `~/.local/state/vimtg/recovery/<name>.deck` when vimtg hits an internal error; removed by the next successful `:w` |
 | `:e file` | Open `file`, replacing the current buffer |
 
 ## Editing

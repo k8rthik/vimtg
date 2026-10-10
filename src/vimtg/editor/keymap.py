@@ -55,7 +55,9 @@ MODE_SWITCHES: dict[str, str] = {
 SPECIAL_KEYS = frozenset(
     {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "A", "n", "N"}
 )
-MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@", "S", "z"})
+MULTI_KEY_STARTERS = frozenset(
+    {"g", "[", "]", "m", "'", "t", "q", "@", "S", "z", "Z"}
+)
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion)
 _G_SUB_KEYS = frozenset({"c", "C", "l", "h"})
@@ -64,6 +66,8 @@ _SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r", "a"})
 # z{s,m,d,c,p} — zone moves; z{i,o} — board in/out of the sideboard plan.
 # m{a-z} is marks only.
 _ZONE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
+# Z{Z,Q} — write and quit (:wq) / quit discarding changes (:q!)
+_QUIT_SUB_KEYS = frozenset({"Z", "Q"})
 
 
 def _apply_text_edit(
@@ -223,6 +227,11 @@ class KeyMap:
                 action = ParsedAction(
                     "special", full_key, explicit_count, self._register
                 )
+                self.reset()
+                return KeyResult.COMPLETE, action
+            # ZZ / ZQ — :wq / :q!
+            if self._multi_key_prefix == "Z" and key in _QUIT_SUB_KEYS:
+                action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
             # m{a-z} — set mark, '{a-z} — jump to mark

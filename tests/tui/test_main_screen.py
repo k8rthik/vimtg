@@ -112,7 +112,10 @@ class TestFindTypeSectionRow:
 
 class TestCleanupEmptySections:
     def _cleaned(self, text: str) -> str:
-        s = _screen(text)
+        # Set the buffer after construction: MainScreen normalizes the
+        # buffer it is opened with, and this exercises the cleanup pass
+        s = _screen("")
+        s._state.buffer = Buffer.from_text(text)
         s._cleanup_empty_sections()
         return s._state.buffer.to_text()
 
@@ -150,7 +153,8 @@ class TestCleanupEmptySections:
         assert "// Sideboard" not in result
 
     def test_cursor_clamped_after_cleanup(self) -> None:
-        s = _screen("4 Goblin Guide\n\n// Lands\n")
+        s = _screen("")
+        s._state.buffer = Buffer.from_text("4 Goblin Guide\n\n// Lands\n")
         s._state.cursor = Cursor(row=2)
         s._cleanup_empty_sections()
         assert s._state.cursor.row < s._state.buffer.line_count()
