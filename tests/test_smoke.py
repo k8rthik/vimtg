@@ -45,3 +45,16 @@ def test_cli_help():
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
     assert "vimtg" in result.output
+
+
+def test_license_file_ships_in_both_dists():
+    # PEP 639: license-files puts LICENSE in the wheel's .dist-info; the sdist
+    # uses an explicit only-include list, so LICENSE must be listed there too.
+    root = Path(__file__).parent.parent
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text())
+    assert pyproject["project"]["license"] == "MIT"
+    assert pyproject["project"]["license-files"] == ["LICENSE"]
+    assert "LICENSE" in pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["only-include"]
+    text = (root / "LICENSE").read_text()
+    assert text.startswith("MIT License")
+    assert "Copyright (c) 2026 Keerthik Muruganandam" in text

@@ -482,10 +482,8 @@ Bug reports, ideas, and pull requests are welcome. See [CONTRIBUTING.md](https:/
 
 ## License and attribution
 
-<!-- OWNER TODO: license decision pending. Fill in the project license (and add
-     a LICENSE file) before the 1.0 release. -->
+MIT, see [LICENSE](https://github.com/k8rthik/vimtg/blob/main/LICENSE).
 
-*License: to be confirmed by the maintainer before the 1.0 release.*
+vimtg is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
 
-<!-- OWNER TODO: confirm the attribution wording below. -->
-Card data is provided by [Scryfall](https://scryfall.com); recommendations by [EDHREC](https://edhrec.com). vimtg is unofficial Fan Content permitted under the [Wizards of the Coast Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
+Card data and card-image links are provided by [Scryfall](https://scryfall.com) and used under Scryfall's [API and data guidelines](https://scryfall.com/docs/api); Scryfall is not affiliated with vimtg and does not endorse it. Deck-popularity data and recommendations come from [EDHREC](https://edhrec.com), which is likewise not affiliated with vimtg. vimtg is free and non-commercial: no payment, account, or subscription is required to use it or the card data it shows.
