@@ -41,9 +41,15 @@ class TestDotRepeat:
         dr.record(second)
         assert dr.last_action is second
 
-    def test_insert_actions_are_not_repeatable(self) -> None:
+    def test_insert_actions_are_repeatable(self) -> None:
         dr = DotRepeat()
-        dr.record(RepeatableAction(action_type="insert"))
+        action = RepeatableAction(action_type="insert", operator="o", card_name="Opt")
+        dr.record(action)
+        assert dr.last_action is action
+
+    def test_unknown_action_types_are_not_recorded(self) -> None:
+        dr = DotRepeat()
+        dr.record(RepeatableAction(action_type="motion"))
         assert dr.last_action is None
 
 

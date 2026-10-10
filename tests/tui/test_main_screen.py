@@ -16,12 +16,14 @@ from textual.app import App
 
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.modes import Mode
 from vimtg.editor.placement import PlacementPolicy, place_mainboard_card
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.main_screen import (
     MainScreen,
     _hint_for_cursor,
 )
+from vimtg.tui.widgets.command_line import CommandLine
 
 
 def _screen(text: str) -> MainScreen:
@@ -269,7 +271,25 @@ async def test_escape_returns_to_normal(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_open_help_via_question_mark(tmp_path: Path) -> None:
+async def test_open_quick_reference_via_g_question_mark(tmp_path: Path) -> None:
+    """? is backward search now; the quick-reference panel moved to g?."""
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        from vimtg.tui.widgets.help_panel import HelpPanel
+
+        await pilot.press("g", "question_mark")
+        await pilot.pause()
+        hp = scr.query_one("#help-panel", HelpPanel)
+        assert hp.display is True
+        await pilot.press("q")
+        await pilot.pause()
+        assert hp.display is False
+
+
+@pytest.mark.asyncio
+async def test_question_mark_opens_backward_search(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck_file(tmp_path))
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -278,8 +298,9 @@ async def test_open_help_via_question_mark(tmp_path: Path) -> None:
 
         await pilot.press("question_mark")
         await pilot.pause()
-        hp = scr.query_one("#help-panel", HelpPanel)
-        assert hp.display is True
+        assert scr._state.mode_mgr.current == Mode.SEARCH
+        assert scr.query_one("#command-line", CommandLine).prefix == "?"
+        assert scr.query_one("#help-panel", HelpPanel).display is False
 
 
 

@@ -51,21 +51,29 @@ MODE_SWITCHES: dict[str, str] = {
     "V": "VISUAL_LINE",
     ":": "COMMAND",
     "/": "SEARCH",
+    "?": "SEARCH",  # backward
 }
 SPECIAL_KEYS = frozenset(
-    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "A", "n", "N"}
+    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#"}
 )
 MULTI_KEY_STARTERS = frozenset(
     {"g", "[", "]", "m", "'", "t", "q", "@", "S", "z", "Z"}
 )
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
-# g{c,C,l} — category set/clear and layout toggle (gg stays a motion)
-_G_SUB_KEYS = frozenset({"c", "C", "l", "h"})
+# g{c,C,l} — category set/clear and layout toggle (gg stays a motion);
+# gh history overlay, g? quick-reference panel
+_G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?"})
 # S{v,h,s,c,r} — split panes: vertical/horizontal, switch, close, EDHREC
 _SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r", "a", "d"})
 # z{s,m,d,c,p} — zone moves; z{i,o} — board in/out of the sideboard plan.
 # m{a-z} is marks only.
 _ZONE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
+# z{z,t,b} — scroll the view so the cursor line is centred / at the top /
+# at the bottom, as in vim
+_SCROLL_SUB_KEYS = frozenset({"z", "t", "b"})
+# Register names a '"' prefix accepts besides letters and digits: the
+# unnamed register, the black hole, and the clipboard (+ and *)
+_REGISTER_SYMBOLS = frozenset({'"', "_", "+", "*"})
 # Z{Z,Q} — write and quit (:wq) / quit discarding changes (:q!)
 _QUIT_SUB_KEYS = frozenset({"Z", "Q"})
 
@@ -92,9 +100,18 @@ def _apply_text_edit(
     if key == "home":
         buf = buf.move_home()
         return buf, ParsedAction("special", "cursor_move", text=buf.text, cursor_pos=buf.cursor)
-    if key == "end":
+    if key in ("end", "ctrl_e"):
         buf = buf.move_end()
         return buf, ParsedAction("special", "cursor_move", text=buf.text, cursor_pos=buf.cursor)
+    if key == "ctrl_b":
+        buf = buf.move_home()
+        return buf, ParsedAction("special", "cursor_move", text=buf.text, cursor_pos=buf.cursor)
+    if key == "ctrl_w":
+        buf = buf.delete_word_backward()
+        return buf, ParsedAction("special", "backspace", text=buf.text, cursor_pos=buf.cursor)
+    if key == "ctrl_u":
+        buf = buf.delete_to_start()
+        return buf, ParsedAction("special", "backspace", text=buf.text, cursor_pos=buf.cursor)
     if len(key) == 1:
         buf = buf.insert(key)
         return buf, ParsedAction("special", "char", text=buf.text, cursor_pos=buf.cursor)
@@ -190,8 +207,10 @@ class KeyMap:
             self._state = _State.REGISTER
             return KeyResult.PENDING, None
         if self._state == _State.REGISTER:
-            # Only a-z, A-Z, 0-9 name a register; anything else is a typo
-            if len(key) == 1 and (key.isalpha() or key.isdigit()):
+            # a-z, A-Z, 0-9 and the symbol registers; anything else is a typo
+            if len(key) == 1 and (
+                key.isalpha() or key.isdigit() or key in _REGISTER_SYMBOLS
+            ):
                 self._register = key
                 self._state = _State.IDLE
                 return KeyResult.PENDING, None
@@ -236,6 +255,10 @@ class KeyMap:
             # active sideboard plan. Count 0 is the "no count given"
             # sentinel (like G): a bare move takes every copy, "3zs"
             # splits off 3.
+            if self._multi_key_prefix == "z" and key in _SCROLL_SUB_KEYS:
+                action = ParsedAction("special", full_key, count, self._register)
+                self.reset()
+                return KeyResult.COMPLETE, action
             if self._multi_key_prefix == "z" and key in _ZONE_SUB_KEYS:
                 explicit_count = int(self._count_str) if self._count_str else 0
                 action = ParsedAction(
@@ -321,6 +344,10 @@ class KeyMap:
             if key in MOTIONS or key == "G":
                 op_count = int(self._operator_count_str) if self._operator_count_str else 1
                 total_count = count * op_count
+                # dG runs to the end; d8G / 8dG stop at line 8. Like a
+                # bare G motion, 0 says "no count was typed".
+                if key == "G" and not (self._count_str or self._operator_count_str):
+                    total_count = 0
                 action = ParsedAction(
                     "operator", self._operator or "", total_count, self._register, motion=key
                 )
@@ -379,7 +406,10 @@ class KeyMap:
             text = self._command_buf.text
             self._command_buf = LineBuffer()
             return KeyResult.COMPLETE, ParsedAction("command_submit", "enter", text=text)
-        if key in ("tab", "shift_tab"):
+        # Backspace on an empty line leaves the command line, as in vim
+        if key == "backspace" and not self._command_buf.text:
+            return KeyResult.COMPLETE, ParsedAction("mode_switch", "escape")
+        if key in ("tab", "shift_tab", "up", "down"):
             return KeyResult.COMPLETE, ParsedAction(
                 "special", key,
                 text=self._command_buf.text, cursor_pos=self._command_buf.cursor,
@@ -398,8 +428,12 @@ class KeyMap:
         # read its 'c' as change.
         if self._state != _State.IDLE:
             return self._feed_normal(key)
-        if key in ("d", "y", "c"):
-            return KeyResult.COMPLETE, ParsedAction("operator", key)
+        # Visual x is d, as in vim
+        if key in ("d", "y", "c", "x"):
+            register = self._register
+            self.reset()
+            op = "d" if key == "x" else key
+            return KeyResult.COMPLETE, ParsedAction("operator", op, register=register)
         if key == ":":
             return KeyResult.COMPLETE, ParsedAction("mode_switch", ":")
         return self._feed_normal(key)

@@ -68,7 +68,7 @@ async def test_j_k_scroll_help_panel(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck_file(tmp_path))
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("question_mark")
+        await pilot.press("g", "question_mark")  # g? opens the panel
         await pilot.pause()
         hp = app.screen.query_one("#help-panel", HelpPanel)
         assert hp.display is True
@@ -88,7 +88,7 @@ async def test_top_bottom_and_half_page_scroll_help_panel(tmp_path: Path) -> Non
     app = VimTGApp(deck_path=_deck_file(tmp_path))
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
-        await pilot.press("question_mark")
+        await pilot.press("g", "question_mark")  # g? opens the panel
         await pilot.pause()
         hp = app.screen.query_one("#help-panel", HelpPanel)
         await pilot.press("G")
@@ -114,7 +114,7 @@ async def test_scroll_keys_do_not_leak_to_editor(tmp_path: Path) -> None:
         await pilot.pause()
         scr = app.screen
         before = scr._state.cursor.row  # type: ignore[attr-defined]
-        await pilot.press("question_mark")
+        await pilot.press("g", "question_mark")  # g? opens the panel
         await pilot.press("j")
         await pilot.pause()
         assert scr._state.cursor.row == before  # type: ignore[attr-defined]
@@ -126,13 +126,13 @@ async def test_reopen_starts_at_top(tmp_path: Path) -> None:
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
         hp = app.screen.query_one("#help-panel", HelpPanel)
-        await pilot.press("question_mark")
+        await pilot.press("g", "question_mark")  # g? opens the panel
         await pilot.press("G")
         await pilot.pause()
         assert hp.scroll_offset.y > 0
         await pilot.press("escape")
         await pilot.pause()
         assert hp.display is False
-        await pilot.press("question_mark")
+        await pilot.press("g", "question_mark")  # g? opens the panel
         await pilot.pause()
         assert hp.scroll_offset.y == 0

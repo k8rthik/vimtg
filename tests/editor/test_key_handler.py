@@ -227,8 +227,10 @@ class TestNormalSpecial:
         handle_normal_special(st, _act("P"))
         assert st.buffer.line_count() == before + 1
 
-    def test_help_requested(self) -> None:
-        assert handle_normal_special(_state(), _act("?")).help_requested is True
+    def test_quick_reference_is_g_question_mark(self) -> None:
+        assert handle_normal_special(_state(), _act("g?")).help_requested is True
+        # ? is backward search now, never help
+        assert handle_normal_special(_state(), _act("?")).help_requested is False
 
     def test_set_mark_and_jump(self) -> None:
         st = _state(row=2)

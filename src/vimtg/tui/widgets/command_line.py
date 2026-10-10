@@ -9,7 +9,7 @@ from textual.widgets import Static
 from vimtg.tui.theme import COLORS
 
 # Single source for the idle hint — main_screen shows the same string
-GENERIC_HINT = "Press ? for help  |  : command  |  o add card  |  i edit line"
+GENERIC_HINT = "Press F1 for help  |  : command  |  o add card  |  i edit line"
 
 
 class CommandLine(Static):

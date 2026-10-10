@@ -14,7 +14,9 @@ current line, `'a,'b` for marks).
 | `:q!` | Quit, discarding changes |
 | `:wq` | Save and quit |
 | `:recover` | Load the crash-recovery copy of this deck (`:recover!` deletes it). Written to `~/.local/state/vimtg/recovery/<name>.deck` when vimtg hits an internal error; removed by the next successful `:w` |
-| `:e file` | Open `file`, replacing the current buffer |
+| `:e file` | Edit another deck in place of this one (`.deck` is tried when `file` has no suffix; a missing file opens as a new deck). Refuses with unsaved changes (E37) |
+| `:e! [file]` | The same, discarding unsaved changes; `:e!` alone reloads this deck from disk |
+| `:{n}`, `:$`, `:.` | Go to line `n` / the last line / stay (a range goes to its last line) |
 
 ## Editing
 
@@ -22,25 +24,40 @@ current line, `'a,'b` for marks).
 |---------|-------------|
 | `:sort [field]` | Sort the current section. Fields: `name`, `cmc`, `type`, `color`, `qty`, `tag`, `category`, `power`, `toughness`, `rarity`, `price`. No field uses the `sort_order` setting (default `cmc`). `:sort!` reverses |
 | `:%sort name` | Sort the entire deck alphabetically |
-| `:s/old/new/[flags]` | Substitute. Flags: `g` (all), `i` (case-insensitive) |
+| `:s/pat/rep/[flags]` | Substitute. `pat` is a regular expression compiled exactly like `/` and `:g` (case-insensitive); an empty `pat` reuses the last search. In `rep`, `&` (or `\0`) is the whole match, `\1`-`\9` are groups, `\&` is a literal `&`. Flags: `g` (every match on a line), `I` (match case), `i` (ignore case, the default). `\/` puts a literal delimiter in either part. `.` repeats the last `:s` on the cursor line |
 | `:%s/Bolt/Helix/g` | Substitute across the deck |
-| `:g/pattern/cmd` | Run `cmd` on every card line matching `pattern`, in any zone (mainboard, sideboard, maybeboard, command zone, companion). `d` is the only supported `cmd`. Headers, comments, metadata, and plan entries never match |
-| `:v/pattern/cmd` | Inverse: run on every card line **not** matching |
+| `:g/pattern/cmd` | Run `cmd` on every card line matching `pattern`, in any zone (mainboard, sideboard, maybeboard, command zone, companion). Headers, comments, metadata, and plan entries never match. `cmd` is one of `d` (delete), `p` (list the matches), `y [x]` (yank into register `x`; `"A` appends), `s/pat/rep/[flags]` (substitute; an empty `pat` is the `:g` pattern) |
+| `:v/pattern/cmd`, `:g!/pattern/cmd` | Inverse: run on every card line **not** matching |
+| `:[range]d [x]` | Delete lines (default: the cursor line) into register `x` |
+| `:[range]y [x]` | Yank lines into register `x` |
+| `:[range]m {n}` | Move lines below line `n` (`0` = to the top, `$` = to the end, `.` = the cursor line) |
+| `:[range]t {n}` | Copy lines below line `n` (also `:co`, `:copy`) |
+| `:undo` / `:redo` | One undo / redo step (also `:u`, `:red`) |
+| `:reg [x...]` | Show what the registers hold (also `:registers`, `:di`) |
+| `:marks` | Show the marks with their line numbers |
 
 Examples:
 
 ```
 :g/Creature/d            delete every card line matching "Creature"
 :g/^SB:/d                delete every SB:-prefixed sideboard card
+:g/@ramp/s/^4/3/         cut every @ramp card to three copies
+:g/bolt/y A              append every Bolt line to register a
 :%s/Mountain/Plains/g    swap every Mountain for Plains
+:%s/^(\d+) (.*)$/\2 x\1/ rewrite "4 Bolt" as "Bolt x4"
 :1,20sort cmc            sort lines 1–20 by mana cost
+:5,8m0                   move lines 5–8 to the top
 ```
+
+Not supported, because the deck is line-oriented or the feature has no
+deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, marks as range
+addresses (`:'a,'bd`), and `+N`/`-N` address offsets.
 
 ## Search & navigation
 
 | Command | Description |
 |---------|-------------|
-| `:find pattern` | Jump to the next card matching `pattern` (also bound to `/`; `n` / `N` repeat it forward / backward) |
+| `:find pattern` | Jump to the next card matching `pattern` (also `/`; `?` searches backward; `n` / `N` repeat in the same / opposite direction) |
 | `:search query` | Open the card database search overlay ([syntax](search.md)) |
 
 ## Categories & layout
@@ -233,5 +250,5 @@ missing or older than a week (`:set noautosync` turns this off; the
 
 | Command | Description |
 |---------|-------------|
-| `:help` | Open full-screen help overview (also `F1`) |
+| `:help` | Open full-screen help overview (also `F1`; `g?` toggles the quick-reference panel) |
 | `:help cmd` | Open help for a specific command |

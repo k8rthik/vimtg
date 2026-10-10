@@ -129,7 +129,7 @@ class TestHelpKeys:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=(100, 24)) as pilot:
             await pilot.pause()
-            await pilot.press("question_mark")
+            await pilot.press("g", "question_mark")
             await pilot.pause()
             hp = app.screen.query_one("#help-panel", HelpPanel)
             await pilot.press("end")
