@@ -149,7 +149,10 @@ class GreeterView(Static):
             t.append(f"  v{__version__}\n", style=_DIM)
         if self._card_note:
             style = f"bold {COLORS['warning']}" if self._card_note_attention else _DIM
-            t.append(f"  {self._card_note}\n", style=style)
+            note = self._card_note
+            if len(note) > width - 2:  # one line, even at 30 columns
+                note = note[: max(1, width - 3)] + "…"
+            t.append(f"  {note}\n", style=style)
         if show_tagline:
             t.append("\n")
 

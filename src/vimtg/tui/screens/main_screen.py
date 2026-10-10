@@ -915,6 +915,8 @@ class MainScreen(Screen[None]):
             self._execute_ex(hr.run_ex_command)
         if hr.scroll_view:
             self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)
+        if hr.ui_request:
+            self._handle_ui_request(hr.ui_request)
         if hr.edit_file is not None:
             self._edit_file(hr.edit_file)
 
@@ -931,8 +933,6 @@ class MainScreen(Screen[None]):
         new_screen = app.screen
         if isinstance(new_screen, MainScreen):
             new_screen._state.registers = registers
-        if hr.ui_request:
-            self._handle_ui_request(hr.ui_request)
 
     def _handle_ui_request(self, request: str) -> None:
         """:messages and :tips — screen-level views with no buffer change."""

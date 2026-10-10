@@ -190,7 +190,8 @@ async def test_help_panel_capped_below_the_whole_screen(
     app = VimTGApp(deck_path=_deck(tmp_path))
     async with app.run_test(size=size) as pilot:
         await pilot.pause()
-        await pilot.press("?")
+        await pilot.press("g")
+        await pilot.press("?")  # g? — bare ? is backward search
         await pilot.pause()
         panel = _main(app).query_one("#help-panel")
         assert panel.display is True
