@@ -203,7 +203,9 @@ class KeyMap:
             self.reset()
             return KeyResult.COMPLETE, ParsedAction("special", "escape")
 
-        if key == '"' and self._state == _State.IDLE:
+        # A count may come before the register as well as after it:
+        # 3"0p and "03p both paste three times
+        if key == '"' and self._state in (_State.IDLE, _State.COUNT):
             self._state = _State.REGISTER
             return KeyResult.PENDING, None
         if self._state == _State.REGISTER:
@@ -212,7 +214,7 @@ class KeyMap:
                 key.isalpha() or key.isdigit() or key in _REGISTER_SYMBOLS
             ):
                 self._register = key
-                self._state = _State.IDLE
+                self._state = _State.COUNT if self._count_str else _State.IDLE
                 return KeyResult.PENDING, None
             self.reset()
             return KeyResult.NO_MATCH, None

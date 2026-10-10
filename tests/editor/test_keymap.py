@@ -1,6 +1,6 @@
 """Tests for the KeyMap key sequence parser."""
 
-from vimtg.editor.keymap import KeyMap, KeyResult
+from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.modes import Mode
 
 
@@ -766,3 +766,40 @@ class TestZoneMoveKeys:
         assert action is not None
         assert action.action == "ma"
         assert action.count == 1
+
+
+class TestCountBeforeRegister:
+    """3"0p and "03p are the same in vim: the count may come first."""
+
+    @staticmethod
+    def _feed(keys: str) -> tuple[KeyResult, ParsedAction]:
+        km = KeyMap(mode=Mode.NORMAL)
+        result, action = KeyResult.NO_MATCH, None
+        for key in keys:
+            result, action = km.feed(key)
+        assert action is not None
+        return result, action
+
+    def test_count_then_register_put(self) -> None:
+        result, action = self._feed('3"0p')
+        assert result == KeyResult.COMPLETE
+        assert (action.action, action.count, action.register) == ("p", 3, "0")
+
+    def test_register_then_count_put_unchanged(self) -> None:
+        _, action = self._feed('"03p')
+        assert (action.action, action.count, action.register) == ("p", 3, "0")
+
+    def test_count_then_register_delete(self) -> None:
+        _, action = self._feed('2"add')
+        assert (action.action, action.count, action.register) == ("dd", 2, "a")
+
+    def test_multi_digit_count_then_register(self) -> None:
+        _, action = self._feed('12"ayy')
+        assert (action.count, action.register) == (12, "a")
+
+    def test_pending_display_shows_both(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        for key in '3"a':
+            km.feed(key)
+        assert km.awaiting_more_keys
+        assert km.pending_display == '"a3'

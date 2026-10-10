@@ -250,6 +250,7 @@ def cmd_edit(
             ctx.fail(f"Cannot open {target.name}: {exc}")
             return buffer, cursor
     ctx.edit_path = target
+    ctx.discard_requested = cmd.bang and ctx.modified
     return buffer, cursor
 
 

@@ -31,7 +31,9 @@ _COMMANDS = """
 COMMANDS
   :w            Save deck
   :q            Quit (:q! force)
-  :wq / :x      Save and quit
+  :wq           Save and quit
+  :x / ZZ       Save if changed, then quit
+  :saveas file  Write to file and edit it from now on
   :home         Return to greeter (:home! discards changes)
   :recover      Load the crash-recovery copy (:recover! discards it)
   :sort [field] Sort by cmc/name/qty/type/color/tag/category/
@@ -108,7 +110,8 @@ COMMAND_HELP: dict[str, str] = {
     "w": (
         ":w [file]  Save deck to file\n"
         "\n"
-        ":w file  writes to file and makes it the deck's file (like :saveas)\n"
+        ":w file  writes to file and makes it the deck's file (like :saveas);\n"
+        "         the status line says 'now editing file'\n"
         ":w!      overwrite another existing file, or a file changed on disk\n"
         "\n"
         "A deck with no file yet is written to the current directory,\n"
@@ -118,12 +121,17 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "q": ":q        Quit (:q! force quit with unsaved changes)",
     "wq": ":wq      Save and quit",
+    "x": ":x       Save if there are changes, then quit (ZZ)",
+    "saveas": ":saveas file  Write to file and edit that file from now on",
     "recover": (
         ":recover  Load the crash-recovery copy of this deck\n"
         "\n"
-        "If vimtg hits an internal error it saves the buffer to\n"
-        "~/.local/state/vimtg/recovery/<name>.deck and keeps running.\n"
-        "Opening that deck again offers the copy.\n"
+        "If vimtg hits an internal error, or the session ends with unsaved\n"
+        "changes (terminal closed, SSH dropped, Ctrl-C, Ctrl-Q, a kill),\n"
+        "the buffer is saved under ~/.local/state/vimtg/recovery/.\n"
+        "Opening that deck again offers the copy; copies of unnamed\n"
+        "buffers or deleted files are listed on the greeter (R).\n"
+        ":q! and ZQ discard changes and the copy with them.\n"
         "\n"
         ":recover   replace the buffer with the copy (undoable, unsaved)\n"
         ":recover!  delete the copy\n"

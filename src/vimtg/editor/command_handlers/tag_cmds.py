@@ -177,6 +177,9 @@ def cmd_duntag(
         if bl.line_type == LineType.METADATA and bl.text.strip().startswith("// Tags:"):
             raw = bl.text.split(":", 1)[1] if ":" in bl.text else ""
             existing = {t.strip().lower() for t in raw.split(",") if t.strip()}
+            if not existing & set(names):
+                ctx.message = "No such deck tag: " + " ".join(f"#{n}" for n in names)
+                return buf, cursor
             remaining = existing - set(names)
             if remaining:
                 buf = buf.set_line(i, f"// Tags: {', '.join(sorted(remaining))}")

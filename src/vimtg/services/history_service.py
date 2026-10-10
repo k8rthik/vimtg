@@ -123,3 +123,8 @@ class HistoryService:
     @property
     def tree(self) -> SnapshotTree | None:
         return self._tree
+
+    @property
+    def current_id(self) -> str | None:
+        """Id of the current node (None before the first record)."""
+        return self._tree.current_id if self._tree is not None else None

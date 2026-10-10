@@ -65,8 +65,9 @@ def cmd_sort(
         return buffer, cursor
 
     # Card-data fields fall back to name when card data unavailable
+    fallback_note = ""
     if sort_field in CARD_DATA_FIELDS and not ctx.resolved_cards:
-        ctx.message = "Card data not available; sorting by name"
+        fallback_note = f" (no card data for {sort_field})"
         sort_field = "name"
 
     resolved = _resolve_range(buffer, cmd, cursor.row)
@@ -131,7 +132,12 @@ def cmd_sort(
     new_buffer = Buffer(classify_lines(new_texts))
 
     count = len(card_entries)
-    ctx.message = f"Sorted {count} card{'s' if count != 1 else ''} by {sort_field}"
+    ctx.message = (
+        f"Sorted {count} card{'s' if count != 1 else ''} by {sort_field}{fallback_note}"
+    )
+    if new_buffer.to_text() == buffer.to_text():
+        return buffer, cursor  # already in order: not a change
+    ctx.modified = True
     return new_buffer, cursor
 
 

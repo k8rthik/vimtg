@@ -7,12 +7,17 @@ Creates services, loads a deck file, and pushes the appropriate screen:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import os
+import signal
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
+from types import FrameType
+from typing import Any
 
+from rich.console import RenderableType
 from textual.app import App
 from textual.events import Resize
 
@@ -41,6 +46,7 @@ from vimtg.services.deck_service import (
     scaffold_metadata,
     strip_unused_scaffold,
 )
+from vimtg.services.recovery import RecoveryCopy
 from vimtg.services.search_service import SearchService
 from vimtg.tui.theme import COLORS
 
@@ -51,6 +57,16 @@ AUTO_SYNC_CHECK_SECONDS = 3600
 
 # Decks offered by the greeter's Recent section and `r` list
 RECENT_LIMIT = 9
+
+SignalHandler = Callable[[int, FrameType | None], Any] | int | None
+
+# Signals that end the session from outside: a closed terminal or a
+# dropped SSH connection (SIGHUP), or a polite kill (SIGTERM). Each
+# saves unsaved work as a recovery copy before the app exits.
+TERMINATING_SIGNALS: tuple[signal.Signals, ...] = tuple(
+    sig for name in ("SIGHUP", "SIGTERM")
+    if (sig := getattr(signal, name, None)) is not None
+)
 
 
 class VimTGApp(App[None]):
@@ -87,6 +103,8 @@ class VimTGApp(App[None]):
         self._sync_progress = ""  # status-line text while a sync runs
         self._card_badge: tuple[str, bool] = (NO_CARD_DATA, True)
         self._db_warning = ""  # set when the database had to be recovered
+        # (signal, the handler it had before) for each one routed here
+        self._signals_installed: list[tuple[signal.Signals, SignalHandler]] = []
 
     @property
     def settings(self) -> Settings:
@@ -102,6 +120,7 @@ class VimTGApp(App[None]):
         save_settings(new_settings)
 
     def on_mount(self) -> None:
+        self._install_signal_handlers()
         self._init_services()
         if self._db_warning:
             self.notify(
@@ -158,8 +177,68 @@ class VimTGApp(App[None]):
                     screen.save_recovery(error)
         super()._handle_exception(error)
 
+    # ── Unsaved work at exit ─────────────────────────────────────
+
+    def preserve_unsaved(self) -> None:
+        """Save every open editor's unsaved changes as a recovery copy.
+
+        Runs on every way out — :q (with confirm_quit off), Ctrl-C,
+        Ctrl-Q, SIGHUP, SIGTERM — and never raises: leaving must not
+        fail because a copy could not be written.
+        """
+        from vimtg.tui.screens.main_screen import MainScreen
+
+        for screen in self.screen_stack:
+            if isinstance(screen, MainScreen):
+                with contextlib.suppress(Exception):
+                    screen.preserve_unsaved()
+
+    def exit(
+        self,
+        result: None = None,
+        return_code: int = 0,
+        message: RenderableType | None = None,
+    ) -> None:
+        self.preserve_unsaved()
+        super().exit(result, return_code, message)
+
+    def _install_signal_handlers(self) -> None:
+        """Route SIGHUP/SIGTERM through the event loop to a clean exit
+        that saves first. Unsupported platforms (Windows) skip it."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        for sig in TERMINATING_SIGNALS:
+            previous = signal.getsignal(sig)
+            try:
+                loop.add_signal_handler(sig, self.handle_terminate_signal, sig)
+            except (NotImplementedError, RuntimeError, ValueError):
+                continue
+            self._signals_installed.append((sig, previous))
+
+    def _remove_signal_handlers(self) -> None:
+        """Put back the handlers the process had before the app ran."""
+        with contextlib.suppress(RuntimeError):
+            loop = asyncio.get_running_loop()
+            for sig, _previous in self._signals_installed:
+                with contextlib.suppress(Exception):
+                    loop.remove_signal_handler(sig)
+        for sig, previous in self._signals_installed:
+            if previous is not None:
+                with contextlib.suppress(Exception):
+                    signal.signal(sig, previous)
+        self._signals_installed = []
+
+    def handle_terminate_signal(self, sig: int) -> None:
+        """SIGHUP / SIGTERM: keep unsaved work, then exit (128 + signal,
+        the shell's convention for a signal death)."""
+        self.preserve_unsaved()
+        self.exit(return_code=128 + int(sig))
+
     def on_unmount(self) -> None:
         """Release the database connection when the app shuts down."""
+        self._remove_signal_handlers()
         if self._db is not None:
             self._db.close()
             self._db = None
@@ -342,19 +421,26 @@ class VimTGApp(App[None]):
         self.push_screen(GreeterScreen(recent_files=recent))
 
     def open_deck(
-        self, file_path: Path | None = None, initial_text: str | None = None
+        self,
+        file_path: Path | None = None,
+        initial_text: str | None = None,
+        recovery: RecoveryCopy | None = None,
     ) -> None:
         """Public navigation: open a deck (or an empty buffer) in the editor.
 
         `initial_text` seeds the buffer with content that has no file
         yet (the greeter's import flow) — the buffer opens modified so
-        quitting warns about the unsaved deck.
+        quitting warns about the unsaved deck. With `recovery`, the text
+        is that recovery copy's: the editor takes the copy over (a save
+        or :q! removes it) instead of offering it again.
         """
         from vimtg.tui.screens.main_screen import MainScreen
 
         stamp: FileStamp | None = None
         if initial_text is not None:
             text, added = scaffold_metadata(initial_text)
+            if file_path is not None:
+                stamp = file_stamp(file_path)  # ABSENT when it is gone
         elif file_path and file_path.exists():
             # Stamp before reading: a write racing the read then shows
             # up as a change (a spurious warning, never a lost edit).
@@ -390,6 +476,8 @@ class VimTGApp(App[None]):
             # An import arrives with its cards; anything else that is
             # still an empty, unnamed/format-less deck asks for both
             prompt_new_deck=initial_text is None,
+            recovery_id=recovery.buffer_id if recovery is not None else None,
+            recovery_copy=recovery.copy if recovery is not None else None,
         )
         if initial_text is not None:
             screen._state.modified = True
