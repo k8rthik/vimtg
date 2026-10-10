@@ -79,9 +79,10 @@ def test_export_moxfield_includes_editions(deck_service: DeckService) -> None:
     deck = parse_deck_text(DECK)
     resolved, _ = deck_service.resolve_cards(deck)
     out = ImportExportService().export_deck(deck, DeckFormat.MOXFIELD, resolved=resolved)
-    assert "4,lightning bolt,CLU," in out
-    assert "4,Fable of the Mirror-Breaker,NEO," in out
-    assert "2,Fire/Ice,MH2," in out
+    # Moxfield imports by the official (Scryfall) name, not the typed one
+    assert "4,Lightning Bolt,CLU," in out
+    assert "4,Fable of the Mirror-Breaker // Reflection of Kiki-Jiki,NEO," in out
+    assert "2,Fire // Ice,MH2," in out
 
 
 def test_import_resolution_uses_face_names(real_shape_repo: CardRepository) -> None:
@@ -89,7 +90,11 @@ def test_import_resolution_uses_face_names(real_shape_repo: CardRepository) -> N
     deck = service.import_deck("4 Fable of the Mirror-Breaker\n2 Fire/Ice\n", DeckFormat.MTGO)
     resolution = service.resolve_cards(deck)
     assert resolution.unresolved == ()
-    assert set(resolution.resolved) == {"Fable of the Mirror-Breaker", "Fire/Ice"}
+    # Imported names are normalised to each card's official name
+    assert set(resolution.resolved) == {
+        "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+        "Fire // Ice",
+    }
 
 
 def test_render_shows_details_for_lowercase_face_name(

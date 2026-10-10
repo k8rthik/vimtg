@@ -17,12 +17,15 @@ from __future__ import annotations
 import html
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
+from vimtg import __version__
+from vimtg.domain.card import Card
 from vimtg.domain.categories import CATEGORY_NAME_RE
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 from vimtg.domain.deck_lines import (
@@ -30,9 +33,14 @@ from vimtg.domain.deck_lines import (
     strip_bom,
     strip_printing_suffix,
 )
+from vimtg.domain.formats import known_formats
+from vimtg.domain.tags import TAG_NAME_RE
 
 _TIMEOUT_SECONDS = 20.0
-_USER_AGENT = "vimtg/0.1 (+local TUI deck editor)"
+_USER_AGENT = f"vimtg/{__version__} (+local TUI deck editor)"
+# Text endpoints (TappedOut's ?fmt=dec, MTGGoldfish's download) answer
+# plain text; share pages (ManaBox) answer HTML
+_TEXT_ACCEPT = "text/plain, text/html;q=0.9, */*;q=0.5"
 
 _MOXFIELD_API = "https://api2.moxfield.com/v3/decks/all/"
 _MOXFIELD_ID_RE = re.compile(r"/decks/([A-Za-z0-9_-]+)")
@@ -67,22 +75,28 @@ class RemoteDeck:
 
     `name` is the deck's title at the source ('' when unknown).
     `skipped` lists text lines the parser could not read (text-shaped
-    sources only).
+    sources only). `format` is the site's format for the deck as a
+    vimtg format name ('' when unknown or not one vimtg checks).
     """
 
     name: str
     deck: Deck
     skipped: tuple[SkippedLine, ...] = ()
+    format: str = ""
 
 
 def stamped_deck(remote: RemoteDeck, url: str) -> Deck:
     """The fetched deck with provenance stamped into its metadata: the
-    remote title becomes // Deck: and the URL is kept as // Source:."""
-    from dataclasses import replace
-
+    remote title becomes // Deck:, the site's format // Format:, and the
+    URL is kept as // Source:."""
     return replace(
         remote.deck,
-        metadata=replace(remote.deck.metadata, name=remote.name, source=url),
+        metadata=replace(
+            remote.deck.metadata,
+            name=remote.name,
+            format=remote.format or remote.deck.metadata.format,
+            source=url,
+        ),
     )
 
 
@@ -159,7 +173,7 @@ def _get_json(url: str, api_url: str) -> dict[str, Any]:
 
 
 def _get_text(url: str) -> str:
-    return _get(url, url, "text/html").text
+    return _get(url, url, _TEXT_ACCEPT).text
 
 
 # ── Shared deck assembly ───────────────────────────────────────────
@@ -196,10 +210,32 @@ _TYPE_CATEGORIES = frozenset({
 })
 
 
+# Deck-site format names that differ from vimtg's (Scryfall's) names
+_FORMAT_ALIASES: dict[str, str] = {
+    "edh": "commander",
+    "pauperedh": "paupercommander",
+    "duelcommander": "duel",
+    "historicbrawl": "brawl",
+    "pennydreadful": "penny",
+}
+
+
+def site_format(value: object) -> str:
+    """A deck site's format name as a vimtg format ('' when unknown):
+    'Commander' -> 'commander', 'pauperEdh' -> 'paupercommander'."""
+    if not isinstance(value, str):
+        return ""
+    key = re.sub(r"[^a-z0-9]", "", value.lower())
+    key = _FORMAT_ALIASES.get(key, key)
+    return key if key in known_formats() else ""
+
+
 # ── Moxfield ───────────────────────────────────────────────────────
 
 _MOXFIELD_BOARDS: dict[str, DeckSection] = {
     "commanders": DeckSection.COMMANDER,
+    # Oathbreaker's signature spell lives in the command zone too
+    "signatureSpells": DeckSection.COMMANDER,
     "companions": DeckSection.COMPANION,
     "mainboard": DeckSection.MAIN,
     "sideboard": DeckSection.SIDEBOARD,
@@ -224,10 +260,34 @@ def parse_moxfield(data: dict[str, Any]) -> RemoteDeck:
             if qty <= 0 or not name:
                 continue
             entries.append(_entry(name, qty, section))
-    return RemoteDeck(name=(data.get("name") or "").strip(), deck=_deck(entries))
+    return RemoteDeck(
+        name=(data.get("name") or "").strip(),
+        deck=_deck(entries),
+        format=site_format(data.get("format")),
+    )
 
 
 # ── Archidekt ──────────────────────────────────────────────────────
+
+# Archidekt's numeric deckFormat ids, for the formats vimtg checks
+_ARCHIDEKT_FORMATS: dict[int, str] = {
+    1: "standard",
+    2: "modern",
+    3: "commander",
+    4: "legacy",
+    5: "vintage",
+    6: "pauper",
+    10: "penny",
+    12: "duel",
+    13: "standardbrawl",
+    14: "oathbreaker",
+    15: "pioneer",
+    16: "historic",
+    17: "paupercommander",
+    20: "brawl",
+    22: "premodern",
+    24: "timeless",
+}
 
 _ARCHIDEKT_ZONES: dict[str, DeckSection] = {
     "commander": DeckSection.COMMANDER,
@@ -263,7 +323,15 @@ def parse_archidekt(data: dict[str, Any]) -> RemoteDeck:
         else:
             section, category = archidekt_placement(primary)
         entries.append(_entry(name, qty, section, category))
-    return RemoteDeck(name=(data.get("name") or "").strip(), deck=_deck(entries))
+    raw_format = data.get("deckFormat")
+    fmt = (
+        _ARCHIDEKT_FORMATS.get(raw_format, "")
+        if isinstance(raw_format, int) and not isinstance(raw_format, bool)
+        else site_format(raw_format)
+    )
+    return RemoteDeck(
+        name=(data.get("name") or "").strip(), deck=_deck(entries), format=fmt
+    )
 
 
 def primary_archidekt_category(categories: str) -> str:
@@ -388,6 +456,7 @@ _ZONE_HEADERS: dict[str, DeckSection] = {
     "main": DeckSection.MAIN,
     "mainboard": DeckSection.MAIN,
     "maindeck": DeckSection.MAIN,
+    "main deck": DeckSection.MAIN,
     "commander": DeckSection.COMMANDER,
     "commanders": DeckSection.COMMANDER,
     "companion": DeckSection.COMPANION,
@@ -408,26 +477,145 @@ class _TextCard:
     group: int  # blank-line-separated card group, from 0
 
 
+# Trailing vimtg-style tokens on a pasted line: "1 Sol Ring @ramp #fast"
+# (any whitespace before each token, unlike the .deck grammar's two)
+_TRAILING_TOKENS_RE = re.compile(
+    r"(?:\s+[#@][a-zA-Z][a-zA-Z0-9-]{0,31})+\s*$"
+)
+_TOKEN_RE = re.compile(r"([#@])([a-zA-Z][a-zA-Z0-9-]{0,31})")
+
+# A Commander list pasted without headers ("1 Kenrith" / blank / 99
+# cards) has a one- or two-card group beside a ~100-card one
+_COMMANDER_DECK_SIZES = range(95, 106)
+# Brawl and Oathbreaker decks are 60 cards: there the small group must
+# resolve to commander-eligible cards
+_MIN_MAIN_WITH_ELIGIBLE_COMMANDER = 58
+
+# Card-name resolver (the card database, when there is one)
+CardLookup = Callable[[str], Card | None]
+
+# Lowercase words a card name may hold ("Delver of Secrets"); any other
+# lowercase word marks a bare line as prose, not a card name
+_NAME_SMALL_WORDS = frozenset({
+    "a", "an", "and", "as", "at", "by", "en", "for", "from", "in", "into",
+    "of", "on", "or", "the", "to", "upon", "with", "//",
+})
+
+
+def _split_trailing_tokens(line: str) -> tuple[str, str, frozenset[str]]:
+    """(line without tokens, @category, #tags) for a pasted card line."""
+    m = _TRAILING_TOKENS_RE.search(line)
+    if not m:
+        return line, "", frozenset()
+    category = ""
+    tags: set[str] = set()
+    for mark, body in _TOKEN_RE.findall(m.group(0)):
+        if mark == "@":
+            category = category or body.lower()
+        elif TAG_NAME_RE.match(body):
+            tags.add(body.lower())
+    return line[: m.start()], category, frozenset(tags)
+
+
+def _looks_like_card_name(line: str, lookup: CardLookup | None) -> bool:
+    """True when a line with no quantity reads as a card name: the card
+    database knows it, or it is title-cased like one ('Sol Ring',
+    'Delver of Secrets') rather than prose ('not a card line')."""
+    if lookup is not None and lookup(line) is not None:
+        return True
+    words = line.split()
+    if not words or not words[0][:1].isupper():
+        return False
+    return all(
+        not w[:1].isalpha() or w[:1].isupper() or w.lower() in _NAME_SMALL_WORDS
+        for w in words
+    )
+
+
+def can_lead_deck(card: Card) -> bool:
+    """A legendary creature or planeswalker, or a card whose text says
+    it can be your commander — what a lone pasted card group is when it
+    names one."""
+    front = card.type_line.split("//")[0]
+    if "Legendary" in front and ("Creature" in front or "Planeswalker" in front):
+        return True
+    return "can be your commander" in card.oracle_text.lower()
+
+
+def _bare_name(line: str) -> str:
+    """A quantity-less card line without its tokens, comment, category
+    brackets and printing suffix: just the name to judge."""
+    line = _split_trailing_tokens(line)[0].split("#", 1)[0]
+    return strip_printing_suffix(_BRACKET_CATEGORIES_RE.sub("", line))
+
+
+def _is_group_label(line: str) -> bool:
+    """True for a line that labels a group of cards rather than naming
+    one: 'Lands:', 'Creatures', 'Spells'."""
+    word = line.strip().lower()
+    return word.endswith(":") or word in _TYPE_CATEGORIES
+
+
+def _command_zone_group(
+    cards: list[_TextCard], lookup: CardLookup | None
+) -> int | None:
+    """The blank-separated group of a headerless two-group list (the
+    caller checks there are exactly two) that is the command zone, or
+    None when the list reads as main + sideboard.
+
+    The small group must be one or two single copies, and the whole
+    list ~100 cards (Commander), or every small-group card must be
+    commander-eligible beside a 60-card-sized main group (Brawl,
+    Oathbreaker). Whichever group comes first, commander-first
+    (Moxfield) and commander-last lists both work.
+    """
+    totals: dict[int, int] = {}
+    for card in cards:
+        totals[card.group] = totals.get(card.group, 0) + card.entry.quantity
+    small = min(totals, key=lambda g: (totals[g], g))
+    big = max(totals, key=lambda g: (totals[g], -g))
+    small_cards = [c.entry for c in cards if c.group == small]
+    if totals[small] > 2 or any(e.quantity != 1 for e in small_cards):
+        return None
+    if totals[small] + totals[big] in _COMMANDER_DECK_SIZES:
+        return small
+    if lookup is None or totals[big] < _MIN_MAIN_WITH_ELIGIBLE_COMMANDER:
+        return None
+    leaders = [lookup(e.card_name) for e in small_cards]
+    if all(card is not None and can_lead_deck(card) for card in leaders):
+        return small
+    return None
+
+
 def parse_decklist_text(
-    text: str, name: str, blank_splits: bool | None = False
+    text: str,
+    name: str,
+    blank_splits: bool | None = False,
+    lookup: CardLookup | None = None,
 ) -> RemoteDeck:
     """Parse a plain-text decklist into a RemoteDeck.
 
     Understands "N Card" / "Nx Card" lines with optional set/collector/
     finish suffixes ("(SET) 123", "(PLST) ELD-115", "*F*"), SB:
     prefixes, Deckstats' "#!Commander" pragma and trailing "# ..."
-    comments, Archidekt's "[Category]" suffixes, and zone headers as
-    bare words or "//" comments ("Sideboard", "//Main", "Commander",
-    "Sideboard (15)", ...). A header that is not a zone name
-    (Deckstats' "//Lands (24)" groupings) is ignored. Arena's "About" /
-    "Name ..." preamble supplies the deck name when `name` is empty.
+    comments, Archidekt's "[Category]" suffixes, trailing vimtg
+    "@category" / "#tag" tokens, and zone headers as bare words or "//"
+    comments ("Sideboard", "//Main", "Commander", "Sideboard (15)",
+    ...). A header that is not a zone name (Deckstats' "//Lands (24)"
+    groupings) is ignored. A line with no quantity ("Sol Ring") is one
+    copy when it reads as a card name (see _looks_like_card_name).
+    Arena's "About" / "Name ..." preamble supplies the deck name
+    when `name` is empty.
 
     `blank_splits` decides what a blank line means: True treats the
     first blank line after a card as the main/sideboard divider
     (MTGGoldfish's download format); False makes blank lines neutral;
     None (auto, for files of unknown origin) splits only a headerless
     list made of exactly two blank-separated groups — the MTGO .txt
-    shape — and leaves anything else alone.
+    shape — and leaves anything else alone. In that auto split a one-
+    or two-card group beside a Commander-sized list is the command zone
+    rather than a sideboard; `lookup` (card data, when available) also
+    recognises a 60-card Brawl/Oathbreaker list by its leader.
 
     Lines that cannot be read are reported in RemoteDeck.skipped
     instead of being dropped silently.
@@ -461,18 +649,26 @@ def parse_decklist_text(
                 section = zone
                 saw_zone_marker = True
                 in_about = False
-            elif header == _ABOUT_HEADER:
+                continue
+            if header == _ABOUT_HEADER:
                 in_about = True
-            elif in_about and line.lower().startswith("name "):
+                continue
+            if in_about and line.lower().startswith("name "):
                 deck_name = deck_name or line[5:].strip()
-            elif not (
-                line.startswith(("//", "#")) or _HEADER_COUNT_RE.search(line)
+                continue
+            if line.startswith(("//", "#")) or _HEADER_COUNT_RE.search(line):
+                continue
+            if _is_group_label(line) or not _looks_like_card_name(
+                _bare_name(line), lookup
             ):
                 skipped.append(SkippedLine(line_number, raw.strip()))
-            continue
+                continue
+            # A bare card name ("Sol Ring") is one copy
+            line = f"1 {line}"
         if _COMMANDER_PRAGMA_RE.search(line):
             line_section = DeckSection.COMMANDER
             saw_zone_marker = True
+        line, token_category, tags = _split_trailing_tokens(line)
         # Strip trailing "# ..." comments (the #!Commander pragma too)
         line = line.split("#", 1)[0].rstrip()
 
@@ -486,6 +682,7 @@ def parse_decklist_text(
             if bracket_section != DeckSection.MAIN:
                 line_section = bracket_section
                 saw_zone_marker = True
+        category = category or token_category
 
         m = _TEXT_LINE_RE.match(line)
         card_name = strip_printing_suffix(m.group("name")) if m else ""
@@ -493,20 +690,28 @@ def parse_decklist_text(
         if not card_name or qty <= 0:
             skipped.append(SkippedLine(line_number, raw.strip()))
             continue
-        cards.append(
-            _TextCard(_entry(card_name, qty, line_section, category), group)
+        entry = replace(
+            _entry(card_name, qty, line_section, category), tags=tags
         )
+        cards.append(_TextCard(entry, group))
 
     entries = [card.entry for card in cards]
     groups = {card.group for card in cards}
     if blank_splits is None and not saw_zone_marker and len(groups) == 2:
-        side_group = max(groups)
+        command_group = _command_zone_group(cards, lookup)
+        if command_group is not None:
+            moved, target = command_group, DeckSection.COMMANDER
+        else:
+            moved, target = max(groups), DeckSection.SIDEBOARD
         entries = [
-            replace(card.entry, section=DeckSection.SIDEBOARD)
-            if card.group == side_group
+            replace(card.entry, section=target)
+            if card.group == moved
             else card.entry
             for card in cards
         ]
+        if command_group is not None:
+            # The command zone reads first, as in a .deck file
+            entries.sort(key=lambda e: e.section != DeckSection.COMMANDER)
     return RemoteDeck(
         name=deck_name, deck=_deck(entries), skipped=tuple(skipped)
     )

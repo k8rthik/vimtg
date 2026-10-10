@@ -77,3 +77,31 @@ def test_empty_deck_adds_nothing() -> None:
     result = add_deck_entries(buf, _deck(), auto_sort=False)
     assert result.buffer is buf
     assert result.first_row is None and result.cards == 0
+
+
+def test_separator_spelling_merges_into_existing_line() -> None:
+    # Regression: pasting "4 Fire/Ice" next to "Fire // Ice" added a
+    # second line, so copies were counted by spelling
+    base = "// Deck: Izzet\n\n4 Fire // Ice\n"
+    result = add_deck_entries(
+        Buffer.from_text(base), _deck(_e(4, "Fire/Ice")), auto_sort=False
+    )
+    lines = result.buffer.to_text().splitlines()
+    assert "8 Fire // Ice" in lines
+    assert sum("Fire" in line for line in lines) == 1
+
+
+def test_card_key_merges_other_face_into_existing_line() -> None:
+    # With card data the TUI keys cards by oracle id: a back-face name
+    # joins the front-face line
+    oracle = {"delver of secrets": "o1", "insectile aberration": "o1"}
+    base = "// Deck: Delver\n\n4 Delver of Secrets\n"
+    result = add_deck_entries(
+        Buffer.from_text(base),
+        _deck(_e(2, "Insectile Aberration")),
+        auto_sort=False,
+        card_key=lambda name: oracle.get(name.lower(), name.lower()),
+    )
+    lines = result.buffer.to_text().splitlines()
+    assert "6 Delver of Secrets" in lines
+    assert not any("Insectile" in line for line in lines)

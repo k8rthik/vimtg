@@ -606,7 +606,9 @@ async def test_import_file_opens_editor(
     path, text = app.launched[0]
     assert path is None
     assert "4 Goblin Guide" in text
-    assert "SB: 2 Duress" in text
+    # The structured new-deck layout, named after the file
+    assert "// Deck: list\n// Format:\n" in text
+    assert "SB:\n    2 Duress" in text
 
 
 @pytest.mark.asyncio
@@ -680,7 +682,7 @@ async def test_paste_decklist_on_menu_opens_editor(
     assert path is None
     assert text is not None
     assert "4 Lightning Bolt" in text and "20 Mountain" in text
-    assert "SB: 2 Pyroblast" in text
+    assert "SB:\n    2 Pyroblast" in text
 
 
 @pytest.mark.asyncio

@@ -209,6 +209,10 @@ COMMAND_HELP: dict[str, str] = {
         ":export format [file]  Export deck "
         "(arena/mtgo/dek/moxfield/archidekt/vimtg/guide)\n"
         "\n"
+        "No file: the export is copied to the clipboard. An existing\n"
+        "file needs :export! to overwrite; the open deck's own file is\n"
+        "never overwritten.\n"
+        "\n"
         "guide writes the sideboard plans (VS: blocks) as a Markdown\n"
         "guide — one section per matchup with OUT and IN lines."
     ),

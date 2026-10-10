@@ -96,7 +96,8 @@ class TestExportGuide:
         text = out.read_text()
         assert "## vs Tron" in text and "## vs Burn" in text
 
-    def test_export_guide_preview(self) -> None:
+    def test_export_guide_without_file_copies_to_clipboard(self) -> None:
         ctx, _, _ = _run("export guide")
         assert not ctx.error
-        assert "guide" in ctx.message
+        assert ctx.clipboard_text is not None and "## vs Tron" in ctx.clipboard_text
+        assert "guide" in ctx.clipboard_label

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import io
 import re
@@ -12,10 +13,20 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from vimtg.domain.card import Card
-from vimtg.domain.card_names import CardMap
+from vimtg.domain.card_names import CardMap, normalize_card_name
+from vimtg.domain.card_types import TYPE_ORDER, primary_type
+from vimtg.domain.categories import format_inline_category
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
-from vimtg.domain.deck_lines import clamp_quantity, strip_bom, strip_printing_suffix
+from vimtg.domain.deck_lines import (
+    clamp_quantity,
+    format_inline_comment,
+    strip_bom,
+    strip_printing_suffix,
+)
+from vimtg.domain.section_keys import SectionKey, SectionKind
+from vimtg.domain.tags import format_inline_tags
 from vimtg.services.deck_sources import (
+    CardLookup,
     SkippedLine,
     archidekt_placement,
     parse_decklist_text,
@@ -60,19 +71,20 @@ def _csv_name(row: Mapping[str, str | None]) -> str:
     return strip_printing_suffix(row.get("Name") or "")
 
 
-def _normalize_text(text: str) -> str:
+def normalize_text(text: str) -> str:
     """Drop a UTF-8 BOM and fold CRLF/CR line endings to LF."""
     return strip_bom(text).replace("\r\n", "\n").replace("\r", "\n")
 
 
 def merge_duplicate_entries(deck: Deck) -> Deck:
-    """Merge entries naming the same card (ignoring case) in the same
-    section and category: 'Lightning Bolt' + 'lightning bolt' become
-    one entry with the summed quantity, spelled like the first one.
-    Tags are unioned; the first entry's comment wins."""
+    """Merge entries naming the same card in the same section and
+    category: 'Lightning Bolt' + 'lightning bolt' (or 'Fire // Ice' +
+    'Fire/Ice') become one entry with the summed quantity, spelled like
+    the first one. Names meet by normalize_card_name. Tags are unioned;
+    the first entry's comment wins."""
     merged: dict[tuple[DeckSection, str, str], DeckEntry] = {}
     for e in deck.entries:
-        key = (e.section, e.card_name.casefold(), e.category)
+        key = (e.section, normalize_card_name(e.card_name), e.category)
         first = merged.get(key)
         if first is None:
             merged[key] = e
@@ -112,8 +124,124 @@ _FULL_NAME_LAYOUTS = frozenset({"split"})
 
 
 def _client_name(name: str, resolved: Mapping[str, Card]) -> str:
-    """front_face_name, using the resolved card's layout when known."""
-    return front_face_name(name, resolved.get(name))
+    """The name MTGO/Arena list the card under: the resolved card's
+    official name, front face only for DFC/adventure cards ('4 Stomp'
+    -> 'Bonecrusher Giant', '4 Fire/Ice' -> 'Fire // Ice'). Without
+    card data the typed name goes through front_face_name."""
+    card = resolved.get(name)
+    return front_face_name(card.name if card else name, card)
+
+
+def _official_name(name: str, resolved: Mapping[str, Card]) -> str:
+    """The resolved card's full official (Scryfall) name, the spelling
+    Moxfield and Archidekt import by; the typed name without card data."""
+    card = resolved.get(name)
+    return card.name if card else name
+
+
+def canonicalize_names(deck: Deck, resolved: Mapping[str, Card]) -> Deck:
+    """Rewrite each entry's name to its resolved card's official name
+    ('fire/ice' -> 'Fire // Ice', 'Insectile Aberration' -> 'Delver of
+    Secrets // Insectile Aberration'). Unresolved names stay as typed."""
+    if not resolved:
+        return deck
+    entries = tuple(
+        replace(e, card_name=_official_name(e.card_name, resolved))
+        for e in deck.entries
+    )
+    return replace(deck, entries=entries)
+
+
+# Status note for an imported deck that names no format
+NO_FORMAT_NOTE = "no format: fill in // Format: for legality checks"
+
+# Zone blocks of the structured import layout, in file order
+_IMPORT_BLOCKS: tuple[tuple[str, DeckSection], ...] = (
+    ("CMD", DeckSection.COMMANDER),
+    ("CMP", DeckSection.COMPANION),
+    ("DCK", DeckSection.MAIN),
+    ("SB", DeckSection.SIDEBOARD),
+    ("MB", DeckSection.MAYBEBOARD),
+)
+_BLOCK_INDENT = "    "
+
+
+def _entry_text(e: DeckEntry) -> str:
+    return (
+        f"{e.quantity} {e.card_name}"
+        + format_inline_category(e.category)
+        + format_inline_tags(e.tags)
+        + format_inline_comment(e.comment)
+    )
+
+
+def _type_groups(
+    entries: tuple[DeckEntry, ...], resolved: Mapping[str, Card]
+) -> list[tuple[str, list[DeckEntry]]]:
+    """Main-deck entries under '// Creatures'-style type headers, in the
+    editor's type order; unresolved cards go under '// Other'."""
+    buckets: dict[str, list[DeckEntry]] = {}
+    for e in entries:
+        card = resolved.get(e.card_name)
+        ptype = primary_type(card.type_line) if card is not None else None
+        buckets.setdefault(ptype or "", []).append(e)
+
+    def header(ptype: str) -> str:
+        key = (
+            SectionKey(SectionKind.TYPE, ptype)
+            if ptype
+            else SectionKey(SectionKind.OTHER, "Other")
+        )
+        return key.header_text()
+
+    order = sorted(buckets, key=lambda t: TYPE_ORDER.get(t, 99) if t else 100)
+    return [(header(t), buckets[t]) for t in order]
+
+
+def structured_deck_text(
+    deck: Deck, resolved: Mapping[str, Card] | None = None
+) -> str:
+    """An imported deck in the layout `vimtg new` starts from.
+
+    '// Deck:' and '// Format:' lines always (empty when unknown, to
+    fill in place), then Python-style zone blocks: CMD: (also when the
+    format is commander/brawl and none was imported), CMP:, DCK:, SB:,
+    MB:. With card data the DCK: block is grouped under type headers.
+    Sideboard plans follow, as serialize_deck writes them.
+    """
+    lookup = CardMap(resolved or {})
+    meta = deck.metadata
+    lines = [f"// Deck: {meta.name}".rstrip(), f"// Format: {meta.format}".rstrip()]
+    if meta.author:
+        lines.append(f"// Author: {meta.author}")
+    if meta.description:
+        lines.append(f"// Description: {meta.description}")
+    if meta.source:
+        lines.append(f"// Source: {meta.source}")
+    if meta.tags:
+        lines.append(f"// Tags: {', '.join(sorted(meta.tags))}")
+    lines.extend(c.text for c in sorted(deck.comments, key=lambda c: c.line_number))
+
+    commander_format = meta.format.strip().lower() in ("commander", "brawl")
+    for tag, section in _IMPORT_BLOCKS:
+        entries = tuple(e for e in deck.entries if e.section == section)
+        keep_empty = tag == "DCK" or (tag == "CMD" and commander_format)
+        if not entries and not keep_empty:
+            continue
+        lines.extend(["", f"{tag}:"])
+        if tag == "DCK" and any(e.card_name in lookup for e in entries):
+            for i, (header, group) in enumerate(_type_groups(entries, lookup)):
+                if i:
+                    lines.append("")
+                lines.append(_BLOCK_INDENT + header)
+                lines.extend(_BLOCK_INDENT + _entry_text(e) for e in group)
+        else:
+            lines.extend(_BLOCK_INDENT + _entry_text(e) for e in entries)
+
+    for plan in deck.plans:
+        lines.extend(["", f"VS: {plan.name}{format_inline_comment(plan.note)}"])
+        lines.extend(_BLOCK_INDENT + pe.text() for pe in plan.entries)
+    return "\n".join(lines) + "\n"
 
 
 @dataclass(frozen=True)
@@ -198,7 +326,7 @@ class ImportExportService:
         A BOM and CRLF line endings are tolerated in every format, and
         case-insensitive duplicate card names are merged.
         """
-        text = _normalize_text(text)
+        text = normalize_text(text)
         if fmt is None:
             fmt = self.detect_format(text)
         match fmt:
@@ -212,7 +340,7 @@ class ImportExportService:
                 )
                 report = ImportReport(deck, tuple(skipped))
             case DeckFormat.MTGO | DeckFormat.ARENA:
-                report = self._import_text(text)
+                report = self._import_text(text, self._lookup())
             case DeckFormat.MTGO_DEK:
                 report = ImportReport(self._import_mtgo_dek(text))
             case DeckFormat.MOXFIELD:
@@ -221,7 +349,28 @@ class ImportExportService:
                 report = self._import_archidekt(text)
             case DeckFormat.GUIDE:
                 raise ValueError("The sideboard guide is an export-only format")
-        return replace(report, deck=merge_duplicate_entries(report.deck))
+        deck = report.deck
+        if self._card_repo is not None and deck.entries:
+            # Copies are counted (and merged) by card, not by spelling
+            names = sorted(deck.unique_card_names())
+            # name normalisation is best-effort
+            with contextlib.suppress(sqlite3.Error):
+                deck = canonicalize_names(deck, self._card_repo.get_by_names(names))
+        return replace(report, deck=merge_duplicate_entries(deck))
+
+    def _lookup(self) -> CardLookup | None:
+        """The card database as a name resolver, or None without one."""
+        repo = self._card_repo
+        if repo is None:
+            return None
+
+        def lookup(name: str) -> Card | None:
+            try:
+                return repo.get_by_name(name)
+            except sqlite3.Error:
+                return None
+
+        return lookup
 
     def export_deck(
         self,
@@ -229,22 +378,27 @@ class ImportExportService:
         fmt: DeckFormat,
         resolved: dict[str, Card] | None = None,
     ) -> str:
-        """Serialize a Deck to the requested format string."""
+        """Serialize a Deck to the requested format string.
+
+        Client formats write each card's official name from `resolved`
+        (see _client_name / _official_name).
+        """
+        lookup = CardMap(resolved or {})
         match fmt:
             case DeckFormat.VIMTG:
                 from vimtg.data.deck_repository import serialize_deck
 
                 return serialize_deck(deck)
             case DeckFormat.MTGO:
-                return self._export_mtgo(deck, resolved or {})
+                return self._export_mtgo(deck, lookup)
             case DeckFormat.MTGO_DEK:
-                return self._export_mtgo_dek(deck, resolved or {})
+                return self._export_mtgo_dek(deck, lookup)
             case DeckFormat.ARENA:
-                return self._export_arena(deck, CardMap(resolved or {}))
+                return self._export_arena(deck, lookup)
             case DeckFormat.MOXFIELD:
-                return self._export_moxfield(deck, CardMap(resolved or {}))
+                return self._export_moxfield(deck, lookup)
             case DeckFormat.ARCHIDEKT:
-                return self._export_archidekt(deck)
+                return self._export_archidekt(deck, lookup)
             case DeckFormat.GUIDE:
                 from vimtg.domain.sideboard_plan import format_guide_markdown
 
@@ -291,7 +445,7 @@ class ImportExportService:
     # MTGO / Arena text
     # ------------------------------------------------------------------
 
-    def _import_text(self, text: str) -> ImportReport:
+    def _import_text(self, text: str, lookup: CardLookup | None = None) -> ImportReport:
         """Parse MTGO .txt, Arena, and similar plain-text decklists.
 
         One parser (deck_sources.parse_decklist_text) handles both, so
@@ -299,7 +453,7 @@ class ImportExportService:
         MTGO blank-line sideboard divider work whichever format was
         detected or requested.
         """
-        remote = parse_decklist_text(text, name="", blank_splits=None)
+        remote = parse_decklist_text(text, name="", blank_splits=None, lookup=lookup)
         deck = remote.deck
         if remote.name:
             deck = replace(deck, metadata=replace(deck.metadata, name=remote.name))
@@ -444,7 +598,7 @@ class ImportExportService:
         """Build one Moxfield CSV row for a deck entry."""
         card = resolved.get(e.card_name)
         edition = card.set_code.upper() if card else ""
-        return [e.quantity, e.card_name, edition, "", section]
+        return [e.quantity, _official_name(e.card_name, resolved), edition, "", section]
 
     def _export_moxfield(self, deck: Deck, resolved: dict[str, Card]) -> str:
         output = io.StringIO()
@@ -486,7 +640,7 @@ class ImportExportService:
             entries.append(DeckEntry(qty, name, section, category=category))
         return ImportReport(_plain_deck(entries), tuple(skipped))
 
-    def _export_archidekt(self, deck: Deck) -> str:
+    def _export_archidekt(self, deck: Deck, resolved: Mapping[str, Card]) -> str:
         """Quantity/Name/Categories CSV. Zones travel as Archidekt's own
         zone categories so a re-import (here or on Archidekt) keeps the
         commander, sideboard, and maybeboard apart from the deck."""
@@ -495,7 +649,11 @@ class ImportExportService:
         writer.writerow(["Quantity", "Name", "Categories"])
         for e in deck.entries:
             writer.writerow(
-                [e.quantity, e.card_name, _ARCHIDEKT_ZONE_CATEGORY.get(e.section, e.category)]
+                [
+                    e.quantity,
+                    _official_name(e.card_name, resolved),
+                    _ARCHIDEKT_ZONE_CATEGORY.get(e.section, e.category),
+                ]
             )
         return output.getvalue()
 
