@@ -371,3 +371,73 @@ def test_validate_reports_plan_issues(runner: CliRunner, tmp_path: Path) -> None
     result = runner.invoke(main, ["validate", str(deck)])
     assert result.exit_code == 1
     assert "burn.deck:4: error: Lightning Bolt is not in the sideboard" in result.output
+
+
+# --- validate --strict ---
+
+
+def _burn_with_typo(tmp_path: Path) -> Path:
+    deck_file = tmp_path / "typo.deck"
+    deck_file.write_text(
+        "// Format: modern\n4 Lightning Bolt\n4 Lightnig Bolt\n52 Mountain\n",
+        encoding="utf-8",
+    )
+    return deck_file
+
+
+def test_validate_reports_unknown_card_but_passes_without_strict(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    loaded_repo: CardRepository,
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["validate", str(_burn_with_typo(tmp_path))])
+    assert "warning: Card not found: Lightnig Bolt" in result.output
+    assert result.exit_code == 0
+
+
+def test_validate_strict_fails_on_unknown_card(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    loaded_repo: CardRepository,
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: loaded_repo)
+    result = runner.invoke(
+        main, ["validate", "--strict", str(_burn_with_typo(tmp_path))]
+    )
+    assert "Card not found: Lightnig Bolt" in result.output
+    assert result.exit_code == 1
+
+
+def test_validate_strict_passes_clean_deck(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    loaded_repo: CardRepository,
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: loaded_repo)
+    deck_file = tmp_path / "ok.deck"
+    deck_file.write_text(
+        "// Format: modern\n4 Lightning Bolt\n56 Mountain\n", encoding="utf-8"
+    )
+    result = runner.invoke(main, ["validate", "--strict", str(deck_file)])
+    assert result.exit_code == 0, result.output
+
+
+def test_validate_reports_unknown_when_no_card_resolves(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    loaded_repo: CardRepository,
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: loaded_repo)
+    deck_file = tmp_path / "junk.deck"
+    deck_file.write_text("60 Not A Card\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", "--strict", str(deck_file)])
+    assert "Card not found: Not A Card" in result.output
+    assert result.exit_code == 1
+
+
+def test_validate_strict_without_db_fails(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: None)
+    deck_file = tmp_path / "m.deck"
+    deck_file.write_text("60 Mountain\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", "--strict", str(deck_file)])
+    assert "--strict needs a card database" in result.output
+    assert result.exit_code == 1

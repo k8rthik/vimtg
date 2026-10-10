@@ -1,0 +1,885 @@
+[
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000001",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000001",
+  "name": "The One Ring",
+  "mana_cost": "{4}",
+  "cmc": 4.0,
+  "type_line": "Legendary Artifact",
+  "oracle_text": "Indestructible\nWhen The One Ring enters, if you cast it, you gain protection from everything until your next turn.\nAt the beginning of your upkeep, you lose 1 life for each burden counter on The One Ring.\n{T}: Put a burden counter on The One Ring, then draw a card for each burden counter on The One Ring.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [
+   "Indestructible"
+  ],
+  "set": "ltr",
+  "rarity": "mythic",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/1.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000002",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000002",
+  "name": "Atraxa, Praetors' Voice",
+  "mana_cost": "{G}{W}{U}{B}",
+  "cmc": 4.0,
+  "type_line": "Legendary Creature — Phyrexian Angel Horror",
+  "oracle_text": "Flying, vigilance, deathtouch, lifelink\nAt the beginning of your end step, proliferate.",
+  "colors": [
+   "B",
+   "G",
+   "U",
+   "W"
+  ],
+  "color_identity": [
+   "B",
+   "G",
+   "U",
+   "W"
+  ],
+  "keywords": [
+   "Flying",
+   "Vigilance",
+   "Deathtouch",
+   "Lifelink",
+   "Proliferate"
+  ],
+  "set": "cmm",
+  "rarity": "mythic",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "4",
+  "toughness": "4",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/2.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000003",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000003",
+  "name": "Jegantha, the Wellspring",
+  "mana_cost": "{4}{R/G}",
+  "cmc": 5.0,
+  "type_line": "Legendary Creature — Elemental Elk",
+  "oracle_text": "Companion — No card in your starting deck has more than one of the same mana symbol in its mana cost. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\n{T}: Add {W}{U}{B}{R}{G}. This mana can't be spent to pay generic mana costs.",
+  "colors": [
+   "G",
+   "R"
+  ],
+  "color_identity": [
+   "G",
+   "R"
+  ],
+  "keywords": [
+   "Companion"
+  ],
+  "set": "iko",
+  "rarity": "rare",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "5",
+  "toughness": "5",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/3.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000004",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000004",
+  "name": "Lurrus of the Dream-Den",
+  "mana_cost": "{1}{W/B}{W/B}",
+  "cmc": 3.0,
+  "type_line": "Legendary Creature — Cat Nightmare",
+  "oracle_text": "Companion — Each permanent card in your starting deck has mana value 2 or less. (If this card is your chosen companion, you may put it into your hand from outside the game for {3} as a sorcery.)\nLifelink\nDuring each of your turns, you may cast one permanent spell with mana value 2 or less from your graveyard.",
+  "colors": [
+   "B",
+   "W"
+  ],
+  "color_identity": [
+   "B",
+   "W"
+  ],
+  "keywords": [
+   "Companion",
+   "Lifelink"
+  ],
+  "set": "iko",
+  "rarity": "rare",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "3",
+  "toughness": "2",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/4.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000005",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000005",
+  "name": "Relentless Rats",
+  "mana_cost": "{1}{B}{B}",
+  "cmc": 3.0,
+  "type_line": "Creature — Rat",
+  "oracle_text": "Relentless Rats gets +1/+1 for each other creature on the battlefield named Relentless Rats.\nA deck can have any number of cards named Relentless Rats.",
+  "colors": [
+   "B"
+  ],
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [],
+  "set": "m11",
+  "rarity": "uncommon",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "2",
+  "toughness": "2",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/5.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000006",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000006",
+  "name": "Seven Dwarves",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Creature — Dwarf",
+  "oracle_text": "Seven Dwarves gets +1/+1 for each other creature named Seven Dwarves you control.\nA deck can have up to seven cards named Seven Dwarves.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "set": "eld",
+  "rarity": "common",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "2",
+  "toughness": "2",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/6.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000007",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000007",
+  "name": "Nazgûl",
+  "mana_cost": "{2}{B}",
+  "cmc": 3.0,
+  "type_line": "Creature — Wraith Knight",
+  "oracle_text": "Deathtouch\nWhen Nazgûl enters, the Ring tempts you.\nWhenever the Ring tempts you, put a +1/+1 counter on each Wraith you control.\nA deck can have up to nine cards named Nazgûl.",
+  "colors": [
+   "B"
+  ],
+  "color_identity": [
+   "B"
+  ],
+  "keywords": [
+   "Deathtouch"
+  ],
+  "set": "ltr",
+  "rarity": "uncommon",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "1",
+  "toughness": "2",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/7.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000008",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000008",
+  "name": "Grist, the Hunger Tide",
+  "mana_cost": "{1}{B}{G}",
+  "cmc": 3.0,
+  "type_line": "Legendary Planeswalker — Grist",
+  "oracle_text": "As long as Grist, the Hunger Tide isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.\n+1: Create a 1/1 black and green Insect creature token, then mill a card. If an Insect card was milled this way, put a loyalty counter on Grist and repeat this process.\n−2: You may sacrifice a creature. When you do, destroy target creature or planeswalker.\n−5: Each opponent loses life equal to the number of creature cards in your graveyard.",
+  "colors": [
+   "B",
+   "G"
+  ],
+  "color_identity": [
+   "B",
+   "G"
+  ],
+  "keywords": [],
+  "set": "mh2",
+  "rarity": "mythic",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/8.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000009",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000009",
+  "name": "Jace, the Mind Sculptor",
+  "mana_cost": "{2}{U}{U}",
+  "cmc": 4.0,
+  "type_line": "Legendary Planeswalker — Jace",
+  "oracle_text": "+2: Look at the top card of target player's library. You may put that card on the bottom of that player's library.\n0: Draw three cards, then put two cards from your hand on top of your library in any order.\n−1: Return target creature to its owner's hand.\n−12: Exile all cards from target player's library, then that player shuffles their hand into their library.",
+  "colors": [
+   "U"
+  ],
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "set": "a25",
+  "rarity": "mythic",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/9.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000010",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000010",
+  "name": "Counterspell",
+  "mana_cost": "{U}{U}",
+  "cmc": 2.0,
+  "type_line": "Instant",
+  "oracle_text": "Counter target spell.",
+  "colors": [
+   "U"
+  ],
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "set": "mh2",
+  "rarity": "common",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/10.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000011",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000011",
+  "name": "Lightning Bolt",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Instant",
+  "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "set": "clb",
+  "rarity": "common",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/11.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000012",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000012",
+  "name": "Wilson, Refined Grizzly",
+  "mana_cost": "{1}{G}",
+  "cmc": 2.0,
+  "type_line": "Legendary Creature — Bear Warrior",
+  "oracle_text": "Reach, trample, ward {2}\nChoose a Background (You can have a Background as a second commander.)",
+  "colors": [
+   "G"
+  ],
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [
+   "Reach",
+   "Trample",
+   "Ward",
+   "Choose a Background"
+  ],
+  "set": "clb",
+  "rarity": "uncommon",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "2",
+  "toughness": "2",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/12.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000013",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000013",
+  "name": "Raised by Giants",
+  "mana_cost": "{5}{G}",
+  "cmc": 6.0,
+  "type_line": "Legendary Enchantment — Background",
+  "oracle_text": "Commander creatures you own have base power and toughness 10/10 and are Giants in addition to their other types.",
+  "colors": [
+   "G"
+  ],
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "set": "clb",
+  "rarity": "rare",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/13.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000014",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000014",
+  "name": "Tymna the Weaver",
+  "mana_cost": "{1}{W}{B}",
+  "cmc": 3.0,
+  "type_line": "Legendary Creature — Human Cleric",
+  "oracle_text": "Lifelink\nAt the beginning of your postcombat main phase, you may pay X life, where X is the number of opponents that were dealt combat damage this turn. If you do, draw X cards.\nPartner (You can have two commanders if both have partner.)",
+  "colors": [
+   "B",
+   "W"
+  ],
+  "color_identity": [
+   "B",
+   "W"
+  ],
+  "keywords": [
+   "Lifelink",
+   "Partner"
+  ],
+  "set": "c16",
+  "rarity": "rare",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "2",
+  "toughness": "2",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/14.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000015",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000015",
+  "name": "Thrasios, Triton Hero",
+  "mana_cost": "{G}{U}",
+  "cmc": 2.0,
+  "type_line": "Legendary Creature — Merfolk Wizard",
+  "oracle_text": "{4}: Scry 1, then reveal the top card of your library. If it's a land card, put it onto the battlefield tapped. Otherwise, draw a card.\nPartner (You can have two commanders if both have partner.)",
+  "colors": [
+   "G",
+   "U"
+  ],
+  "color_identity": [
+   "G",
+   "U"
+  ],
+  "keywords": [
+   "Partner"
+  ],
+  "set": "c16",
+  "rarity": "rare",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "1",
+  "toughness": "3",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/15.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000016",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000016",
+  "name": "Parhelion II",
+  "mana_cost": "{6}{W}{W}",
+  "cmc": 8.0,
+  "type_line": "Legendary Artifact — Vehicle",
+  "oracle_text": "Flying, vigilance\nWhenever Parhelion II attacks, create two 4/4 white Angel creature tokens with flying and vigilance that are attacking.\nCrew 4",
+  "colors": [
+   "W"
+  ],
+  "color_identity": [
+   "W"
+  ],
+  "keywords": [
+   "Flying",
+   "Vigilance",
+   "Crew"
+  ],
+  "set": "dmr",
+  "rarity": "rare",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "5",
+  "toughness": "5",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/16.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000017",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000017",
+  "name": "Murmuring Mystic",
+  "mana_cost": "{3}{U}",
+  "cmc": 4.0,
+  "type_line": "Creature — Human Wizard",
+  "oracle_text": "Whenever you cast an instant or sorcery spell, create a 1/1 blue Bird Illusion creature token with flying.",
+  "colors": [
+   "U"
+  ],
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "set": "grn",
+  "rarity": "uncommon",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "paupercommander": "restricted",
+   "pauper": "not_legal",
+   "modern": "legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "power": "1",
+  "toughness": "5",
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/17.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000018",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000018",
+  "name": "Ponder",
+  "mana_cost": "{U}",
+  "cmc": 1.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Look at the top three cards of your library, then put them back in any order. You may shuffle.\nDraw a card.",
+  "colors": [
+   "U"
+  ],
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "set": "m12",
+  "rarity": "common",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "paupercommander": "legal",
+   "pauper": "legal",
+   "modern": "banned"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/18.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000019",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000019",
+  "name": "Forest",
+  "mana_cost": "",
+  "cmc": 0.0,
+  "type_line": "Basic Land — Forest",
+  "oracle_text": "({T}: Add {G}.)",
+  "colors": [],
+  "color_identity": [
+   "G"
+  ],
+  "keywords": [],
+  "set": "blb",
+  "rarity": "common",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/19.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000020",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000020",
+  "name": "Island",
+  "mana_cost": "",
+  "cmc": 0.0,
+  "type_line": "Basic Land — Island",
+  "oracle_text": "({T}: Add {U}.)",
+  "colors": [],
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "set": "blb",
+  "rarity": "common",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/20.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000021",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000021",
+  "name": "Teferi, Temporal Archmage",
+  "mana_cost": "{4}{U}{U}",
+  "cmc": 6.0,
+  "type_line": "Legendary Planeswalker — Teferi",
+  "oracle_text": "+1: Look at the top two cards of your library. Put one of them into your hand and the other on the bottom of your library.\n−1: Untap up to four target permanents.\n−10: You get an emblem with \"You may activate loyalty abilities of planeswalkers you control on any player's turn any time you could cast an instant.\"\nTeferi, Temporal Archmage can be your commander.",
+  "colors": [
+   "U"
+  ],
+  "color_identity": [
+   "U"
+  ],
+  "keywords": [],
+  "set": "c14",
+  "rarity": "mythic",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/21.jpg"
+  }
+ },
+ {
+  "id": "b1c2d3e4-0000-4000-8000-000000000022",
+  "oracle_id": "b1c2d3e4-0001-0001-0001-000000000022",
+  "name": "Wastes",
+  "mana_cost": "",
+  "cmc": 0.0,
+  "type_line": "Basic Land",
+  "oracle_text": "{T}: Add {C}.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "set": "ogw",
+  "rarity": "common",
+  "layout": "normal",
+  "legalities": {
+   "commander": "legal",
+   "oathbreaker": "legal",
+   "duel": "legal",
+   "brawl": "legal",
+   "modern": "legal",
+   "legacy": "legal",
+   "vintage": "legal",
+   "paupercommander": "not_legal"
+  },
+  "prices": {
+   "usd": "1.00",
+   "usd_foil": null,
+   "eur": null,
+   "tix": "0.05"
+  },
+  "image_uris": {
+   "normal": "https://cards.scryfall.io/normal/front/b/1/22.jpg"
+  }
+ }
+]

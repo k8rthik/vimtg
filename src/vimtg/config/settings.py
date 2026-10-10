@@ -7,7 +7,8 @@ VALID_PRICE_SOURCES = frozenset({"usd", "usd_foil", "eur", "eur_foil", "tix"})
 
 VALID_FORMATS = frozenset({
     "", "standard", "pioneer", "modern", "legacy", "vintage",
-    "commander", "pauper", "brawl", "historic",
+    "commander", "pauper", "brawl", "historic", "timeless", "premodern",
+    "penny", "standardbrawl", "oathbreaker", "paupercommander", "duel",
 })
 
 # Default in-group ordering for :sort and layout regrouping. Mirrors

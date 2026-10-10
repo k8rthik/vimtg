@@ -151,7 +151,7 @@ by id. Note that merge and rebase results are normalized on write
 | Command | Description |
 |---------|-------------|
 | `:stats` | Toggle the mana-curve / type / color / price panel |
-| `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact 100 cards, singleton, no sideboard, legendary commander, ≤2 partners, color identity), and sideboard-plan consistency |
+| `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency |
 | `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base, draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck |
 
 ## Sideboard plans
