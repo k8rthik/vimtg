@@ -9,6 +9,7 @@ description = "Vim-powered TUI Magic: The Gathering deck builder"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Keerthik Muruganandam", email = "keerthik.4.m@gmail.com" }]
 keywords = [
     "mtg",
@@ -102,6 +103,7 @@ only-include = [
     "tests",
     "docs",
     "README.md",
+    "LICENSE",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
