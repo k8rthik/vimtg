@@ -181,3 +181,21 @@ class TestScaffoldMissingMetadata:
         assert "// Format:" not in text
         assert "// Tags:" not in text
         assert "// Format:" in scaffold_missing_metadata(text)
+
+
+class TestEditorLineNumbers:
+    def test_scaffolded_lines_shift_the_editor(self) -> None:
+        from vimtg.services.deck_service import editor_line_numbers, editor_view_text
+
+        raw = "// Deck: X\n4 Goblin Guide\n"
+        shown = editor_view_text(raw).split("\n")
+        mapping = editor_line_numbers(raw)
+        assert mapping[1] == 1
+        assert shown[mapping[2] - 1] == "4 Goblin Guide"
+        assert mapping[2] > 2
+
+    def test_canonical_deck_maps_to_itself(self) -> None:
+        from vimtg.services.deck_service import editor_line_numbers
+
+        raw = "// Deck: X\n// Format:\n// Tags:\n\n4 Goblin Guide\n"
+        assert all(k == v for k, v in editor_line_numbers(raw).items())

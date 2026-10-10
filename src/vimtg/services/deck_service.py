@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,6 +24,8 @@ __all__ = [
     "Scaffold",
     "ValidationError",
     "scaffold_metadata",
+    "editor_line_numbers",
+    "editor_view_text",
     "scaffold_missing_metadata",
     "strip_unused_scaffold",
 ]
@@ -248,3 +251,28 @@ class DeckService:
     ) -> list[ValidationError]:
         """Validate deck structure and format legality. Delegates to domain."""
         return validate_deck(deck, resolved, fmt, card_db=card_db)
+
+
+def editor_view_text(raw: str) -> str:
+    """The deck text exactly as the editor shows a file with `raw` text:
+    scaffold metadata and zone blocks filled in, sections normalized."""
+    from vimtg.editor.buffer import Buffer
+    from vimtg.editor.sections import normalize_sections
+
+    text = scaffold_deck_body(scaffold_metadata(raw)[0])
+    return normalize_sections(Buffer.from_text(text)).to_text()
+
+
+def editor_line_numbers(raw: str) -> dict[int, int]:
+    """File line -> the line the editor shows it on (both 1-based), for
+    every line the editor keeps unchanged. Opening a deck can add lines
+    (empty '// Tags:' scaffolding, a blank before a header), so a file's
+    line 2 may be the editor's line 5; `vimtg validate` reports both."""
+    file_lines = raw.split("\n")
+    shown = editor_view_text(raw).split("\n")
+    matcher = difflib.SequenceMatcher(a=file_lines, b=shown, autojunk=False)
+    mapping: dict[int, int] = {}
+    for block in matcher.get_matching_blocks():
+        for k in range(block.size):
+            mapping[block.a + k + 1] = block.b + k + 1
+    return mapping

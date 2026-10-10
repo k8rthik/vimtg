@@ -11,8 +11,10 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.buffer_cmds import (
     cmd_home,
     cmd_quit,
+    cmd_saveas,
     cmd_write,
     cmd_write_quit,
+    cmd_xit,
 )
 from vimtg.editor.commands import EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
@@ -338,3 +340,73 @@ class TestWriteSafety:
         cmd_write_quit(_sample_buffer(), Cursor(), _make_cmd("wq", args=str(other)), ctx)
         assert ctx.error is True
         assert ctx.quit_requested is False
+
+
+class TestDataSafetyCommands:
+    @staticmethod
+    def _real_save(p: Path, t: str) -> None:
+        p.write_text(t, encoding="utf-8")
+
+    def test_x_unmodified_quits_without_writing(self, tmp_path: Path) -> None:
+        saved: list[Path] = []
+        ctx = EditorContext(
+            file_path=tmp_path / "mine.deck", save_fn=lambda p, t: saved.append(p),
+        )
+        cmd_xit(_sample_buffer(), Cursor(), _make_cmd("x"), ctx)
+        assert ctx.quit_requested and not ctx.error
+        assert saved == [] and not ctx.file_saved
+
+    def test_x_modified_writes_then_quits(self, tmp_path: Path) -> None:
+        saved: list[Path] = []
+        ctx = EditorContext(
+            file_path=tmp_path / "mine.deck", modified=True,
+            save_fn=lambda p, t: saved.append(p),
+        )
+        cmd_xit(_sample_buffer(), Cursor(), _make_cmd("x"), ctx)
+        assert ctx.quit_requested and saved == [tmp_path / "mine.deck"]
+
+    def test_x_with_a_name_always_writes(self, tmp_path: Path) -> None:
+        saved: list[Path] = []
+        ctx = EditorContext(save_fn=lambda p, t: saved.append(p))
+        cmd_xit(_sample_buffer(), Cursor(), _make_cmd("x", args=str(tmp_path / "n")), ctx)
+        assert saved == [tmp_path / "n.deck"]
+
+    def test_write_to_a_new_name_says_now_editing(self, tmp_path: Path) -> None:
+        ctx = EditorContext(file_path=tmp_path / "old.deck", save_fn=self._real_save)
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", args=str(tmp_path / "new")), ctx)
+        assert "now editing new.deck" in ctx.message and "old.deck" in ctx.message
+
+    def test_write_to_own_file_is_not_a_switch(self, tmp_path: Path) -> None:
+        mine = tmp_path / "mine.deck"
+        ctx = EditorContext(file_path=mine, save_fn=self._real_save)
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", args=str(mine)), ctx)
+        assert ctx.message == "Written: mine.deck"
+
+    def test_saveas(self, tmp_path: Path) -> None:
+        ctx = EditorContext(file_path=tmp_path / "old.deck", save_fn=self._real_save)
+        cmd_saveas(_sample_buffer(), Cursor(), _make_cmd("saveas", args=str(tmp_path / "n")), ctx)
+        assert ctx.file_path == tmp_path / "n.deck" and ctx.file_saved
+        empty = EditorContext(save_fn=self._real_save)
+        cmd_saveas(_sample_buffer(), Cursor(), _make_cmd("saveas"), empty)
+        assert empty.error and "E471" in empty.message
+
+    def test_deleted_file_message(self, tmp_path: Path) -> None:
+        mine = tmp_path / "mine.deck"
+        mine.write_text("as read\n", encoding="utf-8")
+        stamp = file_stamp(mine)
+        mine.unlink()
+        ctx = EditorContext(file_path=mine, modified=True, save_fn=self._real_save,
+                            disk_stamp=stamp)
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w"), ctx)
+        assert ctx.error and "no longer exists" in ctx.message
+        assert "changed on disk" not in ctx.message
+        assert not mine.exists()
+
+    def test_quit_bang_and_home_bang_request_a_discard(self) -> None:
+        for handler, name in ((cmd_quit, "q"), (cmd_home, "home")):
+            ctx = EditorContext(modified=True)
+            handler(_sample_buffer(), Cursor(), _make_cmd(name, bang=True), ctx)
+            assert ctx.discard_requested
+            plain = EditorContext(modified=False)
+            handler(_sample_buffer(), Cursor(), _make_cmd(name), plain)
+            assert not plain.discard_requested

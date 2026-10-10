@@ -293,6 +293,32 @@ def test_validate_line_numbers_in_output(
     assert "q.deck:2:" in result.output
 
 
+def test_validate_names_the_editor_line_when_it_differs(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """The editor scaffolds '// Format:' / '// Tags:' and a blank line on
+    open, so the file's line 2 is the editor's line 5: validate keeps the
+    file line (what other tools jump to) and names the editor's."""
+    deck_file = tmp_path / "q.deck"
+    deck_file.write_text("// Deck: X\n0 Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", str(deck_file)])
+    assert "q.deck:2: error: Invalid quantity 0 for Bolt (line 5 in the vimtg editor)" in (
+        result.output
+    )
+
+
+def test_validate_adds_no_note_when_editor_and_file_agree(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    deck_file = tmp_path / "q.deck"
+    deck_file.write_text(
+        "// Deck: X\n// Format:\n// Tags:\n\n0 Bolt\n", encoding="utf-8",
+    )
+    result = runner.invoke(main, ["validate", str(deck_file)])
+    assert "q.deck:5:" in result.output
+    assert "vimtg editor" not in result.output
+
+
 class TestDeckFileFallback:
     """`vimtg burn.deck` opens the editor, vim-style."""
 

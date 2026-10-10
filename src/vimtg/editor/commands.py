@@ -8,7 +8,7 @@ parsed commands to handler functions.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -22,9 +22,15 @@ if TYPE_CHECKING:
     from vimtg.domain.card import Card
     from vimtg.services.history_service import HistoryService
 
+# One address: a line number, '.', '$', or a mark ('a, '<, '>)
+_ADDRESS = r"(?:'[a-zA-Z<>]|[.\d$]+)"
 _RANGE_PATTERN = re.compile(
-    r"^(%|(?:[.\d$]+(?:,[.\d$]+)?))?(.*)$"
+    rf"^(%|(?:{_ADDRESS}(?:,{_ADDRESS})?))?(.*)$"
 )
+
+
+class RangeError(ValueError):
+    """An ex range that names no line (vim's E20 for an unset mark)."""
 
 
 @dataclass(frozen=True)
@@ -34,9 +40,17 @@ class CommandRange:
     start: int | None = None
     end: int | None = None
     is_whole_file: bool = False
+    # A line number past the end was given (:999d). A bare :999 still
+    # goes to the last line; a command on that range is vim's E16.
+    out_of_range: bool = False
 
     @staticmethod
-    def parse(range_str: str, cursor_row: int, line_count: int) -> CommandRange:
+    def parse(
+        range_str: str,
+        cursor_row: int,
+        line_count: int,
+        marks: Mapping[str, int] | None = None,
+    ) -> CommandRange:
         """Parse range specifiers into a CommandRange.
 
         Supported formats:
@@ -46,6 +60,9 @@ class CommandRange:
           '$' -> last line
           'N' -> single line (1-based input, 0-based output)
           'N,M' -> range (1-based input, 0-based output)
+          "'a" -> the row of mark a ('< / '> are the last visual selection)
+
+        Raises RangeError for a mark that is not set.
         """
         stripped = range_str.strip()
         if not stripped:
@@ -57,27 +74,40 @@ class CommandRange:
             )
 
         last_line = max(0, line_count - 1)
+        past_end = False
 
         def _resolve(token: str) -> int:
+            nonlocal past_end
             if token == ".":
                 return cursor_row
             if token == "$":
                 return last_line
+            if token.startswith("'"):
+                row = (marks or {}).get(token[1:])
+                if row is None:
+                    raise RangeError("E20: Mark not set")
+                return max(0, min(row, last_line))
             try:
-                return max(0, int(token) - 1)
+                number = int(token)
             except ValueError:
                 # Tokens like "1.5" or "$5" pass the range regex but
                 # aren't valid line numbers — treat as current line.
                 return cursor_row
+            if number > max(1, line_count):
+                past_end = True
+                return last_line
+            return max(0, number - 1)
 
         if "," in stripped:
             parts = stripped.split(",", maxsplit=1)
             start = _resolve(parts[0].strip())
             end = _resolve(parts[1].strip())
-            return CommandRange(start=min(start, end), end=max(start, end))
+            return CommandRange(
+                start=min(start, end), end=max(start, end), out_of_range=past_end,
+            )
 
         single = _resolve(stripped)
-        return CommandRange(start=single, end=single)
+        return CommandRange(start=single, end=single, out_of_range=past_end)
 
 
 @dataclass(frozen=True)
@@ -91,7 +121,10 @@ class ParsedCommand:
 
 
 def parse_command(
-    input_str: str, cursor_row: int, line_count: int
+    input_str: str,
+    cursor_row: int,
+    line_count: int,
+    marks: Mapping[str, int] | None = None,
 ) -> ParsedCommand:
     """Parse a raw ex command string into a ParsedCommand.
 
@@ -103,6 +136,10 @@ def parse_command(
       ':q!'          -> ParsedCommand(name='q', bang=True)
       ':.'           -> ParsedCommand(name='', range=current_line)
       ':$'           -> ParsedCommand(name='', range=last_line)
+      ":'<,'>d"      -> ParsedCommand(name='d', range=visual selection)
+
+    `marks` maps mark names to rows for 'a style addresses; an unset
+    mark raises RangeError.
     """
     text = input_str.lstrip(":")
 
@@ -114,7 +151,7 @@ def parse_command(
     rest = match.group(2).strip()
 
     cmd_range = (
-        CommandRange.parse(range_part, cursor_row, line_count)
+        CommandRange.parse(range_part, cursor_row, line_count, marks)
         if range_part
         else None
     )
@@ -223,6 +260,11 @@ class EditorContext:
     undo_request: str = ""
     # :e — the deck to open in place of this one
     edit_path: Path | None = None
+    # :q! / :e! / :home! threw unsaved changes away on purpose: the
+    # buffer's crash-recovery copy goes with them
+    discard_requested: bool = False
+    # Keys an unnamed buffer's recovery copy (named decks use the path)
+    recovery_id: str | None = None
     # Screen-level view with no buffer change (":messages", ":tips")
     ui_request: str = ""
 
@@ -273,6 +315,9 @@ class CommandRegistry:
         """Look up and execute a command. Sets ctx.message on unknown command."""
         if not cmd.name and cmd.cmd_range is not None:
             return buffer, _goto_range(cmd, buffer, cursor)
+        if cmd.cmd_range is not None and cmd.cmd_range.out_of_range:
+            ctx.fail("E16: Invalid range")
+            return buffer, cursor
         resolved = self._aliases.get(cmd.name, cmd.name)
         handler = self._commands.get(resolved)
         if handler is None:

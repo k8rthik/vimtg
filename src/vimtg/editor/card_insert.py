@@ -94,6 +94,7 @@ def discard_pending_insert(state: EditorState) -> None:
     pend = state.pending_insert
     state.pending_insert = None
     state.pending_change = None  # a cancelled search records no card
+    state.change_node = None
     if pend is None or pend.row >= state.buffer.line_count():
         return
     if state.buffer.get_line(pend.row).text.strip():
@@ -174,7 +175,14 @@ def _insert_zone_card(state: EditorState, name: str, zone: LineType, qty: int) -
     state.cursor = state.cursor.move_to(open_row, 0)
 
 
-def insert_card(state: EditorState, name: str, card: Card | None, copies: int) -> str:
+def insert_card(
+    state: EditorState,
+    name: str,
+    card: Card | None,
+    copies: int,
+    *,
+    fold_into: str | None = None,
+) -> str:
     """Write `copies` of the chosen card where the card search was
     opened and return the status message.
 
@@ -182,6 +190,10 @@ def insert_card(state: EditorState, name: str, card: Card | None, copies: int) -
     the CMD:/SB: block (or among prefix lines of a zone) adds the card
     to THAT zone. A card the zone already holds gains copies instead of
     a second line. Records the undo step; the caller re-resolves cards.
+
+    `fold_into` is the id of the undo node a c operator made by deleting
+    the lines this card replaces: while that node is still current the
+    card joins it, so one u undoes the whole change (vim's cc).
     """
     s = state
     zone = insertion_zone(s.buffer, s.cursor.row)
@@ -206,7 +218,10 @@ def insert_card(state: EditorState, name: str, card: Card | None, copies: int) -
         row = place_new_card(s, card, name, copies, open_row)
         s.cursor = s.cursor.move_to(row, 0)
     s.modified = True
-    s.history.record(s.buffer, f"added {name}")
+    if fold_into is not None and s.history.current_id == fold_into:
+        s.history.amend(s.buffer)
+    else:
+        s.history.record(s.buffer, f"added {name}")
     zone_note = (
         f" to {ZONE_LABELS[zone]}"
         if zone not in (LineType.CARD_ENTRY, LineType.PLAN_ENTRY)

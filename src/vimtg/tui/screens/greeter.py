@@ -1,7 +1,8 @@
 """Greeter screen — shown when vimtg launches with no file argument.
 
 Inspired by alpha-nvim: centered ASCII logo, recent files, and quick actions.
-Supports four modes: menu (default), help, file browser, and recent files browser.
+Supports menu (default), help, file browser, recent files browser, import,
+and the list of unsaved buffers left by an earlier session (recovery).
 """
 
 from __future__ import annotations
@@ -26,6 +27,12 @@ from vimtg.services.deck_sources import (
     fetch_deck,
     is_deck_url,
     stamped_deck,
+)
+from vimtg.services.recovery import (
+    RecoveryCopy,
+    discard_copy,
+    orphaned_recoveries,
+    read_copy,
 )
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
@@ -83,6 +90,7 @@ class GreeterMode(Enum):
     FILES = "files"
     RECENT = "recent"
     IMPORT = "import"
+    RECOVER = "recover"
 
 
 class GreeterView(Static):
@@ -92,10 +100,13 @@ class GreeterView(Static):
         self,
         recent_files: list[Path] | None = None,
         all_files: list[Path] | None = None,
+        recoveries: list[RecoveryCopy] | None = None,
     ) -> None:
         super().__init__()
         self._recent = recent_files or []
         self._all_files = all_files or []
+        # Recovery copies no deck open will offer (unnamed, or file gone)
+        self._recoveries = recoveries or []
         self._mode = GreeterMode.MENU
         self._cursor = 0
         self._status = ""
@@ -116,6 +127,8 @@ class GreeterView(Static):
             return self._render_file_list(self._recent, "Recent Files")
         if self._mode == GreeterMode.IMPORT:
             return self._render_import()
+        if self._mode == GreeterMode.RECOVER:
+            return self._render_recoveries()
         return self._render_menu()
 
     # -- Render methods ------------------------------------------------
@@ -128,7 +141,10 @@ class GreeterView(Static):
         height = self.size.height or 40
         # The card-database note matters (no data, sync failing): it is
         # kept with the status line rather than shed with the tagline
-        status_lines = (1 if self._status else 0) + (1 if self._card_note else 0)
+        status_lines = (
+            (1 if self._status else 0) + (1 if self._card_note else 0)
+            + (1 if self._recoveries else 0)
+        )
         # Always shown: the actions (one per line plus a blank, or two
         # per line when that does not fit), any status, and the hint
         compact = height < len(ACTIONS) + 1 + status_lines + 1
@@ -187,6 +203,13 @@ class GreeterView(Static):
             t.append("\n")
         self._shown_recent = shown_recent
 
+        if self._recoveries:
+            n = len(self._recoveries)
+            t.append("  [R]", style=f"bold {COLORS['quantity']}")
+            t.append(
+                f" {n} unsaved buffer{'s' if n != 1 else ''} from an earlier session\n",
+                style=f"bold {COLORS['warning']}",
+            )
         if self._status:
             t.append(f"  {self._status}\n", style=f"bold {COLORS['mana_green']}")
 
@@ -292,6 +315,41 @@ class GreeterView(Static):
         )
         return t
 
+    def _render_recoveries(self) -> Text:
+        t = Text()
+        t.append("  Unsaved buffers\n", style=f"bold {COLORS['mana_blue']}")
+        t.append("  " + "-" * 40 + "\n\n", style=_DIM)
+        if not self._recoveries:
+            t.append("  Nothing left to recover\n\n", style=_DIM)
+            if self._status:
+                t.append(f"  {self._status}\n", style=f"bold {COLORS['warning']}")
+            t.append("  Press Escape to return\n", style=_DIM)
+            return t
+        for i, copy in enumerate(self._recoveries):
+            is_selected = i == self._cursor
+            line = Text()
+            line.append(
+                f"  {'>' if is_selected else ' '} ",
+                style=f"{COLORS['quantity']}" if is_selected else "",
+            )
+            line.append(copy.label, style="bold" if is_selected else "")
+            if copy.original is not None:
+                where = _where(copy.original)
+                line.append(f"  {where or '.'} (file no longer exists)", style="dim")
+            saved = datetime.fromtimestamp(copy.mtime).strftime("%Y-%m-%d %H:%M")
+            line.append(f"  {saved}", style="dim")
+            if is_selected:
+                line.stylize(_SELECTED_STYLE)
+            t.append_text(line)
+            t.append("\n")
+        t.append("\n")
+        if self._status:
+            t.append(f"  {self._status}\n", style=f"bold {COLORS['warning']}")
+        t.append(
+            "  j/k navigate  Enter open  d discard  Esc/q back\n", style=_DIM,
+        )
+        return t
+
     # -- Cursor navigation ---------------------------------------------
 
     def set_mode(self, mode: GreeterMode) -> None:
@@ -319,10 +377,12 @@ class GreeterView(Static):
             return self._all_files
         if self._mode == GreeterMode.RECENT:
             return self._recent
+        if self._mode == GreeterMode.RECOVER:
+            return [c.copy for c in self._recoveries]
         return []
 
     def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
-        if self._mode in (GreeterMode.FILES, GreeterMode.RECENT):
+        if self._mode in (GreeterMode.FILES, GreeterMode.RECENT, GreeterMode.RECOVER):
             event.stop()
             self.navigate(self._active_list(), 1)
             self.refresh()
@@ -332,7 +392,7 @@ class GreeterView(Static):
             self.refresh()
 
     def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
-        if self._mode in (GreeterMode.FILES, GreeterMode.RECENT):
+        if self._mode in (GreeterMode.FILES, GreeterMode.RECENT, GreeterMode.RECOVER):
             event.stop()
             self.navigate(self._active_list(), -1)
             self.refresh()
@@ -390,7 +450,10 @@ class GreeterScreen(Screen[None]):
         self._sync_running = False
 
     def compose(self) -> ComposeResult:
-        yield GreeterView(recent_files=self._recent, all_files=self._all_files)
+        yield GreeterView(
+            recent_files=self._recent, all_files=self._all_files,
+            recoveries=orphaned_recoveries(),
+        )
 
     def on_mount(self) -> None:
         status = getattr(self.app, "card_data_status", None)
@@ -426,6 +489,8 @@ class GreeterScreen(Screen[None]):
             self._handle_help_key(key, gv)
         elif gv._mode == GreeterMode.IMPORT:
             self._handle_import_key(key, gv)
+        elif gv._mode == GreeterMode.RECOVER:
+            self._handle_recover_key(key, gv)
         elif gv._mode in (GreeterMode.FILES, GreeterMode.RECENT):
             file_list = (
                 self._all_files
@@ -449,6 +514,10 @@ class GreeterScreen(Screen[None]):
             self._run_sync()
         elif key == "r":
             gv.set_mode(GreeterMode.RECENT)
+            gv.refresh()
+        elif key == "R" and gv._recoveries:
+            gv.set_mode(GreeterMode.RECOVER)
+            gv._status = ""
             gv.refresh()
         elif key == "q":
             self.app.exit()
@@ -545,6 +614,41 @@ class GreeterScreen(Screen[None]):
                 self._open_editor(file_path=selected)
         elif key == "n":
             self._open_editor(file_path=None)
+
+    def _handle_recover_key(self, key: str, gv: GreeterView) -> None:
+        """Unsaved-buffer list: Enter opens a copy (its deck's path when
+        it had one), d discards it for good."""
+        copies = gv._recoveries
+        step = gv.nav.feed(key, gv.list_viewport())
+        if step == PENDING:
+            return
+        if step is not None:
+            gv.navigate([c.copy for c in copies], step)
+        elif key in ("escape", "q"):
+            gv.set_mode(GreeterMode.MENU)
+            gv._status = ""
+        elif key in ("enter", "d") and 0 <= gv._cursor < len(copies):
+            chosen = copies[gv._cursor]
+            if key == "d":
+                discard_copy(chosen.copy)
+                gv._recoveries = [c for c in copies if c is not chosen]
+                gv.navigate([c.copy for c in gv._recoveries], 0)
+                gv._status = f"Discarded {chosen.label}"
+            else:
+                text = read_copy(chosen.copy)
+                if text is None:
+                    gv._status = f"E: Cannot read {chosen.copy.name}"
+                else:
+                    self._open_recovery(chosen, text)
+                    return
+        gv.refresh()
+
+    def _open_recovery(self, chosen: RecoveryCopy, text: str) -> None:
+        app = self.app
+        self.app.pop_screen()
+        open_deck = getattr(app, "open_deck", None)
+        if callable(open_deck):  # duck-typed: hosts expose open_deck
+            open_deck(chosen.original, initial_text=text, recovery=chosen)
 
     def _open_editor(
         self, file_path: Path | None, initial_text: str | None = None

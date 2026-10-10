@@ -10,6 +10,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# A terminal paste is one event, not keys: a recording stores it as a
+# single pseudo-key carrying the text, and replay pastes it again
+_PASTE_PREFIX = "\x00paste:"
+
+
+def paste_key(text: str) -> str:
+    """The pseudo-key that records a paste of `text` in a macro."""
+    return _PASTE_PREFIX + text
+
+
+def pasted_text(key: str) -> str | None:
+    """The text a paste pseudo-key carries; None for an ordinary key."""
+    return key[len(_PASTE_PREFIX):] if key.startswith(_PASTE_PREFIX) else None
+
 
 @dataclass(frozen=True)
 class Macro:

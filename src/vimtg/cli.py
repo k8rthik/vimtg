@@ -21,7 +21,7 @@ from vimtg.data.deck_repository import DeckRepository
 from vimtg.data.file_io import atomic_write_text
 from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync_error
 from vimtg.domain.errors import DatabaseNotInitializedError
-from vimtg.services.deck_service import DeckService
+from vimtg.services.deck_service import DeckService, editor_line_numbers
 from vimtg.services.search_service import SearchService, SearchSyntaxError
 
 if TYPE_CHECKING:
@@ -208,7 +208,7 @@ def validate(path: str, strict: bool) -> None:
     card_repo = _try_card_repo()
     service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
     file_path = Path(path)
-    _text, deck = service.open_deck(file_path)
+    text, deck = service.open_deck(file_path)
 
     fmt = deck.metadata.format or load_settings().default_format
     resolved = None
@@ -241,9 +241,19 @@ def validate(path: str, strict: bool) -> None:
         return
 
     has_errors = False
+    # The file's own line goes in the file:line: slot (what other
+    # editors and quickfix lists jump to); when the vimtg editor shows
+    # that line elsewhere (it scaffolds missing '// Tags:'-style lines
+    # on open), its line number follows the message
+    shown_at = editor_line_numbers(text)
     for err in errors:
         line_part = f"{err.line_number}:" if err.line_number is not None else ""
-        click.echo(f"{file_path.name}:{line_part} {err.level}: {err.message}")
+        note = ""
+        if err.line_number is not None:
+            editor_line = shown_at.get(err.line_number, err.line_number)
+            if editor_line != err.line_number:
+                note = f" (line {editor_line} in the vimtg editor)"
+        click.echo(f"{file_path.name}:{line_part} {err.level}: {err.message}{note}")
         if err.level == "error" or strict:
             has_errors = True
     # Informational only: never an error, and --strict ignores it.

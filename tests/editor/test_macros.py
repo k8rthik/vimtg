@@ -126,3 +126,12 @@ class TestMacroRecorder:
         rec = MacroRecorder()
         # @@ with no previous play should return None
         assert rec.play("@") is None
+
+
+def test_paste_pseudo_key_round_trips() -> None:
+    from vimtg.editor.macros import paste_key, pasted_text
+
+    key = paste_key("4 Lightning Bolt\n2 Shock\n")
+    assert pasted_text(key) == "4 Lightning Bolt\n2 Shock\n"
+    assert pasted_text("j") is None
+    assert pasted_text("p") is None
