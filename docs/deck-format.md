@@ -126,10 +126,13 @@ The same prefix convention covers the remaining zones:
 - `MB:` — maybeboard, a scratchpad outside the deck (never counted
   toward deck size or copy limits; legality issues are warnings).
 - `CMD:` — the command zone. Commander entries count toward the
-  format's exact 100 and the singleton rule; at most two (partners),
-  quantity 1 each.
+  format's exact deck size (100, or 60 for Standard Brawl and
+  Oathbreaker) and the singleton rule; at most two (partners),
+  quantity 1 each. In Oathbreaker the zone holds the planeswalker
+  Oathbreaker and its instant/sorcery Signature Spell.
 - `CMP:` — the companion slot. At most one, quantity 1, outside the
-  deck proper; the card must actually have the Companion ability.
+  deck proper; the card must actually have the Companion ability, and
+  in commander formats it must fit the commander's colour identity.
 
 In the editor, `zs`/`zm`/`zd`/`zc`/`zp` move the cursor card between
 zones.
