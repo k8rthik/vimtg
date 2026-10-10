@@ -350,3 +350,20 @@ class TestCardComments:
     def test_set_quantity_preserves_comment(self):
         buf = self._buf("4 Bolt  #burn  // wincon\n").set_quantity(0, 2)
         assert buf.get_line(0).text == "2 Bolt  #burn  // wincon"
+
+
+class TestInsertLineBounds:
+    """A cursor row trailing a shrunken buffer (e.g. after undo) must
+    not crash an insert: the row clamps to the buffer's ends."""
+
+    def test_past_the_end_appends(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n4 Shock\n")
+        out = buf.insert_line(10, "1 Mountain")
+        assert out.line_count() == 3
+        assert out.get_line(2).text == "1 Mountain"
+
+    def test_negative_prepends(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        out = buf.insert_line(-2, "")
+        assert out.get_line(0).text == ""
+        assert out.get_line(1).text == "4 Lightning Bolt"

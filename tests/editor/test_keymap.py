@@ -526,7 +526,7 @@ class TestVisualMode:
 class TestNoMatch:
     def test_unknown_key(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("Z")
+        result, action = km.feed("Y")
         assert result == KeyResult.NO_MATCH
         assert action is None
 

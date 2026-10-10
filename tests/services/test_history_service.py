@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from vimtg.editor.buffer import Buffer
 from vimtg.services.history_service import HistoryService
 
@@ -64,20 +66,31 @@ def test_redo_at_leaf_returns_none() -> None:
     assert svc.redo() is None
 
 
+def _undo_text(svc: HistoryService) -> str | None:
+    restored = svc.undo()
+    return restored.to_text() if restored is not None else None
+
+
+def _record_at(svc: HistoryService, t: float, text: str, description: str) -> None:
+    with patch("vimtg.services.history_service.time") as mock_time:
+        mock_time.monotonic.return_value = t
+        svc.record(_buf(text), description)
+
+
 def test_debounce_coalesces_same_description() -> None:
-    """Two records within 2s with same description should coalesce."""
+    """A quantity burst (two increments within 2s) coalesces."""
     svc = HistoryService()
     svc.initialize(_buf("v0\n"))
 
     # First record at t=100
     with patch("vimtg.services.history_service.time") as mock_time:
         mock_time.monotonic.return_value = 100.0
-        svc.record(_buf("v1\n"), "typing")
+        svc.record(_buf("v1\n"), "increment")
 
     # Second record at t=101 (within 2s, same description)
     with patch("vimtg.services.history_service.time") as mock_time:
         mock_time.monotonic.return_value = 101.0
-        svc.record(_buf("v1-updated\n"), "typing")
+        svc.record(_buf("v1-updated\n"), "increment")
 
     # Should have only 2 nodes: initial + one coalesced record
     assert svc.tree is not None
@@ -136,3 +149,48 @@ def test_undo_redo_on_uninitialized_returns_none() -> None:
     assert svc.redo() is None
 
 
+
+
+@pytest.mark.parametrize(
+    "description",
+    ["dd operation", "delete card", "put", "dot repeat", ":s/a/b/", "edit line"],
+)
+def test_non_quantity_edits_never_coalesce(description: str) -> None:
+    """Operators, x, put and dot-repeat are one change per u, however fast."""
+    svc = HistoryService()
+    svc.initialize(_buf("v0\n"))
+    _record_at(svc, 100.0, "v1\n", description)
+    _record_at(svc, 100.1, "v2\n", description)
+    assert _undo_text(svc) == "v1\n"
+    assert _undo_text(svc) == "v0\n"
+
+
+def test_no_coalesce_into_an_undone_state() -> None:
+    """dd u dd within 2s: the second dd must not overwrite the root."""
+    svc = HistoryService()
+    svc.initialize(_buf("v0\n"))
+    _record_at(svc, 100.0, "v1\n", "increment")
+    assert _undo_text(svc) == "v0\n"
+    _record_at(svc, 100.5, "v2\n", "increment")
+    assert _undo_text(svc) == "v0\n"
+    assert svc.tree is not None
+    root = [n for n in svc.tree.nodes.values() if n.parent_id is None]
+    assert root[0].deck_state == "v0\n"
+
+
+def test_no_coalesce_after_redo() -> None:
+    svc = HistoryService()
+    svc.initialize(_buf("v0\n"))
+    _record_at(svc, 100.0, "v1\n", "increment")
+    svc.undo()
+    svc.redo()
+    _record_at(svc, 100.5, "v2\n", "increment")
+    assert _undo_text(svc) == "v1\n"
+
+
+def test_quantity_burst_outside_window_is_separate() -> None:
+    svc = HistoryService()
+    svc.initialize(_buf("v0\n"))
+    _record_at(svc, 100.0, "v1\n", "increment")
+    _record_at(svc, 103.0, "v2\n", "increment")
+    assert _undo_text(svc) == "v1\n"

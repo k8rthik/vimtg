@@ -25,3 +25,16 @@ def cache_dir() -> Path:
 
 def db_path() -> Path:
     return data_dir() / "cards.db"
+
+
+def state_dir() -> Path:
+    base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    path = base / "vimtg"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def recovery_dir() -> Path:
+    path = state_dir() / "recovery"
+    path.mkdir(parents=True, exist_ok=True)
+    return path

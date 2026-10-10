@@ -50,3 +50,9 @@ class TestCursor:
         moved = c.move_to(row=3)
         assert moved.row == 3
         assert moved.col == 0
+
+
+def test_move_to_never_goes_negative() -> None:
+    from vimtg.editor.cursor import Cursor
+
+    assert Cursor().move_to(-3, -1) == Cursor(row=0, col=0)

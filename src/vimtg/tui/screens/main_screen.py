@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -82,6 +83,11 @@ from vimtg.services.deck_sources import (
 )
 from vimtg.services.edhrec import EdhrecClient, EdhrecError, EdhrecPage
 from vimtg.services.history_service import HistoryService
+from vimtg.services.recovery import (
+    discard_recovery,
+    pending_recovery,
+    write_recovery,
+)
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.theme import COLORS
@@ -163,6 +169,10 @@ class MainScreen(Screen[None]):
         db: Database | None = None,
     ) -> None:
         super().__init__()
+        # Normalize up front so a hand-written deck's section cleanup is
+        # part of the loaded state, not an edit: opening and :q must not
+        # report unsaved changes, and undo can never step "before" it
+        buffer = normalize_sections(buffer)
         self._state = EditorState(
             buffer=buffer,
             cursor=Cursor(),
@@ -175,6 +185,7 @@ class MainScreen(Screen[None]):
             card_repo=card_repo,
         )
         self._state.history.initialize(buffer)
+        self._state.clean_text = buffer.to_text()
         self.file_path = file_path
         self.registry = registry or CommandRegistry()
         self._state.cmd_completer = CommandCompleter(self.registry)
@@ -209,6 +220,9 @@ class MainScreen(Screen[None]):
         # Bumped per :import <url> so a stale fetch can't clobber a
         # newer one (results deliver via call_from_thread)
         self._import_generation = 0
+        # Nesting depth of _process_key (mappings and macros re-enter it);
+        # only the outermost call catches, so a crash stops the replay
+        self._key_depth = 0
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -238,6 +252,13 @@ class MainScreen(Screen[None]):
                 self._state.buffer, self.card_repo,
             )
         self._sync_widgets()
+        if self.file_path is not None and pending_recovery(
+            self.file_path, self._state.buffer.to_text()
+        ):
+            self.query_one("#command-line", CommandLine).set_message(
+                "Found unsaved changes from a crash: :recover to load them, "
+                ":recover! to discard"
+            )
 
     # ── Key dispatch ─────────────────────────────────────────────
 
@@ -277,7 +298,53 @@ class MainScreen(Screen[None]):
 
         Shared by live keypresses, macro replay, and mapping expansion
         (expanded keys pass resolve=False so mappings don't re-resolve).
+        An unexpected error in the outermost call is caught: the buffer
+        is saved for :recover and the editor keeps running.
         """
+        self._key_depth += 1
+        try:
+            if self._key_depth > 1:
+                self._handle_key(key, resolve)
+                return
+            try:
+                self._handle_key(key, resolve)
+            except Exception as exc:  # the crash safety net
+                self.recover_from_crash(exc)
+        finally:
+            self._key_depth -= 1
+
+    def save_recovery(self, exc: BaseException) -> Path | None:
+        """Write the buffer (and the traceback) to the recovery dir."""
+        log = "".join(traceback.format_exception(exc))
+        return write_recovery(self.file_path, self._state.buffer.to_text(), log)
+
+    def recover_from_crash(self, exc: Exception) -> None:
+        """Save the buffer, reset to a sane normal-mode state, and report
+        the error on the command line instead of taking the app down."""
+        saved = self.save_recovery(exc)
+        s = self._state
+        s.mode_mgr.force_normal()
+        self.keymap.set_mode(Mode.NORMAL)
+        self.keymap.reset_text()
+        s.visual_anchor = None
+        s.pending_insert = None
+        s.line_edit_original = None
+        s.line_edit_row = None
+        s.line_edit_prefix = ""
+        s.insert_submode = InsertSubmode.CARD_SEARCH
+        s.cursor = s.cursor.clamp(max(0, s.buffer.line_count() - 1))
+        where = f"; buffer saved to {saved}" if saved else ""
+        message = f"E: internal error ({type(exc).__name__}: {exc}){where}"
+        try:
+            self.query_one("#search-results", SearchResults).display = False
+            cl = self.query_one("#command-line", CommandLine)
+            cl.hide()
+            self._sync_widgets()
+            cl.set_message(message, error=True)
+        except Exception:  # never re-raise from the net
+            pass
+
+    def _handle_key(self, key: str, resolve: bool) -> None:
         # Split pane focused: navigation keys drive the pane; ':' and
         # 'S' sequences pass through; any other key refocuses the editor
         # and is handled normally. Applies during macro replay too, so
@@ -543,6 +610,8 @@ class MainScreen(Screen[None]):
                 self._vcs_service = None
             self.file_path = hr.file_path
         if hr.file_saved:
+            # The deck is safely on disk: its crash copy is obsolete
+            discard_recovery(self.file_path)
             # Only an actual save auto-snapshots — every ex command carries
             # file_path, and committing on each one would defeat the
             # uncommitted-changes guard on merge/rebase/switch.
@@ -1506,7 +1575,7 @@ class MainScreen(Screen[None]):
         new_row = follow_line(s.buffer, cleaned, s.cursor.row)
         s.buffer = cleaned
         s.cursor = s.cursor.move_to(new_row).clamp(cleaned.line_count() - 1)
-        s.modified = True
+        s.modified = s.modified or cleaned.to_text() != s.clean_text
         s.history.amend(cleaned)
 
     def _sync_analytics_pane(self) -> None:

@@ -17,6 +17,7 @@ COMMANDS
   :q            Quit (:q! force)
   :wq / :x      Save and quit
   :home         Return to greeter (:home! discards changes)
+  :recover      Load the crash-recovery copy (:recover! discards it)
   :sort [field] Sort by cmc/name/qty/type/color/tag/category/
                 power/toughness/rarity/price (default: sort_order)
   :s/old/new/g  Substitute across deck
@@ -81,6 +82,17 @@ COMMAND_HELP: dict[str, str] = {
     "w": ":w [file]  Save deck to file",
     "q": ":q        Quit (:q! force quit with unsaved changes)",
     "wq": ":wq      Save and quit",
+    "recover": (
+        ":recover  Load the crash-recovery copy of this deck\n"
+        "\n"
+        "If vimtg hits an internal error it saves the buffer to\n"
+        "~/.local/state/vimtg/recovery/<name>.deck and keeps running.\n"
+        "Opening that deck again offers the copy.\n"
+        "\n"
+        ":recover   replace the buffer with the copy (undoable, unsaved)\n"
+        ":recover!  delete the copy\n"
+        "The copy is removed by the next successful :w"
+    ),
     "sort": (
         ":sort [field]  Sort cards in current section\n"
         "\n"

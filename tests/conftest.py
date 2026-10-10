@@ -20,7 +20,7 @@ def isolate_xdg_dirs(
     prevents tests from clobbering real user data.
     """
     base = tmp_path_factory.mktemp("xdg")
-    for var in ("XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
+    for var in ("XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"):
         monkeypatch.setenv(var, str(base / var.lower()))
     # Keep app tests off the network: VimTGApp auto-syncs card data on
     # mount unless this guard is set.

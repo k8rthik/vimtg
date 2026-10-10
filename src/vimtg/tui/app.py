@@ -7,6 +7,7 @@ Creates services, loads a deck file, and pushes the appropriate screen:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 from pathlib import Path
@@ -86,6 +87,22 @@ class VimTGApp(App[None]):
         # Long-lived sessions re-check staleness periodically; the
         # worker group is exclusive so checks can never overlap.
         self.set_interval(AUTO_SYNC_CHECK_SECONDS, self._maybe_auto_sync)
+
+    def _handle_exception(self, error: Exception) -> None:
+        """Last-resort net for errors outside the editor's key path.
+
+        Textual exits on an unhandled exception; before it does, every
+        open editor's buffer is written to the recovery dir so the next
+        open of that deck can offer :recover.
+        """
+        from vimtg.tui.screens.main_screen import MainScreen
+
+        for screen in self.screen_stack:
+            if isinstance(screen, MainScreen):
+                # never mask the original error
+                with contextlib.suppress(Exception):
+                    screen.save_recovery(error)
+        super()._handle_exception(error)
 
     def on_unmount(self) -> None:
         """Release the database connection when the app shuts down."""
@@ -232,6 +249,7 @@ class VimTGApp(App[None]):
         )
         if initial_text is not None:
             screen._state.modified = True
+            screen._state.clean_text = None  # never saved: undo stays dirty
         self.push_screen(screen)
 
     def _find_recent_decks(self) -> list[Path]:
