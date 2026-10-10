@@ -1,4 +1,4 @@
-"""Search commands: :find — TUI-agnostic, zero Textual imports.
+"""Search commands: :find, :search — TUI-agnostic, zero Textual imports.
 
 Jump to the next card line matching a regex pattern in the buffer.
 `n` / `N` repeat the last pattern through find_card_row.
@@ -58,6 +58,19 @@ def cmd_find(
     return buffer, cursor
 
 
+def cmd_search(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:search [query] — Open the card search overlay (as `o` does),
+    pre-filled with `query`."""
+    ctx.search_open = (cmd.args or "").strip()
+    return buffer, cursor
+
+
 def register_search_commands(registry: CommandRegistry) -> None:
-    """Register :find and :f commands."""
+    """Register :find/:f and :search."""
     registry.register("find", cmd_find, aliases=["f"])
+    registry.register("search", cmd_search)

@@ -240,7 +240,10 @@ def _render_card_line(
     if plan_sign is None:
         t.append(f"{qty or '?':<4}", style=COLORS["quantity"])
     name_str = card_name or bl.text.strip()
-    t.append(f"{name_str:<26}", style="bold" if is_cursor else "")
+    if card:
+        # The mana cost follows: keep the column and a gap before it
+        name_str = fit_name(name_str, _NAME_WIDTH)
+    t.append(f"{name_str:<{_NAME_WIDTH}}", style="bold" if is_cursor else "")
 
     if card:
         t.append(format_mana(card.mana_cost))
@@ -331,6 +334,18 @@ def _render_expansion(
     lines.append(Text(f"{prefix}{'  '.join(meta_parts)}", style=_EXPANSION_STYLE))
 
     return lines
+
+
+_NAME_WIDTH = 26
+
+
+def fit_name(name: str, width: int) -> str:
+    """`name` cut to fit a `width`-wide column with at least one space
+    left after it: a name that would touch the next column ends in an
+    ellipsis ("Eidolon of the Great Rev…")."""
+    if len(name) < width:
+        return name
+    return name[: width - 2] + "\u2026"
 
 
 def format_mana(mana_cost: str) -> Text:

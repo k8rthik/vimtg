@@ -58,7 +58,7 @@ addresses (`:'a,'bd`), and `+N`/`-N` address offsets.
 | Command | Description |
 |---------|-------------|
 | `:find pattern` | Jump to the next card matching `pattern` (also `/`; `?` searches backward; `n` / `N` repeat in the same / opposite direction) |
-| `:search query` | Open the card database search overlay ([syntax](search.md)) |
+| `:search [query]` | Open the card database search overlay, like `o`, with `query` typed in ([syntax](search.md)); an empty search says "No matches" |
 
 ## Categories & layout
 
@@ -236,7 +236,7 @@ adjust a line's count, and `dd` removes it.
 | Command | Description |
 |---------|-------------|
 | `:config` | Open the settings screen |
-| `:set key=value` | Set an editor option for this session |
+| `:set key=value` | Set an editor option and save it to `config.toml` (edited in place, comments kept); bare `:set` lists all |
 
 Card data auto-syncs in the background when the local database is
 missing or older than a week (`:set noautosync` turns this off; the

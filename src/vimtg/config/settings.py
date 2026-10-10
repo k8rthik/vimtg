@@ -90,14 +90,17 @@ def load_settings_checked() -> tuple[Settings, str | None]:
         return Settings(), f"{config_path}: [editor] is not a table; using default settings"
 
     defaults = Settings()
+    problems: list[str] = []
 
     def _get(key: str, expected: type) -> object:
-        value = editor.get(key, getattr(defaults, key))
-        if expected is bool:
-            return value if isinstance(value, bool) else getattr(defaults, key)
-        if isinstance(value, expected) and not isinstance(value, bool):
+        default = getattr(defaults, key)
+        if key not in editor:
+            return default
+        value = editor[key]
+        if isinstance(value, expected) and (expected is bool or not isinstance(value, bool)):
             return value
-        return getattr(defaults, key)
+        problems.append(f"{key} must be {_TYPE_NAMES[expected]}")
+        return default
 
     settings = Settings(
         theme=_get("theme", str),  # type: ignore[arg-type]
@@ -125,6 +128,45 @@ def load_settings_checked() -> tuple[Settings, str | None]:
         replacements["default_format"] = defaults.default_format
     if settings.sort_order not in VALID_SORT_ORDERS:
         replacements["sort_order"] = defaults.sort_order
+    for key in replacements:
+        problems.append(f"{key} = {getattr(settings, key)!r} is not valid")
     if replacements:
         settings = replace(settings, **replacements)  # type: ignore[arg-type]
+
+    problems.extend(keybinding_problems(data.get("keybindings")))
+    if problems:
+        return settings, (
+            f"{config_path}: " + "; ".join(problems) + " (using defaults for these)"
+        )
     return settings, None
+
+
+_TYPE_NAMES: dict[type, str] = {bool: "true or false", int: "a number", str: "a string"}
+
+# Mode tables allowed under [keybindings] (see editor.keymaps)
+KEYBINDING_MODES = ("normal", "insert", "visual", "command")
+
+
+def keybinding_problems(bindings: object) -> list[str]:
+    """What is wrong with a [keybindings] table, entry by entry.
+
+    The remapper skips exactly these entries; reporting them here lets
+    startup say so instead of silently dropping a mapping.
+    """
+    if bindings is None:
+        return []
+    if not isinstance(bindings, dict):
+        return ["[keybindings] must be a table"]
+    problems: list[str] = []
+    for key, value in bindings.items():
+        if key in KEYBINDING_MODES:
+            if not isinstance(value, dict):
+                problems.append(f"[keybindings.{key}] must be a table")
+                continue
+            problems.extend(
+                f"keybindings.{key}.{k} must be a string"
+                for k, v in value.items() if not isinstance(v, str)
+            )
+        elif not isinstance(value, str):
+            problems.append(f"keybindings.{key} must be a string")
+    return problems
