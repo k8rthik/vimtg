@@ -114,7 +114,12 @@ So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
 |---------|-------------|
 | `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `moxfield`, `archidekt`, or `vimtg` |
 | `:import file` | Replace the buffer with `file`, auto-detecting format |
-| `:clipboard [fmt]` | Copy the deck to the system clipboard (default arena) via OSC52 |
+| `:import` | Same, with the decklist (or deck URL) on the system clipboard |
+| `:clipboard [fmt]` | Copy the deck to the system clipboard (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
+
+Pasting (your terminal's paste key) in normal mode adds the pasted
+decklist to the deck as one undo step; in card search or on the `:`
+line it inserts the text.
 
 ## Version control
 
@@ -218,6 +223,11 @@ adjust a line's count, and `dd` removes it.
 Card data auto-syncs in the background when the local database is
 missing or older than a week (`:set noautosync` turns this off; the
 `vimtg sync` CLI command always works manually).
+
+| Command | Description |
+|---------|-------------|
+| `:sync` | Download card data in the background; progress in the status line |
+| `:sync!` | Same, re-downloading even when the cached bulk file is fresh |
 
 ## Help
 

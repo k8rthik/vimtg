@@ -17,7 +17,7 @@ from vimtg.editor.commands import (
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
-from vimtg.services.clipboard import copy_to_clipboard
+from vimtg.services.clipboard import read_clipboard
 from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
 _FORMAT_MAP: dict[str, DeckFormat] = {
@@ -80,18 +80,30 @@ def cmd_import(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:import <file|url> — Import a deck from a file or deck-site URL.
+    """:import [file|url] — Import a deck from a file, a deck-site URL,
+    or (with no argument) the system clipboard.
 
-    Files parse synchronously (format auto-detected). A Moxfield,
-    Archidekt, or ManaBox URL is fetched asynchronously by the TUI —
-    the handler only records the request.
+    Files and clipboard text parse synchronously (format auto-detected).
+    A Moxfield, Archidekt, or ManaBox URL — typed or on the clipboard —
+    is fetched asynchronously by the TUI; the handler only records the
+    request.
     """
+    from vimtg.services.deck_sources import is_deck_url
+
     file_arg = cmd.args.strip()
     if not file_arg:
-        ctx.fail("Usage: :import <file|deck-url>")
-        return buffer, cursor
-
-    from vimtg.services.deck_sources import is_deck_url
+        clip = read_clipboard()
+        if clip is None or not clip.strip():
+            ctx.fail(
+                "Clipboard is empty or unreadable — paste the decklist into "
+                "the editor (normal mode), or :import <file|deck-url>"
+            )
+            return buffer, cursor
+        if is_deck_url(clip.strip()):
+            ctx.import_url = clip.strip()
+            return buffer, cursor
+        # Unlike a file, stray clipboard text must never wipe the deck
+        return _import_text(clip, "clipboard", buffer, cursor, ctx, require_cards=True)
 
     if is_deck_url(file_arg):
         ctx.import_url = file_arg
@@ -107,14 +119,29 @@ def cmd_import(
     except OSError as exc:
         ctx.fail(f"Read failed: {exc}")
         return buffer, cursor
+    return _import_text(text, in_path.name, buffer, cursor, ctx)
 
+
+def _import_text(
+    text: str,
+    source: str,
+    buffer: Buffer,
+    cursor: Cursor,
+    ctx: EditorContext,
+    *,
+    require_cards: bool = False,
+) -> tuple[Buffer, Cursor]:
+    """Replace the buffer with the deck parsed from `text`."""
     service = ImportExportService(card_repo=ctx.card_repo)
     report = service.import_deck_report(text)
     deck = report.deck
+    if require_cards and not deck.entries:
+        ctx.fail(f"No cards found in {source}")
+        return buffer, cursor
     vimtg_text = service.export_deck(deck, DeckFormat.VIMTG)
     new_buffer = Buffer.from_text(vimtg_text)
     ctx.modified = True
-    ctx.message = f"Imported {deck.total_cards()} cards from {in_path.name}"
+    ctx.message = f"Imported {deck.total_cards()} cards from {source}"
     if report.skipped:
         first = report.skipped[0]
         ctx.message += (
@@ -143,7 +170,11 @@ def cmd_clipboard(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:clipboard [format] — Copy deck to system clipboard via OSC52."""
+    """:clipboard [format] — Copy the deck to the system clipboard.
+
+    The copy itself is the TUI's job (it owns the terminal, and OSC 52
+    has to go through it): the handler only renders the text.
+    """
     fmt_name = (cmd.args.strip() or "arena").lower()
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
@@ -158,10 +189,8 @@ def cmd_clipboard(
     service = ImportExportService(card_repo=ctx.card_repo)
     text = service.export_deck(deck, fmt, resolved=resolved)
 
-    if copy_to_clipboard(text):
-        ctx.message = f"Copied {fmt_name} to clipboard ({len(text.splitlines())} lines)"
-    else:
-        ctx.fail("Clipboard write failed")
+    ctx.clipboard_text = text
+    ctx.clipboard_label = f"{fmt_name} ({len(text.splitlines())} lines)"
     return buffer, cursor
 
 

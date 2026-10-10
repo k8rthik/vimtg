@@ -20,6 +20,7 @@ from vimtg.editor.command_handlers.search_cmds import register_search_commands
 from vimtg.editor.command_handlers.sort import register_sort_commands
 from vimtg.editor.command_handlers.split_cmds import register_split_commands
 from vimtg.editor.command_handlers.substitute import register_substitute_commands
+from vimtg.editor.command_handlers.sync_cmds import register_sync_commands
 from vimtg.editor.command_handlers.tag_cmds import register_tag_commands
 from vimtg.editor.commands import CommandRegistry
 
@@ -39,6 +40,7 @@ _REGISTRARS = (
     register_split_commands,
     register_plan_commands,
     register_hand_commands,
+    register_sync_commands,
 )
 
 

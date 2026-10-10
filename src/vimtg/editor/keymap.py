@@ -158,6 +158,20 @@ class KeyMap:
         """Pre-fill the accumulated insert text (used by line-edit mode)."""
         self._insert_buf = LineBuffer.from_text(text)
 
+    def paste(self, text: str) -> ParsedAction | None:
+        """Insert pasted `text` at the cursor of the insert or command
+        line in one step; the action is what typing it would end with.
+        None outside the text-entry modes."""
+        if self._mode == Mode.INSERT:
+            self._insert_buf = self._insert_buf.insert(text)
+            buf = self._insert_buf
+        elif self._mode in (Mode.COMMAND, Mode.SEARCH):
+            self._command_buf = self._command_buf.insert(text)
+            buf = self._command_buf
+        else:
+            return None
+        return ParsedAction("special", "char", text=buf.text, cursor_pos=buf.cursor)
+
     def feed(self, key: str) -> tuple[KeyResult, ParsedAction | None]:
         if self._mode == Mode.INSERT:
             return self._feed_insert(key)
