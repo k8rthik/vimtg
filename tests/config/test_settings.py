@@ -138,3 +138,39 @@ class TestMalformedConfig:
         settings = load_settings()
         assert settings.price_source == "usd"
         assert settings.search_limit == Settings().search_limit
+
+
+class TestLoadSettingsChecked:
+    """An unparseable config falls back to defaults, but visibly."""
+
+    def test_no_config_no_warning(self) -> None:
+        from vimtg.config.settings import load_settings_checked
+
+        assert load_settings_checked() == (Settings(), None)
+
+    def test_corrupt_toml_reports_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vimtg.config.settings import load_settings_checked
+
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        cfg = tmp_path / "vimtg"
+        cfg.mkdir()
+        (cfg / "config.toml").write_text("[editor\nbroken = ", encoding="utf-8")
+        settings, warning = load_settings_checked()
+        assert settings == Settings()
+        assert warning is not None
+        assert "not valid TOML" in warning
+
+    def test_valid_config_no_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vimtg.config.settings import load_settings_checked
+
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        cfg = tmp_path / "vimtg"
+        cfg.mkdir()
+        (cfg / "config.toml").write_text('[editor]\nprice_source = "eur"\n', encoding="utf-8")
+        settings, warning = load_settings_checked()
+        assert settings.price_source == "eur"
+        assert warning is None

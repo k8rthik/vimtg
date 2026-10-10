@@ -18,6 +18,7 @@ from vimtg.editor.cursor import Cursor
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
+    from vimtg.data.file_io import FileStamp
     from vimtg.domain.card import Card
     from vimtg.services.history_service import HistoryService
 
@@ -156,6 +157,9 @@ class EditorContext:
 
     file_path: Path | None = None
     file_saved: bool = False  # set by :w — gates auto-snapshot
+    # file_path's (mtime, size) when last read or written; None = unknown
+    # (no change check). :w refuses without ! when the disk differs.
+    disk_stamp: FileStamp | None = None
     modified: bool = False
     quit_requested: bool = False
     greeter_requested: bool = False

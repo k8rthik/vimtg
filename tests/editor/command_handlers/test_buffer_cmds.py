@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from vimtg.data.file_io import ABSENT, file_stamp
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.buffer_cmds import (
     cmd_home,
@@ -197,3 +200,107 @@ class TestCmdHome:
         ctx = EditorContext(modified=True)
         cmd_home(buf, Cursor(), _make_cmd("home", bang=True), ctx)
         assert ctx.greeter_requested is True
+
+
+class TestWriteSafety:
+    """:w must not silently clobber other files or outside changes."""
+
+    @staticmethod
+    def _real_save(p: Path, t: str) -> None:
+        p.write_text(t, encoding="utf-8")
+
+    def test_write_other_existing_file_is_e13(self, tmp_path: Path) -> None:
+        other = tmp_path / "other.deck"
+        other.write_text("precious\n", encoding="utf-8")
+        ctx = EditorContext(
+            file_path=tmp_path / "mine.deck", modified=True, save_fn=self._real_save,
+        )
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", args=str(other)), ctx)
+        assert ctx.error is True
+        assert "E13" in ctx.message
+        assert other.read_text(encoding="utf-8") == "precious\n"
+        assert ctx.file_path == tmp_path / "mine.deck"
+        assert ctx.modified is True
+
+    def test_bang_overwrites_other_file(self, tmp_path: Path) -> None:
+        other = tmp_path / "other.deck"
+        other.write_text("precious\n", encoding="utf-8")
+        ctx = EditorContext(save_fn=self._real_save)
+        cmd_write(
+            _sample_buffer(), Cursor(), _make_cmd("w", args=str(other), bang=True), ctx,
+        )
+        assert ctx.error is False
+        assert other.read_text(encoding="utf-8") == _sample_buffer().to_text()
+        # :w name works like vim's :saveas — the buffer is now bound to it
+        assert ctx.file_path == other
+
+    def test_write_own_name_explicitly_is_not_e13(self, tmp_path: Path) -> None:
+        mine = tmp_path / "mine.deck"
+        mine.write_text("old\n", encoding="utf-8")
+        ctx = EditorContext(file_path=mine, save_fn=self._real_save)
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", args=str(mine)), ctx)
+        assert ctx.error is False
+
+    def test_tilde_expanded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        saved: list[Path] = []
+        ctx = EditorContext(save_fn=lambda p, t: saved.append(p))
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", args="~/burn"), ctx)
+        assert saved == [tmp_path / "burn.deck"]
+
+    def test_changed_on_disk_refused(self, tmp_path: Path) -> None:
+        mine = tmp_path / "mine.deck"
+        mine.write_text("as read\n", encoding="utf-8")
+        stamp = file_stamp(mine)
+        mine.write_text("someone else's edit\n", encoding="utf-8")
+        ctx = EditorContext(
+            file_path=mine, modified=True, save_fn=self._real_save, disk_stamp=stamp,
+        )
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w"), ctx)
+        assert ctx.error is True
+        assert "changed on disk" in ctx.message
+        assert mine.read_text(encoding="utf-8") == "someone else's edit\n"
+
+        forced = EditorContext(file_path=mine, save_fn=self._real_save, disk_stamp=stamp)
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", bang=True), forced)
+        assert forced.error is False
+        assert mine.read_text(encoding="utf-8") == _sample_buffer().to_text()
+
+    def test_unchanged_file_saves_and_restamps(self, tmp_path: Path) -> None:
+        mine = tmp_path / "mine.deck"
+        mine.write_text("as read\n", encoding="utf-8")
+        ctx = EditorContext(
+            file_path=mine, save_fn=self._real_save, disk_stamp=file_stamp(mine),
+        )
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w"), ctx)
+        assert ctx.error is False
+        assert ctx.disk_stamp == file_stamp(mine)
+        # A second :w right after is not a "change on disk"
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w"), ctx)
+        assert ctx.error is False
+
+    def test_new_file_that_appeared_before_first_write(self, tmp_path: Path) -> None:
+        mine = tmp_path / "new.deck"
+        ctx = EditorContext(file_path=mine, save_fn=self._real_save, disk_stamp=ABSENT)
+        mine.write_text("created elsewhere\n", encoding="utf-8")
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w"), ctx)
+        assert ctx.error is True
+        assert mine.read_text(encoding="utf-8") == "created elsewhere\n"
+
+    def test_new_file_first_write(self, tmp_path: Path) -> None:
+        mine = tmp_path / "new.deck"
+        ctx = EditorContext(file_path=mine, save_fn=self._real_save, disk_stamp=ABSENT)
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w"), ctx)
+        assert ctx.error is False
+        assert mine.exists()
+
+    def test_wq_does_not_quit_on_conflict(self, tmp_path: Path) -> None:
+        other = tmp_path / "other.deck"
+        other.write_text("x\n", encoding="utf-8")
+        ctx = EditorContext(save_fn=self._real_save)
+        cmd_write_quit(_sample_buffer(), Cursor(), _make_cmd("wq", args=str(other)), ctx)
+        assert ctx.error is True
+        assert ctx.quit_requested is False

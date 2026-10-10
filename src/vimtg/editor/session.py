@@ -83,6 +83,7 @@ from vimtg.services.history_service import HistoryService
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
+    from vimtg.data.file_io import FileStamp
 
 
 class InsertSubmode(Enum):
@@ -151,6 +152,9 @@ class EditorState:
     # Text of the buffer as last loaded or written; None when unknown.
     # Undo/redo compare against it so returning to it is unmodified.
     clean_text: str | None = None
+    # (mtime, size) of the deck file as last read or written — :w uses
+    # it to refuse clobbering outside changes. None disables the check.
+    disk_stamp: FileStamp | None = None
 
 
 @dataclass(frozen=True)
@@ -360,6 +364,7 @@ def handle_command(
             card_repo=state.card_repo,
             remapper=state.remapper,
             active_plan=state.active_plan,
+            disk_stamp=state.disk_stamp,
         )
         before = state.buffer
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
@@ -372,6 +377,7 @@ def handle_command(
         state.modified = ctx.modified
         if ctx.file_saved:
             state.clean_text = state.buffer.to_text()
+        state.disk_stamp = ctx.disk_stamp
         plan_changed = False
         if ctx.active_plan_set:
             state.active_plan = ctx.active_plan

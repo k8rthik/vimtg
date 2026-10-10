@@ -8,7 +8,8 @@ current line, `'a,'b` for marks).
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]` | Save deck. Without an argument, writes back to the loaded file |
+| `:w [file]` | Save deck. Without an argument, writes back to the loaded file. `:w file` writes to `file` (`~` expands, `.deck` is appended when missing) and makes it the deck's file from then on, like vim's `:saveas`. Refuses to overwrite another existing file (E13) or a file that changed on disk since it was read |
+| `:w! [file]` | Save even over an existing file or outside changes |
 | `:q` | Quit. Errors if there are unsaved changes (E37) |
 | `:q!` | Quit, discarding changes |
 | `:wq` | Save and quit |

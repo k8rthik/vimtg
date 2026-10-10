@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import errno
+import sqlite3
 import sys
 from pathlib import Path
+from typing import Any
 
 import click
 import httpx
@@ -14,7 +17,7 @@ from vimtg.config.paths import cache_dir, db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
-from vimtg.data.scryfall_sync import ScryfallSync
+from vimtg.data.scryfall_sync import ScryfallSync, describe_sync_error
 from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService
 from vimtg.services.search_service import SearchService
@@ -26,8 +29,39 @@ def _make_service() -> DeckService:
 
 def _make_card_repo() -> CardRepository:
     db = Database(db_path())
-    db.initialize()
+    try:
+        db.initialize()
+    except sqlite3.Error:
+        db.close()  # a corrupt file fails mid-connect; don't leak the handle
+        raise
     return CardRepository(db)
+
+
+def _friendly_error(exc: OSError | UnicodeDecodeError | sqlite3.Error) -> str:
+    """A one-line message plus a hint for an ordinary environment error."""
+    if isinstance(exc, UnicodeDecodeError):
+        return (
+            f"cannot read file: it is not UTF-8 text ({exc.reason}).\n"
+            "Hint: re-save the deck as UTF-8, or check you passed the right file."
+        )
+    if isinstance(exc, sqlite3.Error):
+        return (
+            f"card database error: {exc}\n"
+            f"Hint: the database at {db_path()} may be corrupt — delete it "
+            "and run `vimtg sync`."
+        )
+    target = exc.filename if exc.filename is not None else ""
+    reason = exc.strerror or str(exc)
+    hint = {
+        errno.ENOENT: "check the path exists (and its parent directory, for output files).",
+        errno.EISDIR: "pass a deck file, not a directory.",
+        errno.ENOTDIR: "a component of the path is not a directory.",
+        errno.EACCES: "check the file and directory permissions.",
+        errno.EPERM: "check the file and directory permissions.",
+        errno.ENOSPC: "free some disk space and retry.",
+    }.get(exc.errno or 0)
+    msg = f"{target}: {reason}" if target else reason
+    return msg + (f"\nHint: {hint}" if hint else "")
 
 
 class _DeckFileGroup(click.Group):
@@ -50,6 +84,22 @@ class _DeckFileGroup(click.Group):
                 assert cmd is not None
                 return "edit", cmd, args
             raise
+
+    def invoke(self, ctx: click.Context) -> Any:
+        """Turn ordinary environment errors into a clean CLI error.
+
+        A bad path, a non-UTF-8 file or a corrupt database is user
+        input, not a bug — print one line and a hint, exit non-zero,
+        instead of a traceback.
+        """
+        try:
+            return super().invoke(ctx)
+        except OSError as exc:
+            if exc.errno == errno.EPIPE:  # click handles broken pipes itself
+                raise
+            raise click.ClickException(_friendly_error(exc)) from exc
+        except (UnicodeDecodeError, sqlite3.Error) as exc:
+            raise click.ClickException(_friendly_error(exc)) from exc
 
 
 @click.group(cls=_DeckFileGroup, invoke_without_command=True)
@@ -81,15 +131,46 @@ def _complete_format(
     shell_complete=_complete_format,
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
-def new(name: str, fmt: str, output: str | None) -> None:
-    """Create a new deck file."""
+@click.option("--force", is_flag=True, help="Overwrite an existing file")
+def new(name: str, fmt: str, output: str | None, force: bool) -> None:
+    """Create a new deck file (NAME.deck unless -o is given).
+
+    Refuses to overwrite an existing file unless --force is given.
+    """
+    name = name.strip()
+    if name.lower().endswith(".deck"):
+        name = name[: -len(".deck")].rstrip()
+    if output:
+        out_path = Path(output).expanduser()
+    else:
+        _check_deck_filename(name)
+        out_path = Path.cwd() / f"{name}.deck"
+
+    if out_path.exists() and not force:
+        raise click.ClickException(
+            f"{out_path} already exists (use --force to overwrite)"
+        )
+
     service = _make_service()
     text = service.new_deck(name=name, fmt=fmt)
-
-    out_path = Path(output) if output else Path.cwd() / f"{name}.deck"
-
     service.save_deck(text, out_path)
     click.echo(f"Created {out_path}")
+
+
+def _check_deck_filename(name: str) -> None:
+    """Reject names that cannot become a plain NAME.deck in the cwd."""
+    if not name:
+        raise click.BadParameter("deck name must not be empty", param_hint="NAME")
+    if any(sep in name for sep in ("/", "\\", "\0")):
+        raise click.BadParameter(
+            f"{name!r} contains a path separator; use -o PATH to choose "
+            "where the file goes",
+            param_hint="NAME",
+        )
+    if name.startswith("."):
+        raise click.BadParameter(
+            f"{name!r} would create a hidden file", param_hint="NAME",
+        )
 
 
 def _try_card_repo() -> CardRepository | None:
@@ -205,8 +286,16 @@ def guide(path: str, markdown: bool) -> None:
 @click.option("--force", is_flag=True, help="Force re-download")
 def sync_cmd(force: bool) -> None:
     """Download card data from Scryfall."""
-    repo = _make_card_repo()
-    syncer = ScryfallSync(card_repo=repo, cache_dir=cache_dir())
+    db = Database(db_path())
+    try:
+        _sync(db, force)
+    finally:
+        db.close()
+
+
+def _sync(db: Database, force: bool) -> None:
+    db.initialize()
+    syncer = ScryfallSync(card_repo=CardRepository(db), cache_dir=cache_dir())
 
     def _progress(phase: str, current: int, total: int) -> None:
         if phase == "download" and total > 0:
@@ -217,10 +306,11 @@ def sync_cmd(force: bool) -> None:
 
     try:
         count = syncer.sync(force=force, progress=_progress)
-    except httpx.HTTPError as exc:
-        raise click.ClickException(f"Network error during sync: {exc}") from exc
-    except RuntimeError as exc:
-        raise click.ClickException(str(exc)) from exc
+    except (httpx.HTTPError, RuntimeError) as exc:
+        click.echo()  # end the in-place progress line
+        raise click.ClickException(
+            f"Sync failed: {describe_sync_error(exc)}"
+        ) from exc
     click.echo(f"\nSynced {count} cards")
     if syncer.last_skipped:
         click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse")

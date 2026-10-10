@@ -9,6 +9,7 @@ decides how it is parsed.
 
 import gzip
 import json
+import os
 import time
 from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
@@ -23,6 +24,16 @@ from vimtg.domain.card import Card
 
 BULK_DATA_URL = "https://api.scryfall.com/bulk-data"
 USER_AGENT = f"vimtg/{__version__}"
+# Scryfall's API guidelines ask every client to send both headers
+HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "application/json;q=0.9,*/*;q=0.8",
+}
+# 429 / 503 handling: honor Retry-After, but never stall a sync for long
+MAX_ATTEMPTS = 3
+DEFAULT_RETRY_AFTER = 2.0
+MAX_RETRY_AFTER = 60.0
+_RETRY_STATUSES = frozenset({429, 503})
 MAX_AGE_DAYS = 7
 CHUNK_SIZE = 65536
 SKIP_LAYOUTS = frozenset({"token", "double_faced_token", "emblem", "art_series"})
@@ -34,6 +45,35 @@ CACHE_FILENAMES = ("oracle_cards.jsonl.gz", "oracle_cards.jsonl", "oracle_cards.
 
 ProgressFn = Callable[[int, int], None]
 SyncProgressFn = Callable[[str, int, int], None]
+
+_sleep = time.sleep  # patched by tests
+
+
+def _retry_delay(resp: httpx.Response) -> float:
+    """Seconds to wait before retrying, from Retry-After when it is usable."""
+    raw = resp.headers.get("retry-after", "")
+    try:
+        delay = float(raw)
+    except ValueError:
+        delay = DEFAULT_RETRY_AFTER  # absent, or an HTTP-date
+    return min(max(delay, 0.0), MAX_RETRY_AFTER)
+
+
+def describe_sync_error(exc: BaseException) -> str:
+    """A user-facing explanation of a failed sync, with how to retry."""
+    retry = "run `vimtg sync` to retry"
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        if status == 429:
+            return f"Scryfall is rate-limiting requests — wait a minute, then {retry}"
+        if status >= 500:
+            return f"Scryfall is unavailable (HTTP {status}) — {retry} later"
+        return f"Scryfall returned HTTP {status} — {retry}"
+    if isinstance(exc, httpx.TimeoutException):
+        return f"Timed out talking to Scryfall — check your connection and {retry}"
+    if isinstance(exc, httpx.HTTPError):
+        return f"Could not reach Scryfall ({exc}) — check your connection and {retry}"
+    return f"{exc} — {retry}"
 
 
 def sync_is_due(
@@ -67,11 +107,11 @@ class ScryfallSync:
         Prefers the legacy plain-JSON ``download_uri`` when present and
         falls back to ``jsonl_download_uri`` (the current feed shape).
         """
-        resp = httpx.get(
-            BULK_DATA_URL,
-            headers={"User-Agent": USER_AGENT},
-            timeout=30,
-        )
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            resp = httpx.get(BULK_DATA_URL, headers=HEADERS, timeout=30)
+            if resp.status_code not in _RETRY_STATUSES or attempt == MAX_ATTEMPTS:
+                break
+            _sleep(_retry_delay(resp))
         resp.raise_for_status()
         data = resp.json()
         for item in data.get("data", []):
@@ -99,31 +139,48 @@ class ScryfallSync:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_suffix(".tmp")
         try:
-            with httpx.stream(
-                "GET",
-                url,
-                headers={"User-Agent": USER_AGENT},
-                timeout=300,
-                follow_redirects=True,
-            ) as resp:
-                resp.raise_for_status()
-                total = int(resp.headers.get("content-length", 0))
-                downloaded = 0
-                with open(tmp, "wb") as f:
-                    for chunk in resp.iter_bytes(chunk_size=CHUNK_SIZE):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        if progress:
-                            progress(downloaded, total)
-            if total and downloaded != total:
-                raise RuntimeError(
-                    f"Truncated download: got {downloaded} of {total} bytes"
-                )
+            for attempt in range(1, MAX_ATTEMPTS + 1):
+                if self._download_once(url, tmp, progress, attempt == MAX_ATTEMPTS):
+                    break
         except BaseException:
             tmp.unlink(missing_ok=True)
             raise
-        tmp.rename(dest)
+        # os.replace, not rename: rename refuses an existing dest on Windows
+        os.replace(tmp, dest)
         return dest
+
+    def _download_once(
+        self, url: str, tmp: Path, progress: ProgressFn | None, last: bool,
+    ) -> bool:
+        """One download attempt; False when rate-limited and worth retrying.
+
+        Truncation is judged on raw bytes off the wire: Content-Length
+        counts the encoded body, so comparing the decoded length would
+        reject every good response sent with a Content-Encoding.
+        """
+        with httpx.stream(
+            "GET", url, headers=HEADERS, timeout=300, follow_redirects=True,
+        ) as resp:
+            if resp.status_code in _RETRY_STATUSES and not last:
+                _sleep(_retry_delay(resp))
+                return False
+            resp.raise_for_status()
+            total = int(resp.headers.get("content-length", 0))
+            written = 0
+            with open(tmp, "wb") as f:
+                for chunk in resp.iter_bytes(chunk_size=CHUNK_SIZE):
+                    f.write(chunk)
+                    written += len(chunk)
+                    if progress:
+                        progress(resp.num_bytes_downloaded or written, total)
+            # num_bytes_downloaded counts raw bytes; it stays 0 only for a
+            # body that was never streamed, where raw and decoded agree
+            received = resp.num_bytes_downloaded or written
+        if total and received != total:
+            raise RuntimeError(
+                f"Truncated download: got {received} of {total} bytes"
+            )
+        return True
 
     def parse_and_load(
         self,

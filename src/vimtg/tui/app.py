@@ -16,12 +16,13 @@ import httpx
 from textual.app import App
 
 from vimtg.config.paths import cache_dir, db_path
-from vimtg.config.settings import Settings, load_settings
+from vimtg.config.settings import Settings, load_settings_checked
 from vimtg.config.settings_writer import save_settings
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
-from vimtg.data.scryfall_sync import ScryfallSync, sync_is_due
+from vimtg.data.file_io import ABSENT, FileStamp, file_stamp
+from vimtg.data.scryfall_sync import ScryfallSync, describe_sync_error, sync_is_due
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers import register_all_commands
 from vimtg.editor.commands import CommandRegistry
@@ -61,7 +62,7 @@ class VimTGApp(App[None]):
     def __init__(self, deck_path: Path | None = None) -> None:
         super().__init__()
         self._deck_path = deck_path
-        self._settings = load_settings()
+        self._settings, self._config_warning = load_settings_checked()
         self._cmd_registry: CommandRegistry | None = None
         self._search_svc: SearchService | None = None
         self._card_repo: CardRepository | None = None
@@ -73,13 +74,23 @@ class VimTGApp(App[None]):
         return self._settings
 
     def update_settings(self, new_settings: Settings) -> None:
-        """Persist settings and update runtime state."""
-        save_settings(new_settings)
+        """Update runtime state, then persist settings.
+
+        Raises SettingsWriteError / OSError when config.toml cannot be
+        written; the new settings still apply for this session.
+        """
         self._settings = new_settings
+        save_settings(new_settings)
 
     def on_mount(self) -> None:
         self._init_services()
-        if self._deck_path and self._deck_path.exists():
+        if self._config_warning:
+            self.notify(
+                self._config_warning, title="Config", severity="warning", timeout=15,
+            )
+        if self._deck_path is not None:
+            # A path that does not exist yet opens an empty deck bound
+            # to it, created on the first :w (like `vim newfile`).
             self.open_deck(self._deck_path)
         else:
             self.show_greeter()
@@ -176,7 +187,7 @@ class VimTGApp(App[None]):
         except (httpx.HTTPError, RuntimeError, OSError, sqlite3.Error) as exc:
             self.call_from_thread(
                 self.notify,
-                f"Card sync failed: {exc}",
+                f"Card sync failed: {describe_sync_error(exc)}",
                 title="Card sync",
                 severity="warning",
             )
@@ -219,9 +230,13 @@ class VimTGApp(App[None]):
         """
         from vimtg.tui.screens.main_screen import MainScreen
 
+        stamp: FileStamp | None = None
         if initial_text is not None:
             text = scaffold_deck_body(scaffold_missing_metadata(initial_text))
         elif file_path and file_path.exists():
+            # Stamp before reading: a write racing the read then shows
+            # up as a change (a spurious warning, never a lost edit).
+            stamp = file_stamp(file_path)
             try:
                 text = file_path.read_text(encoding="utf-8-sig")
             except (OSError, UnicodeDecodeError) as exc:
@@ -234,6 +249,8 @@ class VimTGApp(App[None]):
             text = scaffold_deck_body(scaffold_missing_metadata(text))
         else:
             text = scaffold_deck_body(scaffold_missing_metadata(""))
+            if file_path is not None:
+                stamp = ABSENT  # a file appearing before :w is a change too
 
         buffer = Buffer.from_text(text)
         save_fn = self._deck_repo.save if self._deck_repo else None
@@ -246,6 +263,7 @@ class VimTGApp(App[None]):
             save_fn=save_fn,
             settings=self._settings,
             db=self._db,
+            disk_stamp=stamp,
         )
         if initial_text is not None:
             screen._state.modified = True
