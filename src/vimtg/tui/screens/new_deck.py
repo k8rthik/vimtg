@@ -19,7 +19,7 @@ from textual.events import Key, Paste
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from vimtg.domain.formats import known_formats
+from vimtg.domain.formats import known_formats, normalize_format
 from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
 
@@ -186,7 +186,7 @@ class NewDeckScreen(ModalScreen[NewDeckInfo | None]):
         if self.field == "name":
             self.field = "format"
             return
-        fmt = self.fmt_text.strip().lower()
+        fmt = normalize_format(self.fmt_text)
         if fmt and fmt not in known_formats():
             matches = format_matches(fmt)
             if len(matches) != 1:

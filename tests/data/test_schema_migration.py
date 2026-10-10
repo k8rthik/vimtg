@@ -1,4 +1,4 @@
-"""Upgrading a v0.8 database (PRAGMA user_version 0) to schema v1."""
+"""Upgrading older databases (PRAGMA user_version 0 and 1) to the current schema."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.schema import SCHEMA_VERSION
+from vimtg.domain.card import Card
 
 # The cards table exactly as v0.8 created it.
 _V08_CARDS = """
@@ -159,5 +160,86 @@ def test_fresh_database_starts_at_current_version(tmp_path: Path) -> None:
         conn = db.connect()
         assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert CardRepository(db).count() == 0
+    finally:
+        db.close()
+
+
+def _make_v1_db(path: Path, *, split_cost: str) -> None:
+    """A schema-v1 database: v0.8 tables upgraded, cards as v1 stored
+    them (a split card with only its left half's cost)."""
+    _make_v08_db(path)
+    conn = sqlite3.connect(path)
+    for sql in (
+        "ALTER TABLE cards ADD COLUMN oracle_id TEXT",
+        "ALTER TABLE cards ADD COLUMN produced_mana TEXT DEFAULT '[]'",
+        "ALTER TABLE cards ADD COLUMN game_changer INTEGER DEFAULT 0",
+        "ALTER TABLE cards ADD COLUMN full_oracle_text TEXT",
+        """CREATE TABLE card_names (name_key TEXT NOT NULL,
+            scryfall_id TEXT NOT NULL, rank INTEGER NOT NULL,
+            PRIMARY KEY (name_key, scryfall_id))""",
+    ):
+        conn.execute(sql)
+    conn.execute("DELETE FROM cards WHERE scryfall_id = 'old-bolt'")
+    conn.execute(
+        "UPDATE cards SET layout = 'split', mana_cost = ? WHERE scryfall_id = 'fire-ice'",
+        (split_cost,),
+    )
+    conn.execute("INSERT INTO cards_fts(cards_fts) VALUES('rebuild')")
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+    conn.close()
+
+
+def test_v1_split_cost_forces_resync(tmp_path: Path) -> None:
+    path = tmp_path / "v1.db"
+    _make_v1_db(path, split_cost="{1}{R}")
+    db = Database(path)
+    try:
+        db.initialize()
+        conn = db.connect()
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+        columns = {r[1] for r in conn.execute("PRAGMA table_info(cards)")}
+        assert "face_stats" in columns
+        repo = CardRepository(db)
+        # Left-half-only cost: forget the sync so the next one refreshes
+        assert repo.get_last_sync() is None
+        assert repo.count() == 2
+        # Old rows read back unchanged until that sync
+        fire_ice = repo.search("Fire")[0]
+        assert fire_ice.mana_cost == "{1}{R}" and fire_ice.face_stats == ()
+        # History tables untouched
+        assert conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM branches").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM deck_heads").fetchone()[0] == 1
+    finally:
+        db.close()
+
+
+def test_v1_with_full_costs_keeps_last_sync(tmp_path: Path) -> None:
+    path = tmp_path / "v1.db"
+    _make_v1_db(path, split_cost="{1}{R} // {1}{U}")
+    db = Database(path)
+    try:
+        db.initialize()
+        assert CardRepository(db).get_last_sync() == "2026-10-01T00:00:00+00:00"
+    finally:
+        db.close()
+
+
+def test_face_stats_round_trip(
+    tmp_path: Path, real_shape_cards: list[dict[str, object]]
+) -> None:
+    db = Database(tmp_path / "fresh.db")
+    try:
+        db.initialize()
+        repo = CardRepository(db)
+        repo.replace_all([Card.from_scryfall(d) for d in real_shape_cards])  # type: ignore[arg-type]
+        delver = repo.get_by_name("Delver of Secrets")
+        assert delver is not None
+        assert delver.face_stats == (("1", "1"), ("3", "2"))
+        bolt = repo.get_by_name("Lightning Bolt")
+        assert bolt is not None and bolt.face_stats == ()
+        fire_ice = repo.get_by_name("Fire // Ice")
+        assert fire_ice is not None and fire_ice.mana_cost == "{1}{R} // {1}{U}"
     finally:
         db.close()

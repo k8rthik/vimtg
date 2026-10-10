@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from vimtg.domain.card import Color
+from vimtg.domain.formats import SCRYFALL_FORMATS, normalize_format
 
 
 class SearchSyntaxError(ValueError):
@@ -94,6 +95,29 @@ class NumberMatch:
     value: float
 
 
+StatField = Literal["cmc", "power", "toughness"]
+
+
+@dataclass(frozen=True)
+class FieldCompare:
+    """``pow>tou``, ``tou<=mv``: compare two of a card's numbers.
+    Power and toughness are read per face, so a back face can match."""
+
+    left: StatField
+    op: Op
+    right: StatField
+
+
+@dataclass(frozen=True)
+class ProducesMatch:
+    """``produces:`` — mana symbols the card can produce (Scryfall
+    ``produced_mana``), as a set of ``W U B R G C``; ':' means at least
+    these, like ``c:``."""
+
+    op: Op
+    symbols: frozenset[str]
+
+
 @dataclass(frozen=True)
 class RarityMatch:
     op: Op
@@ -139,8 +163,23 @@ class Or:
 
 Node = (
     NameWords | ExactName | TextMatch | ColorMatch | NumberMatch | RarityMatch
-    | SetMatch | LegalityMatch | IsMatch | Not | And | Or
+    | SetMatch | LegalityMatch | IsMatch | FieldCompare | ProducesMatch
+    | Not | And | Or
 )
+
+
+OrderKey = Literal[
+    "name", "cmc", "power", "toughness", "rarity", "usd", "eur", "tix", "set",
+]
+
+
+@dataclass(frozen=True)
+class SearchOrder:
+    """``order:`` / ``direction:`` — how to sort results instead of by
+    name-match rank."""
+
+    key: OrderKey = "name"
+    descending: bool = False
 
 
 def ranking_words(node: Node | None) -> list[str]:
@@ -172,7 +211,31 @@ _KEYS: dict[str, str] = {
     "banned": "banned", "restricted": "restricted",
     "is": "is", "not": "not",
     "usd": "usd", "eur": "eur", "tix": "tix",
+    "produces": "produces",
 }
+
+# Scryfall keys vimtg knows but cannot answer, and why. Anything else
+# unknown is reported as an unknown key.
+_UNSUPPORTED_KEYS: dict[str, str] = {
+    "year": "only one printing per card is stored",
+    "date": "only one printing per card is stored",
+}
+
+_ORDER_KEYS: dict[str, OrderKey] = {
+    "name": "name", "cmc": "cmc", "mv": "cmc", "manavalue": "cmc",
+    "power": "power", "pow": "power", "toughness": "toughness",
+    "tou": "toughness", "rarity": "rarity", "usd": "usd", "eur": "eur",
+    "tix": "tix", "set": "set",
+}
+_DIRECTIONS = {"asc": False, "ascending": False, "desc": True, "descending": True}
+_STAT_FIELDS: dict[str, StatField] = {
+    "cmc": "cmc", "mv": "cmc", "manavalue": "cmc",
+    "pow": "power", "power": "power", "tou": "toughness", "toughness": "toughness",
+}
+
+# Typographic quotes typed or pasted into a query mean the ASCII ones
+# Scryfall's rules text uses: o:"can’t" finds "can't".
+_QUOTE_FOLDS = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})
 
 _COLOR_WORDS: dict[str, str] = {
     "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G",
@@ -196,25 +259,18 @@ _RARITIES: dict[str, int] = {
 _RARITY_ABBREV = {"c": "common", "u": "uncommon", "r": "rare", "m": "mythic",
                   "s": "special", "b": "bonus"}
 
-# Scryfall's legality keys, plus common nicknames.
-_FORMATS = frozenset({
-    "standard", "future", "historic", "timeless", "gladiator", "pioneer",
-    "explorer", "modern", "legacy", "pauper", "vintage", "penny", "commander",
-    "oathbreaker", "standardbrawl", "brawl", "alchemy", "paupercommander",
-    "duel", "oldschool", "premodern", "predh",
-})
-_FORMAT_ALIASES = {"edh": "commander", "pdh": "paupercommander",
-                   "historicbrawl": "brawl"}
 
 _IS_FLAGS: dict[str, str] = {
     "commander": "commander",
     "dfc": "dfc", "mdfc": "mdfc", "tdfc": "transform", "transform": "transform",
     "split": "split", "adventure": "adventure", "flip": "flip", "meld": "meld",
     "gamechanger": "gamechanger", "gc": "gamechanger",
+    "permanent": "permanent", "spell": "spell",
+    "hybrid": "hybrid", "phyrexian": "phyrexian",
 }
 
 _ORDERED_ONLY = {"cmc", "power", "toughness", "usd", "eur", "tix", "rarity",
-                 "colors", "identity"}
+                 "colors", "identity", "produces"}
 
 _KEY_RE = re.compile(r"([A-Za-z]+)(!=|<=|>=|:|=|<|>)")
 
@@ -323,6 +379,7 @@ class _Parser:
     def __init__(self, toks: list[_Tok]) -> None:
         self._toks = toks
         self._pos = 0
+        self.order: SearchOrder | None = None
 
     def _peek(self) -> _Tok | None:
         return self._toks[self._pos] if self._pos < len(self._toks) else None
@@ -400,8 +457,30 @@ class _Parser:
         if tok.kind == "exact":
             return ExactName(tok.text) if tok.text.strip() else None
         if tok.kind == "kv":
+            if tok.key.lower() in ("order", "direction", "dir"):
+                self._sort_term(tok)
+                return None
             return _key_term(tok)
         raise SearchSyntaxError(f"Unexpected '{tok.kind}' in search")
+
+
+    def _sort_term(self, tok: _Tok) -> None:
+        """Record order:/direction:; they sort, they don't filter."""
+        value = tok.text.strip().lower()
+        if not value:
+            return
+        if tok.op != ":":
+            raise SearchSyntaxError(f"'{tok.key}' only supports ':' (got '{tok.op}')")
+        if tok.key.lower() == "order":
+            key = _ORDER_KEYS.get(value)
+            if key is None:
+                raise SearchSyntaxError(f"Unknown sort order '{tok.text.strip()}'")
+            current = self.order or SearchOrder()
+            self.order = SearchOrder(key, current.descending)
+            return
+        if value not in _DIRECTIONS:
+            raise SearchSyntaxError(f"Unknown direction '{tok.text.strip()}'")
+        self.order = SearchOrder((self.order or SearchOrder()).key, _DIRECTIONS[value])
 
 
 def _bare_term(tok: _Tok) -> Node | None:
@@ -425,6 +504,9 @@ def _check_regex(pattern: str) -> str:
 def _key_term(tok: _Tok) -> Node | None:
     key = _KEYS.get(tok.key.lower())
     if key is None:
+        why = _UNSUPPORTED_KEYS.get(tok.key.lower())
+        if why is not None:
+            raise SearchSyntaxError(f"'{tok.key}' is not supported ({why})")
         raise SearchSyntaxError(f"Unknown search key '{tok.key}'")
     op: Op = tok.op  # type: ignore[assignment]
     value = tok.text if tok.quoted or tok.regex else tok.text.strip()
@@ -443,6 +525,10 @@ def _key_term(tok: _Tok) -> Node | None:
         return TextMatch("mana", _mana_pattern(value))
     if key in ("colors", "identity"):
         return _color_term(key, op, value)  # type: ignore[arg-type]
+    if key == "produces":
+        return _produces_term(op, value)
+    if key in ("cmc", "power", "toughness") and value.lower() in _STAT_FIELDS:
+        return FieldCompare(key, "=" if op == ":" else op, _STAT_FIELDS[value.lower()])  # type: ignore[arg-type]
     if key in ("cmc", "power", "toughness", "usd", "eur", "tix"):
         try:
             number = float(value)
@@ -459,8 +545,8 @@ def _key_term(tok: _Tok) -> Node | None:
     if key == "set":
         return SetMatch(value.lower())
     if key in ("legal", "banned", "restricted"):
-        fmt = _FORMAT_ALIASES.get(value.lower(), value.lower())
-        if fmt not in _FORMATS:
+        fmt = normalize_format(value)
+        if fmt not in SCRYFALL_FORMATS:
             raise SearchSyntaxError(f"Unknown format '{value}'")
         return LegalityMatch(fmt, "legal" if key == "legal" else key)  # type: ignore[arg-type]
     # is: / not:
@@ -503,9 +589,35 @@ def _color_term(field: ColorField, op: Op, value: str) -> ColorMatch:
 _COLOR_LETTERS = {c.value: c for c in Color}
 
 
+def _produces_term(op: Op, value: str) -> ProducesMatch:
+    """produces:rg (at least red and green), produces=c (exactly
+    colourless), produces:boros ..."""
+    word = value.lower()
+    set_op: Op = ">=" if op == ":" else op
+    if word in _COLORLESS_WORDS:
+        return ProducesMatch(set_op, frozenset({"C"}))
+    letters = _COLOR_WORDS.get(word, word).upper()
+    if not letters or any(ch not in "WUBRGC" for ch in letters):
+        raise SearchSyntaxError(f"Unknown colour '{value}'")
+    return ProducesMatch(set_op, frozenset(letters))
+
+
 def parse_search(raw: str) -> Node | None:
     """Parse a search string; ``None`` when it holds no search terms.
 
-    Raises :class:`SearchSyntaxError` for anything that can't be run.
+    ``order:``/``direction:`` terms are accepted and dropped (see
+    :func:`parse_search_with_order`). Raises :class:`SearchSyntaxError`
+    for anything that can't be run.
     """
-    return _Parser(_tokenize(raw)).parse()
+    return parse_search_with_order(raw)[0]
+
+
+def parse_search_with_order(raw: str) -> tuple[Node | None, SearchOrder | None]:
+    """Parse a search string and its ``order:``/``direction:`` terms.
+
+    The order is ``None`` when the query names neither (rank by name
+    match, then name).
+    """
+    parser = _Parser(_tokenize(raw.translate(_QUOTE_FOLDS)))
+    node = parser.parse()
+    return node, parser.order

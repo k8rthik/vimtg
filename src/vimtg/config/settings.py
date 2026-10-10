@@ -9,6 +9,7 @@ VALID_FORMATS = frozenset({
     "", "standard", "pioneer", "modern", "legacy", "vintage",
     "commander", "pauper", "brawl", "historic", "timeless", "premodern",
     "penny", "standardbrawl", "oathbreaker", "paupercommander", "duel",
+    "explorer", "alchemy", "gladiator",
 })
 
 # Default in-group ordering for :sort and layout regrouping. Mirrors

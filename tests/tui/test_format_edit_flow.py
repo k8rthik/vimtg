@@ -56,11 +56,11 @@ async def test_unknown_format_notifies_on_confirm(tmp_path: Path) -> None:
         screen = _on_format_line(app)
         row = screen._state.cursor.row
         await pilot.press("i")
-        for ch in "edh":
+        for ch in "edhh":
             await pilot.press(ch)
         await pilot.press("enter")
         cl = screen.query_one("#command-line", CommandLine)
-        assert "Unknown format 'edh'" in cl.message
+        assert "Unknown format 'edhh'" in cl.message
         # And the format line carries a persistent lint warning sign
         screen._update_lint()
         err = screen._lint.line_errors.get(row)

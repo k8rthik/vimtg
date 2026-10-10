@@ -160,6 +160,15 @@ class TestNewDeckScreenKeys:
         wizard.feed("enter")
         assert results == [NewDeckInfo(name="X", fmt="pioneer")]
 
+    def test_alias_is_saved_as_the_format_key(self) -> None:
+        wizard = NewDeckScreen(name="X", fmt="")
+        results: list[NewDeckInfo | None] = []
+        wizard.dismiss = results.append  # type: ignore[assignment,method-assign]
+        for ch in "EDH":
+            wizard.feed(ch)
+        wizard.feed("enter")
+        assert results == [NewDeckInfo(name="X", fmt="commander")]
+
     def test_tab_cycles_matches(self) -> None:
         wizard = NewDeckScreen(name="X", fmt="")
         wizard.feed("p")

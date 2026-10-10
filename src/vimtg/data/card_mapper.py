@@ -64,7 +64,15 @@ def row_to_card(row: sqlite3.Row) -> Card:
         produced_mana=tuple(json.loads(str(_optional(row, "produced_mana") or "[]"))),
         game_changer=bool(_optional(row, "game_changer")),
         full_oracle_text=_full_text(row),
+        face_stats=_face_stats(row),
     )
+
+
+def _face_stats(row: sqlite3.Row) -> tuple[tuple[str | None, str | None], ...]:
+    stored = _optional(row, "face_stats")
+    if not stored:
+        return ()
+    return tuple((p, t) for p, t in json.loads(str(stored)))
 
 
 def _full_text(row: sqlite3.Row) -> str:
@@ -104,4 +112,5 @@ def card_to_row(card: Card) -> tuple[object, ...]:
         json.dumps(list(card.produced_mana)),
         int(card.game_changer),
         card.full_oracle_text or card.oracle_text,
+        json.dumps([list(pt) for pt in card.face_stats]) if card.face_stats else None,
     )
