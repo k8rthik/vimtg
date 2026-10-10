@@ -246,6 +246,10 @@ class CommandRegistry:
             return buffer, cursor
         return handler(buffer, cursor, cmd, ctx)
 
+    def resolve(self, name: str) -> str:
+        """The canonical command name for `name` (aliases resolved)."""
+        return self._aliases.get(name, name)
+
     def get_completions(self, prefix: str) -> list[str]:
         """Return sorted command names matching prefix."""
         all_names = sorted(set(self._commands) | set(self._aliases))

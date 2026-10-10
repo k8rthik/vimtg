@@ -69,10 +69,10 @@ Surveyed 2026-09-09 on `main`.
 | | |
 |:--|:--|
 | Source | ~21,000 lines across 117 modules (`src/vimtg/`) |
-| Tests | 2,625 passing (139 files, ~25,800 lines), 94% line coverage; CI runs on Python 3.12 and 3.13 |
+| Tests | 2,814 passing (150 files, ~28,300 lines), 94% line coverage; CI runs on Python 3.12 and 3.13 |
 | Lint / types | `ruff check` clean; `mypy --strict` clean on all 117 source files |
 | Git | 118 commits; tags `v0.5.0` through `v0.8.0` |
-| Package version | `pyproject.toml` and `vimtg.__version__` still declare `0.1.0` |
+| Package version | `0.8.0` in `pyproject.toml` and `vimtg.__version__`, matching the latest tag |
 
 The original ten-phase build (scaffold through packaging) is complete. Work since then has added zones and zone blocks, categories, a persistent VCS with a floating lazygit-style history overlay, interactive merge resolution, split panes, EDHREC recommendations, a live analytics pane, URL importers for six deck sites, sideboard plans, format-aware lint, header counts, and mouse-wheel scrolling. The docs in `docs/` are current with the latest commit. The newest addition is the floating history overlay (`gh`).
 
@@ -140,7 +140,7 @@ Full spec: [docs/deck-format.md](docs/deck-format.md).
 The editor engine has no dependency on Textual. Keys flow through a translator, a macro recorder, a remapper, a key-sequence parser, and then a session handler, so everything below is testable headlessly.
 
 - **Modes**: Normal, Insert, Visual, Visual-line, Command, Search. Insert has four submodes: card search (`o`/`O`/`c`), line edit (`i`), tag input (`t` keys and `gc`), and comment input (`A`). `Escape` always returns to Normal.
-- **Motions**: `j`/`k` (skip blank lines), `w`/`b` (next/previous card), `{`/`}` (previous/next section), `[[`/`]]` (previous/next section or plan header), `gg`/`G`, `{count}G` (go to line), `Ctrl-D`/`Ctrl-U` (half page). Any motion takes a count.
+- **Motions**: `j`/`k` (skip blank lines), `w`/`b` (next/previous card), `{`/`}` (previous/next section), `[[`/`]]` (previous/next section or plan header), `gg`/`G`, `{count}G` (go to line), `Ctrl-D`/`Ctrl-U` (half page), `H`/`M`/`L` (top/middle/bottom of the visible deck view, inside the scroll-off margin so the view stays put; `3H`/`3L` count in from the edge), `n`/`N` (repeat the last `/` or `:find` forward/backward). Any motion takes a count. The deck is line-oriented, so there is no column cursor and no `h`/`l`/`0`/`$`. `H`/`M`/`L` are not operator targets.
 - **Operators**: `d`, `y`, `c` compose with motions and double up as `dd`, `yy`, `cc`. Counts multiply (`2d3j` is six lines). `dj`/`dk` use raw line arithmetic so a delete never spills across a section boundary. `c` deletes and opens card search. `x` deletes the card under the cursor. `p`/`P` put below/above; `3p` puts three copies.
 - **Quantity**: `+`/`-` adjust the count (`10+`, `3-`). `-` at zero deletes the line. Both preserve zone prefixes, plan signs, `@category`, `#tags`, and comments.
 - **Line editing**: `i` edits the current line in place. On a `// Key:` metadata line the prefix is locked and only the value is editable. On `// Format:` the value ghost-completes from the known formats and warns when you confirm an unknown one. `A` adds or edits the card's inline comment.
@@ -158,7 +158,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 
 - **Offline Scryfall data**: `vimtg sync` downloads the `oracle_cards` bulk file, streams it into SQLite, and builds an FTS5 index over name, type line, and oracle text. Tokens, emblems, and art-series cards are skipped. Downloads are content-length checked and written atomically; a corrupt cache is deleted and reported.
 - **Auto-sync**: the TUI checks on launch and hourly, and syncs on a worker thread when the database is missing or older than seven days. A toast reports success or failure, and search and lint light up retroactively once data arrives. Disable with `:set noautosync` or the `VIMTG_NO_AUTOSYNC` environment variable.
-- **Query syntax**: plain words do FTS5 prefix matching. Scryfall-style filters are recognised: `t:`/`type:`, `o:`/`oracle:` (quoted phrases allowed), `cmc=N`, `cmc<=N`, `cmc>=N`, `set:`, `r:`/`rarity:`, `c:`/`color:` (see [Known gaps](#known-gaps) for the colour filter).
+- **Query syntax**: plain words do FTS5 prefix matching. Scryfall-style filters are recognised: `t:`/`type:`, `o:`/`oracle:` (quoted phrases allowed), `cmc=N`, `cmc<=N`, `cmc>=N`, `set:`, `r:`/`rarity:`, `c:`/`color:` (`c:rg` requires every listed colour; colourless cards never match). Filtered queries return up to `search_limit` results, the same as name search, and `vimtg search` accepts the same syntax.
 - **Format filtering**: in the editor, search results are filtered to cards legal or restricted in the deck's declared format when that format is known.
 - **Card model**: name, mana cost, CMC, type line, oracle text, colours, colour identity, P/T, set, rarity, five price sources (USD, USD foil, EUR, EUR foil, tix), legalities, layout, keywords. Transform and modal DFCs use the front face; split and adventure cards join both faces.
 
@@ -205,8 +205,8 @@ Most commands take a vim range: `%`, `5,10`, `.`, `$`, or a mark pair.
 
 - `:sort [field]` sorts the current section (or range) by `name`, `qty`, `cmc`, `type`, `color`, `tag`, `category`, `power`, `toughness`, `rarity`, or `price`. Entries are sorted within each zone so a range spanning zones never rezones a line. `:sort!` reverses. Missing card data falls back to name order.
 - `:s/old/new/[gi]` substitutes literally across the range (`:%s/Bolt/Helix/g`).
-- `:g/pattern/d` and `:v/pattern/d` delete matching or non-matching card lines.
-- `:find pattern` (also `/`) jumps to the next matching card, case-insensitive regex, wrapping.
+- `:g/pattern/d` and `:v/pattern/d` delete matching or non-matching card lines in every zone: mainboard, sideboard, maybeboard, command zone, and companion, block or prefix style. The pattern sees the whole line, so `:g/^SB:/d` or `:v/@ramp/d` work. Headers, comments, metadata, and sideboard-plan entries never match. `d` is the only sub-command.
+- `:find pattern` (also `/`) jumps to the next matching card, case-insensitive regex, wrapping. `n`/`N` repeat it forward/backward.
 
 ### Format-aware validation and live lint
 
@@ -286,7 +286,7 @@ Where things live (XDG-aware): card database plus snapshots, branches, and HEAD 
 
 ### Help
 
-`?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `g`/`G`, or the wheel). `F1` or `:help` opens the full-screen help; `:help <command>` opens one of thirty per-command topics. The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`.
+`?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `g`/`G`, or the wheel). `F1` or `:help` opens the full-screen help; `:help <command>` opens one of thirty per-command topics. The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
 
 ## Keybindings
 
@@ -309,6 +309,8 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `gg` / `G` / `{n}G` | First / last / nth line |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up |
+| `H` / `M` / `L` | Top / middle / bottom of the visible view |
+| `n` / `N` | Repeat last `/` or `:find` forward / backward |
 | `m{a-z}` / `'{a-z}` | Set / jump to mark (all 26 letters) |
 
 </details>
@@ -362,7 +364,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](docs/commands
 | `:w [file]`, `:q`, `:q!`, `:wq`, `:x`, `:e file`, `:home` | File and navigation |
 | `:sort [field]`, `:sort!` | Sort section or range |
 | `:s/old/new/[gi]` | Substitute (literal) |
-| `:g/pat/d`, `:v/pat/d` | Delete matching / non-matching cards |
+| `:g/pat/d`, `:v/pat/d` | Delete matching / non-matching cards in any zone (`d` only) |
 | `:find pat`, `:search query` | Jump to card / open database search |
 | `:cat name`, `:cat!`, `:categories`, `:layout [type\|category]` | Categories and layout |
 | `:tag`, `:untag`, `:untag!`, `:tags`, `:filter expr`, `:filter!`, `:retag /a/b/`, `:dtag`, `:duntag` | Tags |
@@ -382,7 +384,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](docs/commands
 vimtg                                  # greeter
 vimtg burn.deck                        # open a deck (vim-style)
 vimtg edit [file]                      # same, explicit
-vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd
+vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats)
 vimtg sync [--force]                   # download or refresh the card database
 vimtg search "t:creature cmc<=2" -n 40 # search cards
 vimtg validate deck.deck               # legality report; exit 1 on errors
@@ -420,14 +422,12 @@ The editor and domain layers never import Textual. The TUI translates key events
 
 Found during the survey; none block normal use.
 
-- **Colour search filter is unwired.** `c:r` is parsed but never reaches the SQL, and because a filter routes the query away from FTS you get unfiltered results. Advanced search also hardcodes a limit of 50 and ignores `search_limit`.
-- **No text objects, no `n`/`N`, no `H`/`M`/`L`, no till-motion (`t` is the tag prefix).** `h`/`l`/`0`/`$` move a column that nothing renders. `:s` is a literal substitution despite the `/pattern/` syntax.
-- **`:g` and `:v` only support `d`** and only see mainboard and sideboard lines.
+- **No text objects, no till-motion (`t` is the tag prefix).** `:s` is a literal substitution despite the `/pattern/` syntax.
+- **`:g` and `:v` only support `d`.** Running arbitrary ex commands per matching line would need a per-line dispatch path the command registry does not have.
 - **Brawl** has no exact deck size, so a 60-card Brawl deck gets the generic 60-card minimum check.
 - **History stats need the card database.** Without a synced database the Stats panel shows no deltas.
 - **`theme`** has a single value and cycling it does nothing.
-- **Version drift**: git tags reach `v0.8.0` while the package declares `0.1.0`.
-- Command completion covers command names only, not arguments. Main-screen feedback is a one-line message that the next keypress clears.
+- Argument completion covers `:layout`, `:sort`, `:filter`, and `:category` only. `:validate` takes no argument (it reads `// Format:`, which already completes formats on `i`). Main-screen feedback is a one-line message that the next keypress clears.
 
 ## Development
 

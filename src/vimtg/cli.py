@@ -7,6 +7,7 @@ from pathlib import Path
 
 import click
 import httpx
+from click.shell_completion import CompletionItem
 
 from vimtg import __version__
 from vimtg.config.paths import cache_dir, db_path
@@ -63,9 +64,22 @@ def main(ctx: click.Context) -> None:
         app.run()
 
 
+def _complete_format(
+    ctx: click.Context, param: click.Parameter, incomplete: str,
+) -> list[CompletionItem]:
+    """Shell completion for --format: the known format names."""
+    from vimtg.domain.formats import known_formats
+
+    prefix = incomplete.lower()
+    return [CompletionItem(f) for f in known_formats() if f.startswith(prefix)]
+
+
 @main.command()
 @click.argument("name")
-@click.option("--format", "-f", "fmt", default="", help="MTG format")
+@click.option(
+    "--format", "-f", "fmt", default="", help="MTG format",
+    shell_complete=_complete_format,
+)
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
 def new(name: str, fmt: str, output: str | None) -> None:
     """Create a new deck file."""
@@ -207,7 +221,7 @@ def search(query: str, limit: int) -> None:
     if repo.count() == 0:
         raise click.ClickException(str(DatabaseNotInitializedError()))
     service = SearchService(card_repo=repo)
-    results = service.fuzzy_search(query, limit=limit)
+    results = service.search(query, limit=limit)
 
     if not results:
         click.echo("No cards found.")

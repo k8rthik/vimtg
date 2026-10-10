@@ -38,9 +38,10 @@ class _State(Enum):
 
 
 # Keys recognized in NORMAL mode
-MOTIONS = frozenset(
-    {"j", "k", "h", "l", "0", "$", "w", "b", "{", "}", "ctrl_d", "ctrl_u"}
-)
+# The deck is line-oriented: there is no column cursor, so no h/l/0/$.
+MOTIONS = frozenset({"j", "k", "w", "b", "{", "}", "ctrl_d", "ctrl_u"})
+# Viewport motions: plain motions, but never an operator target
+VIEW_MOTIONS = frozenset({"H", "M", "L"})
 OPERATORS = frozenset({"d", "y", "c"})
 MODE_SWITCHES: dict[str, str] = {
     "i": "INSERT",
@@ -51,7 +52,9 @@ MODE_SWITCHES: dict[str, str] = {
     ":": "COMMAND",
     "/": "SEARCH",
 }
-SPECIAL_KEYS = frozenset({"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "A"})
+SPECIAL_KEYS = frozenset(
+    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "?", "A", "n", "N"}
+)
 MULTI_KEY_STARTERS = frozenset({"g", "[", "]", "m", "'", "t", "q", "@", "S", "z"})
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion)
@@ -177,8 +180,8 @@ class KeyMap:
             self.reset()
             return KeyResult.NO_MATCH, None
 
-        # "0" starts the line-start motion when no count is pending, but
-        # extends an in-progress count ("10j"), matching vim.
+        # "0" only extends an in-progress count ("10j"); it never
+        # starts one.
         if key.isdigit() and (
             self._state == _State.COUNT
             or (key != "0" and self._state == _State.IDLE)
@@ -303,7 +306,7 @@ class KeyMap:
             self.reset()
             return KeyResult.NO_MATCH, None
 
-        if key in MOTIONS:
+        if key in MOTIONS or key in VIEW_MOTIONS:
             action = ParsedAction("motion", key, count, self._register)
             self.reset()
             return KeyResult.COMPLETE, action

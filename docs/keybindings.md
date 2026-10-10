@@ -53,10 +53,11 @@ Everything below is normal mode unless flagged otherwise.
 | `[[` / `]]` | Previous / next section or plan header |
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up |
-| `0` / `$`, `h` / `l` | Line start / end (there is no horizontal cursor; nothing renders a column) |
+| `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
+| `n` / `N` | Repeat the last `/` or `:find` pattern forward / backward, wrapping around the deck |
 | mouse wheel | Scroll three lines per notch, vim-style: the window moves and the cursor is dragged only when it would leave the screen |
 
-Any motion takes a count: `10j`, `3w`.
+Any motion takes a count: `10j`, `3w`, `2n`. The deck is line-oriented: there is no column cursor, so `h`/`l`/`0`/`$` are not bound.
 
 ### Editing
 
@@ -180,6 +181,10 @@ A mistyped sequence is dropped silently and the which-key popup closes.
 | `Esc` | Cancel |
 
 Completion is fuzzy: `:so` matches `sort`, `:st` matches `sort` and `stats`.
+After a space it completes the argument: `:layout ` offers `type` / `category`,
+`:sort c` offers `category`, `cmc`, `color`, `:filter core+fl` completes the
+deck tag after the last `+`, `|`, or `-`, and `:cat dr` completes a category
+from the deck, your history, or the presets.
 
 ## Screens
 

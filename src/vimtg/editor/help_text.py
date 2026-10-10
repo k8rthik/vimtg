@@ -124,12 +124,17 @@ COMMAND_HELP: dict[str, str] = {
         "Flags: g (all occurrences), i (case-insensitive)"
     ),
     "g": (
-        ":g/pattern/cmd  Execute command on matching lines\n"
+        ":g/pattern/cmd  Execute command on matching card lines\n"
+        "(every zone; d is the only command)\n"
         "\n"
         ":g/Bolt/d      delete lines matching 'Bolt'\n"
-        ":v/SB:/d       delete non-sideboard lines"
+        ":v/SB:/d       delete card lines without an SB: prefix"
     ),
-    "find": ":find pattern  Jump to next card matching pattern",
+    "find": (
+        ":find pattern  Jump to next card matching pattern\n"
+        "\n"
+        "n / N repeat the last pattern forward / backward"
+    ),
     "export": (
         ":export format [file]  Export deck "
         "(arena/mtgo/dek/moxfield/archidekt/vimtg/guide)\n"

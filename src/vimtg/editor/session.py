@@ -32,12 +32,14 @@ from vimtg.editor.category_ops import (
     set_category_in_range,
 )
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
+from vimtg.editor.command_handlers.search_cmds import find_card_row
 from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.dot_repeat import DotRepeat, RepeatableAction
 from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.layout import (
     LAYOUT_CATEGORY,
+    LAYOUT_MODES,
     LAYOUT_TYPE,
     detect_layout,
     follow_line,
@@ -46,7 +48,11 @@ from vimtg.editor.layout import (
 from vimtg.editor.macros import MacroRecorder
 from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
-from vimtg.editor.motions import MOTION_REGISTRY, motion_goto_line
+from vimtg.editor.motions import (
+    MOTION_REGISTRY,
+    VIEW_MOTIONS,
+    motion_goto_line,
+)
 from vimtg.editor.operators import (
     ZONE_LABELS,
     decrement_quantity,
@@ -135,6 +141,12 @@ class EditorState:
     remapper: Any = None  # KeyRemapper, passed through to :map/:unmap
     # The sideboard plan zi/zo write into and the deck view annotates
     active_plan: str | None = None
+    # Pattern of the last / or :find, repeated by n / N
+    last_find: str = ""
+    # Inclusive (top, bottom) buffer rows the cursor can occupy without
+    # scrolling the deck view — set by the TUI before H / M / L. None
+    # means no view is known and the whole buffer counts as visible.
+    view_band: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -198,6 +210,11 @@ def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
     # 1G really means line 1.
     if action.action == "G" and action.count >= 1:
         state.cursor = motion_goto_line(state.cursor, state.buffer, action.count)
+        return HandlerResult()
+    view_fn = VIEW_MOTIONS.get(action.action)
+    if view_fn:
+        band = state.view_band or (0, state.buffer.line_count() - 1)
+        state.cursor = view_fn(state.cursor, state.buffer, band, count)
         return HandlerResult()
     motion_fn = MOTION_REGISTRY.get(action.action)
     if motion_fn:
@@ -333,6 +350,8 @@ def handle_command(
         )
         before = state.buffer
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
+        if cmd.name in ("find", "f") and cmd.args and not ctx.error:
+            state.last_find = cmd.args
         # A handler that rewrote the buffer gets an undo step; the
         # modified flag itself syncs unconditionally (allows :w to clear it)
         if ctx.modified and state.buffer is not before:
@@ -451,6 +470,8 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
         )
     elif key == "?":
         return HandlerResult(help_requested=True)
+    elif key in ("n", "N"):
+        return _repeat_find(state, backward=(key == "N"), count=count)
     elif key == ".":
         # A count given to '.' replaces the recorded one (vim semantics);
         # count=1 is indistinguishable from "no count", so only >1 overrides.
@@ -508,6 +529,26 @@ def handle_normal_special(state: EditorState, action: ParsedAction) -> HandlerRe
     elif key == "A":
         return _handle_comment_action(state)
     return HandlerResult()
+
+
+def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerResult:
+    """n / N — jump to the next / previous card matching the last / or
+    :find pattern, wrapping around the buffer."""
+    pattern = state.last_find
+    if not pattern:
+        return HandlerResult(command_message="No previous search pattern", error=True)
+    row = state.cursor.row
+    for i in range(count):
+        found = find_card_row(state.buffer, row, pattern, backward=backward)
+        if found is None:
+            if i == 0:
+                return HandlerResult(
+                    command_message=f"Pattern not found: {pattern}", error=True,
+                )
+            break
+        row = found
+    state.cursor = state.cursor.move_to(row, 0)
+    return HandlerResult(command_message=("?" if backward else "/") + pattern)
 
 
 def _handle_split_key(key: str) -> HandlerResult:
@@ -1067,6 +1108,24 @@ def handle_line_edit_special(state: EditorState, action: ParsedAction) -> Handle
     return HandlerResult()
 
 
+def command_argument_candidates(state: EditorState, command: str) -> tuple[str, ...]:
+    """Tab-completion candidates for `command`'s argument, best first:
+    layout modes, sort fields, the deck's tags (most used first) for
+    :filter, and the category pool gc uses for :category."""
+    if command == "layout":
+        return LAYOUT_MODES
+    if command == "sort":
+        return tuple(sorted(SORT_FIELDS))
+    if command == "filter":
+        counts = state.buffer.tag_counts()
+        return tuple(sorted(counts, key=lambda tag: (-counts[tag], tag)))
+    if command == "category":
+        return completion_candidates(
+            state.buffer.category_counts(), load_category_history(),
+        )
+    return ()
+
+
 def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     """Process command-mode special keys for fuzzy completion."""
     key = action.action
@@ -1077,7 +1136,9 @@ def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerR
         return HandlerResult()
 
     if key in ("char", "backspace", "delete"):
-        state.cmd_completion = completer.complete(text)
+        state.cmd_completion = completer.complete(
+            text, lambda command: command_argument_candidates(state, command),
+        )
         ghost = completer.current_ghost(state.cmd_completion)
         return HandlerResult(command_ghost=ghost)
 

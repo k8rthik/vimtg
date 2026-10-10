@@ -79,7 +79,7 @@ async def _ex(pilot, text: str) -> None:  # type: ignore[no-untyped-def]
 
 async def _goto(pilot, screen: MainScreen, text: str) -> None:  # type: ignore[no-untyped-def]
     screen._state.cursor = Cursor(row=_row_of(screen, text))
-    await pilot.press("l")  # any key: resync widgets from state
+    await pilot.press("escape")  # no-op key: resync widgets from state
     await pilot.pause()
 
 
