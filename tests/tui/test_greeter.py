@@ -282,6 +282,26 @@ async def test_files_mode_navigation_and_open(
 
 
 @pytest.mark.asyncio
+async def test_unreadable_deck_reports_and_keeps_greeter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The real open_deck exits the app on an unreadable file — right at
+    # startup, wrong once the greeter is up
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "bad.deck").write_bytes(b"\xff\xfe4 Lightning Bolt\n")
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("e")
+        await pilot.press("enter")
+        assert app.launched == []
+        assert app.screen is screen
+        assert gv._status == "E: Cannot open bad.deck: not UTF-8 text"
+
+
+@pytest.mark.asyncio
 async def test_files_mode_escape_returns_to_menu(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

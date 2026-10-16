@@ -127,9 +127,12 @@ def atomic_write_text(path: Path, text: str, encoding: str = "utf-8") -> Path:
     except FileNotFoundError:
         mode = _NEW_FILE_MODE & ~_current_umask()
 
-    fd, tmp_name = tempfile.mkstemp(
-        dir=target.parent, prefix=f".{target.name}.", suffix=".tmp",
-    )
+    try:
+        fd, tmp_name = tempfile.mkstemp(
+            dir=target.parent, prefix=f".{target.name}.", suffix=".tmp",
+        )
+    except OSError as exc:
+        raise _naming(exc, path) from exc
     try:
         with os.fdopen(fd, "w", encoding=encoding) as f:
             f.write(text)
@@ -137,9 +140,20 @@ def atomic_write_text(path: Path, text: str, encoding: str = "utf-8") -> Path:
             os.fsync(f.fileno())
         os.chmod(tmp_name, mode)
         os.replace(tmp_name, target)
-    except BaseException:
+    except BaseException as exc:
         if os.path.exists(tmp_name):
             os.unlink(tmp_name)
+        if isinstance(exc, OSError) and exc.filename == tmp_name:
+            raise _naming(exc, path) from exc
         raise
     _fsync_dir(target.parent)
     return target
+
+
+def _naming(exc: OSError, path: Path) -> OSError:
+    """`exc` re-pointed at the caller's `path`: the hidden temp file it
+    names ('.x.deck.ab12.tmp') means nothing to the user. The errno is
+    kept, so the result is still e.g. a FileNotFoundError."""
+    if exc.errno is None:
+        return exc
+    return OSError(exc.errno, exc.strerror, str(path))

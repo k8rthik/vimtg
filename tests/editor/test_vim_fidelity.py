@@ -294,6 +294,19 @@ class TestSearch:
         hr = handle_normal_special(st, ParsedAction("special", "*"))
         assert hr.error and "E348" in hr.command_message
 
+    def test_star_messages_show_the_card_name_not_its_regex(self) -> None:
+        st = _state(row=5)  # 4 Lightning Bolt, the only one
+        hr = handle_normal_special(st, ParsedAction("special", "*"))
+        assert "\\" not in hr.command_message
+        assert hr.command_message == "Pattern not found: Lightning Bolt"
+        hr = handle_normal_special(st, ParsedAction("special", "n"))
+        assert hr.command_message == "Pattern not found: Lightning Bolt"
+        # an empty / reuses the * pattern, label and all
+        assert self._search(st, "/", "") == "Pattern not found: Lightning Bolt"
+        # a typed pattern is shown as typed again
+        st.cursor = Cursor(row=1)
+        assert self._search(st, "/", "bolt") == "/bolt"
+
 
 # ── Ex commands ───────────────────────────────────────────────────
 

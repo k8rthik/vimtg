@@ -206,6 +206,9 @@ class OpenedDatabase:
     warning: str = ""
     recovered: RecoveryReport | None = None
     in_memory: bool = False
+    # Why the database could not be used, without the TUI's "running
+    # without card data" consequence (a CLI command just stops)
+    reason: str = ""
 
 
 def open_database(
@@ -256,4 +259,5 @@ def _in_memory(reason: str) -> OpenedDatabase:
         f"{reason} Running without card data; deck history is not "
         "saved this session.",
         in_memory=True,
+        reason=reason,
     )

@@ -154,15 +154,25 @@ def new(name: str, fmt: str, output: str | None, force: bool) -> None:
         _check_deck_filename(name)
         out_path = Path.cwd() / f"{name}.deck"
 
-    if out_path.exists() and not force:
-        raise click.ClickException(
-            f"{out_path} already exists (use --force to overwrite)"
-        )
+    _check_output_path(out_path, force)
 
     service = _make_service()
     text = service.new_deck(name=name, fmt=fmt)
     service.save_deck(text, out_path)
     click.echo(f"Created {out_path}")
+
+
+def _check_output_path(out_path: Path, force: bool) -> None:
+    """Refuse an -o path that is a directory, or an existing file
+    without --force."""
+    if out_path.is_dir():
+        raise click.ClickException(
+            f"{out_path} is a directory (give a file path to -o)"
+        )
+    if out_path.exists() and not force:
+        raise click.ClickException(
+            f"{out_path} already exists (use --force to overwrite)"
+        )
 
 
 def _check_deck_filename(name: str) -> None:
@@ -188,10 +198,34 @@ def _try_card_repo() -> CardRepository | None:
     try:
         if not db_path().exists():
             return None
+    except OSError:  # the data directory cannot be created
+        return None
+    try:
         repo = _make_card_repo()
         return repo if repo.count() > 0 else None
     except (sqlite3.Error, DatabaseNotInitializedError):
         return None
+
+
+def _no_card_db_note() -> str:
+    """Why _try_card_repo found no card data, for a '(… — run vimtg
+    sync)' note: a database that exists but cannot be read is not the
+    same as having none."""
+    try:
+        exists = db_path().is_file()
+    except OSError:
+        exists = False
+    if not exists:
+        return "no card database"
+    db = Database(db_path())
+    try:
+        db.initialize()
+        CardRepository(db).count()
+    except (sqlite3.Error, DatabaseNotInitializedError):
+        return "card database unreadable, it may be corrupt"
+    finally:
+        db.close()
+    return "no card database"
 
 
 @main.command()
@@ -227,7 +261,7 @@ def validate(path: str, strict: bool) -> None:
         sys.exit(1)
     if fmt and card_repo is None:
         click.echo(
-            "(no card database — legality checks skipped; run 'vimtg sync')"
+            f"({_no_card_db_note()} — legality checks skipped; run 'vimtg sync')"
         )
     if card_repo is not None:
         note = card_data_note(card_repo.count(), card_repo.get_last_sync())
@@ -362,7 +396,8 @@ def hand(path: str, seed: int | None, draws: int, plan_name: str) -> None:
         raise click.ClickException("No cards in the main deck")
     if card_repo is None:
         click.echo(
-            "(no card database — only basic lands count as lands; run 'vimtg sync')",
+            f"({_no_card_db_note()} — only basic lands count as lands; "
+            "run 'vimtg sync')",
             err=True,
         )
     state = deal(source.library, random.Random(seed), free_mulligan=source.free_mulligan)
@@ -382,7 +417,7 @@ def sync_cmd(force: bool) -> None:
     opened = open_database(db_path(), sync_hint="downloading it now")
     if opened.in_memory:
         opened.db.close()
-        raise click.ClickException(opened.warning)
+        raise click.ClickException(opened.reason or opened.warning)
     if opened.warning:
         click.echo(opened.warning, err=True)
     try:
@@ -422,7 +457,9 @@ _EMPTY_TERM = re.compile(r"(?:^|(?<=[\s(-]))([A-Za-z]+(?:!=|<=|>=|:|=|<|>))(?=$|
 
 @main.command(short_help="Search for cards with Scryfall-style syntax.")
 @click.argument("query", nargs=-1, required=True)
-@click.option("--limit", "-n", default=20, help="Max results")
+@click.option(
+    "--limit", "-n", default=20, type=click.IntRange(min=1), help="Max results"
+)
 def search(query: tuple[str, ...], limit: int) -> None:
     """Search for cards with Scryfall-style syntax, for example
     'vimtg search t:creature c:r mv<=2'. Put '--' before a query that
@@ -497,10 +534,7 @@ def convert(
                 f"refusing to overwrite the input file {input_path} "
                 "(choose another -o path)"
             )
-        if out_path.exists() and not force:
-            raise click.ClickException(
-                f"{out_path} already exists (use --force to overwrite)"
-            )
+        _check_output_path(out_path, force)
 
     card_db = _optional_card_db()
     try:
@@ -561,9 +595,13 @@ def _optional_card_db() -> Database | None:
     """The synced card database, or None when there is none (or it
     cannot be opened) — conversion then works from the typed names.
     The caller closes it."""
-    if not db_path().is_file():
+    try:
+        path = db_path()
+    except OSError:  # the data directory cannot be created
         return None
-    db = Database(db_path())
+    if not path.is_file():
+        return None
+    db = Database(path)
     try:
         db.initialize()
         if CardRepository(db).count() > 0:

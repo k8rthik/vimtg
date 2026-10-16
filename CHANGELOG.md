@@ -8,6 +8,26 @@ from 1.0.0 onward.
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening an unreadable deck from the greeter shows an error there
+  instead of quitting vimtg.
+- `:w dir/` (or `:w` of an existing directory) is refused with E502
+  instead of writing a hidden `dir/.deck`.
+- Failed writes (`:w`, `vimtg new -o`, `vimtg convert -o`) name the
+  target file, not an internal temp file.
+- `vimtg new`/`convert` with `-o` pointing at a directory say so,
+  instead of suggesting `--force`.
+- `vimtg search -n` rejects 0 and negative limits (a negative one used
+  to mean "unlimited").
+- `vimtg validate`/`hand` call a corrupt card database unreadable
+  rather than missing, and work without card data when the data
+  directory cannot be created. `vimtg sync` no longer says it is
+  "running without card data" when it cannot open the database.
+- `*`/`#` messages show the card name instead of the internal regex.
+- A sideboard-plan line with no card name (`-1 #tag`) is reported as
+  unreadable instead of being saved back as `-1 `.
+
 ## [1.0.0rc1] - 2026-10-10
 
 ### Added
