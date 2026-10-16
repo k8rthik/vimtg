@@ -17,10 +17,11 @@ Your decks are plain text files. Your editor speaks vim. Your card database is l
 
 Built with [Textual](https://textual.textualize.io). Styled in [Catppuccin Mocha](https://github.com/catppuccin/catppuccin). Designed for people who think in keystrokes.
 
-<!-- Screenshot / demo placeholder: replace with an image or asciinema cast,
-     e.g. ![vimtg editing a Burn deck](https://raw.githubusercontent.com/k8rthik/vimtg/main/docs/assets/screenshot.png)
-     Use an absolute URL so it renders on PyPI too. -->
-> 📸 *Screenshot / asciinema demo coming soon.*
+<!-- Absolute URL so the demo also renders on PyPI. Regenerate with
+     `uv run vhs docs/demo.tape` (see the header of docs/demo.tape). -->
+![vimtg in a terminal: opening a 100-card Krenko, Mob Boss Commander deck, expanding card details inline, searching the card database for Goblins that make tokens, jumping to a card with /, opening the analytics pane with the mana curve, and drawing a seeded sample hand](https://raw.githubusercontent.com/k8rthik/vimtg/main/docs/demo.gif)
+
+*A Commander deck in 30 seconds: inline card details, card search, mana curve, and a sample hand (`:hand`).*
 
 ## Install
 
