@@ -2,6 +2,11 @@ name: Feature request
 description: Suggest a command, motion, format rule, or other improvement.
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first; a 👍 on an existing request helps
+        more than a duplicate.
   - type: textarea
     id: problem
     attributes:

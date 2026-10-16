@@ -11,7 +11,7 @@ vimtg uses [uv](https://docs.astral.sh/uv/) and targets Python 3.12+.
 ```bash
 git clone https://github.com/k8rthik/vimtg.git
 cd vimtg
-uv sync --extra dev          # creates .venv from uv.lock
+uv sync --locked --extra dev # creates .venv from uv.lock (as CI does)
 uv run vimtg --version       # run the app from the checkout
 ```
 
@@ -55,14 +55,37 @@ CI also resolves every direct dependency to its declared minimum
 smoke-tests the wheel in a clean virtualenv. If you raise a dependency
 floor, update `pyproject.toml` and run `uv lock`.
 
-## Pull requests
+## Branches and pull requests
 
+- Fork the repo (or branch, if you have write access) and work on a branch
+  off `main` with a short descriptive name, e.g. `fix-csv-import-quotes` or
+  `add-gx-motion`. Don't open PRs from your fork's `main`.
+- PRs target `main` and are squash-merged, so the PR title becomes the commit
+  subject: write it in the imperative ("Fix ...", "Add ..."), like the
+  existing history.
+- Link the issue the PR addresses (`Fixes #123`). For a large or
+  behaviour-changing feature, open an issue first so the design can be agreed
+  before you write the code.
+- Fill in the PR template's checklist; CI must be green before review.
 - Keep each PR focused on one change, with tests. Bug fixes should include a
   regression test that fails before the fix and passes after it.
 - Update the README or `docs/` for any user-visible behaviour change, and add
   a line under **Unreleased** in [CHANGELOG.md](CHANGELOG.md).
 - vimtg follows vim conventions where they exist; when in doubt, do what vim
   (or MTG deckbuilding convention) does.
+
+## Good first contributions
+
+- Bugs with a small, reproducible deck file: a regression test plus the fix.
+- Parser and importer leniency: a real-world decklist (`.deck`, `.dek`, CSV,
+  or pasted text) that vimtg reads wrong. Add it under `tests/fixtures/`.
+- Docs: anything in the README or `docs/` that doesn't match what vimtg
+  actually does, or a missing example.
+- Missing vim behaviour: a motion, operator, or ex-command that works
+  differently from vim. Say which vim behaviour you're matching.
+
+Issues labelled `good first issue` are a good place to start, when there
+are any.
 
 ## Releases
 
