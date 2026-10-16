@@ -1,0 +1,2065 @@
+[
+ {
+  "object": "card",
+  "id": "3df3c312-694c-5936-a73c-bc2f11dbd5ce",
+  "oracle_id": "12e50d22-ff6a-570f-bcb2-ce014c3f4319",
+  "name": "Krenko, Mob Boss",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}{R}",
+  "cmc": 4.0,
+  "type_line": "Legendary Creature — Goblin Warrior",
+  "oracle_text": "{T}: Create X 1/1 red Goblin creature tokens, where X is the number of Goblins you control.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "3",
+  "toughness": "3"
+ },
+ {
+  "object": "card",
+  "id": "54fe9c4b-e27b-586c-83ea-79cc469ad1e7",
+  "oracle_id": "345d8788-ef06-5d5a-8d1e-5a77663df7ce",
+  "name": "Goblin Matron",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "When this creature enters, you may search your library for a Goblin card, reveal it, put it into your hand, then shuffle.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "265c2a70-7e80-5113-8989-5a3ae1eefe6f",
+  "oracle_id": "8234a8c0-4e29-5d93-9f93-6e4774036100",
+  "name": "Goblin Recruiter",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "When this creature enters, search your library for any number of Goblin cards and reveal those cards. Shuffle and put them on top in any order.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "e4f8ceb3-a412-5115-abd0-3124704f0242",
+  "oracle_id": "396e41bb-9a1d-5b9b-9683-6581c1d9f407",
+  "name": "Skirk Prospector",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "Sacrifice a Goblin: Add {R}.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1",
+  "produced_mana": [
+   "R"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "41ef632c-91cd-5c56-b875-58e678c41c04",
+  "oracle_id": "9e942b05-a105-568e-95a0-ca3c0397f164",
+  "name": "Goblin Chieftain",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "Haste\nOther Goblin creatures you control get +1/+1 and have haste.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Haste"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "8b76131b-ec27-5b27-af48-83a3a07bd1b6",
+  "oracle_id": "fd0a802a-88c9-572d-8628-ea96452ed3a6",
+  "name": "Goblin King",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "Other Goblin creatures get +1/+1 and have mountainwalk.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "baae5785-4480-5cca-99ae-e38821b07607",
+  "oracle_id": "ef678d69-701e-52dc-818b-b2000af783e1",
+  "name": "Goblin Warchief",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "Goblin spells you cast cost {1} less to cast.\nGoblins you control have haste.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "7af7d7d1-16fa-5e7f-8b61-8b065a2c8cd6",
+  "oracle_id": "9f82cd49-405e-5223-963c-a76c7a468b52",
+  "name": "Goblin Lackey",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "9bccd243-a88d-558a-8b11-686cd8878a1a",
+  "oracle_id": "8437e817-c343-56b6-a825-9ef04759c3bf",
+  "name": "Goblin Ringleader",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}{R}",
+  "cmc": 4.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "Haste\nWhen this creature enters, reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Haste"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "e1ab9892-04f6-5673-886a-11c7a4843e4d",
+  "oracle_id": "7ca77e12-b302-50b8-afc7-b255632a62b7",
+  "name": "Siege-Gang Commander",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}{R}{R}",
+  "cmc": 5.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "When this creature enters, create three 1/1 red Goblin creature tokens.\n{1}{R}, Sacrifice a Goblin: This creature deals 2 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "53b979dc-1065-5190-9902-db5d5253ac17",
+  "oracle_id": "2f7ab57a-c465-5f90-ac13-edc3d0a8151c",
+  "name": "Goblin Rabblemaster",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "Other Goblin creatures you control attack each combat if able.\nAt the beginning of combat on your turn, create a 1/1 red Goblin creature token with haste.\nWhenever this creature attacks, it gets +1/+0 until end of turn for each other attacking Goblin.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "31248572-71c2-5621-8280-87d7158aaa9f",
+  "oracle_id": "dfcb5bb7-fb17-572b-897f-5443a27a143c",
+  "name": "Legion Warboss",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin Soldier",
+  "oracle_text": "Mentor (Whenever this creature attacks, put a +1/+1 counter on target attacking creature with lesser power.)\nAt the beginning of combat on your turn, create a 1/1 red Goblin creature token. That token gains haste until end of turn and attacks this combat if able.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Mentor"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "e01ecfba-d5d4-5e12-83d5-d6eb8c5e0b99",
+  "oracle_id": "08262337-33f1-5514-8e22-b94d85741705",
+  "name": "Beetleback Chief",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}{R}",
+  "cmc": 4.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "When this creature enters, create two 1/1 red Goblin creature tokens.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "139fc2dc-ee7a-56d8-83fc-01f81c5c8bdb",
+  "oracle_id": "28c5a284-2fe6-5a1f-9889-5662ca0c8cf3",
+  "name": "Mogg War Marshal",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "Echo {1}{R} (At the beginning of your upkeep, if this came under your control since the beginning of your last upkeep, sacrifice it unless you pay its echo cost.)\nWhen this creature enters or dies, create a 1/1 red Goblin creature token.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Echo"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "085bf278-48e2-5299-a39e-ecb4444ff819",
+  "oracle_id": "d6374fc7-c27c-5a5e-948e-f5d182440009",
+  "name": "Goblin Instigator",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Creature — Goblin Rogue",
+  "oracle_text": "When this creature enters, create a 1/1 red Goblin creature token.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "b0886108-8bc0-5c4a-b35b-70041036e35c",
+  "oracle_id": "e6050080-1d29-5802-b8ca-7fb385497ca0",
+  "name": "Goblin Guide",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin Scout",
+  "oracle_text": "Haste\nWhenever this creature attacks, defending player reveals the top card of their library. If it's a land card, that player puts it into their hand.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Haste"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "872f631d-4396-5116-a62a-dd4f9abf759e",
+  "oracle_id": "1c53a4d8-9f55-5b6c-a5b3-f3861cd8f471",
+  "name": "Goblin Piledriver",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "Protection from blue\nWhenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Protection"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "295b984f-9fdb-5a1e-a7ab-2ce64aca48b0",
+  "oracle_id": "3a6c079c-5d37-520d-aba9-cc9678fc9ab9",
+  "name": "Mogg Fanatic",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "Sacrifice this creature: It deals 1 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "3266b46f-2d74-50fe-9201-76237eb7ba5c",
+  "oracle_id": "4e964ae0-867e-5dc1-8bfc-33235f248651",
+  "name": "Goblin Bushwhacker",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "Kicker {R} (You may pay an additional {R} as you cast this spell.)\nWhen this creature enters, if it was kicked, creatures you control get +1/+0 and gain haste until end of turn.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Kicker"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "da3b52e6-9984-55a3-adae-22b55b730bde",
+  "oracle_id": "bec8fe9f-fc39-5d52-bbd1-41a1d5dc8422",
+  "name": "Purphoros, God of the Forge",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}{R}",
+  "cmc": 4.0,
+  "type_line": "Legendary Enchantment Creature — God",
+  "oracle_text": "Indestructible\nAs long as your devotion to red is less than five, Purphoros isn't a creature.\nWhenever another creature you control enters, Purphoros deals 2 damage to each opponent.\n{2}{R}: Creatures you control get +1/+0 until end of turn.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Indestructible"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "mythic",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "6",
+  "toughness": "5"
+ },
+ {
+  "object": "card",
+  "id": "c293dc5a-63a9-54b4-b7f5-f79fad472439",
+  "oracle_id": "eeecb6b3-e4e7-5851-bfda-a5c4e3e5c8a6",
+  "name": "Goblin Sledder",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "Sacrifice a Goblin: Target creature gets +1/+1 until end of turn.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "95a3362b-0707-560e-ba1a-b5dad7418f01",
+  "oracle_id": "991f1151-9288-5d95-9c63-40a5493dcb4b",
+  "name": "Goblin Sharpshooter",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin",
+  "oracle_text": "This creature doesn't untap during your untap step.\nWhenever a creature dies, untap this creature.\n{T}: This creature deals 1 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "18a14a00-00c0-56c4-a3bb-17213691366b",
+  "oracle_id": "8bf6c91c-9446-55e0-9170-fd9a9821d1f9",
+  "name": "Boggart Brute",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "Menace (This creature can't be blocked except by two or more creatures.)",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Menace"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "3",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "ebb7c4c9-9a55-56c3-b714-af4bbabd5331",
+  "oracle_id": "c585066e-8c31-5ed0-9970-f2ecf0657bed",
+  "name": "Legion Loyalist",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin Soldier",
+  "oracle_text": "Haste\nBattalion — Whenever this creature and at least two other creatures attack, creatures you control gain first strike and trample until end of turn and can't be blocked by creature tokens this turn.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Haste",
+   "Battalion"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "7de04ee3-46e1-5762-ab56-58936f0033d0",
+  "oracle_id": "fa2ea97c-1d09-5cb6-a1a1-8eb32062db99",
+  "name": "Goblin Heelcutter",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}{R}",
+  "cmc": 4.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "Dash {2}{R} (You may cast this spell for its dash cost. If you do, it gains haste, and it's returned from the battlefield to its owner's hand at the beginning of the next end step.)\nWhenever this creature attacks, target creature can't block this turn.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Dash"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "3",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "face4010-3caa-5c9d-ba12-535c0f0841cc",
+  "oracle_id": "0a806e09-1915-5f25-8631-1f6cc155811e",
+  "name": "Goblin Cratermaker",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Creature — Goblin Warrior",
+  "oracle_text": "{1}, Sacrifice this creature: Choose one —\n• This creature deals 2 damage to target creature.\n• Destroy target colorless nonland permanent.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "2",
+  "toughness": "2"
+ },
+ {
+  "object": "card",
+  "id": "5e424d91-4622-50cb-8eb7-aefdb41b4be5",
+  "oracle_id": "3d1686f1-2b5d-505a-901e-4978bcc83269",
+  "name": "Goblin Arsonist",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Creature — Goblin Shaman",
+  "oracle_text": "When this creature dies, you may have it deal 1 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "power": "1",
+  "toughness": "1"
+ },
+ {
+  "object": "card",
+  "id": "4dc1d065-fef9-5ac5-a024-dbd6e5abfa67",
+  "oracle_id": "dec5e6f8-cb77-56ae-a512-39ad8ec252fe",
+  "name": "Goblin Bombardment",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Enchantment",
+  "oracle_text": "Sacrifice a creature: Goblin Bombardment deals 1 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "acfcd70b-1e50-58c7-bf98-34b7d53408aa",
+  "oracle_id": "a5ccccb6-81b0-5eea-95a4-6bcdc1f8f7c3",
+  "name": "Impact Tremors",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Enchantment",
+  "oracle_text": "Whenever a creature you control enters, Impact Tremors deals 1 damage to each opponent.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "ade54c78-1262-5b92-8761-380f37637351",
+  "oracle_id": "b4a32da4-a65f-5e63-a564-97d24b020d2e",
+  "name": "Shared Animosity",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "type_line": "Enchantment",
+  "oracle_text": "Whenever a creature you control attacks, it gets +1/+0 until end of turn for each other attacking creature that shares a creature type with it.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "33e986c2-81cc-5d84-8029-519b0a49dd9f",
+  "oracle_id": "fc9bd0ee-eaff-5259-be70-fd8e2fb035c4",
+  "name": "Mana Echoes",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}{R}",
+  "cmc": 4.0,
+  "type_line": "Enchantment",
+  "oracle_text": "Whenever a creature enters, you may add an amount of {C} equal to the number of creatures you control that share a creature type with it.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "C"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "eb54a2c3-a8db-52a0-a226-6b244a2d81ee",
+  "oracle_id": "2a634ef7-3b80-5dfa-877f-a7fd257c69c3",
+  "name": "Sol Ring",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}",
+  "cmc": 1.0,
+  "type_line": "Artifact",
+  "oracle_text": "{T}: Add {C}{C}.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "C"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "190a82be-a41f-5f89-bb84-38538e0fa770",
+  "oracle_id": "8593aa6c-157d-580c-b6aa-8a529c33d694",
+  "name": "Arcane Signet",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "cmc": 2.0,
+  "type_line": "Artifact",
+  "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "W",
+   "U",
+   "B",
+   "R",
+   "G"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "6a595e73-3c76-5000-8fcc-4b89b8b99922",
+  "oracle_id": "3dcf74cd-0641-5e8d-a014-4f6b2bf0d452",
+  "name": "Mind Stone",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "cmc": 2.0,
+  "type_line": "Artifact",
+  "oracle_text": "{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "C"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "4b44d71b-b8f5-53b8-8337-8f9c67242f06",
+  "oracle_id": "d46b3cf9-3220-5ad2-bc2f-cb108e3505d8",
+  "name": "Fire Diamond",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "cmc": 2.0,
+  "type_line": "Artifact",
+  "oracle_text": "This artifact enters tapped.\n{T}: Add {R}.",
+  "colors": [],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "R"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "ecdfff3b-d77d-5e79-98c6-4a8e9c532b87",
+  "oracle_id": "31653573-a13d-5283-81e0-6b1115a66673",
+  "name": "Thought Vessel",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "cmc": 2.0,
+  "type_line": "Artifact",
+  "oracle_text": "You have no maximum hand size.\n{T}: Add {C}.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "C"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "679c0e65-faef-52b6-88f4-e3eec05786e5",
+  "oracle_id": "066cf553-c28a-5071-969b-b9314e8e790d",
+  "name": "Commander's Sphere",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}",
+  "cmc": 3.0,
+  "type_line": "Artifact",
+  "oracle_text": "{T}: Add one mana of any color in your commander's color identity.\nSacrifice this artifact: Draw a card.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "W",
+   "U",
+   "B",
+   "R",
+   "G"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "accfd72f-db84-5e1b-a3eb-e69532fd5008",
+  "oracle_id": "83e06a06-e824-50a8-802d-cfe0f237ef1b",
+  "name": "Wayfarer's Bauble",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}",
+  "cmc": 1.0,
+  "type_line": "Artifact",
+  "oracle_text": "{2}, {T}, Sacrifice this artifact: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "5432d428-5ac4-54bf-b922-74ab90d08ea0",
+  "oracle_id": "ae148ed8-5631-5ef7-9521-6d1ac8dd949d",
+  "name": "Ruby Medallion",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "cmc": 2.0,
+  "type_line": "Artifact",
+  "oracle_text": "Red spells you cast cost {1} less to cast.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "80bfc41f-4cb4-56fb-bb58-07d4909f0def",
+  "oracle_id": "7658b94f-59a1-5b02-a0a4-3e318a67a04a",
+  "name": "Herald's Horn",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}",
+  "cmc": 3.0,
+  "type_line": "Artifact",
+  "oracle_text": "As this artifact enters, choose a creature type.\nCreature spells you cast of the chosen type cost {1} less to cast.\nAt the beginning of your upkeep, look at the top card of your library. If it's a creature card of the chosen type, you may reveal it and put it into your hand.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "62033066-90ab-5e84-b58d-65110b6ad506",
+  "oracle_id": "b7f8df20-374f-5ea1-b2cd-ab1521a09aef",
+  "name": "Coat of Arms",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{5}",
+  "cmc": 5.0,
+  "type_line": "Artifact",
+  "oracle_text": "Each creature gets +1/+1 for each other creature on the battlefield that shares at least one creature type with it. (For example, if two Goblin Warriors and a Goblin Shaman are on the battlefield, each gets +2/+2.)",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "5361beaf-5fad-5310-a609-deda0a26d90b",
+  "oracle_id": "574b3677-6fda-54f9-9217-24baa5511787",
+  "name": "Skullclamp",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}",
+  "cmc": 1.0,
+  "type_line": "Artifact — Equipment",
+  "oracle_text": "Equipped creature gets +1/-1.\nWhenever equipped creature dies, draw two cards.\nEquip {1}",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [
+   "Equip"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "dcc1fe47-3c0a-5f2e-a32f-079ab4d9f7ed",
+  "oracle_id": "a5d8c13b-27a9-503a-b53e-a16ccfc875d8",
+  "name": "Lightning Greaves",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "cmc": 2.0,
+  "type_line": "Artifact — Equipment",
+  "oracle_text": "Equipped creature has haste and shroud. (It can't be the target of spells or abilities.)\nEquip {0}",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [
+   "Equip"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "43b0489a-fefe-58a2-a57a-12cc365db08f",
+  "oracle_id": "e26f5d1c-2a7c-5080-a78f-8cbe8650570c",
+  "name": "Swiftfoot Boots",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}",
+  "cmc": 2.0,
+  "type_line": "Artifact — Equipment",
+  "oracle_text": "Equipped creature has hexproof and haste. (It can't be the target of spells or abilities your opponents control.)\nEquip {1}",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [
+   "Equip"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "cb17bb17-b4c1-56ba-93d0-763c598feedb",
+  "oracle_id": "885ec95f-c9d7-529a-a0ab-0a57306b4cfd",
+  "name": "Lightning Bolt",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Instant",
+  "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "40dd9745-336e-5daa-948b-348b8dbee9a4",
+  "oracle_id": "65cc5044-e43a-56c4-8662-3b9749158332",
+  "name": "Shock",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Instant",
+  "oracle_text": "Shock deals 2 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "6240ed33-4bc7-5a33-a7fc-f4c54f6fb85f",
+  "oracle_id": "06f2e2dd-454d-51ee-8dfa-0987b12d32c8",
+  "name": "Chaos Warp",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{2}{R}",
+  "cmc": 3.0,
+  "type_line": "Instant",
+  "oracle_text": "The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's a permanent card, they put it onto the battlefield.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "92107d3f-0e2c-593e-9f54-f13a6474a9c9",
+  "oracle_id": "225111fe-f8b8-5b01-b48d-d515a647fba7",
+  "name": "Battle Hymn",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}{R}",
+  "cmc": 3.0,
+  "type_line": "Instant",
+  "oracle_text": "Add {R} for each creature you control.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "R"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "6561c9c5-b609-59ce-b8bf-88c8228dc039",
+  "oracle_id": "c80d0fc4-0f16-51eb-bdad-baa33d454ecd",
+  "name": "Smash to Smithereens",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Instant",
+  "oracle_text": "Destroy target artifact. Smash to Smithereens deals 3 damage to that artifact's controller.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "6ee60872-4496-5dc3-91c8-65a483786bcd",
+  "oracle_id": "991a52e9-834b-5708-a77b-db98c3962385",
+  "name": "Thrill of Possibility",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Instant",
+  "oracle_text": "As an additional cost to cast this spell, discard a card.\nDraw two cards.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "3cf0a2a1-689c-5c83-98f8-abdf1f6a1285",
+  "oracle_id": "cce45eea-c6fb-50cc-a2e8-be1197843393",
+  "name": "Fling",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Instant",
+  "oracle_text": "As an additional cost to cast this spell, sacrifice a creature.\nFling deals damage equal to the sacrificed creature's power to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "0db669c4-9a9e-5f25-947a-04c35ddaf43d",
+  "oracle_id": "829aa3e0-0be1-50c9-ba07-5b7f8ab3b038",
+  "name": "Blasphemous Act",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{8}{R}",
+  "cmc": 9.0,
+  "type_line": "Sorcery",
+  "oracle_text": "This spell costs {1} less to cast for each creature on the battlefield.\nBlasphemous Act deals 13 damage to each creature.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "e03dbd8e-b467-5029-bfbb-34d3d0edd573",
+  "oracle_id": "666fb41a-041d-5dc5-a9c4-da6661200b20",
+  "name": "Vandalblast",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Destroy target artifact you don't control.\nOverload {4}{R} (You may cast this spell for its overload cost. If you do, change its text by replacing all instances of \"target\" with \"each.\")",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Overload"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "79f7160a-e71b-5fc0-966b-d24e2a09d24d",
+  "oracle_id": "ccc25ca2-51e9-5a7c-beeb-43cb84ef6f1d",
+  "name": "Faithless Looting",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Draw two cards, then discard two cards.\nFlashback {2}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Flashback"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "3b286714-c269-5029-a597-ad4cddadaacf",
+  "oracle_id": "5474d672-28c1-51cb-859e-57bc5681af21",
+  "name": "Hordeling Outburst",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}{R}",
+  "cmc": 3.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Create three 1/1 red Goblin creature tokens.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "ca3b6766-2ea4-5ab8-8b57-22510308099f",
+  "oracle_id": "6e6bf74a-6445-5ed6-917b-38c123b89194",
+  "name": "Dragon Fodder",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Create two 1/1 red Goblin creature tokens.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "13415c7a-63f4-55cb-862a-d358f26841c7",
+  "oracle_id": "09464ba1-641b-5490-9c64-2556c2d82bb6",
+  "name": "Goblin Grenade",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{R}",
+  "cmc": 1.0,
+  "type_line": "Sorcery",
+  "oracle_text": "As an additional cost to cast this spell, sacrifice a Goblin.\nGoblin Grenade deals 5 damage to any target.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "e7486949-c20c-58ed-9dcd-35b57444cae1",
+  "oracle_id": "6cf6397f-10ed-5f75-9e52-1a22d447f476",
+  "name": "Pyroclasm",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Pyroclasm deals 2 damage to each creature.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "8eb2be5c-93ad-54bb-be41-c8163d7f4c2e",
+  "oracle_id": "302a2800-402d-5929-afe1-c989aed24de9",
+  "name": "Goblin Rally",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}{R}{R}",
+  "cmc": 5.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Create four 1/1 red Goblin creature tokens.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "uncommon",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "49239d3f-f957-5208-a71d-fdba1277c2c4",
+  "oracle_id": "0b97a7de-abd1-5765-98ba-8d0f21f8a744",
+  "name": "Empty the Warrens",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{3}{R}",
+  "cmc": 4.0,
+  "type_line": "Sorcery",
+  "oracle_text": "Create two 1/1 red Goblin creature tokens.\nStorm (When you cast this spell, copy it for each spell cast before it this turn.)",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [
+   "Storm"
+  ],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "23fb30c3-5f21-5be7-a665-9f116aeb8f70",
+  "oracle_id": "3e8304bc-ac8f-5572-a66a-e669e2de6a59",
+  "name": "Tormenting Voice",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "{1}{R}",
+  "cmc": 2.0,
+  "type_line": "Sorcery",
+  "oracle_text": "As an additional cost to cast this spell, discard a card.\nDraw two cards.",
+  "colors": [
+   "R"
+  ],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false
+ },
+ {
+  "object": "card",
+  "id": "e132bece-0f9d-598f-a533-1892212e770e",
+  "oracle_id": "3878fb32-39f6-59be-92fb-f506f6925ba4",
+  "name": "Command Tower",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "",
+  "cmc": 0.0,
+  "type_line": "Land",
+  "oracle_text": "{T}: Add one mana of any color in your commander's color identity.",
+  "colors": [],
+  "color_identity": [],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "W",
+   "U",
+   "B",
+   "R",
+   "G"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "d7cb7c28-88fb-5c3f-b6b4-46085325cf2e",
+  "oracle_id": "65bea781-7de4-5475-bd3d-28f3163b444d",
+  "name": "Castle Embereth",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "",
+  "cmc": 0.0,
+  "type_line": "Land",
+  "oracle_text": "This land enters tapped unless you control a Mountain.\n{T}: Add {R}.\n{1}{R}{R}, {T}: Creatures you control get +1/+0 until end of turn.",
+  "colors": [],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "rare",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "R"
+  ]
+ },
+ {
+  "object": "card",
+  "id": "a5f944c0-6f8d-56eb-9aa4-b43ebaedecea",
+  "oracle_id": "5e203ec9-1cc8-5bd1-b92d-5604c6e81337",
+  "name": "Mountain",
+  "lang": "en",
+  "layout": "normal",
+  "mana_cost": "",
+  "cmc": 0.0,
+  "type_line": "Basic Land — Mountain",
+  "oracle_text": "({T}: Add {R}.)",
+  "colors": [],
+  "color_identity": [
+   "R"
+  ],
+  "keywords": [],
+  "legalities": {
+   "commander": "legal"
+  },
+  "set": "",
+  "rarity": "common",
+  "prices": {
+   "usd": null,
+   "usd_foil": null,
+   "eur": null,
+   "tix": null
+  },
+  "game_changer": false,
+  "produced_mana": [
+   "R"
+  ]
+ }
+]
