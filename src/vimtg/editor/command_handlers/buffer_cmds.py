@@ -39,6 +39,9 @@ def _resolve_write_path(
     """
     if cmd.args:
         name = cmd.args.strip()
+        if name.endswith(("/", "\\")) or (Path.cwd() / Path(name).expanduser()).is_dir():
+            # Appending '.deck' would write a hidden 'dir/.deck'
+            raise RuntimeError(f"E502: {name} is a directory")
         if not name.endswith(".deck"):
             name += ".deck"
         return Path.cwd() / Path(name).expanduser()
@@ -108,7 +111,7 @@ def cmd_write(
     try:
         ctx.save_fn(target, buffer.to_text())
     except OSError as exc:
-        ctx.fail(f"Write failed: {exc}")
+        ctx.fail(f"Write failed: {exc.filename or target}: {exc.strerror or exc}")
         return buffer, cursor
 
     previous = ctx.file_path

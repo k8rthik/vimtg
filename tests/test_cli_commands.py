@@ -648,3 +648,91 @@ def test_search_unknown_key_is_an_error(
     result = runner.invoke(main, ["search", "foo:bar"])
     assert result.exit_code == 1
     assert "Unknown search key 'foo'" in result.output
+
+
+def test_output_error_names_the_output_not_a_temp_file(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    out = tmp_path / "nodir" / "x.deck"
+    result = runner.invoke(main, ["new", "X", "-o", str(out)])
+    _assert_clean_error(result, f"{out}: No such file or directory")
+    assert ".tmp" not in result.output
+
+
+@pytest.mark.parametrize("force", [[], ["--force"]])
+def test_new_output_directory_is_refused(
+    runner: CliRunner, tmp_path: Path, force: list[str]
+) -> None:
+    # Was "already exists (use --force…)", then a temp-file error with --force
+    result = runner.invoke(main, ["new", "X", "-o", str(tmp_path), *force])
+    assert result.exit_code == 1, result.output
+    assert "is a directory (give a file path to -o)" in result.output
+    assert "--force" not in result.output
+
+
+def test_convert_output_directory_is_refused(runner: CliRunner, tmp_path: Path) -> None:
+    src = tmp_path / "in.deck"
+    src.write_text("4 Lightning Bolt\n", encoding="utf-8")
+    out = tmp_path / "outdir"
+    out.mkdir()
+    result = runner.invoke(main, ["convert", str(src), "--to", "mtgo", "-o", str(out)])
+    assert result.exit_code == 1, result.output
+    assert "is a directory" in result.output
+
+
+@pytest.mark.parametrize("limit", ["0", "-5"])
+def test_search_limit_must_be_positive(runner: CliRunner, limit: str) -> None:
+    # 0 printed "No cards found." and -5 meant "unlimited" (SQL LIMIT -5)
+    result = runner.invoke(main, ["search", "-n", limit, "bolt"])
+    assert result.exit_code == 2, result.output
+    assert "--limit" in result.output
+
+
+def test_validate_reports_unreadable_database_as_such(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    from vimtg.config.paths import db_path
+
+    db_path().write_bytes(b"this is not a sqlite database" * 100)
+    deck = tmp_path / "d.deck"
+    deck.write_text("// Format: modern\n4 Lightning Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", str(deck)])
+    assert "card database unreadable" in result.output
+    assert "no card database" not in result.output
+
+
+def test_validate_without_database_says_so(runner: CliRunner, tmp_path: Path) -> None:
+    deck = tmp_path / "d.deck"
+    deck.write_text("// Format: modern\n4 Lightning Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", str(deck)])
+    assert "(no card database — legality checks skipped" in result.output
+
+
+def test_validate_works_when_data_dir_cannot_be_created(
+    runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The card database is optional for validate/convert: an unusable
+    # data directory must not turn into "Error: …: Permission denied"
+    def denied() -> Path:
+        raise PermissionError(13, "Permission denied", str(tmp_path / "data"))
+
+    monkeypatch.setattr(cli, "db_path", denied)
+    deck = tmp_path / "d.deck"
+    deck.write_text("4 Lightning Bolt\n", encoding="utf-8")
+    result = runner.invoke(main, ["validate", str(deck)])
+    assert result.exit_code == 0, result.output
+    result = runner.invoke(main, ["convert", str(deck), "--to", "mtgo"])
+    assert result.exit_code == 0, result.output
+    assert "4 Lightning Bolt" in result.output
+
+
+def test_sync_unopenable_database_omits_tui_fallback_text(
+    runner: CliRunner,
+) -> None:
+    from vimtg.config.paths import db_path
+
+    db_path().mkdir()  # cannot be opened as a database file
+    result = runner.invoke(main, ["sync"])
+    assert result.exit_code == 1, result.output
+    assert "Cannot open the card database" in result.output
+    assert "Running without card data" not in result.output

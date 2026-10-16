@@ -654,6 +654,20 @@ class GreeterScreen(Screen[None]):
         self, file_path: Path | None, initial_text: str | None = None
     ) -> None:
         app = self.app
+        if initial_text is None and file_path is not None and file_path.exists():
+            # open_deck exits the app on an unreadable file (right at
+            # startup, wrong here): report it and keep the greeter up
+            try:
+                file_path.read_text(encoding="utf-8-sig")
+            except (OSError, UnicodeDecodeError) as exc:
+                gv = self.query_one(GreeterView)
+                if isinstance(exc, UnicodeDecodeError):
+                    reason = "not UTF-8 text"
+                else:
+                    reason = exc.strerror or str(exc)
+                gv._status = f"E: Cannot open {file_path.name}: {reason}"
+                gv.refresh()
+                return
         self.app.pop_screen()
         open_deck = getattr(app, "open_deck", None)
         if callable(open_deck):  # duck-typed: hosts expose open_deck

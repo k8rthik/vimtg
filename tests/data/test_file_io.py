@@ -172,3 +172,24 @@ class TestDiskChange:
 
         monkeypatch.setattr(Path, "read_bytes", _deny)
         assert file_stamp(p).digest == ""
+
+
+class TestAtomicWriteErrorsNameTheTarget:
+    """A failed write names the user's file, never the hidden temp file."""
+
+    def test_missing_directory(self, tmp_path: Path) -> None:
+        target = tmp_path / "nodir" / "x.deck"
+        with pytest.raises(FileNotFoundError) as info:
+            atomic_write_text(target, "4 Opt\n")
+        assert info.value.filename == str(target)
+        assert ".tmp" not in str(info.value)
+
+    @posix_only
+    def test_directory_target(self, tmp_path: Path) -> None:
+        target = tmp_path / "adir"
+        target.mkdir()
+        with pytest.raises(IsADirectoryError) as info:
+            atomic_write_text(target, "4 Opt\n")
+        assert info.value.filename == str(target)
+        assert [p.name for p in target.iterdir()] == []
+        assert [p.name for p in tmp_path.iterdir()] == ["adir"]  # no temp left

@@ -239,6 +239,10 @@ def _parse_plan_entry_line(line: str, line_number: int) -> PlanEntry | None:
         return None
     sign, quantity, rest = parsed
     name, _category, _tags, comment = parse_card_parts(rest)
+    if not name:
+        # '-1 #tag' names no card; like an empty-named zone line it is
+        # invalid, not a plan entry that would serialize as '-1 '
+        return None
     return PlanEntry(
         card_name=name,
         quantity=clamp_quantity(quantity),

@@ -163,6 +163,39 @@ class TestCmdWrite:
         assert ctx.file_path == fp
 
 
+class TestWriteTargetErrors:
+    @pytest.mark.parametrize("arg", ["sub/", "sub"])
+    def test_directory_argument_is_refused(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, arg: str
+    ) -> None:
+        # ':w sub/' used to write a hidden 'sub/.deck' and switch to it
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "sub").mkdir()
+        saved: list[Path] = []
+        ctx = EditorContext(
+            file_path=None, modified=True, save_fn=lambda p, t: saved.append(p),
+        )
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", arg), ctx)
+        assert saved == []
+        assert ctx.error and "E502" in ctx.message
+        assert ctx.file_path is None and ctx.modified
+
+    def test_failure_names_the_target_not_a_temp_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from vimtg.data.deck_repository import DeckRepository
+
+        monkeypatch.chdir(tmp_path)
+        ctx = EditorContext(
+            file_path=None, modified=True, save_fn=DeckRepository().save,
+        )
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", "nodir/x"), ctx)
+        assert ctx.error
+        target = Path.cwd() / "nodir" / "x.deck"
+        assert ctx.message == f"E: Write failed: {target}: No such file or directory"
+        assert ctx.modified
+
+
 class TestCmdQuit:
     def test_quit_unmodified(self) -> None:
         buf = _sample_buffer()

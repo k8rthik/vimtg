@@ -156,6 +156,9 @@ class EditorState:
     # Pattern of the last / ? * # or :find, repeated by n / N; n goes
     # the way the search went (backward after ? and #), N the other way
     last_find: str = ""
+    # How messages show last_find: '*' / '#' search by a regex built
+    # around the card name, and the name is what the user should see
+    last_find_label: str = ""
     last_find_backward: bool = False
     # Direction of the search prompt being typed: ? is backward
     search_backward: bool = False
@@ -460,11 +463,14 @@ def _submit_search(state: EditorState, text: str) -> HandlerResult:
     except re.error:
         return HandlerResult(command_message=f"E: Invalid pattern: {pattern}", error=True)
     state.last_find = pattern
+    if text:  # an empty pattern reuses the last one, label and all
+        state.last_find_label = ""
+    shown = state.last_find_label or pattern
     state.last_find_backward = backward
     if row is None:
-        return HandlerResult(command_message=f"Pattern not found: {pattern}")
+        return HandlerResult(command_message=f"Pattern not found: {shown}")
     state.cursor = state.cursor.move_to(row, 0)
-    return HandlerResult(command_message=prefix + pattern)
+    return HandlerResult(command_message=prefix + shown)
 
 
 def handle_command(
@@ -517,6 +523,7 @@ def handle_command(
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
         if cmd.name in ("find", "f") and cmd.args and not ctx.error:
             state.last_find = cmd.args
+            state.last_find_label = ""
             state.last_find_backward = False
         if ctx.registers is not None:
             state.registers = ctx.registers
@@ -775,6 +782,7 @@ def _search_card_under_cursor(
         rf"^\s*(?:(?:SB|MB|CMD|CMP):\s*)?\d+\s+{re.escape(name)}"
         r"(?=\s*(?:$|[@#]|//))"
     )
+    state.last_find_label = name
     state.last_find_backward = backward
     return _repeat_find(state, backward=backward, count=count)
 
@@ -806,18 +814,19 @@ def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerRe
     pattern = state.last_find
     if not pattern:
         return HandlerResult(command_message="No previous search pattern", error=True)
+    shown = state.last_find_label or pattern
     row = state.cursor.row
     for i in range(count):
         found = find_card_row(state.buffer, row, pattern, backward=backward)
         if found is None:
             if i == 0:
                 return HandlerResult(
-                    command_message=f"Pattern not found: {pattern}", error=True,
+                    command_message=f"Pattern not found: {shown}", error=True,
                 )
             break
         row = found
     state.cursor = state.cursor.move_to(row, 0)
-    return HandlerResult(command_message=("?" if backward else "/") + pattern)
+    return HandlerResult(command_message=("?" if backward else "/") + shown)
 
 
 def _handle_split_key(key: str) -> HandlerResult:

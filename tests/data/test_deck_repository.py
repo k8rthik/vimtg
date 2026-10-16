@@ -265,3 +265,17 @@ class TestSideboardPlans:
     def test_plan_lines_are_not_comments(self) -> None:
         deck = parse_deck_text("4 Opt\nVS: x\n    -1 Opt\n")
         assert deck.comments == ()
+
+    def test_plan_entry_without_card_name_is_skipped(self) -> None:
+        # '-1 #t' names no card: it used to become a nameless entry that
+        # serialized as '    -1 ', silently dropping the line's text
+        skipped: list[tuple[int, str]] = []
+        deck = parse_deck_text(
+            "4 Opt\nVS: Tron\n    -1 #t\n    -2 Opt\n",
+            on_skip=lambda n, line: skipped.append((n, line)),
+        )
+        assert [(e.sign, e.quantity, e.card_name) for e in deck.plans[0].entries] == [
+            ("-", 2, "Opt")
+        ]
+        assert skipped == [(3, "-1 #t")]
+        assert "    -1 \n" not in serialize_deck(deck)
