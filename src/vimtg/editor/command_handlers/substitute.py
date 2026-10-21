@@ -17,7 +17,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
-    resolve_command_range,
+    command_line_range,
 )
 from vimtg.editor.cursor import Cursor
 
@@ -125,10 +125,7 @@ def _resolve_line_range(
     cmd: ParsedCommand, cursor_row: int, line_count: int
 ) -> tuple[int, int]:
     """Determine the line range for substitution (default: current line)."""
-    if cmd.cmd_range and cmd.cmd_range.is_whole_file:
-        return 0, line_count - 1
-    explicit = resolve_command_range(cmd)
-    return explicit if explicit is not None else (cursor_row, cursor_row)
+    return command_line_range(cmd, line_count, (cursor_row, cursor_row))
 
 
 def cmd_substitute(

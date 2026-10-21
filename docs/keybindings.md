@@ -83,7 +83,7 @@ as in vim, and never eat the next section's blank line or header:
 |-----|--------|
 | `dd` / `yy` / `cc` | Delete / yank / change the card line (`cc` deletes, then opens card search) |
 | `d` `y` `c` + motion | Operators compose with a motion: `dw` deletes this card entry, `d}` to the end of the section, `y5G` through line 5. Counts multiply: `2d3j` |
-| `x` | Delete the card under the cursor (into the register); card lines only |
+| `x` | Delete the card under the cursor (into the register); card lines only. A count deletes that many consecutive card lines as one change (`3x`, then one `u`) |
 | `p` / `P` | Paste below / above; `3p` pastes three copies |
 | `+` / `-` | Increment / decrement quantity; `-` at 0 deletes the line. Both keep zone prefixes, plan signs, `@category`, `#tags`, and comments |
 | `.` | Repeat the last change (a count overrides the recorded one). Every edit repeats: operators, `c` together with the card it added, `o`/`O` with their card and copies, `p`/`P`, `+`/`-`, `x`, zone and plan moves, tags, categories, comments, `i`, and `:s` (on the cursor line). A change made on a visual selection repeats on as many lines from the cursor |

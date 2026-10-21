@@ -163,6 +163,8 @@ class _Compiler:
         if isinstance(node, Or):
             return "(" + " OR ".join(self.compile(n) for n in node.children) + ")"
         if isinstance(node, Not):
+            if isinstance(node.child, Not):  # '--x': SQLite's parser stack is finite
+                return self.compile(node.child.child)
             return f"(NOT {self.compile(node.child)})"
         if isinstance(node, NameWords):
             return (

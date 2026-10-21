@@ -188,6 +188,19 @@ def resolve_command_range(cmd: ParsedCommand) -> tuple[int, int] | None:
     return (min(rng.start, end), max(rng.start, end))
 
 
+def command_line_range(
+    cmd: ParsedCommand, line_count: int, default: tuple[int, int]
+) -> tuple[int, int]:
+    """The lines an ex command addresses: its explicit range ('%' is
+    the whole buffer), else `default` (the cursor line, the current
+    section, ...), clamped to the buffer so a stale row never
+    indexes past the end. The one place handlers get this from."""
+    explicit = resolve_command_range(cmd)
+    start, end = explicit if explicit is not None else default
+    last = max(0, line_count - 1)
+    return max(0, min(start, last)), max(0, min(end, last))
+
+
 def _goto_range(cmd: ParsedCommand, buffer: Buffer, cursor: Cursor) -> Cursor:
     """:12, :$, :. — a bare range moves to its last line, as in vim."""
     rng = cmd.cmd_range

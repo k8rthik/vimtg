@@ -25,7 +25,15 @@ import pytest
 
 from vimtg.data.deck_repository import parse_deck_text, serialize_deck
 from vimtg.domain.deck import Deck, DeckSection
-from vimtg.domain.deck_lines import parse_plan_header_parts
+from vimtg.domain.deck_lines import (
+    apply_zone_effect,
+    parse_plan_header_parts,
+    zone_block_contexts,
+    zone_block_states,
+    zone_context_at,
+    zone_context_effect,
+    zone_running_context,
+)
 from vimtg.editor.buffer import CARD_LINE_TYPES, Buffer, LineType, classify_lines
 from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
@@ -87,6 +95,8 @@ OTHER_LINES = (
     "Sideboard",
     "sideboard:",
     "SIDEBOARD",
+    "  Sideboard",
+    "\tsideboard:",
     "VS: Tron",
     "VS: Tron  // mull hard",
     "VS:",
@@ -191,6 +201,27 @@ class TestBufferAndParserAgree:
         assert [(e.card_name, e.tags) for e in deck.entries] == [
             ("Goblin Guide", frozenset({"haste"}))
         ]
+
+
+class TestZoneStateMachines:
+    """deck_lines keeps two views of the zone-block state: the scan
+    behind zone_block_contexts, and the per-line effect model
+    (zone_context_effect / apply_zone_effect / zone_running_context)
+    the buffer uses to decide whether an edit can rezone later lines.
+    They must agree on every line of every deck."""
+
+    @pytest.mark.parametrize("seed", range(4))
+    def test_effect_model_matches_the_scan(self, seed: int) -> None:
+        for case, lines in _texts(seed, 400):
+            states = zone_block_states(lines)
+            contexts = zone_block_contexts(lines)
+            running: str | None = None
+            for row, line in enumerate(lines):
+                where = f"seed {seed} case {case} row {row}: {lines!r}"
+                assert states[row][0] == running, where
+                assert zone_running_context(lines, row) == running, where
+                assert zone_context_at(lines, row) == contexts[row], where
+                running = apply_zone_effect(zone_context_effect(line), running)
 
 
 class TestIncrementalReclassification:

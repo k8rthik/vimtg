@@ -263,3 +263,28 @@ class TestRankingWords:
 
     def test_none(self) -> None:
         assert ranking_words(None) == []
+
+
+class TestHostileQueriesAreSyntaxErrors:
+    """Queries that used to escape as ValueError / OverflowError /
+    RecursionError (and took the TUI's search worker down with them)."""
+
+    @pytest.mark.parametrize(
+        ("query", "message"),
+        [
+            ("c:²", "Unknown colour"),
+            ("/a{99999999999}/", "Invalid regex"),
+            ("(" * 40 + "x" + ")" * 40, "nested too deeply"),
+            (" ".join(["a"] * 250), "too many terms"),
+            ("o:" + "x" * 1001, "too long"),
+        ],
+    )
+    def test_rejected_with_a_message(self, query: str, message: str) -> None:
+        with pytest.raises(SearchSyntaxError, match=message):
+            parse_search(query)
+
+    def test_a_huge_colour_count_is_clamped_not_overflowed(self) -> None:
+        from vimtg.domain.search import ColorMatch
+
+        assert parse_search("c:99999999999999999999") == ColorMatch("colors", "=", count=6)
+        assert parse_search("c:3") == ColorMatch("colors", "=", count=3)

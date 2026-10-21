@@ -168,3 +168,13 @@ def test_list_and_orphans(tmp_path: Path) -> None:
 def test_list_skips_unreadable_copies() -> None:
     (recovery_dir() / "bad.deck").write_bytes(b"\xff\xfe\x00bad")
     assert all(c.copy.name != "bad.deck" for c in list_recoveries())
+
+
+def test_undecodable_bytes_in_the_deck_path_do_not_raise(tmp_path: Path) -> None:
+    # A file name the filesystem could not decode arrives with surrogate
+    # escapes; "never raises" helpers must still never raise for it
+    deck = tmp_path / "caf\udce9.deck"
+    path = recovery_path(deck)
+    assert path.parent == recovery_dir()
+    assert pending_recovery(deck, "") is False
+    discard_recovery(deck)

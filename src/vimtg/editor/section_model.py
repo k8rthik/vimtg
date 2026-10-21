@@ -22,9 +22,7 @@ from vimtg.domain.section_keys import (
     SectionKind,
     parse_section_key,
 )
-from vimtg.editor.buffer import ZONE_TAG_TYPES, Buffer, LineType
-
-_HEADER_TYPES = (LineType.SECTION_HEADER, LineType.PLAN_HEADER)
+from vimtg.editor.buffer import HEADER_LINE_TYPES, ZONE_TAG_TYPES, Buffer, LineType
 
 
 @dataclass(frozen=True)
@@ -75,7 +73,7 @@ def parse_sections(buf: Buffer) -> tuple[Section, ...]:
     lines = buf.get_lines()
     texts = [bl.text for bl in lines]
     header_rows = [
-        i for i, bl in enumerate(lines) if bl.line_type in _HEADER_TYPES
+        i for i, bl in enumerate(lines) if bl.line_type in HEADER_LINE_TYPES
     ]
     sections: list[Section] = []
     for idx, row in enumerate(header_rows):

@@ -128,30 +128,46 @@ def is_mtgo_sideboard_header(text: str) -> bool:
     return _MTGO_SIDEBOARD_HEADER_PATTERN.match(text.strip()) is not None
 
 
-def _zone_contexts(raw_lines: Sequence[str]) -> Iterator[str | None]:
-    """The zone context of each line, in order (see zone_block_contexts)."""
+def zone_block_states(raw_lines: Sequence[str]) -> list[tuple[str | None, bool]]:
+    """The (open block tag, MTGO-sideboard flag) state ENTERING each
+    line. The block tag is what zone_running_context computes through
+    the per-line effect model; the two must agree, and the flag only
+    ever changes at an MTGO 'Sideboard' header line."""
+    return list(_zone_states(raw_lines))
+
+
+def _zone_states(raw_lines: Sequence[str]) -> Iterator[tuple[str | None, bool]]:
     current: str | None = None
     mtgo_sideboard = False
     for raw in raw_lines:
+        yield current, mtgo_sideboard
         stripped = raw.strip()
         if not stripped:
-            yield None
             continue
         tag = block_header_tag(raw)
         if tag is not None:
             current = tag
-            yield None
-            continue
-        if is_mtgo_sideboard_header(stripped):
+        elif is_mtgo_sideboard_header(stripped):
             mtgo_sideboard = True
             current = None
+        elif not (raw[:1].isspace() and current is not None):
+            current = None
+
+
+def _zone_contexts(raw_lines: Sequence[str]) -> Iterator[str | None]:
+    """The zone context of each line, in order (see zone_block_contexts)."""
+    for raw, (current, mtgo_sideboard) in zip(raw_lines, _zone_states(raw_lines), strict=True):
+        stripped = raw.strip()
+        if (
+            not stripped
+            or block_header_tag(raw) is not None
+            or is_mtgo_sideboard_header(stripped)
+        ):
             yield None
-            continue
-        if raw[:1].isspace() and current is not None:
+        elif raw[:1].isspace() and current is not None:
             yield current
-            continue
-        current = None
-        yield "SB" if mtgo_sideboard else None
+        else:
+            yield "SB" if mtgo_sideboard else None
 
 
 def zone_block_contexts(raw_lines: Sequence[str]) -> list[str | None]:
@@ -193,13 +209,16 @@ def zone_context_at(raw_lines: Sequence[str], row: int) -> str | None:
 def zone_context_effect(text: str) -> str:
     """How a line changes the running zone-block context for the lines
     after it: 'set:<TAG>' (a block header), 'clear' (unindented
-    non-blank), or 'keep' (blank or indented)."""
+    non-blank, or an MTGO 'Sideboard' header at any indentation), or
+    'keep' (blank or indented)."""
     stripped = text.strip()
     if not stripped:
         return "keep"
     tag = block_header_tag(text)
     if tag is not None:
         return f"set:{tag}"
+    if is_mtgo_sideboard_header(stripped):
+        return "clear"
     return "keep" if text[:1].isspace() else "clear"
 
 

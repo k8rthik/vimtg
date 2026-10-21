@@ -71,7 +71,10 @@ def load_settings_checked() -> tuple[Settings, str | None]:
     replaced per-field — but an unparseable file must not go unnoticed
     either: the warning tells the user why their settings vanished.
     """
-    config_path = config_dir() / "config.toml"
+    try:
+        config_path = config_dir() / "config.toml"
+    except OSError as exc:  # e.g. $XDG_CONFIG_HOME/vimtg is a file
+        return Settings(), f"Cannot use the config directory: {exc}; using default settings"
     if not config_path.exists():
         return Settings(), None
 

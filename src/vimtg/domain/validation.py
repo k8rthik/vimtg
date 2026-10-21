@@ -628,7 +628,10 @@ def _check_commander(
                 )
             )
 
-    if not leaders:
+    if not leaders or len(resolved_commanders) != len(commanders):
+        # No identity, or an unknown one while a commander name is
+        # unresolved (its card-not-found warning already says so);
+        # _check_companion_identity makes the same call
         return errors
 
     identity = {color for _, card in leaders for color in card.color_identity}

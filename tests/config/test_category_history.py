@@ -30,3 +30,10 @@ class TestCategoryHistory:
     def test_empty_name_ignored(self) -> None:
         record_category("   ")
         assert load_category_history() == ()
+
+
+def test_undecodable_history_file_reads_as_empty() -> None:
+    from vimtg.config.paths import config_dir
+
+    (config_dir() / "categories").write_bytes(b"\xff\xfe not utf-8")
+    assert load_category_history() == ()

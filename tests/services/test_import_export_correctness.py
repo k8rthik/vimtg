@@ -463,3 +463,35 @@ def test_damaged_card_database_degrades_to_typed_names() -> None:
     assert [(e.quantity, e.card_name) for e in deck.entries] == [
         (1, "Sol Ring"), (4, "Fire/Ice"),
     ]
+
+
+class TestDetectFormatNormalisesFirst:
+    def test_a_bom_or_crlf_does_not_hide_a_vimtg_first_line(self) -> None:
+        from vimtg.services.import_export_service import DeckFormat, ImportExportService
+
+        svc = ImportExportService()
+        assert svc.detect_format("﻿// Creatures\n4 Lightning Bolt\n") is DeckFormat.VIMTG
+        assert svc.detect_format("// Deck: x\r\n4 Lightning Bolt\r\n") is DeckFormat.VIMTG
+
+
+class TestCanonicalNamesReachPlanLines:
+    def test_plan_entries_follow_the_renamed_cards(self) -> None:
+        from vimtg.data.deck_repository import parse_deck_text
+        from vimtg.domain.card import Card
+        from vimtg.domain.sideboard_plan import validate_plans
+        from vimtg.services.import_export_service import canonicalize_names
+
+        fire_ice = Card.from_scryfall({
+            "id": "fi", "name": "Fire // Ice", "mana_cost": "{1}{R} // {1}{U}", "cmc": 2.0,
+            "type_line": "Instant // Instant", "oracle_text": "", "colors": ["R", "U"],
+            "color_identity": ["R", "U"], "power": None, "toughness": None, "keywords": [],
+            "set": "apc", "rarity": "uncommon", "layout": "split", "legalities": {},
+            "prices": {"usd": None}, "image_uris": {},
+        })
+        deck = parse_deck_text(
+            "4 fire/ice\nSB: 2 Duress\n\nVS: x\n    -2 fire/ice\n    +2 Duress\n"
+        )
+        out = canonicalize_names(deck, {"fire/ice": fire_ice})
+        assert out.entries[0].card_name == "Fire // Ice"
+        assert out.plans[0].entries[0].card_name == "Fire // Ice"
+        assert validate_plans(out) == []
