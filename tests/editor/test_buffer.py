@@ -367,3 +367,54 @@ class TestInsertLineBounds:
         out = buf.insert_line(-2, "")
         assert out.get_line(0).text == ""
         assert out.get_line(1).text == "4 Lightning Bolt"
+
+
+class TestBufferReadsCardsLikeTheDeckParser:
+    """The buffer and vimtg.data.deck_repository share one card-line
+    grammar (deck_lines.parse_card_line); the cursor must never be on
+    a card the saved deck does not have, or vice versa."""
+
+    def test_tags_without_a_name_are_not_a_card(self) -> None:
+        assert classify_line("3  #tag") == LineType.COMMENT
+        assert classify_line("SB: 2  @cat") == LineType.COMMENT
+        assert classify_line("MB: 0   // only a comment") == LineType.COMMENT
+        buf = Buffer.from_text("MB: 0   // only a comment\n")
+        assert buf.card_name_at(0) is None
+        assert buf.comment_at(0) == ""
+
+    def test_card_name_drops_a_pasted_printing_suffix(self) -> None:
+        buf = Buffer.from_text("4 Goblin Guide (ZEN) 126 *F*  #haste  // pet\n")
+        assert buf.card_name_at(0) == "Goblin Guide"
+        assert buf.quantity_at(0) == 4
+        assert buf.tags_at(0) == frozenset({"haste"})
+        assert buf.comment_at(0) == "pet"
+        # the text itself is untouched — only the card it names changes
+        assert buf.set_quantity(0, 3).get_line(0).text == (
+            "3 Goblin Guide (ZEN) 126 *F*  #haste  // pet"
+        )
+
+    def test_mtgo_sideboard_header_zones_later_bare_lines(self) -> None:
+        buf = Buffer.from_text(
+            "4 Opt\nSideboard\n2 Duress\n    1 Negate\nCMD:\n    1 Tymna\n3 Bolt\n"
+        )
+        assert [bl.line_type for bl in buf.get_lines()] == [
+            LineType.CARD_ENTRY, LineType.COMMENT, LineType.SIDEBOARD_ENTRY,
+            LineType.SIDEBOARD_ENTRY, LineType.SECTION_HEADER,
+            LineType.COMMANDER_ENTRY, LineType.SIDEBOARD_ENTRY,
+        ]
+
+    def test_editing_an_mtgo_header_rezones_the_lines_after_it(self) -> None:
+        buf = Buffer.from_text("4 Opt\nSideboard\n2 Duress\n")
+        assert buf.get_line(2).line_type == LineType.SIDEBOARD_ENTRY
+        assert buf.set_line(1, "// Sideboard").get_line(2).line_type == LineType.CARD_ENTRY
+        assert buf.delete_lines(1, 1)[0].get_line(1).line_type == LineType.CARD_ENTRY
+        plain = Buffer.from_text("4 Opt\n2 Duress\n")
+        assert plain.insert_line(1, "Sideboard").get_line(2).line_type == LineType.SIDEBOARD_ENTRY
+
+    def test_plan_entry_without_a_name_is_not_an_entry(self) -> None:
+        buf = Buffer.from_text("VS: Tron\n    -1 #t\n    -2 Opt  // keep\n")
+        assert buf.get_line(1).line_type == LineType.COMMENT
+        assert buf.is_plan_entry(2)
+        assert buf.card_name_at(2) == "Opt"
+        assert buf.plan_sign_at(2) == "-"
+        assert buf.comment_at(2) == "keep"

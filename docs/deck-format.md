@@ -126,6 +126,11 @@ SB: 3 Kor Firewalker
 A `// Sideboard` header is conventional but not required — the `SB:` prefix
 is what counts.
 
+For a list pasted from MTGO or Arena, a bare `Sideboard` line (no `//`)
+is also understood: every unprefixed card line after it is a sideboard
+card, in the editor and when the file is validated or exported alike. An
+`SB:` block or `VS:` plan block keeps its own meaning inside such a list.
+
 ## Other zones
 
 The same prefix convention covers the remaining zones:

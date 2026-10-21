@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from vimtg.domain.card import Card
-from vimtg.domain.deck_lines import parse_plan_entry, parse_plan_header
+from vimtg.domain.deck_lines import parse_plan_header, parse_plan_line
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.command_completer import fuzzy_score
 
@@ -90,13 +90,11 @@ def entry_lines(buffer: Buffer, block: PlanBlock) -> tuple[PlanEntryLine, ...]:
     """The parsed entries of a block, in buffer order."""
     out: list[PlanEntryLine] = []
     for row in block.entry_rows:
-        parsed = parse_plan_entry(buffer.get_line(row).text)
-        if parsed is None:
+        plan = parse_plan_line(buffer.get_line(row).text)
+        if plan is None:
             continue
-        sign, quantity, _ = parsed
         out.append(PlanEntryLine(
-            row=row, sign=sign, quantity=quantity,
-            card_name=buffer.card_name_at(row) or "",
+            row=row, sign=plan.sign, quantity=plan.quantity, card_name=plan.name,
         ))
     return tuple(out)
 

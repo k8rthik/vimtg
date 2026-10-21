@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -17,34 +16,18 @@ from vimtg.domain.deck import (
     DeckSection,
 )
 from vimtg.domain.deck_lines import (
-    CARD_PATTERN as _MAINBOARD_PATTERN,
-)
-from vimtg.domain.deck_lines import (
-    CMD_PATTERN as _COMMANDER_PATTERN,
-)
-from vimtg.domain.deck_lines import (
-    CMP_PATTERN as _COMPANION_PATTERN,
-)
-from vimtg.domain.deck_lines import (
-    MB_PATTERN as _MAYBEBOARD_PATTERN,
-)
-from vimtg.domain.deck_lines import (
     METADATA_PATTERN as _METADATA_PATTERN,
 )
 from vimtg.domain.deck_lines import (
     PLAN_TAG,
-    clamp_quantity,
     format_inline_comment,
-    parse_card_parts,
-    parse_plan_entry,
+    is_mtgo_sideboard_header,
+    parse_card_line,
     parse_plan_header_parts,
+    parse_plan_line,
     parse_zone_header,
     strip_bom,
-    strip_printing_suffix,
     zone_block_contexts,
-)
-from vimtg.domain.deck_lines import (
-    SB_PATTERN as _SIDEBOARD_PATTERN,
 )
 from vimtg.domain.sideboard_plan import PlanEntry, SideboardPlan
 from vimtg.domain.tags import format_inline_tags
@@ -83,16 +66,9 @@ def _parse_metadata_block(lines: tuple[str, ...]) -> DeckMetadata:
     )
 
 
-_ENTRY_PATTERNS = (
-    (_SIDEBOARD_PATTERN, DeckSection.SIDEBOARD),
-    (_MAYBEBOARD_PATTERN, DeckSection.MAYBEBOARD),
-    (_COMMANDER_PATTERN, DeckSection.COMMANDER),
-    (_COMPANION_PATTERN, DeckSection.COMPANION),
-    (_MAINBOARD_PATTERN, DeckSection.MAIN),
-)
-
-# Zone-block header tag → the section its indented bare card lines join
-_BLOCK_SECTIONS = {
+# Zone tag (a line's own prefix, or the block header its indented bare
+# card lines sit under) → the deck section
+_ZONE_SECTIONS = {
     "DCK": DeckSection.MAIN,
     "CMD": DeckSection.COMMANDER,
     "CMP": DeckSection.COMPANION,
@@ -101,33 +77,20 @@ _BLOCK_SECTIONS = {
 }
 
 
-# A hand-typed (or MTGO-pasted) bare "Sideboard" line: unprefixed card
-# lines after it are sideboard cards, as in MTGO/Arena text lists
-_SIDEBOARD_HEADER_PATTERN = re.compile(r"^sideboard\s*:?$", re.IGNORECASE)
-
-
 def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
     """Parse one SB:/CMD:/mainboard card line, or None if not a card line."""
-    for pattern, section in _ENTRY_PATTERNS:
-        match = pattern.match(line)
-        if match:
-            name, category, card_tags, comment = parse_card_parts(
-                match.group(2).strip()
-            )
-            # Pasted Arena/Moxfield lines carry "(SET) 123 *F*"
-            name = strip_printing_suffix(name)
-            if not name:
-                return None
-            return DeckEntry(
-                quantity=clamp_quantity(int(match.group(1))),
-                card_name=name,
-                section=section,
-                category=category,
-                tags=card_tags,
-                comment=comment,
-                line_number=line_number,
-            )
-    return None
+    card = parse_card_line(line)
+    if card is None:
+        return None
+    return DeckEntry(
+        quantity=card.quantity,
+        card_name=card.name,
+        section=_ZONE_SECTIONS[card.zone],
+        category=card.category,
+        tags=card.tags,
+        comment=card.comment,
+        line_number=line_number,
+    )
 
 
 def parse_deck_text(
@@ -146,7 +109,8 @@ def parse_deck_text(
       bare card lines indented beneath it belong to that zone
       (explicit prefixes always win).
     - A bare 'Sideboard' line (MTGO/Arena style) makes the unprefixed
-      card lines after it sideboard cards.
+      card lines after it sideboard cards (deck_lines.zone_block_contexts
+      models both kinds of block, so the editor buffer agrees).
     - Pasted '(SET) 123' / '*F*' printing suffixes are stripped from
       card names; a leading UTF-8 BOM is ignored.
     - Blank/invalid lines are skipped gracefully; `on_skip(line_number,
@@ -160,7 +124,6 @@ def parse_deck_text(
     comments: list[CommentLine] = []
     metadata_lines: list[str] = []
     plans: list[SideboardPlan] = []
-    in_sideboard = False
 
     for line_number, raw_line in enumerate(raw_lines, start=1):
         line = raw_line.strip()
@@ -179,10 +142,7 @@ def parse_deck_text(
             continue
 
         # Bare zone block headers are structural, like section headers
-        if parse_zone_header(line) is not None:
-            continue
-        if _SIDEBOARD_HEADER_PATTERN.match(line):
-            in_sideboard = True
+        if parse_zone_header(line) is not None or is_mtgo_sideboard_header(line):
             continue
 
         # 'VS: name' opens a sideboard plan; its indented lines follow
@@ -209,9 +169,7 @@ def parse_deck_text(
             if entry.section == DeckSection.MAIN and block is not None:
                 if block == PLAN_TAG:
                     continue  # unsigned line handled above; never a card
-                entry = replace(entry, section=_BLOCK_SECTIONS[block])
-            elif entry.section == DeckSection.MAIN and in_sideboard:
-                entry = replace(entry, section=DeckSection.SIDEBOARD)
+                entry = replace(entry, section=_ZONE_SECTIONS[block])
             entries.append(entry)
         elif on_skip is not None:
             # Invalid line — skipped gracefully, but reported when asked
@@ -230,33 +188,18 @@ def parse_deck_text(
 def _parse_plan_entry_line(line: str, line_number: int) -> PlanEntry | None:
     """Parse one '[+-]N Card  // note' plan line, or None.
 
-    Explicitly prefixed zone lines ('SB: 1 X') are not plan entries.
+    Explicitly prefixed zone lines ('SB: 1 X') and lines naming no card
+    ('-1 #tag') are not plan entries (see deck_lines.parse_plan_line).
     """
-    if _is_prefixed_zone_line(line):
-        return None
-    parsed = parse_plan_entry(line)
-    if parsed is None:
-        return None
-    sign, quantity, rest = parsed
-    name, _category, _tags, comment = parse_card_parts(rest)
-    if not name:
-        # '-1 #tag' names no card; like an empty-named zone line it is
-        # invalid, not a plan entry that would serialize as '-1 '
+    plan = parse_plan_line(line)
+    if plan is None:
         return None
     return PlanEntry(
-        card_name=name,
-        quantity=clamp_quantity(quantity),
-        sign=sign,
-        comment=comment,
+        card_name=plan.name,
+        quantity=plan.quantity,
+        sign=plan.sign,
+        comment=plan.comment,
         line_number=line_number,
-    )
-
-
-def _is_prefixed_zone_line(line: str) -> bool:
-    return any(
-        pattern.match(line)
-        for pattern, section in _ENTRY_PATTERNS
-        if section != DeckSection.MAIN
     )
 
 

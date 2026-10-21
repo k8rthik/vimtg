@@ -307,15 +307,14 @@ def _group_by_category(
     First-appearance order preserves the user's own arrangement across
     toggles; uncategorized cards form a trailing group.
     """
-    from vimtg.domain.deck_lines import parse_card_parts
-    from vimtg.editor.sort_keys import match_card_line
+    from vimtg.domain.deck_lines import parse_card_line
 
     buckets: dict[str, list[BufferLine]] = {}
     order: list[str] = []
     uncategorized: list[BufferLine] = []
     for bl in cards:
-        m = match_card_line(bl.text.strip())
-        category = parse_card_parts(m.group(2))[1] if m else ""
+        card = parse_card_line(bl.text)
+        category = card.category if card else ""
         if not category:
             uncategorized.append(bl)
             continue

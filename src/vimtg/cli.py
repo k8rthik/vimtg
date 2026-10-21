@@ -191,41 +191,51 @@ def _check_deck_filename(name: str) -> None:
         )
 
 
+_NO_CARD_DB = "no card database"
+_UNREADABLE_CARD_DB = "card database unreadable, it may be corrupt"
+
+
+def _open_card_db() -> tuple[Database | None, str]:
+    """The synced card database, or (None, why there is none).
+
+    The one place a command decides whether card data is usable: no
+    file (or no data directory to look in) and an empty database are
+    "no card database"; a file that exists but will not open or lacks
+    the card tables is "unreadable", which the user should hear
+    instead. The caller closes the database.
+    """
+    try:
+        path = db_path()
+    except OSError:  # the data directory cannot be created
+        return None, _NO_CARD_DB
+    if not path.is_file():
+        return None, _NO_CARD_DB
+    db = Database(path)
+    try:
+        db.initialize()
+        if CardRepository(db).count() > 0:
+            return db, ""
+    except (sqlite3.Error, DatabaseNotInitializedError):
+        db.close()
+        return None, _UNREADABLE_CARD_DB
+    db.close()
+    return None, _NO_CARD_DB
+
+
 def _try_card_repo() -> CardRepository | None:
     """A populated card repository, or None when no usable database exists."""
-    import sqlite3
-
-    try:
-        if not db_path().exists():
-            return None
-    except OSError:  # the data directory cannot be created
-        return None
-    try:
-        repo = _make_card_repo()
-        return repo if repo.count() > 0 else None
-    except (sqlite3.Error, DatabaseNotInitializedError):
-        return None
+    db, _note = _open_card_db()
+    return CardRepository(db) if db is not None else None
 
 
 def _no_card_db_note() -> str:
     """Why _try_card_repo found no card data, for a '(… — run vimtg
-    sync)' note: a database that exists but cannot be read is not the
-    same as having none."""
-    try:
-        exists = db_path().is_file()
-    except OSError:
-        exists = False
-    if not exists:
-        return "no card database"
-    db = Database(db_path())
-    try:
-        db.initialize()
-        CardRepository(db).count()
-    except (sqlite3.Error, DatabaseNotInitializedError):
-        return "card database unreadable, it may be corrupt"
-    finally:
+    sync)' note."""
+    db, note = _open_card_db()
+    if db is not None:  # it is usable after all; the note is moot
         db.close()
-    return "no card database"
+        return _NO_CARD_DB
+    return note
 
 
 @main.command()
@@ -595,21 +605,7 @@ def _optional_card_db() -> Database | None:
     """The synced card database, or None when there is none (or it
     cannot be opened) — conversion then works from the typed names.
     The caller closes it."""
-    try:
-        path = db_path()
-    except OSError:  # the data directory cannot be created
-        return None
-    if not path.is_file():
-        return None
-    db = Database(path)
-    try:
-        db.initialize()
-        if CardRepository(db).count() > 0:
-            return db
-    except sqlite3.Error:
-        pass
-    db.close()
-    return None
+    return _open_card_db()[0]
 
 
 @main.command()
