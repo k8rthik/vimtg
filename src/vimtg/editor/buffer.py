@@ -20,19 +20,14 @@ from vimtg.domain.categories import (
     strip_inline_category,
 )
 from vimtg.domain.deck_lines import (
-    CARD_PATTERN,
-    CMD_PATTERN,
-    CMP_PATTERN,
-    MB_PATTERN,
     PLAN_TAG,
-    SB_PATTERN,
     apply_zone_effect,
-    clamp_quantity,
     format_inline_comment,
+    is_mtgo_sideboard_header,
     match_metadata,
-    parse_card_suffix,
-    parse_plan_entry,
+    parse_card_line,
     parse_plan_header,
+    parse_plan_line,
     parse_zone_header,
     split_inline_comment,
     zone_block_contexts,
@@ -59,11 +54,6 @@ class LineType(Enum):
     PLAN_ENTRY = "plan_entry"
 
 
-_CARD_PATTERN = CARD_PATTERN
-_SB_PATTERN = SB_PATTERN
-_MB_PATTERN = MB_PATTERN
-_CMD_PATTERN = CMD_PATTERN
-_CMP_PATTERN = CMP_PATTERN
 # Splits a card line into (prefix+leading-ws, quantity, rest) so the quantity
 # can be replaced in place without disturbing the prefix, name, or tags.
 _QUANTITY_SUB = re.compile(
@@ -77,8 +67,25 @@ class BufferLine:
     line_type: LineType
 
 
+# Zone-block header tag → the LineType its indented bare card lines get;
+# also the LineType of a card line carrying that zone's own prefix
+ZONE_TAG_TYPES: dict[str, LineType] = {
+    "DCK": LineType.CARD_ENTRY,
+    "CMD": LineType.COMMANDER_ENTRY,
+    "CMP": LineType.COMPANION_ENTRY,
+    "SB": LineType.SIDEBOARD_ENTRY,
+    "MB": LineType.MAYBEBOARD_ENTRY,
+}
+_ZONE_TAG_TYPES = ZONE_TAG_TYPES
+
+
 def classify_line(text: str) -> LineType:
-    """Classify a single line of deck text by its syntactic role."""
+    """Classify a single line of deck text by its syntactic role.
+
+    Card lines are whatever deck_lines.parse_card_line accepts — the
+    same grammar the deck file parser reads on save — so a line the
+    deck does not count ('3  #tag') is not a card to the cursor either.
+    """
     stripped = text.strip()
     if not stripped:
         return LineType.BLANK
@@ -96,16 +103,9 @@ def classify_line(text: str) -> LineType:
     # "VS: Tron" — a sideboard plan block header
     if parse_plan_header(stripped) is not None:
         return LineType.PLAN_HEADER
-    if _SB_PATTERN.match(stripped):
-        return LineType.SIDEBOARD_ENTRY
-    if _MB_PATTERN.match(stripped):
-        return LineType.MAYBEBOARD_ENTRY
-    if _CMD_PATTERN.match(stripped):
-        return LineType.COMMANDER_ENTRY
-    if _CMP_PATTERN.match(stripped):
-        return LineType.COMPANION_ENTRY
-    if _CARD_PATTERN.match(stripped):
-        return LineType.CARD_ENTRY
+    card = parse_card_line(stripped)
+    if card is not None:
+        return ZONE_TAG_TYPES[card.zone]
     return LineType.COMMENT
 
 
@@ -123,19 +123,6 @@ _CARD_LINE_TYPES = CARD_LINE_TYPES
 # sort, or zone moves — but +/- and the name/comment accessors work.
 QUANTITY_LINE_TYPES = CARD_LINE_TYPES | {LineType.PLAN_ENTRY}
 
-_CARD_PATTERNS = (
-    _CARD_PATTERN, _SB_PATTERN, _MB_PATTERN, _CMD_PATTERN, _CMP_PATTERN,
-)
-
-# Zone-block header tag → the LineType its indented bare card lines get
-ZONE_TAG_TYPES: dict[str, LineType] = {
-    "DCK": LineType.CARD_ENTRY,
-    "CMD": LineType.COMMANDER_ENTRY,
-    "CMP": LineType.COMPANION_ENTRY,
-    "SB": LineType.SIDEBOARD_ENTRY,
-    "MB": LineType.MAYBEBOARD_ENTRY,
-}
-_ZONE_TAG_TYPES = ZONE_TAG_TYPES
 
 def insertion_zone(buffer: Buffer, row: int) -> LineType:
     """The zone a card inserted at `row` should join, cursor-style.
@@ -180,7 +167,7 @@ def _classify_in_block(text: str, line_type: LineType, tag: str | None) -> LineT
         return line_type
     if tag == PLAN_TAG:
         if line_type == LineType.CARD_ENTRY or (
-            line_type == LineType.COMMENT and parse_plan_entry(text) is not None
+            line_type == LineType.COMMENT and parse_plan_line(text) is not None
         ):
             return LineType.PLAN_ENTRY
         return line_type
@@ -270,6 +257,8 @@ class Buffer:
         texts = self._texts()
         old_text = texts[n]
         texts[n] = text
+        if is_mtgo_sideboard_header(old_text) or is_mtgo_sideboard_header(text):
+            return Buffer(classify_lines(texts))  # rezones every later line
         incoming = zone_running_context(texts, n)
         out_old = apply_zone_effect(zone_context_effect(old_text), incoming)
         out_new = apply_zone_effect(zone_context_effect(text), incoming)
@@ -288,6 +277,8 @@ class Buffer:
         n = max(0, min(n, len(self._lines)))
         texts = self._texts()
         texts.insert(n, text)
+        if is_mtgo_sideboard_header(text):
+            return Buffer(classify_lines(texts))  # rezones every later line
         incoming = zone_running_context(texts, n)
         if apply_zone_effect(zone_context_effect(text), incoming) != incoming:
             return Buffer(classify_lines(texts))
@@ -313,7 +304,7 @@ class Buffer:
         outgoing = incoming
         for text in deleted:
             outgoing = apply_zone_effect(zone_context_effect(text), outgoing)
-        if outgoing == incoming:
+        if outgoing == incoming and not any(map(is_mtgo_sideboard_header, deleted)):
             remaining_lines = self._lines[:start] + self._lines[end + 1:]
             return Buffer(remaining_lines), deleted
         remaining = self._texts()[:start] + self._texts()[end + 1:]
@@ -331,15 +322,12 @@ class Buffer:
         ('  // note') before returning.
         """
         if self.is_plan_entry(line):
-            parsed = parse_plan_entry(self._lines[line].text)
-            return parse_card_suffix(parsed[2])[0] if parsed else None
+            plan = parse_plan_line(self._lines[line].text)
+            return plan.name if plan else None
         if not self.is_card_line(line):
             return None
-        for pattern in _CARD_PATTERNS:
-            m = pattern.match(self._lines[line].text.strip())
-            if m:
-                return parse_card_suffix(m.group(2))[0]
-        return None
+        card = parse_card_line(self._lines[line].text)
+        return card.name if card else None
 
     def quantity_at(self, line: int) -> int | None:
         """Extract quantity from a card/sideboard/commander line or a
@@ -348,22 +336,19 @@ class Buffer:
             return None
         bl = self._lines[line]
         if bl.line_type == LineType.PLAN_ENTRY:
-            parsed = parse_plan_entry(bl.text)
-            return clamp_quantity(parsed[1]) if parsed else None
+            plan = parse_plan_line(bl.text)
+            return plan.quantity if plan else None
         if bl.line_type not in _CARD_LINE_TYPES:
             return None
-        for pattern in _CARD_PATTERNS:
-            m = pattern.match(bl.text.strip())
-            if m:
-                return clamp_quantity(int(m.group(1)))
-        return None
+        card = parse_card_line(bl.text)
+        return card.quantity if card else None
 
     def plan_sign_at(self, line: int) -> str | None:
         """'-' / '+' / '' for a sideboard-plan entry; None elsewhere."""
         if not self.is_plan_entry(line):
             return None
-        parsed = parse_plan_entry(self._lines[line].text)
-        return parsed[0] if parsed else None
+        plan = parse_plan_line(self._lines[line].text)
+        return plan.sign if plan else None
 
     def set_quantity(self, line: int, quantity: int) -> Buffer:
         """Return a new Buffer with the card quantity on `line` replaced.

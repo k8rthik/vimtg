@@ -8,7 +8,8 @@ Keeping them here prevents the two parsers from drifting apart.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 
 from vimtg.domain.categories import (
     parse_inline_category,
@@ -47,6 +48,12 @@ PLAN_HEADER_PATTERN = re.compile(r"^VS:\s*(.*)$", re.IGNORECASE)
 # (and can be flagged) rather than silently becoming a mainboard card.
 PLAN_ENTRY_PATTERN = re.compile(r"^\s*([+-]?)\s*(\d+)\s+(.+)$")
 
+# A hand-typed (or MTGO-pasted) bare "Sideboard" line: every unprefixed
+# card line after it, indented or not, is a sideboard card, as in
+# MTGO/Arena text lists. Zone and plan blocks still take precedence
+# for the lines inside them.
+_MTGO_SIDEBOARD_HEADER_PATTERN = re.compile(r"^sideboard\s*:?$", re.IGNORECASE)
+
 
 def parse_zone_header(text: str) -> str | None:
     """Canonical zone tag ('DCK', 'CMD', …) for a bare header line, else None."""
@@ -79,10 +86,25 @@ def parse_plan_entry(text: str) -> tuple[str, int, str] | None:
     `sign` is '+', '-', or '' when the line has none. `rest` is the raw
     name portion (tags/comment still attached — see parse_card_parts).
     """
-    m = PLAN_ENTRY_PATTERN.match(text.strip())
+    matched = _match_plan_entry(text)
+    if matched is None:
+        return None
+    m, rest = matched
+    return m.group(1), int(m.group(2)), rest.strip()
+
+
+def _match_plan_entry(text: str) -> tuple[re.Match[str], str] | None:
+    """(match, rest after the quantity) for a plan-entry-shaped line.
+
+    `rest` keeps its leading whitespace: the two-space '  //' delimiter
+    must survive so '-1   // note' reads as a comment with no card, not
+    as a card named '// note'.
+    """
+    stripped = text.strip()
+    m = PLAN_ENTRY_PATTERN.match(stripped)
     if not m:
         return None
-    return m.group(1), int(m.group(2)), m.group(3).strip()
+    return m, stripped[m.end(2):]
 
 
 def block_header_tag(text: str) -> str | None:
@@ -101,8 +123,39 @@ def is_deck_header(text: str) -> bool:
     return parse_zone_header(text) == "DCK"
 
 
+def is_mtgo_sideboard_header(text: str) -> bool:
+    """True for a bare MTGO-style 'Sideboard' line."""
+    return _MTGO_SIDEBOARD_HEADER_PATTERN.match(text.strip()) is not None
+
+
+def _zone_contexts(raw_lines: Sequence[str]) -> Iterator[str | None]:
+    """The zone context of each line, in order (see zone_block_contexts)."""
+    current: str | None = None
+    mtgo_sideboard = False
+    for raw in raw_lines:
+        stripped = raw.strip()
+        if not stripped:
+            yield None
+            continue
+        tag = block_header_tag(raw)
+        if tag is not None:
+            current = tag
+            yield None
+            continue
+        if is_mtgo_sideboard_header(stripped):
+            mtgo_sideboard = True
+            current = None
+            yield None
+            continue
+        if raw[:1].isspace() and current is not None:
+            yield current
+            continue
+        current = None
+        yield "SB" if mtgo_sideboard else None
+
+
 def zone_block_contexts(raw_lines: Sequence[str]) -> list[str | None]:
-    """Per-line enclosing block tag, or None outside any block.
+    """Per-line enclosing zone tag, or None outside any zone.
 
     Zone blocks ('SB:') and sideboard-plan blocks ('VS: Tron', tag
     PLAN_TAG) follow the same rules. A plan header closes any zone block
@@ -113,25 +166,12 @@ def zone_block_contexts(raw_lines: Sequence[str]) -> list[str | None]:
     non-blank line closes it. Header and blank lines themselves map to
     None. Zone membership applies only to bare card lines — an explicit
     'SB: 1 X' prefix always wins over the enclosing block.
+
+    A bare MTGO-style 'Sideboard' line puts every later line that is
+    not inside a block in the 'SB' context, so a pasted MTGO list reads
+    the same in the editor as it does to the deck parser.
     """
-    contexts: list[str | None] = []
-    current: str | None = None
-    for raw in raw_lines:
-        stripped = raw.strip()
-        if not stripped:
-            contexts.append(None)
-            continue
-        tag = block_header_tag(raw)
-        if tag is not None:
-            current = tag
-            contexts.append(None)
-            continue
-        if raw[:1].isspace():
-            contexts.append(current)
-            continue
-        current = None
-        contexts.append(None)
-    return contexts
+    return list(_zone_contexts(raw_lines))
 
 
 def zone_running_context(raw_lines: Sequence[str], row: int) -> str | None:
@@ -144,12 +184,10 @@ def zone_running_context(raw_lines: Sequence[str], row: int) -> str | None:
 
 def zone_context_at(raw_lines: Sequence[str], row: int) -> str | None:
     """zone_block_contexts(raw_lines)[row], scanning only up to `row`."""
-    raw = raw_lines[row]
-    if not raw.strip() or block_header_tag(raw) is not None:
-        return None
-    if not raw[:1].isspace():
-        return None
-    return zone_running_context(raw_lines, row)
+    for i, ctx in enumerate(_zone_contexts(raw_lines[: row + 1])):
+        if i == row:
+            return ctx
+    raise IndexError(row)
 
 
 def zone_context_effect(text: str) -> str:
@@ -271,10 +309,13 @@ def parse_card_suffix(raw_name: str) -> tuple[str, frozenset[str], str]:
 # "(SET) 123", Moxfield's "(PLST) ELD-115" / "(CMM) 400a" and finish
 # markers ("*F*" foil, "*E*" etched). They name a printing, not a
 # card, so they never belong in vimtg's card name. The set code must
-# be 2-6 alphanumerics so parenthesised name parts ("B.F.M. (Big Furry
-# Monster)") are left alone.
+# be 2-6 alphanumerics in one case ("ZEN", "plst") so parenthesised
+# name parts ("B.F.M. (Big Furry Monster)", "Hazmat Suit (Used)") are
+# left alone.
 _FINISH_SUFFIX_RE = re.compile(r"\s+\*[A-Za-z]{1,8}\*\s*$")
-_PRINTING_SUFFIX_RE = re.compile(r"\s+\([A-Za-z0-9]{2,6}\)(?:\s+[^\s()]+)?\s*$")
+_PRINTING_SUFFIX_RE = re.compile(
+    r"\s+\((?:[A-Z0-9]{2,6}|[a-z0-9]{2,6})\)(?:\s+[^\s()]+)?\s*$"
+)
 
 # A UTF-8 byte-order mark that editors (Notepad, Excel) prepend to text.
 BOM = "\ufeff"
@@ -313,3 +354,133 @@ def clamp_quantity(quantity: int) -> int:
     deck validation can still report it as invalid.
     """
     return min(quantity, MAX_QUANTITY)
+
+
+# ---------------------------------------------------------------------
+# One parse for every card-shaped line
+#
+# The editor buffer, the deck file parser, :sort and the layout
+# regrouper all need "is this a card line, and what card is it?". They
+# once each matched the zone patterns themselves and disagreed on the
+# details (a pasted '(ZEN) 126' suffix, a line with tags but no name),
+# so a card could be one thing to validation and another to the cursor.
+# They now all go through parse_card_line / parse_plan_line.
+# ---------------------------------------------------------------------
+
+# Zone tag -> the pattern of its per-line prefix. A bare 'N Card' line
+# is the main deck ('DCK') unless an enclosing zone block says otherwise
+# (see zone_block_contexts). The prefixed shapes never start with a
+# digit and the bare one always does, so the order is immaterial.
+ZONE_LINE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("SB", SB_PATTERN),
+    ("MB", MB_PATTERN),
+    ("CMD", CMD_PATTERN),
+    ("CMP", CMP_PATTERN),
+    ("DCK", CARD_PATTERN),
+)
+MAIN_ZONE_TAG = "DCK"
+
+
+@dataclass(frozen=True)
+class CardLine:
+    """A parsed 'N Card  @category  #tags  // comment' line.
+
+    `zone` is the tag of the line's own prefix ('SB', 'CMD', …), or
+    MAIN_ZONE_TAG for a bare line — the zone block enclosing a bare
+    line, if any, is the caller's business. `name` has any pasted
+    printing suffix ('(ZEN) 126 *F*') stripped and is never empty.
+    """
+
+    zone: str
+    quantity: int
+    name: str
+    category: str = ""
+    tags: frozenset[str] = frozenset()
+    comment: str = ""
+
+
+@dataclass(frozen=True)
+class PlanLine:
+    """A parsed sideboard-plan entry: '[+-]N Card  // note'.
+
+    `sign` is '+', '-', or '' for an unsigned line (which is still an
+    entry inside a plan block, so it can be flagged rather than taken
+    for a mainboard card). `name` is never empty.
+    """
+
+    sign: str
+    quantity: int
+    name: str
+    comment: str = ""
+
+
+def match_card_line(text: str) -> tuple[str, re.Match[str]] | None:
+    """(zone tag, match) for a line of card shape, else None.
+
+    Surrounding whitespace is ignored. The match's group 1 is the
+    quantity and group 2 the rest of the line; prefer parse_card_line,
+    which also decides whether the rest names a card.
+    """
+    stripped = text.strip()
+    for tag, pattern in ZONE_LINE_PATTERNS:
+        m = pattern.match(stripped)
+        if m:
+            return tag, m
+    return None
+
+
+def parse_card_line(text: str) -> CardLine | None:
+    """The card a line holds, or None when it is not a card line.
+
+    A line of card shape whose name is empty once the suffix tokens
+    are split off ('3  #tag', '2  // note') is not a card line.
+    """
+    matched = match_card_line(text)
+    if matched is None:
+        return None
+    tag, m = matched
+    # The rest of the line keeps its leading whitespace so the two-space
+    # '  //' / '  #' / '  @' delimiters survive: '4   // note' is a
+    # comment with no card, not a card named '// note'
+    name, category, tags, comment = parse_card_parts(text.strip()[m.end(1):])
+    name = strip_printing_suffix(name)
+    if not name:
+        return None
+    return CardLine(
+        zone=tag,
+        quantity=clamp_quantity(int(m.group(1))),
+        name=name,
+        category=category,
+        tags=tags,
+        comment=comment,
+    )
+
+
+def is_bare_card_line(text: str) -> bool:
+    """True for an unprefixed card line — one whose zone comes from
+    the enclosing block (or the main deck outside any block)."""
+    card = parse_card_line(text)
+    return card is not None and card.zone == MAIN_ZONE_TAG
+
+
+def parse_plan_line(text: str) -> PlanLine | None:
+    """The sideboard-plan entry a line holds, or None.
+
+    Lines with an explicit zone prefix ('SB: 1 X') are zone cards even
+    inside a plan block, never plan entries. As for parse_card_line, a
+    line with no card name ('-1 #tag') is not an entry.
+    """
+    matched = match_card_line(text)
+    if matched is not None and matched[0] != MAIN_ZONE_TAG:
+        return None
+    entry = _match_plan_entry(text)
+    if entry is None:
+        return None
+    m, rest = entry
+    name, _category, _tags, comment = parse_card_parts(rest)
+    if not name:
+        return None
+    return PlanLine(
+        sign=m.group(1), quantity=clamp_quantity(int(m.group(2))), name=name,
+        comment=comment,
+    )

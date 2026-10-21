@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 
 from vimtg.domain.categories import format_inline_category
 from vimtg.domain.deck_lines import (
-    CARD_PATTERN,
     format_inline_comment,
+    is_bare_card_line,
     parse_zone_header,
     zone_running_context,
 )
@@ -506,7 +506,7 @@ def zone_line_text(buffer: Buffer, row: int, zone: LineType, body: str) -> str:
         in_own_block = parse_zone_header(prev.text) == _ZONE_TAGS[zone] or (
             prev.line_type == zone
             and prev.text[:1].isspace()
-            and CARD_PATTERN.match(prev.text) is not None
+            and is_bare_card_line(prev.text)
         )
         if in_own_block:
             return f"{_BLOCK_INDENT}{body}"

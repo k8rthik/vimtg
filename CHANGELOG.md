@@ -10,6 +10,17 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- The editor and the deck parser now read every card line through one
+  grammar, so the card under the cursor is always the card validation,
+  analytics and export see: a pasted `(ZEN) 126 *F*` printing suffix is
+  dropped from the name in the editor too, a line with tags but no name
+  (`3  #tag`) or only a comment after the quantity (`4   // note`) is
+  not a card to either, and `Hazmat Suit (Used)` keeps its name.
+- A bare MTGO-style `Sideboard` line zones the cards after it as
+  sideboard in the editor as well, not only in validation and export.
+
+### Fixed
+
 - Opening an unreadable deck from the greeter shows an error there
   instead of quitting vimtg.
 - `:w dir/` (or `:w` of an existing directory) is refused with E502
