@@ -14,8 +14,9 @@ class TestDoubleNegation:
         assert "NOT" not in sql
 
     def test_a_pile_of_minuses_never_nests_past_one_not(self) -> None:
-        # 42 of them used to overflow SQLite's parser stack
-        for n in (41, 42, 200):
+        # 42 of them used to overflow SQLite's parser stack (a few
+        # hundred now hit the term cap in the parser first)
+        for n in (41, 42, 150):
             node = parse_search("-" * n + "bolt")
             assert node is not None
             sql, _ = compile_search(node)
