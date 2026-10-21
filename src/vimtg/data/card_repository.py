@@ -1,5 +1,5 @@
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 from vimtg.data.card_mapper import card_to_row, row_to_card
 from vimtg.data.database import Database
@@ -68,7 +68,7 @@ class CardRepository:
         try:
             conn.execute("DELETE FROM card_names")
             conn.execute("DELETE FROM cards")
-            count = self._write_cards(conn, cards, dedupe=False)
+            count = self._write_cards(conn, _one_per_oracle_id(cards), dedupe=True)
             conn.execute("INSERT INTO cards_fts(cards_fts) VALUES('rebuild')")
             if synced_at is not None:
                 _write_last_sync(conn, synced_at)
@@ -251,6 +251,19 @@ def _write_last_sync(conn: sqlite3.Connection, timestamp: str) -> None:
         "INSERT OR REPLACE INTO sync_metadata (key, value) VALUES ('last_sync', ?)",
         (timestamp,),
     )
+
+
+def _one_per_oracle_id(cards: Iterable[Card]) -> Iterator[Card]:
+    """The first printing of each oracle id; a feed that repeats one
+    (two printings of a card) must not become two rows — the count
+    and every search would show the card twice."""
+    seen: set[str] = set()
+    for card in cards:
+        if card.oracle_id is not None:
+            if card.oracle_id in seen:
+                continue
+            seen.add(card.oracle_id)
+        yield card
 
 
 def _marks(values: list[str]) -> str:

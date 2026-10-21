@@ -521,7 +521,10 @@ def compute_stats(
             curve[cmc_int] = curve.get(cmc_int, 0) + qty
             cmcs.extend(curve_mv for _ in range(qty))
 
-        primary = _classify_type(card.type_line)
+        # A land is a land first — an artifact land or Dryad Arbor
+        # belongs with the mana base here, as land_count already says,
+        # so the breakdown's nonland total never exceeds nonland_count
+        primary = "Land" if card.is_land else _classify_type(card.type_line)
         if primary is not None:
             type_counts[primary] = type_counts.get(primary, 0) + qty
 

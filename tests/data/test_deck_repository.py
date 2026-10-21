@@ -279,3 +279,38 @@ class TestSideboardPlans:
         ]
         assert skipped == [(3, "-1 #t")]
         assert "    -1 \n" not in serialize_deck(deck)
+
+
+class TestMtgoSideboardHeader:
+    def test_bare_sideboard_line_zones_the_cards_after_it(self) -> None:
+        deck = parse_deck_text("4 Opt\nSideboard\n2 Duress\n    1 Negate\n")
+        assert [(e.card_name, e.section) for e in deck.entries] == [
+            ("Opt", DeckSection.MAIN),
+            ("Duress", DeckSection.SIDEBOARD),
+            ("Negate", DeckSection.SIDEBOARD),
+        ]
+        assert deck.comments == ()  # the header is structure, not a comment
+
+    def test_zone_and_plan_blocks_win_inside_it(self) -> None:
+        deck = parse_deck_text(
+            "Sideboard\n2 Duress\nCMD:\n    1 Tymna\nVS: Tron\n    -1 Opt\n3 Bolt\n"
+        )
+        assert [(e.card_name, e.section) for e in deck.entries] == [
+            ("Duress", DeckSection.SIDEBOARD),
+            ("Tymna", DeckSection.COMMANDER),
+            ("Bolt", DeckSection.SIDEBOARD),
+        ]
+        assert [(pe.sign, pe.card_name) for pe in deck.plans[0].entries] == [("-", "Opt")]
+
+
+class TestNamelessCardLines:
+    def test_comment_after_the_quantity_is_not_a_card(self) -> None:
+        # The two-space '  //' delimiter used to be eaten by the quantity
+        # regex, giving a card named '// note'
+        skipped: list[str] = []
+        deck = parse_deck_text(
+            "MB: 0   // only a comment\n4   // note\n4 Opt   // keep\n",
+            on_skip=lambda n, line: skipped.append(line),
+        )
+        assert [(e.card_name, e.comment) for e in deck.entries] == [("Opt", "keep")]
+        assert skipped == ["MB: 0   // only a comment", "4   // note"]

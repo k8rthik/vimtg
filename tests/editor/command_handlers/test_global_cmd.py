@@ -256,3 +256,33 @@ class TestGlobalAllZones:
         new_buf, _ = cmd_global(buffer, Cursor(row=0), _make_cmd(args="/Duress/d"), ctx)
         assert _line_texts(new_buf) == ["SB:", "  2 Negate"]
         assert new_buf.get_line(1).line_type.value == "sideboard"
+
+
+class TestGlobalRange:
+    """:[range]g — the range used to be parsed and ignored, so
+    :1,2g/Bolt/d deleted every Bolt in the buffer."""
+
+    def _run(self, cmd_range):  # type: ignore[no-untyped-def]
+        from vimtg.editor.command_handlers.global_cmd import cmd_global
+        from vimtg.editor.commands import CommandRange, EditorContext
+
+        buf = Buffer.from_text("4 Bolt\n4 Opt\n4 Bolt\n4 Opt\n4 Bolt\n")
+        cmd = ParsedCommand(
+            name="g", args="/Bolt/d",
+            cmd_range=CommandRange(**cmd_range) if cmd_range is not None else None,
+        )
+        ctx = EditorContext()
+        new_buf, _ = cmd_global(buf, Cursor(), cmd, ctx)
+        return _line_texts(new_buf), ctx.message
+
+    def test_range_limits_the_lines_considered(self) -> None:
+        lines, message = self._run({"start": 0, "end": 1})
+        assert lines == ["4 Opt", "4 Bolt", "4 Opt", "4 Bolt"]
+        assert message == "1 lines deleted"
+
+    def test_no_range_and_percent_cover_the_whole_buffer(self) -> None:
+        assert self._run(None)[0] == ["4 Opt", "4 Opt"]
+        assert self._run({"start": 0, "end": 4, "is_whole_file": True})[0] == ["4 Opt", "4 Opt"]
+
+    def test_a_range_past_the_end_is_clamped(self) -> None:
+        assert self._run({"start": 3, "end": 40})[0] == ["4 Bolt", "4 Opt", "4 Bolt", "4 Opt"]

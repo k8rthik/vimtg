@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from vimtg.data.database import Database
@@ -10,13 +10,20 @@ from vimtg.domain.vcs import VCSBranch, VCSSnapshot
 
 
 def _parse_timestamp(value: object) -> datetime:
-    """Parse a stored ISO timestamp, tolerating malformed rows."""
+    """Parse a stored ISO timestamp, tolerating malformed rows.
+
+    Always timezone-aware (UTC assumed for a naive value, the epoch
+    for garbage): history sorts snapshots by timestamp, and one naive
+    row among aware ones would make that comparison raise.
+    """
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value)
+            parsed = datetime.fromisoformat(value)
         except ValueError:
             pass
-    return datetime.min
+        else:
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+    return datetime.min.replace(tzinfo=UTC)
 
 
 def _row_to_snapshot(row: dict[str, Any]) -> VCSSnapshot:

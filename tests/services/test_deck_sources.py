@@ -449,3 +449,68 @@ class TestNewSourceDispatch:
     def test_bad_goldfish_url(self) -> None:
         with pytest.raises(DeckSourceError, match="deck id"):
             fetch_deck("https://www.mtggoldfish.com/metagame/modern")
+
+
+def _copies_by_section(remote) -> dict[DeckSection, int]:  # type: ignore[no-untyped-def]
+    out: dict[DeckSection, int] = {}
+    for e in remote.deck.entries:
+        out[e.section] = out.get(e.section, 0) + e.quantity
+    return out
+
+
+class TestHeaderlessTwoGroupLists:
+    def test_the_smaller_group_is_the_sideboard_whichever_comes_first(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        main = "\n".join(["4 Lightning Bolt"] * 15)
+        side = "\n".join(["3 Duress"] * 5)
+        expected = {DeckSection.MAIN: 60, DeckSection.SIDEBOARD: 15}
+        main_first = parse_decklist_text(f"{main}\n\n{side}\n", name="", blank_splits=None)
+        assert _copies_by_section(main_first) == expected
+        side_first = parse_decklist_text(f"{side}\n\n{main}\n", name="", blank_splits=None)
+        assert _copies_by_section(side_first) == expected
+
+    def test_a_lone_leader_ahead_of_the_deck_is_not_a_59_card_sideboard(self) -> None:
+        from vimtg.services.deck_sources import parse_decklist_text
+
+        deck = "\n".join(["4 Lightning Bolt"] * 14 + ["3 Mountain"])
+        remote = parse_decklist_text(
+            f"1 Jegantha, the Wellspring\n\n{deck}\n", name="", blank_splits=None,
+        )
+        assert _copies_by_section(remote) == {DeckSection.MAIN: 59, DeckSection.SIDEBOARD: 1}
+
+
+class TestSiteJsonQuantities:
+    def test_moxfield_null_quantity_is_skipped_not_a_crash(self) -> None:
+        from vimtg.services.deck_sources import parse_moxfield
+
+        data = {
+            "name": "x",
+            "mainboard": {
+                "a": {"quantity": None, "card": {"name": "Opt"}},
+                "b": {"quantity": "3", "card": {"name": "Duress"}},
+                "c": {"quantity": 2.0, "card": {"name": "Shock"}},
+                "d": {"quantity": True, "card": {"name": "Bolt"}},
+            },
+        }
+        remote = parse_moxfield(data)
+        assert [(e.card_name, e.quantity) for e in remote.deck.entries] == [
+            ("Duress", 3), ("Shock", 2),
+        ]
+
+
+class TestSiteFormatNames:
+    @pytest.mark.parametrize(("value", "expected"), [
+        ("Commander", "commander"),
+        ("pauperEdh", "paupercommander"),
+        ("cEDH", "commander"),
+        ("Duel Commander", "duel"),
+        ("Historic Brawl", "brawl"),
+        ("bogus", ""),
+        (None, ""),
+        (42, ""),
+    ])
+    def test_shares_the_format_alias_table(self, value: object, expected: str) -> None:
+        from vimtg.services.deck_sources import site_format
+
+        assert site_format(value) == expected

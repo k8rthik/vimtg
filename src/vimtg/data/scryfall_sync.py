@@ -316,6 +316,15 @@ class ScryfallSync:
             raise RuntimeError(
                 f"Corrupt card cache (deleted, retry sync): {exc}"
             ) from exc
+        if not isinstance(items, list) or not items:
+            # An error object, a wrapped list or an empty feed: the
+            # cache would be reused as "fresh" for a week, and loading
+            # it would wipe the card table
+            json_path.unlink(missing_ok=True)
+            shape = "empty" if isinstance(items, list) else type(items).__name__
+            raise RuntimeError(
+                f"Unusable card cache ({shape}; deleted, retry sync)"
+            )
 
         return self._load_items(items, progress)
 
@@ -329,9 +338,12 @@ class ScryfallSync:
         items = list(items)
         total = len(items)
         for i, item in enumerate(items):
-            if item.get("layout") in SKIP_LAYOUTS:
+            if not isinstance(item, dict):
+                self.last_skipped += 1
                 continue
             try:
+                if item.get("layout") in SKIP_LAYOUTS:
+                    continue
                 cards.append(Card.from_scryfall(item))
             except Exception:  # noqa: BLE001
                 self.last_skipped += 1
@@ -339,7 +351,9 @@ class ScryfallSync:
             if progress and i % PROGRESS_INTERVAL == 0:
                 progress(i, total)
 
-        if total > 0 and not cards:
+        if not cards:
+            # Never replace the card table with nothing: an empty feed
+            # is an error, not a sync of zero cards
             raise RuntimeError(
                 f"No cards parsed from {total} entries — Scryfall feed "
                 "format may have changed"

@@ -11,6 +11,7 @@ from vimtg.data.deck_repository import DeckRepository, parse_deck_text
 from vimtg.domain.card_types import BASIC_LANDS  # noqa: F401  (re-export)
 from vimtg.domain.deck import Deck
 from vimtg.domain.deck_lines import match_metadata
+from vimtg.domain.formats import format_requires_commander
 from vimtg.domain.validation import ValidationError, validate_deck
 
 if TYPE_CHECKING:
@@ -134,7 +135,7 @@ def scaffold_deck_body(text: str) -> str:
         return text
 
     blocks: list[str] = []
-    if deck.metadata.format.strip().lower() in ("commander", "brawl"):
+    if format_requires_commander(deck.metadata.format):
         blocks.extend(["CMD:", ""])
     blocks.append("DCK:")
 
@@ -181,7 +182,7 @@ def set_deck_identity(text: str, name: str, fmt: str) -> str:
         while end < len(lines) and match_metadata(lines[end]) is not None:
             end += 1
         lines.insert(end, f"// {key}: {value}")
-    if fmt.strip().lower() in ("commander", "brawl"):
+    if format_requires_commander(fmt):
         headers = [parse_zone_header(line) for line in lines]
         if "CMD" not in headers and "DCK" in headers:
             dck = headers.index("DCK")
@@ -224,7 +225,7 @@ class DeckService:
         if author:
             lines.append(f"// Author: {author}")
         lines.append("")
-        if fmt.strip().lower() in ("commander", "brawl"):
+        if format_requires_commander(fmt):
             lines.append("CMD:")
             lines.append("")
         lines.append("DCK:")

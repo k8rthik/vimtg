@@ -575,3 +575,138 @@ def test_new_ex_commands_are_registered(line: str) -> None:
     cmd = parse_command(line, 1, buf.line_count())
     _registry().execute(cmd, buf, Cursor(row=1), ctx)
     assert not ctx.message.startswith("E: Unknown command")
+
+
+# ── Audit regressions: counts, failing motions, marks, line edits ──
+
+
+class TestCountedX:
+    def test_3x_is_one_change_holding_every_line(self) -> None:
+        from vimtg.editor.session import handle_normal_special
+
+        st = _state(row=1)  # Goblin Guide, Swiftspear, then a blank line
+        original = st.buffer.to_text()
+        handle_normal_special(st, ParsedAction("special", "x", count=3))
+        assert st.buffer.get_line(1).text == ""  # both cards gone, stopped at the blank
+        assert st.registers.get('"').content == ("4 Goblin Guide", "4 Monastery Swiftspear")
+        handle_normal_special(st, ParsedAction("special", "u"))
+        assert st.buffer.to_text() == original  # one u, not three
+
+
+class TestOperatorMotionsThatCannotMove:
+    def test_dj_on_the_last_line_deletes_nothing(self) -> None:
+        from vimtg.editor.session import handle_operator
+
+        st = _state(row=9)
+        before = st.buffer.to_text()
+        handle_operator(st, ParsedAction("operator", "d", motion="j", count=1))
+        assert st.buffer.to_text() == before
+        assert not st.modified
+
+    def test_dk_on_the_first_line_deletes_nothing(self) -> None:
+        from vimtg.editor.session import handle_operator
+
+        st = _state(row=0)
+        before = st.buffer.to_text()
+        handle_operator(st, ParsedAction("operator", "d", motion="k", count=1))
+        assert st.buffer.to_text() == before
+
+    def test_a_count_past_the_end_still_reaches_the_end(self) -> None:
+        from vimtg.editor.session import handle_operator
+
+        st = _state(row=8)
+        handle_operator(st, ParsedAction("operator", "d", motion="j", count=3))
+        assert st.buffer.line_count() == 8
+        assert "Mountain" not in st.buffer.to_text()
+
+
+class TestDotOnASelection:
+    def test_dot_leaves_visual_mode_like_the_change_it_repeats(self) -> None:
+        from vimtg.editor.session import handle_normal_special
+
+        st = _state(row=1)
+        handle_normal_special(st, ParsedAction("special", "+"))
+        st.mode_mgr.transition(Mode.VISUAL_LINE)
+        st.visual_anchor = 2
+        hr = handle_normal_special(st, ParsedAction("special", "."))
+        assert hr.exit_to_normal is True
+        assert st.visual_anchor is None
+        assert st.buffer.get_line(1).text == "6 Goblin Guide"
+        assert st.buffer.get_line(2).text == "5 Monastery Swiftspear"
+
+
+class TestMarksFollowEdits:
+    def test_a_card_added_above_a_mark_shifts_it(self) -> None:
+        from vimtg.editor.card_insert import insert_card, open_insert_line
+
+        st = _state(row=0)
+        st.marks = st.marks.set("z", 5)  # 4 Lightning Bolt
+        open_insert_line(st, "o")
+        insert_card(st, "Dandy", None, 1)
+        mark = st.marks.get("z")
+        assert mark is not None
+        assert st.buffer.get_line(mark.row).text == "4 Lightning Bolt"
+
+    def test_a_cancelled_insert_puts_the_mark_back(self) -> None:
+        from vimtg.editor.card_insert import discard_pending_insert, open_insert_line
+
+        st = _state(row=0)
+        st.marks = st.marks.set("z", 5)
+        open_insert_line(st, "o")
+        discard_pending_insert(st)
+        mark = st.marks.get("z")
+        assert mark is not None and mark.row == 5
+
+    def test_a_moved_line_keeps_its_mark(self) -> None:
+        st = _state(row=0)
+        st.marks = st.marks.set("b", 2)  # 4 Monastery Swiftspear
+        handle_command(
+            st, ParsedAction("command_submit", "enter", text="3m 6"), _registry(), None,
+        )
+        mark = st.marks.get("b")
+        assert mark is not None
+        assert st.buffer.get_line(mark.row).text == "4 Monastery Swiftspear"
+
+
+class TestLineEditStructure:
+    def test_i_on_a_block_entry_locks_its_indentation(self) -> None:
+        st = _state("SB:\n    3 Rest in Peace\n    2 Fire // Ice\n", row=1)
+        handle_mode_switch(st, ParsedAction("mode_switch", "i"))
+        assert st.line_edit_prefix == "    "
+
+    def test_i_on_a_plan_entry_locks_its_indentation(self) -> None:
+        st = _state("4 Opt\nVS: Tron\n    -1 Opt\n", row=2)
+        handle_mode_switch(st, ParsedAction("mode_switch", "i"))
+        assert st.line_edit_prefix == "    "
+
+    def test_i_on_a_bare_mainboard_line_locks_nothing(self) -> None:
+        st = _state(row=1)
+        handle_mode_switch(st, ParsedAction("mode_switch", "i"))
+        assert st.line_edit_prefix == ""
+
+    def test_i_then_enter_on_an_untouched_line_is_not_a_change(self) -> None:
+        from vimtg.editor.session import handle_line_edit_special
+
+        st = _state(row=1)
+        node = st.history.current_id
+        handle_mode_switch(st, ParsedAction("mode_switch", "i"))
+        hr = handle_line_edit_special(
+            st, ParsedAction("special", "enter", text="4 Goblin Guide"),
+        )
+        assert hr.exit_to_normal is True
+        assert st.modified is False
+        assert st.history.current_id == node
+
+
+class TestSearchPromptIsNotACommandLine:
+    def test_no_ex_command_ghost_or_tab_completion_in_the_search_prompt(self) -> None:
+        from vimtg.editor.command_completer import CommandCompleter
+        from vimtg.editor.session import handle_command_special
+
+        st = _state(row=0)
+        st.cmd_completer = CommandCompleter(_registry())
+        st.mode_mgr.transition(Mode.SEARCH)
+        typed = handle_command_special(st, ParsedAction("special", "char", text="so"))
+        assert not typed.command_ghost
+        tabbed = handle_command_special(st, ParsedAction("special", "tab", text="so"))
+        assert not tabbed.command_accept

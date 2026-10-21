@@ -333,3 +333,28 @@ class TestFormatTable:
         msg = next(m for m in _warnings(errs) if m.startswith("Unknown format"))
         for name in FORMAT_RULES:
             assert name in msg
+
+
+class TestUnresolvedCommanderIdentity:
+    def test_no_identity_errors_while_a_commander_is_unknown(self, cards):
+        # Thrasios resolves (GU); the partner's name does not: the pair's
+        # identity is unknown, so a red card must not be flagged against
+        # GU alone (the unknown-name warning already says what is wrong)
+        errs = _validate(
+            _cmd_deck(
+                "Thrasios, Triton Hero", "Nobody Knows This Card",
+                main=97, extra="1 Lightning Bolt",
+            ),
+            cards, "commander",
+        )
+        assert not _has(_errors(errs), "outside commander color identity")
+        assert _has(_warnings(errs), "Nobody Knows This Card")
+
+    def test_identity_is_checked_once_every_commander_resolves(self, cards):
+        errs = _validate(
+            _cmd_deck(
+                "Thrasios, Triton Hero", "Tymna the Weaver", main=97, extra="1 Lightning Bolt",
+            ),
+            cards, "commander",
+        )
+        assert _has(_errors(errs), "Lightning Bolt", "outside commander color identity")

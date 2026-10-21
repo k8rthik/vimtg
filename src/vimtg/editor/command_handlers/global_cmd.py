@@ -24,6 +24,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
+    command_line_range,
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.operators import store_lines
@@ -83,9 +84,11 @@ def cmd_global(
         ctx.fail(f"Invalid pattern: {pattern}")
         return buffer, cursor
 
-    # Find matching lines (card lines in any zone)
+    # Find matching lines (card lines in any zone) — within the
+    # command's range (:1,5g/x/d, '<,'>g/x/d); the whole buffer by default
+    first, last = command_line_range(cmd, buffer.line_count(), (0, buffer.line_count() - 1))
     matching: list[int] = []
-    for i in range(buffer.line_count()):
+    for i in range(first, last + 1):
         if buffer.is_card_line(i):
             matches = bool(regex.search(buffer.get_line(i).text))
             if matches != is_inverse:

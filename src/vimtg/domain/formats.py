@@ -102,6 +102,7 @@ FORMAT_ALIASES: dict[str, str] = {
     "edh": "commander",
     "cedh": "commander",
     "pdh": "paupercommander",
+    "pauperedh": "paupercommander",
     "historicbrawl": "brawl",
     "duelcommander": "duel",
     "pennydreadful": "penny",
@@ -124,6 +125,14 @@ def get_format_rules(fmt: str) -> FormatRules | None:
     """Rules for a format name (any spelling normalize_format accepts);
     None for ''/unknown."""
     return FORMAT_RULES.get(normalize_format(fmt))
+
+
+def format_requires_commander(fmt: str) -> bool:
+    """True when decks in `fmt` (any spelling) lead with a commander —
+    the one answer new-deck scaffolding and imports use for whether to
+    open a CMD: block."""
+    rules = get_format_rules(fmt)
+    return rules is not None and rules.requires_commander
 
 
 def known_formats() -> tuple[str, ...]:

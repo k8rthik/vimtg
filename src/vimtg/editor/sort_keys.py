@@ -15,11 +15,7 @@ from typing import Any
 from vimtg.domain.card import Color, Rarity
 from vimtg.domain.card_types import TYPE_ORDER, primary_type
 from vimtg.domain.deck_lines import (
-    CARD_PATTERN,
-    CMD_PATTERN,
-    CMP_PATTERN,
-    MB_PATTERN,
-    SB_PATTERN,
+    parse_card_line,
     parse_card_parts,
     split_inline_comment,
 )
@@ -68,13 +64,13 @@ def extract_sort_key(
 ) -> tuple[float, str]:
     """Extract a sort key from a card line based on the requested field."""
     text = line.text.strip()
-    card_name = extract_card_name(text)
+    card_line = parse_card_line(text)
+    card_name = card_line.name if card_line else extract_card_name(text)
     card = resolved_cards.get(card_name) if resolved_cards else None
     fallback = card_name.lower()
 
     if sort_field == "qty":
-        m = match_card_line(text)
-        return (int(m.group(1)) if m else 0, fallback)
+        return (card_line.quantity if card_line else 0, fallback)
 
     if sort_field == "cmc":
         return (card.cmc if card is not None else _MISSING, fallback)
@@ -108,8 +104,7 @@ def extract_sort_key(
         return (0, first_tag + "|" + fallback)
 
     if sort_field == "category":
-        m = match_card_line(text)
-        category = parse_card_parts(m.group(2))[1] if m else ""
+        category = card_line.category if card_line else ""
         if not category:
             return (1, fallback)  # uncategorized cards sort last
         return (0, category + "|" + fallback)
@@ -135,17 +130,11 @@ def extract_sort_key(
     return (0, fallback)
 
 
-def match_card_line(text: str):  # type: ignore[no-untyped-def]
-    """Match a card line against the shared deck-line grammar."""
-    for pattern in (SB_PATTERN, MB_PATTERN, CMD_PATTERN, CMP_PATTERN, CARD_PATTERN):
-        m = pattern.match(text)
-        if m:
-            return m
-    return None
-
-
 def extract_card_name(text: str) -> str:
-    """Extract the card name from a line, stripping all suffix tokens."""
-    m = match_card_line(text)
-    raw = m.group(2) if m else text
-    return parse_card_parts(raw)[0]
+    """The card name of a card line (as the deck parser reads it), or
+    for any other line its text without the suffix tokens — a stable
+    key for lines that are sorted or grouped but name no card."""
+    card = parse_card_line(text)
+    if card is not None:
+        return card.name
+    return parse_card_parts(text.strip())[0]

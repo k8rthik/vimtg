@@ -20,7 +20,7 @@ def load_category_history() -> tuple[str, ...]:
     path = config_dir() / _HISTORY_FILE
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return ()
     seen: set[str] = set()
     names: list[str] = []

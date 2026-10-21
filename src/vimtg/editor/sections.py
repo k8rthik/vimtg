@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from vimtg.domain.categories import UNCATEGORIZED_LABEL
 from vimtg.domain.deck_lines import (
-    CARD_PATTERN,
     block_header_tag,
+    is_bare_card_line,
     parse_zone_header,
     zone_context_effect,
     zone_running_context,
@@ -200,7 +200,7 @@ def _would_capture_cards(texts: list[str], header_row: int) -> bool:
     for text in texts[header_row + 1:]:
         if zone_context_effect(text) != "keep":
             return False  # another terminator closes the block first
-        if text[:1].isspace() and CARD_PATTERN.match(text) is not None:
+        if text[:1].isspace() and is_bare_card_line(text):
             return True
     return False
 

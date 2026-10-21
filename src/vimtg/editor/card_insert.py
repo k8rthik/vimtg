@@ -75,15 +75,18 @@ def open_insert_line(state: EditorState, variant: str) -> None:
         ):
             row += 1
         state.buffer = state.buffer.insert_line(row, "")
+        state.marks = state.marks.update_for_insert(row, 1)
         state.cursor = state.cursor.move_to(row, 0)
         state.pending_insert = PendingInsert(row=row, origin=origin)
         return
     if variant == "o":
         state.buffer = state.buffer.insert_line(row + 1, "")
+        state.marks = state.marks.update_for_insert(row + 1, 1)
         state.cursor = state.cursor.move_to(row + 1, 0)
         state.pending_insert = PendingInsert(row=row + 1, origin=origin)
     elif variant == "O":
         state.buffer = state.buffer.insert_line(row, "")
+        state.marks = state.marks.update_for_insert(row, 1)
         state.pending_insert = PendingInsert(row=row, origin=origin)
 
 
@@ -100,6 +103,7 @@ def discard_pending_insert(state: EditorState) -> None:
     if state.buffer.get_line(pend.row).text.strip():
         return  # gained content some other way — never delete it
     state.buffer, _ = state.buffer.delete_lines(pend.row, pend.row)
+    state.marks = state.marks.update_for_delete(pend.row, pend.row)
     last = state.buffer.line_count() - 1
     state.cursor = state.cursor.move_to(max(0, min(pend.origin, last)), 0)
 
@@ -120,6 +124,7 @@ def take_insert_position(state: EditorState) -> tuple[int, bool]:
         and not state.buffer.get_line(pend.row).text.strip()
     ):
         state.buffer, _ = state.buffer.delete_lines(pend.row, pend.row)
+        state.marks = state.marks.update_for_delete(pend.row, pend.row)
         return pend.row, True
     return state.cursor.row, False
 
@@ -136,6 +141,10 @@ def place_new_card(
     )
     placed = place_mainboard_card(state.buffer, policy, open_row=open_row)
     state.buffer = placed.buffer.insert_line(placed.row, f"{placed.indent}{qty} {name}")
+    # The new section's header lines (if any) sit directly above the card
+    state.marks = state.marks.update_for_insert(
+        placed.row - placed.lines_added, placed.lines_added + 1
+    )
     if placed.category:
         state.buffer = state.buffer.set_category(placed.row, placed.category)
     return placed.row
@@ -154,6 +163,7 @@ def _insert_plan_entry(state: EditorState, name: str, qty: int) -> None:
     )
     indent = matched_indent(buf, open_row)
     state.buffer = buf.insert_line(open_row, f"{indent}{sign}{qty} {name}")
+    state.marks = state.marks.update_for_insert(open_row, 1)
     state.cursor = state.cursor.move_to(open_row, 0)
 
 
@@ -165,13 +175,19 @@ def _insert_zone_card(state: EditorState, name: str, zone: LineType, qty: int) -
     open_row, _ = take_insert_position(state)
     body = f"{qty} {name}"
     if state.settings.auto_sort and zone in ALPHA_ZONES:
+        before = state.buffer.line_count()
         state.buffer, dest_row, _count = insert_zone_line(
             state.buffer, zone, body, sort_name=name
         )
+        # Whatever the zone insert added (a header, a blank, the card)
+        # sits in one run that ends on the card's row
+        added = state.buffer.line_count() - before
+        state.marks = state.marks.update_for_insert(dest_row - added + 1, added)
         state.cursor = state.cursor.move_to(dest_row, 0)
         return
     text = zone_line_text(state.buffer, open_row, zone, body)
     state.buffer = state.buffer.insert_line(open_row, text)
+    state.marks = state.marks.update_for_insert(open_row, 1)
     state.cursor = state.cursor.move_to(open_row, 0)
 
 

@@ -595,3 +595,21 @@ class TestIsDirtyPlans:
     def test_new_plan_is_dirty(self, vcs: VersionControlService) -> None:
         vcs.commit(STATE_V1, "initial")
         assert vcs.is_dirty(STATE_V1 + "\nVS: Tron\n") is True
+
+
+class TestMergeCarriesPlans:
+    def test_a_branch_that_added_a_plan_merges_it_in(
+        self, vcs: VersionControlService
+    ) -> None:
+        vcs.commit(STATE_V1, "initial")
+        vcs.create_branch("plans")
+        vcs.switch_branch("plans")
+        vcs.commit(STATE_V1 + "2 Shock\n\nVS: Tron\n    -1 Lightning Bolt\n", "plan vs tron")
+        vcs.switch_branch("main")
+        vcs.commit(STATE_V2, "add swiftspear")
+        result = vcs.merge_branch("plans")
+        assert result.kind is MergeKind.MERGED
+        assert result.new_state is not None
+        assert "Monastery Swiftspear" in result.new_state
+        assert "2 Shock" in result.new_state
+        assert "VS: Tron\n    -1 Lightning Bolt\n" in result.new_state
