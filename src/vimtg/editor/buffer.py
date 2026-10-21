@@ -123,6 +123,9 @@ _CARD_LINE_TYPES = CARD_LINE_TYPES
 # sort, or zone moves — but +/- and the name/comment accessors work.
 QUANTITY_LINE_TYPES = CARD_LINE_TYPES | {LineType.PLAN_ENTRY}
 
+# Lines that open a section: type/category/zone headers and plan headers
+HEADER_LINE_TYPES = frozenset({LineType.SECTION_HEADER, LineType.PLAN_HEADER})
+
 
 def insertion_zone(buffer: Buffer, row: int) -> LineType:
     """The zone a card inserted at `row` should join, cursor-style.
@@ -142,6 +145,8 @@ def insertion_zone(buffer: Buffer, row: int) -> LineType:
             return _ZONE_TAG_TYPES[tag]
     for i in range(min(row, buffer.line_count()) - 1, -1, -1):
         bl = buffer.get_line(i)
+        if is_mtgo_sideboard_header(bl.text):
+            return LineType.SIDEBOARD_ENTRY  # a bare 'Sideboard' label
         if bl.line_type in (LineType.BLANK, LineType.COMMENT):
             continue
         if bl.line_type in CARD_LINE_TYPES:
@@ -285,6 +290,17 @@ class Buffer:
         new_lines = list(self._lines)
         new_lines.insert(n, self._classify_one(texts, n))
         return Buffer(tuple(new_lines))
+
+    def insert_lines(self, n: int, texts: Sequence[str]) -> Buffer:
+        """Return new Buffer with `texts` inserted as consecutive lines
+        from position n (clamped like insert_line). One classification
+        pass for the whole block, so a counted put stays linear."""
+        if not texts:
+            return self
+        n = max(0, min(n, len(self._lines)))
+        all_texts = self._texts()
+        all_texts[n:n] = list(texts)
+        return Buffer(classify_lines(all_texts))
 
     def delete_lines(self, start: int, end: int) -> tuple[Buffer, tuple[str, ...]]:
         """Delete lines [start, end] inclusive. Returns (new_buffer, deleted_texts).

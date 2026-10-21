@@ -199,3 +199,16 @@ class TestEditorLineNumbers:
 
         raw = "// Deck: X\n// Format:\n// Tags:\n\n4 Goblin Guide\n"
         assert all(k == v for k, v in editor_line_numbers(raw).items())
+
+
+class TestCommanderScaffoldFollowsTheFormatTable:
+    @pytest.mark.parametrize(
+        "fmt",
+        ["commander", "EDH", "brawl", "oathbreaker", "paupercommander", "duel", "Standard Brawl"],
+    )
+    def test_commander_formats_open_a_command_zone(self, service: DeckService, fmt: str) -> None:
+        assert "CMD:" in service.new_deck("x", fmt)
+
+    @pytest.mark.parametrize("fmt", ["modern", "", "bogus"])
+    def test_other_formats_do_not(self, service: DeckService, fmt: str) -> None:
+        assert "CMD:" not in service.new_deck("x", fmt)

@@ -29,11 +29,13 @@ LAYOUT_MODES = (LAYOUT_TYPE, LAYOUT_CATEGORY)
 def detect_layout(buffer: Buffer) -> str:
     """Infer the buffer's current layout from its section headers.
 
-    Any '// @name' category header means the deck is category-grouped;
-    otherwise it is treated as type-grouped (the conventional default).
+    Any '// @name' category header — or the '// Uncategorized' group
+    the category layout files unlabelled cards under — means the deck
+    is category-grouped; otherwise it is treated as type-grouped (the
+    conventional default).
     """
     if any(
-        section.key.kind is SectionKind.CATEGORY
+        section.key.kind is SectionKind.CATEGORY or section.key == _UNCATEGORIZED_KEY
         for section in parse_sections(buffer)
     ):
         return LAYOUT_CATEGORY

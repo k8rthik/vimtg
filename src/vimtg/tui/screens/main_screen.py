@@ -233,6 +233,9 @@ class MainScreen(Screen[None]):
         self.search_service = search_service
         # Query of the newest card search started from the prompt.
         self._latest_search: str | None = None
+        # Bumped when the search prompt is confirmed or cancelled; a worker
+        # from an earlier generation may not touch the overlay
+        self._search_generation = 0
         self.card_repo = card_repo
         self.save_fn = save_fn
         self.keymap = KeyMap()
@@ -441,6 +444,10 @@ class MainScreen(Screen[None]):
             return
         if s.mode_mgr.is_normal():
             self.keymap.reset()  # a half-typed sequence ('2d') is dropped
+            wk = self.query_one("#which-key", WhichKey)
+            wk.pending_key = ""
+            wk.display = False
+            self.query_one("#status-line", StatusLine).pending_keys = ""
             self._paste_decklist(text)
 
     def _paste_decklist(self, text: str) -> None:
@@ -735,6 +742,7 @@ class MainScreen(Screen[None]):
             if s.settings is not prev_settings:
                 self._on_settings_saved(s.settings)
             s.mode_mgr.force_normal()
+            s.visual_anchor = None  # :'<,'> consumed the selection
             self.keymap.set_mode(Mode.NORMAL)
         elif action.action_type == "special":
             hr = self._dispatch_special(action)
@@ -830,6 +838,11 @@ class MainScreen(Screen[None]):
         # Cancelling an o/O card search takes its scratch blank with it
         discard_pending_insert(s)
         s.mode_mgr.force_normal()
+        # Leaving visual mode by any route ends the selection — a stale
+        # anchor would make the next dd delete every line up to it
+        s.visual_anchor = None
+        self._latest_search = None
+        self._search_generation += 1
         self.keymap.set_mode(Mode.NORMAL)
         self.query_one("#search-results", SearchResults).display = False
         self.query_one("#help-panel", HelpPanel).display = False
@@ -882,6 +895,8 @@ class MainScreen(Screen[None]):
         s.mode_mgr.transition(Mode.INSERT)
         self.keymap.set_mode(Mode.INSERT)
         self.keymap.reset_text()
+        self._latest_search = None
+        self._update_search_results([])  # never confirm a stale result
         cl = self.query_one("#command-line", CommandLine)
         cl.show("")
         cl.message = (
@@ -1105,7 +1120,9 @@ class MainScreen(Screen[None]):
     def _confirm_insert(self) -> None:
         sr = self.query_one("#search-results", SearchResults)
         cl = self.query_one("#command-line", CommandLine)
-        card = sr.get_selected()
+        self._latest_search = None
+        self._search_generation += 1
+        card = sr.get_selected() if sr.display else None
         if card:
             s = self._state
             cl.set_message(confirm_card_search(s, card))
@@ -1603,7 +1620,8 @@ class MainScreen(Screen[None]):
         self._state.buffer = Buffer.from_text(deck_state)
         row = min(self._state.cursor.row, max(0, self._state.buffer.line_count() - 1))
         self._state.cursor = Cursor(row=row)
-        self._state.modified = True
+        clean = self._state.clean_text
+        self._state.modified = clean is None or self._state.buffer.to_text() != clean
         self._state.history.record(self._state.buffer, reason)
         if self.card_repo:
             self._state.resolved_cards = resolve_cards(
@@ -1869,6 +1887,7 @@ class MainScreen(Screen[None]):
     @work(thread=True)
     def _run_search(self, query: str) -> None:
         if self.search_service:
+            generation = self._search_generation
             settings = self._state.settings
             # Same format resolution as lint: the deck's declared
             # "// Format:" wins over the global default. Only filter on
@@ -1886,21 +1905,35 @@ class MainScreen(Screen[None]):
                     legal_in=rules.name if rules is not None else None,
                 )
             except SearchSyntaxError as exc:
-                self.app.call_from_thread(self._show_search_error, query, str(exc))
+                self.app.call_from_thread(
+                    self._show_search_error, query, str(exc), generation
+                )
                 return
-            self.app.call_from_thread(self._apply_search_results, query, results)
+            self.app.call_from_thread(
+                self._apply_search_results, query, results, generation
+            )
 
     def _search_is_current(self, query: str) -> bool:
         """Workers finish out of order under fast typing; only the one
         for the latest query typed may update the overlay."""
         return self._latest_search is None or self._latest_search == query
 
-    def _apply_search_results(self, query: str, results: list[Card]) -> None:
-        if self._search_is_current(query):
+    def _apply_search_results(
+        self, query: str, results: list[Card], generation: int | None = None
+    ) -> None:
+        if self._search_is_current(query) and self._search_is_live(generation):
             self._update_search_results(results)
 
-    def _show_search_error(self, query: str, message: str) -> None:
-        if not self._search_is_current(query):
+    def _search_is_live(self, generation: int | None) -> bool:
+        """False for a worker started before the search prompt was last
+        confirmed or cancelled: its result must not reopen the overlay
+        over the deck (None: a caller outside the worker path)."""
+        return generation is None or generation == self._search_generation
+
+    def _show_search_error(
+        self, query: str, message: str, generation: int | None = None
+    ) -> None:
+        if not self._search_is_current(query) or not self._search_is_live(generation):
             return
         self._update_search_results([])
         sr = self.query_one("#search-results", SearchResults)

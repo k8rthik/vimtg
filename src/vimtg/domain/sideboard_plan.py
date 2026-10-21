@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from vimtg.domain.card_names import normalize_card_name
 from vimtg.domain.deck import Deck, DeckEntry, DeckSection
 from vimtg.domain.formats import get_format_rules
 from vimtg.domain.validation import ValidationError
@@ -106,22 +107,30 @@ def plan_deltas(plan: SideboardPlan) -> dict[tuple[str, DeckSection], int]:
 def _adjust(
     entries: list[DeckEntry], name: str, section: DeckSection, delta: int
 ) -> list[DeckEntry]:
-    """Add `delta` copies of `name` in `section` (matching names
-    case-insensitively), dropping the entry at zero and appending a
-    fresh one when the card is not there yet. Returns a new list."""
-    lowered = name.lower()
+    """Add `delta` copies of `name` in `section` (names match as
+    normalize_card_name does, like validation), dropping a line at
+    zero and appending a fresh one when the card is not there yet.
+    A removal is spread over every line holding the card — '2 Bolt
+    @burn' + '2 Bolt @reach' minus 4 is no Bolts, not 2 — so a plan
+    boards the same copies validate_plans counted. Returns a new list.
+    """
+    key = normalize_card_name(name)
     out: list[DeckEntry] = []
-    found = False
+    remaining = delta
     for e in entries:
-        if e.section == section and e.card_name.lower() == lowered and not found:
-            found = True
-            qty = e.quantity + delta
-            if qty > 0:
-                out.append(replace(e, quantity=qty))
+        if remaining == 0 or e.section != section or normalize_card_name(e.card_name) != key:
+            out.append(e)
             continue
-        out.append(e)
-    if not found and delta > 0:
-        out.append(DeckEntry(quantity=delta, card_name=name, section=section))
+        if remaining > 0:
+            out.append(replace(e, quantity=e.quantity + remaining))
+            remaining = 0
+            continue
+        taken = min(e.quantity, -remaining)
+        remaining += taken
+        if e.quantity > taken:
+            out.append(replace(e, quantity=e.quantity - taken))
+    if remaining > 0:
+        out.append(DeckEntry(quantity=remaining, card_name=name, section=section))
     return out
 
 
@@ -143,10 +152,12 @@ def apply_plan(deck: Deck, plan: SideboardPlan) -> Deck:
 
 
 def _zone_copies(deck: Deck, section: DeckSection) -> dict[str, int]:
+    """Copies per card in `section`, keyed as validation keys cards
+    (normalize_card_name: 'Fire/Ice' and 'Fire // Ice' are one card)."""
     copies: dict[str, int] = {}
     for e in deck.entries:
         if e.section == section:
-            key = e.card_name.lower()
+            key = normalize_card_name(e.card_name)
             copies[key] = copies.get(key, 0) + e.quantity
     return copies
 
@@ -167,7 +178,7 @@ def _check_entry(
     zone, copies = (
         ("mainboard", main) if entry.sign == SIGN_OUT else ("sideboard", side)
     )
-    available = copies.get(entry.card_name.lower())
+    available = copies.get(normalize_card_name(entry.card_name))
     if available is None:
         return ValidationError(
             "error",
@@ -196,7 +207,7 @@ def _check_plan(
             errors.append(err)
             entries_ok = False
             continue
-        key = (entry.sign, entry.card_name.lower())
+        key = (entry.sign, normalize_card_name(entry.card_name))
         if key in seen:
             errors.append(ValidationError(
                 "warning",

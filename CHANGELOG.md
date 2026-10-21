@@ -18,6 +18,54 @@ from 1.0.0 onward.
   not a card to either, and `Hazmat Suit (Used)` keeps its name.
 - A bare MTGO-style `Sideboard` line zones the cards after it as
   sideboard in the editor as well, not only in validation and export.
+- A visual selection no longer outlives its mode: after `i`, a `/`
+  search or an ex command from visual mode, the next `dd`/`yy`/`+`/`-`
+  acts on one line again instead of the old selection.
+- `:[range]g` and `:v` honour their range (`:1,5g/x/d`, `'<,'>g/x/d`)
+  instead of running over the whole deck.
+- `3x` deletes three card lines as one change (one `u`, every line in
+  the register), as in vim. `dj` on the last line and `dk` on the first
+  delete nothing. `+` stops at 999 copies. `.` on a selection leaves
+  visual mode like the change it repeats.
+- Marks follow cards added with `o`/`O` above them and lines moved with
+  `:m`.
+- `i` on a line inside a `CMD:`/`SB:`/`VS:` block keeps its indentation
+  (un-indenting silently rezoned it and every line below); `i` then
+  Enter on an untouched line no longer dirties the deck.
+- Tab in the `/` prompt no longer rewrites the pattern as an ex
+  command. A card search that was cancelled or confirmed never inserts
+  a stale result or reopens the overlay when its worker finishes late.
+- Restoring a history snapshot identical to the saved file does not
+  mark the deck modified; `:layout` toggles back to type for a deck
+  with no categories; the which-key tooltip hides when a paste cancels
+  a pending operator; `9999p` is one insert.
+- Sideboard plans board a card split over two lines (`2 Bolt @burn` +
+  `2 Bolt @reach`) correctly in `:hand`, `vimtg hand` and plan
+  previews, and plan lines match names the way validation does
+  (`Fire/Ice` is `Fire // Ice`) and follow renamed cards on import.
+- Cherry-pick and rebase no longer double a card split over two lines;
+  merging a branch brings in the sideboard plans only that branch has.
+- No false "outside commander color identity" errors while a partner
+  commander's name is unknown. The free mulligan applies to `EDH`,
+  `cEDH`, `Standard Brawl` and the other format aliases. New decks in
+  every commander-style format (oathbreaker, duel, pauper commander)
+  start with a `CMD:` block.
+- Analytics count artifact lands and land creatures with the lands in
+  the type breakdown. A headerless pasted list whose first group is a
+  lone leader no longer gets a 59-card sideboard. `:import` of a file
+  with a byte-order mark keeps vimtg layout; a Moxfield deck with a
+  null quantity imports instead of failing.
+- An empty or mis-shaped Scryfall download is an error that keeps the
+  existing card data, instead of emptying the card table and being
+  reused as a fresh cache for a week. A feed listing one card twice
+  stores it once.
+- Search queries that used to crash the overlay or `vimtg search`
+  (`c:²`, huge counts, `/a{99999999999}/`, dozens of `-`, hundreds of
+  nested parentheses or terms) are reported as syntax errors.
+- Deck history survives a malformed snapshot timestamp; a recovery copy
+  is found for a deck path with undecodable bytes; an unreadable
+  category history or a config directory that is a file fall back to
+  defaults with a warning.
 
 ### Fixed
 

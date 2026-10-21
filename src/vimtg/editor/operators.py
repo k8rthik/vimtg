@@ -13,13 +13,14 @@ from typing import TYPE_CHECKING
 
 from vimtg.domain.categories import format_inline_category
 from vimtg.domain.deck_lines import (
+    MAX_QUANTITY,
     format_inline_comment,
     is_bare_card_line,
     parse_zone_header,
     zone_running_context,
 )
 from vimtg.domain.tags import format_inline_tags
-from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.buffer import HEADER_LINE_TYPES, ZONE_TAG_TYPES, Buffer, LineType
 from vimtg.editor.cursor import Cursor
 
 if TYPE_CHECKING:
@@ -134,13 +135,10 @@ def _range_section_backward(buffer: Buffer, row: int, count: int) -> tuple[int, 
     return pos, _trim_end(buffer, pos, row - 1)
 
 
-_HEADER_TYPES = (LineType.SECTION_HEADER, LineType.PLAN_HEADER)
-
-
 def _range_header_forward(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
     """d]]: up to, not including, the count-th next header."""
     target = MOTION_REGISTRY["]]"](Cursor(row=row), buffer, count).row
-    if target > row and buffer.get_line(target).line_type in _HEADER_TYPES:
+    if target > row and buffer.get_line(target).line_type in HEADER_LINE_TYPES:
         return row, _trim_end(buffer, row, target - 1)
     return row, max(row, target)
 
@@ -190,9 +188,15 @@ def resolve_line_range(
     # j/k operate on raw lines (vim: dj = exactly two lines). The
     # cursor motions skip blanks, which would silently widen the range
     # across a blank onto the next section or zone-block header.
+    # A motion that cannot move at all fails, as in vim: dj on the last
+    # line (dk on the first) deletes nothing, not the line itself.
     if motion == "j":
+        if cursor.row >= buffer.line_count() - 1:
+            return (cursor.row, cursor.row - 1)
         return (cursor.row, min(cursor.row + count, buffer.line_count() - 1))
     if motion == "k":
+        if cursor.row <= 0:
+            return (cursor.row, cursor.row - 1)
         return (max(cursor.row - count, 0), cursor.row)
     exclusive = _EXCLUSIVE_RANGES.get(motion)
     if exclusive is not None:
@@ -303,17 +307,16 @@ def put_lines(
     registers: RegisterStore,
     register_name: str | None = None,
     above: bool = False,
+    count: int = 1,
 ) -> tuple[Buffer, Cursor]:
-    """p/P -- paste from register below/above cursor."""
+    """p/P -- paste from register below/above cursor, `count` copies
+    as one block; the cursor lands on the first pasted row."""
     reg = registers.get(register_name or '"')
-    if not reg.content:
+    if not reg.content or count <= 0:
         return buffer, cursor
     insert_at = cursor.row if above else cursor.row + 1
-    new_buf = buffer
-    for i, line in enumerate(reg.content):
-        new_buf = new_buf.insert_line(insert_at + i, line)
-    new_cursor = cursor.move_to(insert_at, 0)
-    return new_buf, new_cursor
+    new_buf = buffer.insert_lines(insert_at, tuple(reg.content) * count)
+    return new_buf, cursor.move_to(insert_at, 0)
 
 
 def increment_quantity(buffer: Buffer, cursor: Cursor, count: int = 1) -> Buffer:
@@ -327,7 +330,8 @@ def increment_quantity(buffer: Buffer, cursor: Cursor, count: int = 1) -> Buffer
     qty = buffer.quantity_at(cursor.row)
     if qty is None:
         return buffer
-    return buffer.set_quantity(cursor.row, qty + count)
+    # quantity_at clamps what it reads; never write past that
+    return buffer.set_quantity(cursor.row, min(qty + count, MAX_QUANTITY))
 
 
 def decrement_quantity(
@@ -367,13 +371,8 @@ ZONE_PREFIXES = {
     LineType.MAYBEBOARD_ENTRY: "MB: ",
 }
 # Zone → its Python-style block header tag ('DCK:', 'CMD:', ...)
-_ZONE_TAGS = {
-    LineType.CARD_ENTRY: "DCK",
-    LineType.COMMANDER_ENTRY: "CMD",
-    LineType.COMPANION_ENTRY: "CMP",
-    LineType.SIDEBOARD_ENTRY: "SB",
-    LineType.MAYBEBOARD_ENTRY: "MB",
-}
+# LineType -> its zone tag: the inverse of buffer.ZONE_TAG_TYPES
+_ZONE_TAGS = {line_type: tag for tag, line_type in ZONE_TAG_TYPES.items()}
 _BLOCK_INDENT = "    "
 # Zones whose blocks come after this zone in the canonical file layout
 # (commander, companion, main deck, sideboard, maybeboard).

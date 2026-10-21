@@ -153,3 +153,22 @@ class TestLosslessToggle:
 
         with pytest.raises(ValueError, match="Unknown layout mode"):
             regroup_buffer(Buffer.from_text("1 Opt\n"), "nope")
+
+
+class TestDetectLayoutUncategorized:
+    def test_a_deck_with_only_the_uncategorized_group_is_category_layout(self) -> None:
+        from vimtg.editor.layout import (
+            LAYOUT_CATEGORY,
+            LAYOUT_TYPE,
+            detect_layout,
+            regroup_buffer,
+        )
+
+        plain = Buffer.from_text("// Deck: x\n\n4 Lightning Bolt\n4 Goblin Guide\n")
+        assert detect_layout(plain) == LAYOUT_TYPE
+        by_category = regroup_buffer(plain, LAYOUT_CATEGORY)
+        # No card carries a category, so the regroup emits only the
+        # '// Uncategorized' group — which must still read as that layout,
+        # or :layout could never toggle back
+        assert "// Uncategorized" in by_category.to_text()
+        assert detect_layout(by_category) == LAYOUT_CATEGORY

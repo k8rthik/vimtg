@@ -520,3 +520,28 @@ class TestAlphabeticalZoneInsert:
         )
         lines = self._lines(result.buffer)
         assert lines.index("    4 Annul") == lines.index("    1 Tymna the Weaver") + 1
+
+
+class TestQuantityCap:
+    def test_plus_never_writes_past_the_clamp(self) -> None:
+        from vimtg.domain.deck_lines import MAX_QUANTITY
+
+        buf = Buffer.from_text("999 Mountain\n")
+        assert increment_quantity(buf, _make_cursor(0), 1).get_line(0).text == "999 Mountain"
+        buf = Buffer.from_text("995 Mountain\n")
+        assert increment_quantity(buf, _make_cursor(0), 10).get_line(0).text == (
+            f"{MAX_QUANTITY} Mountain"
+        )
+
+
+class TestCountedPut:
+    def test_count_pastes_one_block_with_the_cursor_on_its_first_row(self) -> None:
+        regs = RegisterStore().set('"', ("4 Shock", "4 Lava Spike"))
+        buf, cur = put_lines(Buffer.from_text("4 Bolt\n"), _make_cursor(0), regs, count=3)
+        assert [bl.text for bl in buf.get_lines()] == ["4 Bolt"] + ["4 Shock", "4 Lava Spike"] * 3
+        assert cur.row == 1
+        above, cur = put_lines(
+            Buffer.from_text("4 Bolt\n"), _make_cursor(0), regs, above=True, count=2,
+        )
+        assert [bl.text for bl in above.get_lines()] == ["4 Shock", "4 Lava Spike"] * 2 + ["4 Bolt"]
+        assert cur.row == 0

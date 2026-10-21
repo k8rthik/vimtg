@@ -33,7 +33,7 @@ from vimtg.domain.deck_lines import (
     strip_bom,
     strip_printing_suffix,
 )
-from vimtg.domain.formats import known_formats
+from vimtg.domain.formats import known_formats, normalize_format
 from vimtg.domain.tags import TAG_NAME_RE
 
 _TIMEOUT_SECONDS = 20.0
@@ -211,23 +211,29 @@ _TYPE_CATEGORIES = frozenset({
 
 
 # Deck-site format names that differ from vimtg's (Scryfall's) names
-_FORMAT_ALIASES: dict[str, str] = {
-    "edh": "commander",
-    "pauperedh": "paupercommander",
-    "duelcommander": "duel",
-    "historicbrawl": "brawl",
-    "pennydreadful": "penny",
-}
-
-
 def site_format(value: object) -> str:
     """A deck site's format name as a vimtg format ('' when unknown):
-    'Commander' -> 'commander', 'pauperEdh' -> 'paupercommander'."""
+    'Commander' -> 'commander', 'pauperEdh' -> 'paupercommander'. The
+    aliases are formats.FORMAT_ALIASES, the same table a '// Format:'
+    line goes through."""
     if not isinstance(value, str):
         return ""
-    key = re.sub(r"[^a-z0-9]", "", value.lower())
-    key = _FORMAT_ALIASES.get(key, key)
+    key = normalize_format(re.sub(r"[^a-z0-9]", "", value.lower()))
     return key if key in known_formats() else ""
+
+
+def _json_int(value: object) -> int:
+    """A quantity from a deck site's JSON as an int; 0 for null, a
+    bool, or anything else that is not a whole number."""
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.strip().isdecimal():
+        return int(value.strip())
+    return 0
 
 
 # ── Moxfield ───────────────────────────────────────────────────────
@@ -255,7 +261,7 @@ def parse_moxfield(data: dict[str, Any]) -> RemoteDeck:
         if not isinstance(cards, dict):
             continue
         for raw in cards.values():
-            qty = int(raw.get("quantity", 0))
+            qty = _json_int(raw.get("quantity"))
             name = (raw.get("card") or {}).get("name")
             if qty <= 0 or not name:
                 continue
@@ -312,7 +318,7 @@ def parse_archidekt(data: dict[str, Any]) -> RemoteDeck:
     }
     entries: list[DeckEntry] = []
     for raw in data.get("cards") or []:
-        qty = int(raw.get("quantity", 0))
+        qty = _json_int(raw.get("quantity"))
         name = _archidekt_name(raw)
         if qty <= 0 or not name:
             continue
@@ -404,7 +410,7 @@ def parse_manabox_page(url: str, page: str) -> RemoteDeck:
     for raw in deck_data["cards"]:
         if not isinstance(raw, dict):
             continue
-        qty = int(raw.get("quantity") or 0)
+        qty = _json_int(raw.get("quantity"))
         name = raw.get("name")
         if qty <= 0 or not name:
             continue
@@ -702,7 +708,15 @@ def parse_decklist_text(
         if command_group is not None:
             moved, target = command_group, DeckSection.COMMANDER
         else:
-            moved, target = max(groups), DeckSection.SIDEBOARD
+            # Main + sideboard: the smaller group is the sideboard,
+            # whichever comes first (a lone leader ahead of 59 cards
+            # is not a 59-card sideboard); a tie keeps the second
+            totals = {
+                g: sum(c.entry.quantity for c in cards if c.group == g)
+                for g in groups
+            }
+            moved = min(groups, key=lambda g: (totals[g], -g))
+            target = DeckSection.SIDEBOARD
         entries = [
             replace(card.entry, section=target)
             if card.group == moved

@@ -418,3 +418,15 @@ class TestBufferReadsCardsLikeTheDeckParser:
         assert buf.card_name_at(2) == "Opt"
         assert buf.plan_sign_at(2) == "-"
         assert buf.comment_at(2) == "keep"
+
+
+class TestInsertLines:
+    def test_inserts_a_block_classified_in_its_context(self) -> None:
+        buf = Buffer.from_text("SB:\n    1 Duress\n")
+        out = buf.insert_lines(2, ["    1 Negate", "4 Opt"])
+        assert [bl.line_type for bl in out.get_lines()] == [
+            LineType.SECTION_HEADER, LineType.SIDEBOARD_ENTRY,
+            LineType.SIDEBOARD_ENTRY, LineType.CARD_ENTRY,
+        ]
+        assert buf.insert_lines(1, []) is buf
+        assert out.insert_lines(99, ["x"]).get_line(4).text == "x"  # clamped like insert_line

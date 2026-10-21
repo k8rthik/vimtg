@@ -96,6 +96,7 @@ class PendingMerge:
     ours_state: str
     merged: dict[CardKey, int]
     conflicts: tuple[MergeConflict, ...]
+    added_plans: tuple[SideboardPlan, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -355,11 +356,12 @@ class VersionControlService:
                     ours_state=current_tip.deck_state,
                     merged=result.merged,
                     conflicts=result.conflicts,
+                    added_plans=result.added_plans,
                 ),
             )
 
         new_state = merged_map_to_deck_state(
-            result.merged, current_tip.deck_state
+            result.merged, current_tip.deck_state, result.added_plans
         )
         snap = self._commit_merge(
             new_state,
@@ -407,10 +409,13 @@ class VersionControlService:
                     ours_state=ours_state,
                     merged=result.merged,
                     conflicts=result.conflicts,
+                    added_plans=result.added_plans,
                 ),
             )
 
-        new_state = merged_map_to_deck_state(result.merged, ours_state)
+        new_state = merged_map_to_deck_state(
+            result.merged, ours_state, result.added_plans
+        )
         if ours_state and _deck_hash(new_state) == _deck_hash(ours_state):
             return MergeResult(
                 MergeKind.UP_TO_DATE, "Nothing to merge — no new cards"
@@ -449,7 +454,9 @@ class VersionControlService:
             if resolved is not None:
                 merged[conflict.key] = resolved
 
-        new_state = merged_map_to_deck_state(merged, pending.ours_state)
+        new_state = merged_map_to_deck_state(
+            merged, pending.ours_state, pending.added_plans
+        )
         snap = self._commit_merge(
             new_state,
             f"merge: {pending.source_label} into {self._current_branch}",

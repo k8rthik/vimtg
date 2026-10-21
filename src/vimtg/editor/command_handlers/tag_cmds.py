@@ -18,7 +18,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
-    resolve_command_range,
+    command_line_range,
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.tag_ops import (
@@ -47,8 +47,7 @@ def _card_range(
     No range → cursor line only. Range → start..end inclusive. A reversed
     range (e.g. ``:5,2``) is normalized so start <= end, matching vim.
     """
-    explicit = resolve_command_range(cmd)
-    return explicit if explicit is not None else (cursor.row, cursor.row)
+    return command_line_range(cmd, buf.line_count(), (cursor.row, cursor.row))
 
 
 def cmd_tag(

@@ -384,3 +384,27 @@ class TestComputeManaBase:
         check = compute_mana_base(_make_deck(()), {})
         assert check.requirements == ()
         assert check.total_lands == 0
+
+
+def _land_card(name: str, type_line: str) -> Card:
+    return Card.from_scryfall({
+        "id": name.lower().replace(" ", "-"), "name": name, "mana_cost": "", "cmc": 0.0,
+        "type_line": type_line, "oracle_text": "", "colors": [], "color_identity": [],
+        "power": None, "toughness": None, "keywords": [], "set": "tst", "rarity": "common",
+        "layout": "normal", "legalities": {}, "prices": {"usd": None}, "image_uris": {},
+    })
+
+
+class TestLandsAreLandsInTheBreakdown:
+    def test_artifact_land_and_land_creature_count_with_the_lands(self) -> None:
+        # primary_type says Artifact / Creature; the deck's land count
+        # says land, and the breakdown must agree with it
+        cards = {
+            "Seat of the Synod": _land_card("Seat of the Synod", "Artifact Land"),
+            "Dryad Arbor": _land_card("Dryad Arbor", "Land Creature — Dryad"),
+        }
+        deck = _make_deck((_entry(4, "Seat of the Synod"), _entry(1, "Dryad Arbor")))
+        stats = compute_stats(deck, cards)
+        assert stats.land_count == 5
+        assert stats.type_breakdown.counts == {"Land": 5}
+        assert stats.type_breakdown.total_nonland() == 0
