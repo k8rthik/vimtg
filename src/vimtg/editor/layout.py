@@ -29,11 +29,13 @@ LAYOUT_MODES = (LAYOUT_TYPE, LAYOUT_CATEGORY)
 def detect_layout(buffer: Buffer) -> str:
     """Infer the buffer's current layout from its section headers.
 
-    Any '// @name' category header means the deck is category-grouped;
-    otherwise it is treated as type-grouped (the conventional default).
+    Any '// @name' category header — or the '// Uncategorized' group
+    the category layout files unlabelled cards under — means the deck
+    is category-grouped; otherwise it is treated as type-grouped (the
+    conventional default).
     """
     if any(
-        section.key.kind is SectionKind.CATEGORY
+        section.key.kind is SectionKind.CATEGORY or section.key == _UNCATEGORIZED_KEY
         for section in parse_sections(buffer)
     ):
         return LAYOUT_CATEGORY
@@ -307,15 +309,14 @@ def _group_by_category(
     First-appearance order preserves the user's own arrangement across
     toggles; uncategorized cards form a trailing group.
     """
-    from vimtg.domain.deck_lines import parse_card_parts
-    from vimtg.editor.sort_keys import match_card_line
+    from vimtg.domain.deck_lines import parse_card_line
 
     buckets: dict[str, list[BufferLine]] = {}
     order: list[str] = []
     uncategorized: list[BufferLine] = []
     for bl in cards:
-        m = match_card_line(bl.text.strip())
-        category = parse_card_parts(m.group(2))[1] if m else ""
+        card = parse_card_line(bl.text)
+        category = card.category if card else ""
         if not category:
             uncategorized.append(bl)
             continue

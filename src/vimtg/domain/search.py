@@ -32,6 +32,12 @@ from typing import Literal
 from vimtg.domain.card import Color
 from vimtg.domain.formats import SCRYFALL_FORMATS, normalize_format
 
+# Limits on a query's size: far above anything typed, well inside
+# SQLite's expression-depth and LIKE-pattern limits
+MAX_QUERY_LENGTH = 1000
+MAX_QUERY_TERMS = 200
+MAX_QUERY_DEPTH = 32
+
 
 class SearchSyntaxError(ValueError):
     """A query that can't be run, with a message naming the culprit."""
@@ -379,6 +385,7 @@ class _Parser:
     def __init__(self, toks: list[_Tok]) -> None:
         self._toks = toks
         self._pos = 0
+        self._depth = 0
         self.order: SearchOrder | None = None
 
     def _peek(self) -> _Tok | None:
@@ -443,7 +450,11 @@ class _Parser:
         assert tok is not None
         self._pos += 1
         if tok.kind == "(":
+            self._depth += 1
+            if self._depth > MAX_QUERY_DEPTH:
+                raise SearchSyntaxError("Search nested too deeply")
             inner = self._or()
+            self._depth -= 1
             closing = self._peek()
             if closing is not None and closing.kind == ")":
                 self._pos += 1
@@ -496,7 +507,7 @@ def _bare_term(tok: _Tok) -> Node | None:
 def _check_regex(pattern: str) -> str:
     try:
         re.compile(pattern, re.IGNORECASE)
-    except re.error as exc:
+    except (re.error, OverflowError) as exc:  # a{99999999999} overflows
         raise SearchSyntaxError(f"Invalid regex /{pattern}/: {exc}") from exc
     return pattern
 
@@ -568,8 +579,10 @@ def _color_term(field: ColorField, op: Op, value: str) -> ColorMatch:
     # ':' means "at least these" for colours and "within these" for
     # identity, the way Scryfall reads c:rg and id:rg.
     set_op: Op = op if op != ":" else (">=" if field == "colors" else "<=")
-    if word.isdigit():
-        return ColorMatch(field, "=" if op == ":" else op, count=int(word))
+    if word.isdecimal():  # not isdigit: '²' is a digit it cannot int()
+        # Five colours at most; a larger count means the same (nothing)
+        # and must not overflow the SQLite bind
+        return ColorMatch(field, "=" if op == ":" else op, count=min(int(word), 6))
     if word in _MULTI_WORDS:
         if op not in (":", "="):
             raise SearchSyntaxError(f"'{value}' only supports ':'")
@@ -618,6 +631,13 @@ def parse_search_with_order(raw: str) -> tuple[Node | None, SearchOrder | None]:
     The order is ``None`` when the query names neither (rank by name
     match, then name).
     """
-    parser = _Parser(_tokenize(raw.translate(_QUOTE_FOLDS)))
+    # Bounds a typed query never reaches, but a pasted one might: past
+    # them the SQL compiled from the tree overruns SQLite's own limits
+    if len(raw) > MAX_QUERY_LENGTH:
+        raise SearchSyntaxError(f"Search too long (max {MAX_QUERY_LENGTH} characters)")
+    toks = _tokenize(raw.translate(_QUOTE_FOLDS))
+    if len(toks) > MAX_QUERY_TERMS:
+        raise SearchSyntaxError(f"Search has too many terms (max {MAX_QUERY_TERMS})")
+    parser = _Parser(toks)
     node = parser.parse()
     return node, parser.order

@@ -266,3 +266,44 @@ class TestMarkdown:
 
     def test_no_plans(self) -> None:
         assert format_guide_markdown(parse_deck_text("4 Opt\n")) == ""
+
+
+class TestApplyPlanWithDuplicateLines:
+    """A card split over two mainboard lines ('@burn' and '@reach'
+    copies) is one card to validate_plans; apply_plan must board the
+    same copies it counted, not stop at the first line."""
+
+    def test_removal_spreads_over_every_line_of_the_card(self) -> None:
+        deck = parse_deck_text(
+            "2 Lightning Bolt  @burn\n2 Lightning Bolt  @reach\n56 Mountain\n"
+            "SB: 4 Alpine Moon\n\nVS: Tron\n    -4 Lightning Bolt\n    +4 Alpine Moon\n"
+        )
+        assert validate_plans(deck) == []
+        boarded = apply_plan(deck, deck.plans[0])
+        main: dict[str, int] = {}
+        for e in boarded.mainboard():
+            main[e.card_name] = main.get(e.card_name, 0) + e.quantity
+        assert main == {"Mountain": 56, "Alpine Moon": 4}
+        assert {e.card_name: e.quantity for e in boarded.sideboard()} == {"Lightning Bolt": 4}
+        assert boarded.total_cards() == deck.total_cards()
+
+    def test_partial_removal_empties_the_first_lines_first(self) -> None:
+        deck = parse_deck_text(
+            "2 Bolt  @burn\n2 Bolt  @reach\nSB: 3 Moon\n\nVS: x\n    -3 Bolt\n    +3 Moon\n"
+        )
+        boarded = apply_plan(deck, deck.plans[0])
+        assert [(e.card_name, e.quantity, e.category) for e in boarded.mainboard()] == [
+            ("Bolt", 1, "reach"), ("Moon", 3, ""),
+        ]
+
+    def test_names_match_the_way_validation_matches_them(self) -> None:
+        # 'Fire/Ice' and 'Fire // Ice' are one card to validate_deck
+        deck = parse_deck_text(
+            "4 Fire // Ice\nSB: 2 Duress\n\nVS: x\n    -2 Fire/Ice\n    +2 duress\n"
+        )
+        assert validate_plans(deck) == []
+        boarded = apply_plan(deck, deck.plans[0])
+        assert {e.card_name: e.quantity for e in boarded.mainboard()} == {
+            "Fire // Ice": 2, "duress": 2,
+        }
+        assert {e.card_name: e.quantity for e in boarded.sideboard()} == {"Fire/Ice": 2}

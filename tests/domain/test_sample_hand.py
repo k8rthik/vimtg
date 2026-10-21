@@ -403,3 +403,14 @@ class TestFormatHand:
         assert format_hand(boarded, deal(boarded.library, random.Random(0))).startswith(
             "Plan: vs Tron\n"
         )
+
+
+class TestFreeMulliganFormatAliases:
+    @pytest.mark.parametrize(
+        "fmt", ["commander", "EDH", "cEDH", "Standard Brawl", "Historic Brawl", "PDH"],
+    )
+    def test_aliases_get_the_free_mulligan(self, fmt: str) -> None:
+        assert build_source(parse_deck_text(COMMANDER), fmt=fmt).free_mulligan is True
+
+    def test_sixty_card_formats_do_not(self) -> None:
+        assert build_source(parse_deck_text(BURN), fmt="Modern").free_mulligan is False

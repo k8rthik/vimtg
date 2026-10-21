@@ -220,3 +220,24 @@ class TestRowToCardRoundTrip:
         assert card is not None
         assert card.layout == "transform"
         assert card.keywords == ("Transform",)
+
+
+def _printing(card_id: str, oracle_id: str, name: str) -> Card:
+    return Card.from_scryfall({
+        "id": card_id, "oracle_id": oracle_id, "name": name, "mana_cost": "{R}", "cmc": 1.0,
+        "type_line": "Instant", "oracle_text": "", "colors": ["R"], "color_identity": ["R"],
+        "power": None, "toughness": None, "keywords": [], "set": "tst", "rarity": "common",
+        "layout": "normal", "legalities": {}, "prices": {"usd": None}, "image_uris": {},
+    })
+
+
+class TestReplaceAllKeepsOneRowPerCard:
+    def test_two_printings_of_one_oracle_id_are_one_card(
+        self, db_factory: Callable[..., Database]
+    ) -> None:
+        repo = CardRepository(db_factory())
+        repo.replace_all(
+            [_printing("p1", "o1", "Goblin Guide"), _printing("p2", "o1", "Goblin Guide")]
+        )
+        assert repo.count() == 1
+        assert len(repo.search("goblin guide")) == 1

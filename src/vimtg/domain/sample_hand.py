@@ -21,6 +21,7 @@ from vimtg.domain.card import Card
 from vimtg.domain.card_names import CardMap
 from vimtg.domain.card_types import is_basic_land
 from vimtg.domain.deck import Deck, DeckSection
+from vimtg.domain.formats import normalize_format
 from vimtg.domain.probabilities import OPENING_HAND_SIZE, draws_by_turn, prob_at_least
 from vimtg.domain.sideboard_plan import SideboardPlan, apply_plan
 
@@ -102,7 +103,7 @@ def build_source(
         deck = apply_plan(deck, plan)
     library = _expand(deck, DeckSection.MAIN)
     command_zone = _expand(deck, DeckSection.COMMANDER)
-    fmt = fmt.strip().lower()
+    fmt = normalize_format(fmt)  # 'EDH', 'Standard Brawl' count too
     free = fmt in FREE_MULLIGAN_FORMATS or (not fmt and bool(command_zone))
     return HandSource(
         library=library,

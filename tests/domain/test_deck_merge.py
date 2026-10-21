@@ -241,3 +241,41 @@ class TestPlanHandling:
         diff = compute_deck_diff("", _state("2 Shock"))
         state = apply_card_changes(ours, diff.changes)
         assert "VS: Tron\n    -1 Goblin Guide\n" in state
+
+
+class TestDuplicateLinesStayOneCard:
+    def test_quantity_change_sets_the_total_once(self) -> None:
+        # Two lines of one card ('@burn' and '@reach' copies) set to 3
+        # are 3 Bolts on one line, not 3 + 3
+        old = _state("2 Lightning Bolt  @burn", "2 Lightning Bolt  @reach", "56 Mountain")
+        diff = compute_deck_diff(old, _state("3 Lightning Bolt", "57 Mountain"))
+        state = apply_card_changes(old, diff.changes)
+        assert build_card_map(state) == {BOLT: 3, ("Mountain", DeckSection.MAIN): 57}
+        assert state.count("Lightning Bolt") == 1
+        assert "@burn" in state  # the first line, with its token, is the one kept
+
+
+class TestPlansFromTheOtherSide:
+    def test_three_way_merge_carries_plans_only_theirs_added(self) -> None:
+        base = ours = "4 Goblin Guide\nSB: 2 Shock\n"
+        theirs = "4 Goblin Guide\nSB: 2 Shock\n\nVS: Tron\n    -1 Goblin Guide\n    +1 Shock\n"
+        result = three_way_merge(base, ours, theirs)
+        assert not result.has_conflicts
+        assert [plan.name for plan in result.added_plans] == ["Tron"]
+        merged = merged_map_to_deck_state(result.merged, ours, result.added_plans)
+        assert "VS: Tron\n    -1 Goblin Guide\n    +1 Shock\n" in merged
+
+    def test_a_plan_both_sides_have_stays_ours(self) -> None:
+        base = "4 Goblin Guide\n\nVS: Tron\n    -1 Goblin Guide\n"
+        ours = "4 Goblin Guide\n\nVS: Tron\n    -2 Goblin Guide\n"
+        theirs = "4 Goblin Guide\n\nVS: Tron\n    -3 Goblin Guide\n"
+        result = three_way_merge(base, ours, theirs)
+        assert result.added_plans == ()
+        merged = merged_map_to_deck_state(result.merged, ours, result.added_plans)
+        assert "-2 Goblin Guide" in merged and "-3 Goblin Guide" not in merged
+
+    def test_a_plan_ours_deleted_does_not_come_back(self) -> None:
+        base = theirs = "4 Goblin Guide\n\nVS: Tron\n    -1 Goblin Guide\n"
+        ours = "4 Goblin Guide\n"
+        result = three_way_merge(base, ours, theirs)
+        assert result.added_plans == ()

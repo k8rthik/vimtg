@@ -344,3 +344,19 @@ class TestAncestry:
         merged = repo.get_snapshot("merge")
         assert merged is not None
         assert merged.merge_parent_id == "squashed"
+
+
+class TestTimestampsAlwaysCompare:
+    def test_naive_and_garbage_rows_sort_with_aware_ones(
+        self, repo: SnapshotRepository
+    ) -> None:
+        repo.save_snapshot(_snap(id="a"))
+        repo.save_snapshot(_snap(id="b", parent_id="a", timestamp=datetime(2026, 9, 1)))  # naive
+        repo.save_snapshot(_snap(id="c", parent_id="b"))
+        conn = repo._db.connect()
+        conn.execute("UPDATE snapshots SET timestamp = 'garbage' WHERE id = 'a'")
+        conn.commit()
+        history = repo.get_history("c", DECK_PATH, limit=10)
+        assert [s.id for s in history] == ["c", "b", "a"]
+        assert all(s.timestamp.tzinfo is not None for s in history)
+        assert repo.find_merge_base("c", "b", DECK_PATH) == "b"

@@ -23,6 +23,7 @@ from vimtg.domain.deck_lines import (
     strip_bom,
     strip_printing_suffix,
 )
+from vimtg.domain.formats import format_requires_commander
 from vimtg.domain.section_keys import SectionKey, SectionKind
 from vimtg.domain.tags import format_inline_tags
 from vimtg.services.deck_sources import (
@@ -149,7 +150,16 @@ def canonicalize_names(deck: Deck, resolved: Mapping[str, Card]) -> Deck:
         replace(e, card_name=_official_name(e.card_name, resolved))
         for e in deck.entries
     )
-    return replace(deck, entries=entries)
+    # Plan lines name the same cards; left as typed they would no
+    # longer match the renamed mainboard/sideboard lines
+    plans = tuple(
+        replace(plan, entries=tuple(
+            replace(pe, card_name=_official_name(pe.card_name, resolved))
+            for pe in plan.entries
+        ))
+        for plan in deck.plans
+    )
+    return replace(deck, entries=entries, plans=plans)
 
 
 # Status note for an imported deck that names no format
@@ -222,7 +232,7 @@ def structured_deck_text(
         lines.append(f"// Tags: {', '.join(sorted(meta.tags))}")
     lines.extend(c.text for c in sorted(deck.comments, key=lambda c: c.line_number))
 
-    commander_format = meta.format.strip().lower() in ("commander", "brawl")
+    commander_format = format_requires_commander(meta.format)
     for tag, section in _IMPORT_BLOCKS:
         entries = tuple(e for e in deck.entries if e.section == section)
         keep_empty = tag == "DCK" or (tag == "CMD" and commander_format)
@@ -288,6 +298,7 @@ class ImportExportService:
           - Otherwise -> ARCHIDEKT
         - Fallback -> MTGO
         """
+        text = normalize_text(text)  # a BOM must not hide a '//' first line
         stripped = text.lstrip()
         if stripped.startswith(("<?xml", "<Deck")):
             return DeckFormat.MTGO_DEK
@@ -352,7 +363,10 @@ class ImportExportService:
         deck = report.deck
         if self._card_repo is not None and deck.entries:
             # Copies are counted (and merged) by card, not by spelling
-            names = sorted(deck.unique_card_names())
+            names = sorted(
+                deck.unique_card_names()
+                | {pe.card_name for plan in deck.plans for pe in plan.entries}
+            )
             # name normalisation is best-effort
             with contextlib.suppress(sqlite3.Error):
                 deck = canonicalize_names(deck, self._card_repo.get_by_names(names))

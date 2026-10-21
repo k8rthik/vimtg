@@ -72,3 +72,29 @@ class TestDatabase:
         db.connect()
         assert nested_path.exists()
         db.close()
+
+
+def test_in_memory_database_is_shared_with_its_readers() -> None:
+    # ':memory:' is private per connection, so the reader pool used to
+    # open empty databases ("no such table") beside the main one
+    db = Database(Path(":memory:"))
+    db.initialize()
+    conn = db.connect()
+    conn.execute("INSERT INTO sync_metadata (key, value) VALUES ('k', 'v')")
+    conn.commit()
+    with db.reader() as reader:
+        row = reader.execute("SELECT value FROM sync_metadata WHERE key = 'k'").fetchone()
+        assert row[0] == "v"
+    db.close()
+
+
+def test_two_in_memory_databases_are_separate() -> None:
+    a, b = Database(Path(":memory:")), Database(Path(":memory:"))
+    a.initialize()
+    b.initialize()
+    a.connect().execute("INSERT INTO sync_metadata (key, value) VALUES ('k', 'v')")
+    a.connect().commit()
+    row = b.connect().execute("SELECT count(*) FROM sync_metadata WHERE key = 'k'").fetchone()
+    assert row[0] == 0
+    a.close()
+    b.close()

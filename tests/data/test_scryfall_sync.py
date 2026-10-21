@@ -699,3 +699,42 @@ class TestDescribeSyncError:
         from vimtg.data.scryfall_sync import describe_sync_error
 
         assert describe_sync_error(RuntimeError("feed changed")).startswith("feed changed")
+
+
+class TestUnusableCaches:
+    """A feed that holds no cards must never become the card table, and
+    must not be kept as a fresh cache for a week."""
+
+    @pytest.mark.parametrize(
+        "payload",
+        ["[]", '{"object": "error", "details": "x"}', '{"object": "list", "data": []}', "42"],
+    )
+    def test_empty_or_wrapped_feed_is_an_error_and_the_cache_goes(
+        self, syncer: ScryfallSync, tmp_path: Path, payload: str
+    ) -> None:
+        path = tmp_path / "oracle_cards.json"
+        path.write_text(payload, encoding="utf-8")
+        with pytest.raises(RuntimeError):
+            syncer.parse_and_load(path)
+        assert not path.exists()
+
+    def test_non_card_items_are_skipped_not_fatal(
+        self, syncer: ScryfallSync, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "oracle_cards.json"
+        path.write_text(
+            json.dumps([1, None, "x", {"layout": []}, _minimal_card("c1", "Opt")]),
+            encoding="utf-8",
+        )
+        assert syncer.parse_and_load(path) == 1
+        assert syncer.last_skipped == 4
+
+    def test_an_empty_feed_keeps_the_cards_already_synced(
+        self, syncer: ScryfallSync, tmp_path: Path
+    ) -> None:
+        good = tmp_path / "good.json"
+        good.write_text(json.dumps([_minimal_card("c1", "Opt")]), encoding="utf-8")
+        assert syncer.parse_and_load(good) == 1
+        with pytest.raises(RuntimeError):
+            syncer._load_items([])
+        assert syncer._repo.count() == 1

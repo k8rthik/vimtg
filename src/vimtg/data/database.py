@@ -21,8 +21,18 @@ class Database:
         self._closed = False
 
     def _open(self) -> sqlite3.Connection:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(self._path), check_same_thread=False)
+        if str(self._path) == ":memory:":
+            # A plain ':memory:' is private to its connection, so the
+            # reader pool would open empty databases; a named shared
+            # cache (unique to this Database) gives every connection
+            # the same tables. It lives while the main connection does.
+            conn = sqlite3.connect(
+                f"file:vimtg-{id(self)}?mode=memory&cache=shared",
+                uri=True, check_same_thread=False,
+            )
+        else:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(str(self._path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
 

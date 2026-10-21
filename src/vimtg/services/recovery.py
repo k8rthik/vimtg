@@ -56,7 +56,8 @@ def recovery_path(deck_path: Path | None, buffer_id: str | None = None) -> Path:
     """
     if deck_path is not None:
         resolved = _resolved(deck_path)
-        digest = hashlib.sha256(resolved.encode("utf-8")).hexdigest()[:16]
+        # A path with undecodable bytes (surrogates) still gets a key
+        digest = hashlib.sha256(resolved.encode("utf-8", "surrogateescape")).hexdigest()[:16]
         name = f"{_readable_stem(Path(resolved).stem)}.{digest}"
     else:
         name = f"{UNNAMED}.{_readable_stem(buffer_id or '')}" if buffer_id else UNNAMED
@@ -112,9 +113,8 @@ def read_copy(copy: Path) -> str | None:
 def read_recovery(deck_path: Path | None, buffer_id: str | None = None) -> str | None:
     """The recovery copy's text, or None when there is none (or it is
     unreadable, or it records a different deck)."""
-    copy = recovery_path(deck_path, buffer_id)
     try:
-        raw = copy.read_text(encoding="utf-8")
+        raw = recovery_path(deck_path, buffer_id).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
     original, has_header, text = _decode(raw)
@@ -134,7 +134,11 @@ def discard_copy(copy: Path) -> None:
 
 def discard_recovery(deck_path: Path | None, buffer_id: str | None = None) -> None:
     """Delete the recovery copy (and its log) of exactly this deck."""
-    discard_copy(recovery_path(deck_path, buffer_id))
+    try:
+        copy = recovery_path(deck_path, buffer_id)
+    except OSError:  # the recovery directory cannot be created
+        return
+    discard_copy(copy)
 
 
 def pending_recovery(

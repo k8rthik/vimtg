@@ -25,7 +25,7 @@ from vimtg.domain.categories import (
     complete_category,
     completion_candidates,
 )
-from vimtg.domain.deck_lines import split_metadata_prefix
+from vimtg.domain.deck_lines import split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
 from vimtg.domain.tags import TagFilter, format_tag_summary
 from vimtg.editor.buffer import Buffer, LineType
@@ -372,9 +372,11 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
     return HandlerResult()
 
 
-def _line_edit_prefix(line_text: str) -> str:
+def _line_edit_prefix(line_text: str, *, in_block: bool = False) -> str:
     """The part of a line `i` keeps locked: the whole '// Key: ' prefix
-    of a metadata line, the '// ' marker of a comment, else nothing."""
+    of a metadata line, the '// ' marker of a comment, the indentation
+    of a line inside a zone or plan block (deleting it would silently
+    rezone the line and every line beneath it), else nothing."""
     meta = split_metadata_prefix(line_text)
     if meta is not None:
         return meta[0]
@@ -385,6 +387,8 @@ def _line_edit_prefix(line_text: str) -> str:
         if idx < len(line_text) and line_text[idx] == " ":
             idx += 1
         return line_text[:idx]
+    if in_block:
+        return line_text[: len(line_text) - len(line_text.lstrip())]
     return ""
 
 
@@ -399,7 +403,9 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         state.insert_submode = InsertSubmode.LINE_EDIT
         state.line_edit_original = line_text
         state.line_edit_row = state.cursor.row
-        state.line_edit_prefix = _line_edit_prefix(line_text)
+        texts = [bl.text for bl in state.buffer.get_lines()]
+        in_block = zone_context_at(texts, state.cursor.row) is not None
+        state.line_edit_prefix = _line_edit_prefix(line_text, in_block=in_block)
         return HandlerResult(enter_line_edit=True)
     if key in ("o", "O"):
         # Visual o/O swaps the selection's ends, vim-style — it must
@@ -628,8 +634,7 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key in ("+", "-"):
         return _change_quantity(state, key, count)
     elif key == "x":
-        for _ in range(count):
-            _delete_card_at_cursor(state, action.register)
+        _delete_cards_at_cursor(state, count, action.register)
         state.dot_repeat.record(
             RepeatableAction("operator", operator="x", count=count, register=action.register)
         )
@@ -642,7 +647,7 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key == ".":
         # A count given to '.' replaces the recorded one (vim semantics);
         # count=1 is indistinguishable from "no count", so only >1 overrides.
-        _replay_dot(state, count if count > 1 else None)
+        return _replay_dot(state, count if count > 1 else None) or HandlerResult()
     elif key == "q_stop":
         register = state.macros.recording_register or "?"
         macro = state.macros.stop_recording()
@@ -709,28 +714,19 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
 def _put(state: EditorState, key: str, count: int, register: str | None) -> bool:
     """p / P count times from `register`; True when lines went in."""
     before = state.buffer.line_count()
-    # First row the paste block occupies — after the loop the cursor
-    # sits on the LAST paste, which would leave marks below the
-    # original line stranded inside the block on counted puts.
     first_insert_row = state.cursor.row + (0 if key == "P" else 1)
-    for _ in range(count):
-        prev_count = state.buffer.line_count()
-        state.buffer, state.cursor = put_lines(
-            state.buffer, state.cursor, state.registers, register,
-            above=(key == "P"),
-        )
-        # put_lines leaves the cursor on the FIRST pasted row; a
-        # counted put-below must continue after the pasted block, or
-        # the next iteration interleaves inside it (First,First,
-        # Second...). Put-above stacks correctly from the first row.
-        pasted = state.buffer.line_count() - prev_count
-        if key == "p" and pasted > 1:
-            state.cursor = state.cursor.move_to(
-                state.cursor.row + pasted - 1, 0
-            )
+    # One block of count copies (9999p is one insert, not 9999)
+    state.buffer, state.cursor = put_lines(
+        state.buffer, state.cursor, state.registers, register,
+        above=(key == "P"), count=count,
+    )
     inserted = state.buffer.line_count() - before
     if inserted <= 0:
         return False
+    if key == "p":
+        # p leaves the cursor on the last pasted row; P stays on the
+        # top of the stack it put above the line
+        state.cursor = state.cursor.move_to(first_insert_row + inserted - 1, 0)
     state.marks = state.marks.update_for_insert(first_insert_row, inserted)
     state.modified = True
     state.history.record(state.buffer, "put" if key == "p" else "put above")
@@ -1363,22 +1359,26 @@ def _jump_plan(state: EditorState, forward: bool) -> HandlerResult:
     )
 
 
-def _replay_dot(state: EditorState, count_override: int | None = None) -> None:
+def _replay_dot(
+    state: EditorState, count_override: int | None = None
+) -> HandlerResult | None:
     """Replay the last repeatable change, optionally with a new count.
 
     A change made on a visual selection replays on as many lines from
     the cursor; the replayed change is recorded again, so a count given
-    to '.' sticks, as in vim.
+    to '.' sticks, as in vim. Returns the replayed handler's result
+    (so '.' on a visual selection leaves visual mode like the change
+    it repeats did), or None.
     """
     last = state.dot_repeat.last_action
     if last is None:
-        return
+        return None
     count = count_override if count_override is not None else last.count
     if last.lines > 0:
         last_row = max(0, state.buffer.line_count() - 1)
         state.visual_anchor = min(state.cursor.row + last.lines - 1, last_row)
     try:
-        _replay(state, last, count, count_override)
+        return _replay(state, last, count, count_override)
     finally:
         state.visual_anchor = None
         state.pending_change = None
@@ -1386,21 +1386,20 @@ def _replay_dot(state: EditorState, count_override: int | None = None) -> None:
 
 def _replay(
     state: EditorState, last: RepeatableAction, count: int, count_override: int | None
-) -> None:
+) -> HandlerResult | None:
     op = last.operator or ""
     kind = last.action_type
     if kind == "zone":
-        _move_card_to_zone(state, op, count)
-    elif kind == "board":
-        _board_card(state, op, count)
-    elif kind == "quantity":
-        _change_quantity(state, op, count)
-    elif kind == "put":
+        return _move_card_to_zone(state, op, count)
+    if kind == "board":
+        return _board_card(state, op, count)
+    if kind == "quantity":
+        return _change_quantity(state, op, count)
+    if kind == "put":
         if _put(state, op, count, last.register):
             state.dot_repeat.record(replace(last, count=count))
     elif kind == "operator" and op == "x":
-        for _ in range(count):
-            _delete_card_at_cursor(state, last.register)
+        _delete_cards_at_cursor(state, count, last.register)
         state.dot_repeat.record(replace(last, count=count))
     elif kind == "operator":
         _replay_operator(state, last, count)
@@ -1426,6 +1425,7 @@ def _replay(
         _replay_line_edit(state, last.text or "")
     elif kind == "ex":
         _replay_substitute(state, last.text or "")
+    return None
 
 
 def _replay_operator(state: EditorState, last: RepeatableAction, count: int) -> None:
@@ -1587,15 +1587,21 @@ def handle_line_edit_special(state: EditorState, action: ParsedAction) -> Handle
     if key == "enter":
         # Confirm: record history, clear original (signals "confirmed, don't restore")
         if row is not None:
+            changed = True
             # A cleared metadata value leaves '// Format: ' — drop the
             # trailing space so the committed line is '// Format:'
             if row < state.buffer.line_count():
                 committed = state.buffer.get_line(row).text
                 if committed.rstrip() != committed:
-                    state.buffer = state.buffer.set_line(row, committed.rstrip())
-            state.history.record(state.buffer, "edit line")
-            state.modified = True
-            state.dot_repeat.record(RepeatableAction("line_edit", text=text))
+                    committed = committed.rstrip()
+                    state.buffer = state.buffer.set_line(row, committed)
+                # i then Enter on an untouched line is not a change: no
+                # undo step, and the deck is not dirty for it
+                changed = committed != state.line_edit_original
+            if changed:
+                state.history.record(state.buffer, "edit line")
+                state.modified = True
+                state.dot_repeat.record(RepeatableAction("line_edit", text=text))
         state.line_edit_original = None
         state.line_edit_row = None
         state.insert_submode = InsertSubmode.CARD_SEARCH
@@ -1641,6 +1647,11 @@ def handle_command_special(state: EditorState, action: ParsedAction) -> HandlerR
     if key in ("char", "backspace", "delete"):
         # Editing ends a history browse: the next Up matches the new text
         state.cmd_history.reset_browse()
+
+    if state.mode_mgr.current == Mode.SEARCH:
+        # A / pattern is not an ex command: no ghost, and Tab must not
+        # rewrite the pattern as one
+        return HandlerResult()
 
     if completer is None:
         return HandlerResult()
@@ -1699,15 +1710,25 @@ def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
         return {}
 
 
-def _delete_card_at_cursor(state: EditorState, register: str | None = None) -> None:
-    """Delete the card line at cursor, storing in register."""
-    if not state.buffer.is_card_line(state.cursor.row):
+def _delete_cards_at_cursor(
+    state: EditorState, count: int = 1, register: str | None = None
+) -> None:
+    """x / Nx: delete the card line at the cursor and up to count-1
+    card lines directly below it as ONE change — one undo step and
+    one register entry holding every line, as vim's Nx — stopping at
+    the first non-card line."""
+    row = state.cursor.row
+    if not state.buffer.is_card_line(row):
         return
-    new_buf, deleted = state.buffer.delete_lines(state.cursor.row, state.cursor.row)
-    state.marks = state.marks.update_for_delete(state.cursor.row, state.cursor.row)
+    end = row
+    while end - row + 1 < count and state.buffer.is_card_line(end + 1):
+        end += 1
+    new_buf, deleted = state.buffer.delete_lines(row, end)
+    state.marks = state.marks.update_for_delete(row, end)
     state.registers = store_lines(state.registers, register, deleted, is_delete=True)
     _mirror_clipboard(state, register)
     state.buffer = new_buf
     state.cursor = state.cursor.clamp(max(0, state.buffer.line_count() - 1))
     state.modified = True
-    state.history.record(state.buffer, "delete card")
+    label = "delete card" if len(deleted) == 1 else f"delete {len(deleted)} cards"
+    state.history.record(state.buffer, label)

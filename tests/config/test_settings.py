@@ -246,3 +246,16 @@ class TestKeybindingProblems:
         assert keybinding_problems({"insert": {"ctrl_j": ["escape"]}}) == [
             "keybindings.insert.ctrl_j must be a string"
         ]
+
+
+class TestConfigDirectoryProblems:
+    def test_a_file_where_the_config_dir_should_be_is_a_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        base = tmp_path / "cfg"
+        base.mkdir()
+        (base / "vimtg").write_text("not a directory", encoding="utf-8")
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(base))
+        settings, warning = load_settings_checked()
+        assert settings == Settings()
+        assert warning is not None and "config directory" in warning

@@ -23,7 +23,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
-    resolve_command_range,
+    command_line_range,
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.operators import store_lines
@@ -34,10 +34,7 @@ _PREVIEW = 30  # characters of a register/mark line shown in a listing
 
 def _line_range(cmd: ParsedCommand, cursor: Cursor, buffer: Buffer) -> tuple[int, int]:
     """The command's range, clamped to the buffer; the cursor line by default."""
-    explicit = resolve_command_range(cmd)
-    start, end = explicit if explicit is not None else (cursor.row, cursor.row)
-    last = buffer.line_count() - 1
-    return max(0, min(start, last)), max(0, min(end, last))
+    return command_line_range(cmd, buffer.line_count(), (cursor.row, cursor.row))
 
 
 def _address(token: str, cursor: Cursor, buffer: Buffer) -> int | None:
@@ -125,12 +122,19 @@ def _move_or_copy(
     n = len(lines)
     new_buf = buffer
     marks = ctx.marks
+    carried: list[tuple[str, int]] = []  # marks on the moved lines, by offset
     if move:
         if start <= dest < end:
             ctx.fail("E134: Cannot move a range of lines into itself")
             return buffer, cursor
         if dest in (start - 1, end):
             return buffer, cursor.move_to(end, 0)  # already there
+        if marks is not None:
+            carried = [
+                (name, mark.row - start)
+                for name, mark in marks.items()
+                if start <= mark.row <= end
+            ]
         new_buf, _ = new_buf.delete_lines(start, end)
         if marks is not None:
             marks = marks.update_for_delete(start, end)
@@ -141,6 +145,8 @@ def _move_or_copy(
         new_buf = new_buf.insert_line(insert_at + offset, text)
     if marks is not None:
         marks = marks.update_for_insert(insert_at, n)
+        for name, offset in carried:  # a mark follows its line, as in vim
+            marks = marks.set(name, insert_at + offset)
     ctx.marks = marks
     ctx.modified = True
     ctx.message = f"{n} line{'s' if n != 1 else ''} {'moved' if move else 'copied'}"

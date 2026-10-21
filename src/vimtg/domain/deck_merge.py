@@ -21,6 +21,7 @@ from dataclasses import dataclass, replace
 from vimtg.data.deck_repository import parse_deck_text, serialize_deck
 from vimtg.domain.deck import Deck, DeckEntry, DeckSection
 from vimtg.domain.deck_diff import CardChange, ChangeType, build_card_map
+from vimtg.domain.sideboard_plan import SideboardPlan
 
 CardKey = tuple[str, DeckSection]
 
@@ -48,10 +49,14 @@ class ThreeWayResult:
     """Outcome of a 3-way merge: auto-merged map plus unresolved conflicts.
 
     Conflicted keys are excluded from `merged` until resolved.
+    `added_plans` are the sideboard plans only the other side has
+    (by name: absent from base and ours); the merged deck keeps ours
+    and gains these, see merged_map_to_deck_state.
     """
 
     merged: dict[CardKey, int]
     conflicts: tuple[MergeConflict, ...]
+    added_plans: tuple[SideboardPlan, ...] = ()
 
     @property
     def has_conflicts(self) -> bool:
@@ -106,20 +111,48 @@ def three_way_merge(
         if result is not None:
             merged[key] = result
 
-    return ThreeWayResult(merged=merged, conflicts=tuple(conflicts))
+    return ThreeWayResult(
+        merged=merged,
+        conflicts=tuple(conflicts),
+        added_plans=_plans_added_by_theirs(base_state, ours_state, theirs_state),
+    )
+
+
+def _plans_added_by_theirs(
+    base_state: str, ours_state: str, theirs_state: str
+) -> tuple[SideboardPlan, ...]:
+    """Their plans whose name neither base nor ours has: plans one side
+    wrote while the other did not touch them. A plan both sides have
+    stays ours (plans are not merged line by line)."""
+    known = {
+        plan.name.lower()
+        for state in (base_state, ours_state)
+        for plan in parse_deck_text(state).plans
+    }
+    return tuple(
+        plan for plan in parse_deck_text(theirs_state).plans
+        if plan.name.lower() not in known
+    )
 
 
 def merged_map_to_deck_state(
-    merged: dict[CardKey, int], ours_state: str
+    merged: dict[CardKey, int],
+    ours_state: str,
+    added_plans: Sequence[SideboardPlan] = (),
 ) -> str:
     """Serialize a merged card map, preserving our side's card order.
 
     Cards present in ours keep their position (and tags); keys only the
     other side contributed are appended, sorted by (section, name).
-    Metadata comes from ours; freeform comments are dropped (see module
-    docstring).
+    Metadata and sideboard plans come from ours, plus `added_plans`
+    (the other side's new plans, from three_way_merge); freeform
+    comments are dropped (see module docstring).
     """
     ours_deck = parse_deck_text(ours_state)
+    plan_names = {plan.name.lower() for plan in ours_deck.plans}
+    plans = ours_deck.plans + tuple(
+        plan for plan in added_plans if plan.name.lower() not in plan_names
+    )
     remaining = dict(merged)
     entries: list[DeckEntry] = []
 
@@ -139,9 +172,27 @@ def merged_map_to_deck_state(
         metadata=ours_deck.metadata,
         entries=tuple(entries),
         comments=(),
-        plans=ours_deck.plans,
+        plans=plans,
     )
     return serialize_deck(result_deck)
+
+
+def _set_total(
+    entries: list[DeckEntry], name: str, section: DeckSection, quantity: int
+) -> list[DeckEntry]:
+    """Make the (name, section) key total `quantity`: the first line
+    holding the card takes it and any further line goes, as
+    merged_map_to_deck_state does — '2 Bolt  @burn' + '2 Bolt  @reach'
+    set to 3 is 3 Bolts, not 6."""
+    out: list[DeckEntry] = []
+    done = False
+    for e in entries:
+        if e.card_name != name or e.section != section:
+            out.append(e)
+        elif not done:
+            out.append(replace(e, quantity=quantity))
+            done = True
+    return out
 
 
 def apply_card_changes(state: str, changes: Sequence[CardChange]) -> str:
@@ -177,15 +228,9 @@ def apply_card_changes(state: str, changes: Sequence[CardChange]) -> str:
         elif change.change_type is ChangeType.QUANTITY_CHANGED:
             if change.new_quantity is None:
                 continue
-            entries = [
-                replace(e, quantity=change.new_quantity)
-                if (
-                    e.card_name == change.card_name
-                    and e.section == change.section
-                )
-                else e
-                for e in entries
-            ]
+            entries = _set_total(
+                entries, change.card_name, change.section, change.new_quantity
+            )
         elif change.change_type is ChangeType.SECTION_MOVED:
             if change.old_section is None or change.new_section is None:
                 continue
