@@ -9,7 +9,7 @@ import pytest
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.export_cmds import cmd_clipboard, cmd_export, cmd_import
-from vimtg.editor.commands import EditorContext, ParsedCommand
+from vimtg.editor.commands import EditorContext, NewBuffer, ParsedCommand
 from vimtg.editor.cursor import Cursor
 
 
@@ -106,6 +106,12 @@ class TestExport:
         assert "Usage" in ctx.message
 
 
+def _imported(ctx: EditorContext) -> NewBuffer:
+    """The new buffer an :import asked for (it never edits this one)."""
+    assert ctx.new_buffer is not None and ctx.new_buffer.text is not None
+    return ctx.new_buffer
+
+
 class TestImport:
     def test_import_mtgo_file(self) -> None:
         mtgo_text = "4 Lightning Bolt\n2 Counterspell\n\nSideboard\n1 Mystical Dispute\n"
@@ -121,11 +127,12 @@ class TestImport:
         cmd = ParsedCommand(name="import", args=in_path)
 
         new_buf, _ = cmd_import(buffer, cursor, cmd, ctx)
-        text = new_buf.to_text()
-        assert "Lightning Bolt" in text
-        assert "Counterspell" in text
-        assert ctx.modified is True
-        assert "Imported" in ctx.message
+        # The deck opens as a new unnamed buffer; this one is untouched
+        assert new_buf is buffer
+        imported = _imported(ctx)
+        assert "Lightning Bolt" in imported.text
+        assert "Counterspell" in imported.text
+        assert "Imported" in imported.message
         Path(in_path).unlink()
 
     def test_import_file_not_found(self) -> None:
@@ -253,15 +260,14 @@ class TestImportFromClipboard:
         return new_buf, ctx
 
     def test_bare_import_reads_clipboard_decklist(self, monkeypatch) -> None:  # noqa: ANN001
-        new_buf, ctx = self._run(
+        _buf, ctx = self._run(
             monkeypatch, "Deck\n4 Ponder\n2 Brainstorm\nnot a card line\n"
         )
-        text = new_buf.to_text()
-        assert "4 Ponder" in text and "2 Brainstorm" in text
-        assert "Lightning Bolt" not in text  # replaces, like :import <file>
-        assert ctx.modified is True
-        assert "Imported 6 cards from clipboard" in ctx.message
-        assert "1 line(s) skipped" in ctx.message
+        imported = _imported(ctx)
+        assert "4 Ponder" in imported.text and "2 Brainstorm" in imported.text
+        assert "Lightning Bolt" not in imported.text  # a deck of its own
+        assert "Imported 6 cards from clipboard" in imported.message
+        assert "1 line(s) skipped" in imported.message
 
     def test_bare_import_clipboard_url_is_fetched(self, monkeypatch) -> None:  # noqa: ANN001
         url = "https://www.moxfield.com/decks/abc123"
@@ -327,12 +333,10 @@ class TestImportResolution:
         cmd_import(buffer, Cursor(row=0), cmd, ctx)
 
         assert ctx.error is False
-        assert "Imported 4 cards" in ctx.message
-        assert "W100" not in ctx.message
-        # Keyed by normalised name: any spelling of the card finds it
-        assert list(ctx.resolved_cards.values()) == [bolt]
-        assert ctx.resolved_cards.get("Lightning Bolt") is bolt
-        assert ctx.resolved_cards.get("lightning bolt") is bolt
+        imported = _imported(ctx)
+        assert "Imported 4 cards" in imported.message
+        assert "W100" not in imported.message
+        assert "4 Lightning Bolt" in imported.text
         path.unlink()
 
     def test_import_unresolved_cards_warns_with_suggestion(self) -> None:
@@ -353,13 +357,14 @@ class TestImportResolution:
         ctx = EditorContext(card_repo=repo)
         cmd = ParsedCommand(name="import", args=str(path))
 
-        result_buf, _ = cmd_import(buffer, Cursor(row=0), cmd, ctx)
+        cmd_import(buffer, Cursor(row=0), cmd, ctx)
 
-        # Import is not blocked — buffer replaced, no error flag
+        # Import is not blocked — the deck opens, no error flag
         assert ctx.error is False
-        assert "Lightening Bolt" in result_buf.to_text()
-        assert "W100: 3 cards not found in database" in ctx.message
-        assert "did you mean 'Lightning Bolt'" in ctx.message
+        imported = _imported(ctx)
+        assert "Lightening Bolt" in imported.text
+        assert "W100: 3 cards not found in database" in imported.message
+        assert "did you mean 'Lightning Bolt'" in imported.message
         path.unlink()
 
     def test_import_without_repo_skips_resolution(self) -> None:
@@ -371,8 +376,8 @@ class TestImportResolution:
         cmd_import(buffer, Cursor(row=0), cmd, ctx)
 
         assert ctx.error is False
-        assert "W100" not in ctx.message
-        assert "Imported 4 cards" in ctx.message
+        assert "W100" not in _imported(ctx).message
+        assert "Imported 4 cards" in _imported(ctx).message
         path.unlink()
 
 
@@ -397,4 +402,24 @@ class TestImportUrl:
             cmd = ParsedCommand(name="import", args=str(path))
             cmd_import(buffer, Cursor(), cmd, ctx)
         assert ctx.import_url == ""
-        assert "Imported" in ctx.message
+        assert "Imported" in _imported(ctx).message
+
+
+class TestImportRefusesUnsavedChanges:
+    def test_modified_buffer_refuses_with_e37(self, tmp_path: Path) -> None:
+        path = tmp_path / "list.txt"
+        path.write_text("4 Goblin Guide\n", encoding="utf-8")
+        ctx = EditorContext(modified=True)
+        cmd_import(Buffer.from_text("4 Shock\n"), Cursor(), ParsedCommand("import", str(path)), ctx)
+        assert ctx.error and ctx.message.startswith("E37:")
+        assert ctx.new_buffer is None
+
+    def test_bang_discards_them(self, tmp_path: Path) -> None:
+        path = tmp_path / "list.txt"
+        path.write_text("4 Goblin Guide\n", encoding="utf-8")
+        ctx = EditorContext(modified=True)
+        cmd = ParsedCommand("import", str(path), bang=True)
+        cmd_import(Buffer.from_text("4 Shock\n"), Cursor(), cmd, ctx)
+        assert not ctx.error
+        assert "Goblin Guide" in _imported(ctx).text
+        assert ctx.discard_requested

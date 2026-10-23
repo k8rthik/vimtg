@@ -29,6 +29,7 @@ more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
 | `:home` | Return to the greeter (alias `:greeter`). Refuses with unsaved changes, like `:q`; `:home!` discards them |
 | `:recover` | Load the recovery copy of this deck (`:recover!` deletes it). vimtg writes the copy under `~/.local/state/vimtg/recovery/` when it hits an internal error, and when the editor closes with unsaved changes, for example on `Ctrl-Q`, a closed terminal, or a dropped SSH connection. `:q!`, `ZQ`, `:e!`, and `:home!` discard the changes and the copy. Opening the deck again offers the copy; copies of unnamed buffers and deleted decks are listed on the greeter (`R`). The next successful `:w` removes the copy |
 | `:e file` | Edit another deck in place of this one (`.deck` is tried when `file` has no suffix; a missing file opens as a new deck). Refuses with unsaved changes (E37) |
+| `:enew[!]` | Edit a new, unnamed deck in place of this one (also `:ene`); the new-deck wizard asks for its name and format. Refuses with unsaved changes (E37); `!` discards them |
 | `:e! [file]` | The same, discarding unsaved changes; `:e!` alone reloads this deck from disk |
 | `:{n}`, `:$`, `:.` | Go to line `n` / the last line / stay (a range goes to its last line) |
 
@@ -150,7 +151,7 @@ So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
 |---------|-------------|
 | `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard. `vimtg` is the text `:w` writes, so empty `// Format:`/`// Tags:` lines the file never had are left out |
 | `:export! fmt file` | Same, overwriting an existing `file` (`:export` refuses with E13). The open deck's own file is never an export target |
-| `:import file` | Replace the buffer with `file`, auto-detecting format. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
+| `:import[!] file` | Open `file` as a new unnamed deck in place of this one, as the greeter's import does (the open deck is left as it is on disk; the first `:w` names the new file after its `// Deck:` line), auto-detecting format. Refuses with unsaved changes (E37); `!` discards them. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
 | `:import` | Same, with the decklist (or deck URL) on the system clipboard |
 | `:clipboard [fmt]` | Copy the deck to the system clipboard in any `:export` format (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
 

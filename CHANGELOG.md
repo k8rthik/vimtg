@@ -51,6 +51,9 @@ from 1.0.0 onward.
 
 ### Added
 
+- `:enew` (`:ene`) edits a new, unnamed deck in place of the open one and
+  opens the new-deck wizard, as the greeter's `n` does; unsaved changes
+  refuse with E37 and `:enew!` discards them.
 - `K` shows the cursor card's details inline when the `auto_expand`
   setting is off, and hides them when it is on, until the cursor moves
   (vim's keyword lookup).
@@ -80,6 +83,11 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `:import <file|url>` opens the imported deck as a new unnamed buffer,
+  like the greeter's import, instead of replacing the buffer of the deck
+  that was open, whose next `:w` then overwrote the original file.
+  Unsaved changes refuse with E37; `:import!` discards them. A URL
+  import that arrives after the deck was edited leaves the edits alone.
 - Vim-coded errors read as vim's: `E37: No write since last change`,
   `E32: No file name`, `E16: Invalid range` and the rest no longer show
   as `E: E37: ...`.

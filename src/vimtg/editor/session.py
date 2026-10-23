@@ -53,6 +53,7 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     Listing,
+    NewBuffer,
     ParsedCommand,
     RangeError,
     parse_command,
@@ -282,6 +283,9 @@ class HandlerResult:
     search_open: str | None = None  # :search — open the card search overlay
     # A listing's lines; command_message is its one-line form (see Listing)
     listing: Listing | None = None
+    # :enew / :import — open this unnamed buffer in place of the deck
+    new_buffer: NewBuffer | None = None
+    import_force: bool = False  # :import! <url> — the fetch may drop changes
 
 
 # Motions vim counts as jumps: Ctrl-O comes back from them
@@ -672,6 +676,8 @@ def handle_command(
             discard_changes=ctx.discard_requested,
             search_open=ctx.search_open,
             listing=ctx.listing,
+            new_buffer=ctx.new_buffer,
+            import_force=ctx.import_force,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)

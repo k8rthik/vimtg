@@ -210,6 +210,13 @@ COMMAND_HELP: dict[str, str] = {
         ":e!       reload this deck from disk\n"
         "Registers carry over."
     ),
+    "enew": (
+        ":enew  Edit a new, unnamed deck in place of this one (also :ene)\n"
+        "\n"
+        "The new-deck wizard asks for its name and format, as the\n"
+        "greeter's n does; the first :w names the file after // Deck:.\n"
+        "Refuses with unsaved changes (E37); :enew! discards them."
+    ),
     "delete": (
         ":[range]d [x] [n]  Delete lines into register x (default: unnamed)\n"
         "\n"
@@ -263,8 +270,12 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "plans": ":plans  List every sideboard plan with its -out +in totals",
     "import": (
-        ":import [file|url]  Import a deck (replaces buffer, undoable)\n"
+        ":import [file|url]  Import a deck into a new unnamed buffer\n"
         "\n"
+        "The imported deck opens in place of this one, unsaved, as the\n"
+        "greeter's import does: the deck that was open is left as it is\n"
+        "on disk, and the first :w names the new file after // Deck:.\n"
+        "Unsaved changes refuse with E37; :import! discards them.\n"
         "With no argument the decklist (or deck URL) is read from the\n"
         "system clipboard. To ADD a pasted list to the deck instead,\n"
         "paste it in normal mode (your terminal's paste key).\n"

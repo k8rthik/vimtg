@@ -335,7 +335,8 @@ class TestSkippedReport:
             Buffer.from_text(""), Cursor(row=0),
             ParsedCommand(name="import", args=str(src)), ctx,
         )
-        assert "1 line(s) skipped (line 2: not a card)" in ctx.message
+        assert ctx.new_buffer is not None
+        assert "1 line(s) skipped (line 2: not a card)" in ctx.new_buffer.message
 
 
 # ==================================================================

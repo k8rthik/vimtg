@@ -250,6 +250,20 @@ class Listing:
     lines: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class NewBuffer:
+    """:enew / :import: open an unnamed buffer in place of the deck.
+    With no `text` it is empty and the new-deck wizard asks for a name
+    and format; an import's `text` opens unsaved, `message` (its
+    summary) shown once it is up."""
+
+    text: str | None = None
+    message: str = ""
+
+
+E37 = "E37: No write since last change (add ! to override)"
+
+
 @dataclass
 class EditorContext:
     """Mutable context passed to command handlers for side effects."""
@@ -326,6 +340,10 @@ class EditorContext:
     search_open: str | None = None
     # A listing's lines; `message` holds its one-line form
     listing: Listing | None = None
+    # :enew / :import — the unnamed buffer to open in place of this one
+    new_buffer: NewBuffer | None = None
+    # :import! <url> — the fetched deck may replace unsaved changes
+    import_force: bool = False
 
     def show_listing(
         self, title: str, lines: list[str] | tuple[str, ...], summary: str,
