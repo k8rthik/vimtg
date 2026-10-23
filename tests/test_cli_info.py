@@ -76,3 +76,36 @@ def test_info_prints_the_stats_line(
     result = CliRunner().invoke(main, ["info", str(deck_file)])
     assert result.exit_code == 0, result.output
     assert f"Stats:      {ctx.message}\n" in result.output
+
+
+def test_info_warns_about_cards_without_a_quantity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_shape_repo: CardRepository
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: real_shape_repo)
+    deck = tmp_path / "burn.deck"
+    deck.write_text("// Deck: Burn\nLightning Bolt\n4x Shock\n56 Mountain\n", encoding="utf-8")
+    result = CliRunner().invoke(main, ["info", str(deck)])
+    assert result.exit_code == 0, result.output
+    assert result.stderr == (
+        "burn.deck:2: warning: not a card line: add a quantity (1 Lightning Bolt)\n"
+        "burn.deck:3: warning: not a card line: drop the x (4 Shock)\n"
+    )
+    assert "Mainboard:  56 cards (1 unique)\n" in result.stdout
+
+
+def test_validate_warns_about_cards_without_a_quantity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_shape_repo: CardRepository
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: real_shape_repo)
+    deck = tmp_path / "burn.deck"
+    deck.write_text(
+        "// Deck: Burn\n// Format: modern\nLightning Bolt\n60 Mountain\n", encoding="utf-8"
+    )
+    result = CliRunner().invoke(main, ["validate", str(deck)])
+    assert result.exit_code == 0, result.output
+    assert (
+        "burn.deck:3: warning: not a card line: add a quantity (1 Lightning Bolt)"
+        in result.output
+    )
+    strict = CliRunner().invoke(main, ["validate", "--strict", str(deck)])
+    assert strict.exit_code == 1

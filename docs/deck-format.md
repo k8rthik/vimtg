@@ -15,13 +15,13 @@ Each line is one of:
 | Deck block header | `DCK:` | `DCK:` (cards beneath are mainboard) |
 | Section header | `// header text` | `// Creatures` |
 | Category header | `// @name` | `// @ramp` |
-| Card entry | `[N] CardName [@category] [#tag …] [// comment]` | `4 Lightning Bolt  @removal  #burn  // core` |
-| Sideboard entry | `SB: [N] CardName [#tag …] [// comment]` | `SB: 2 Rest in Peace` |
-| Maybeboard entry | `MB: [N] CardName …` | `MB: 1 Opt` |
+| Card entry | `N CardName [@category] [#tag …] [// comment]` | `4 Lightning Bolt  @removal  #burn  // core` |
+| Sideboard entry | `SB: N CardName [#tag …] [// comment]` | `SB: 2 Rest in Peace` |
+| Maybeboard entry | `MB: N CardName …` | `MB: 1 Opt` |
 | Plan header | `VS: matchup [// note]` | `VS: Tron` |
 | Plan entry | `[+\|-]N CardName [// comment]` (indented under `VS:`) | `-4 Lightning Bolt` |
-| Commander entry | `CMD: [N] CardName …` | `CMD: 1 Atraxa, Praetors' Voice` |
-| Companion entry | `CMP: [N] CardName …` | `CMP: 1 Lurrus of the Dream-Den` |
+| Commander entry | `CMD: N CardName …` | `CMD: 1 Atraxa, Praetors' Voice` |
+| Companion entry | `CMP: N CardName …` | `CMP: 1 Lurrus of the Dream-Den` |
 | Blank | (empty) | |
 
 ## Metadata keys
@@ -95,8 +95,12 @@ between zones keeps its token.
 
 `N CardName [@category] [#tag …]`
 
-- `N` is the quantity. If omitted, vimtg assumes `1` on parse and writes it
-  back explicitly.
+- `N` is the quantity, and it is required: write `1 Lightning Bolt`, not
+  `Lightning Bolt` or `1x Lightning Bolt`. A line without one is not a
+  card. The editor marks it with a `!` sign (`not a card line: add a
+  quantity (1 Lightning Bolt)`) when it names a known card, or when it is
+  written `4x Shock`, and `vimtg validate` and `vimtg info` warn about it;
+  other text, such as a stray note, stays as it is.
 - `CardName` is the canonical Scryfall name. Double-faced cards use `//` as
   the separator (`Bonecrusher Giant // Stomp`). The spellings other tools
   write resolve to the same card everywhere (lint, validate, stats, export,

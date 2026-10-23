@@ -163,7 +163,7 @@ VS: 4c Control  // grind plan
 | Zone block header | `DCK:` / `SB:` / `MB:` / `CMD:` / `CMP:` alone on a line | Python-style: indented lines below belong to the zone, a blank line is neutral, any unindented line closes the block. This is the default style for new decks. |
 | Zone prefix | `SB: 2 Rest in Peace` | Per-line prefix. An explicit prefix always wins over the enclosing block. |
 | Section header | `// Creatures`, `// @ramp`, `// Sideboard` | Type headers accept singular or plural in any case. Category headers use `@`. |
-| Card entry | `N Name  @category  #tag #tag  // comment` | Quantity defaults to 1. Two-space delimiters keep double-faced names like `Fire // Ice` unambiguous. |
+| Card entry | `N Name  @category  #tag #tag  // comment` | The quantity is required: a bare `Lightning Bolt` or `4x Shock` line is not a card, and the editor, `vimtg validate` and `vimtg info` warn about it. Two-space delimiters keep double-faced names like `Fire // Ice` unambiguous. |
 | Plan header | `VS: Matchup  // note` | Starts a sideboard plan block. |
 | Plan entry | `-N Card` / `+N Card` | Indented under `VS:`. Never counted as deck cards. |
 | Comment | any other `// text` | Freeform, preserved. |

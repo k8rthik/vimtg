@@ -219,6 +219,12 @@ from 1.0.0 onward.
 - `vimtg info` counts the commander, companion and maybeboard too, shows
   the `default_format` setting when the deck names no format, and with
   card data prints the same summary line as `:stats`.
+- A card written without a quantity (`Lightning Bolt`, `4x Shock`) was
+  silently read as a comment. The editor now marks such a line with a
+  `!` sign and `not a card line: add a quantity (1 Lightning Bolt)` when
+  it names a known card (without card data, only the `4x Shock` shape),
+  and `vimtg validate`, `:validate` and `vimtg info` warn about it. The
+  docs no longer claim the quantity is optional.
 
 ### Security
 

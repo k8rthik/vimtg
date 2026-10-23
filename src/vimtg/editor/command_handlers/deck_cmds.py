@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from vimtg.data.deck_repository import parse_deck_text
+from vimtg.data.deck_repository import missing_quantity_lines, parse_deck_text
 from vimtg.domain.analytics import stats_summary
 from vimtg.domain.validation import legality_skipped_note, validation_report
 from vimtg.editor.buffer import Buffer, LineType
@@ -70,7 +70,10 @@ def cmd_validate(
     has_db = bool(ctx.resolved_cards) or (
         ctx.card_repo is not None and ctx.card_repo.count() > 0
     )
-    report = validation_report(deck, ctx.resolved_cards or {} if has_db else None, fmt)
+    report = validation_report(
+        deck, ctx.resolved_cards or {} if has_db else None, fmt,
+        missing_quantity_lines(buffer.to_text()),
+    )
 
     errors = report.problems
     n_err = sum(1 for e in errors if e.level == "error")

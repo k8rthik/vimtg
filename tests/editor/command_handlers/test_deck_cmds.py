@@ -238,3 +238,16 @@ class TestValidateFormatAware:
         ctx = EditorContext()
         cmd_validate(buffer, Cursor(row=0), ParsedCommand(name="validate"), ctx)
         assert ctx.message.count("Sol Ring: 3 copies") == 1
+
+    def test_card_without_a_quantity_is_reported(self, real_shape_repo) -> None:  # noqa: ANN001
+        from vimtg.editor.session import resolve_cards
+
+        text = "// Format: modern\nLightning Bolt\n60 Mountain\n"
+        buffer = Buffer.from_text(text)
+        ctx = EditorContext(
+            resolved_cards=resolve_cards(buffer, real_shape_repo), card_repo=real_shape_repo,
+        )
+        cmd_validate(buffer, Cursor(row=0), ParsedCommand(name="validate"), ctx)
+        assert ctx.message == (
+            "0 errors, 1 warnings: W L2: not a card line: add a quantity (1 Lightning Bolt)"
+        )
