@@ -248,7 +248,7 @@ def _render_card_line(
 
     if card:
         t.append(format_mana(card.mana_cost))
-        type_short = card.type_line.split("\u2014")[0].strip()[:20]
+        type_short = fit_name(card.type_line.split("\u2014")[0].strip(), _TYPE_WIDTH + 1)
         t.append(f"  {type_short}", style="dim")
 
     # The active sideboard plan's boarding for this deck card
@@ -271,6 +271,10 @@ def _render_card_line(
     if comment:
         t.append(f"  // {comment}", style="dim italic")
 
+    if width:
+        # One row, whatever the pane's width: cut at its edge with a
+        # "…" rather than wrapping the tail to column 0
+        t.truncate(width, overflow="ellipsis")
     if is_cursor:
         t.stylize(_CURSOR_STYLE)
 
@@ -337,6 +341,7 @@ def _render_expansion(
 
 
 _NAME_WIDTH = 26
+_TYPE_WIDTH = 20
 
 
 def fit_name(name: str, width: int) -> str:

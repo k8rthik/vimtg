@@ -83,6 +83,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- The deck view's type column ends a long type line in "…"
+  (`Legendary Enchantme…`) instead of cutting it mid-word, and a card
+  line in a narrow split pane is cut at the pane's edge with "…" instead
+  of wrapping its tail to column 0.
 - `zc` on a card that cannot be the commander says why in the move
   message (`— warning: Goblin King is not legendary and can't be your
   commander`) instead of leaving only a ✗ in the gutter.
