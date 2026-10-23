@@ -25,7 +25,7 @@ from vimtg.domain.categories import (
     complete_category,
     completion_candidates,
 )
-from vimtg.domain.deck_lines import split_metadata_prefix, zone_context_at
+from vimtg.domain.deck_lines import parse_zone_header, split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
 from vimtg.domain.tags import TagFilter, tag_lines
 from vimtg.domain.validation import commander_refusal
@@ -437,11 +437,12 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
     return HandlerResult()
 
 
-def _line_edit_prefix(line_text: str, *, in_block: bool = False) -> str:
+def _line_edit_prefix(buffer: Buffer, row: int) -> str:
     """The part of a line `i` keeps locked: the whole '// Key: ' prefix
     of a metadata line, the '// ' marker of a comment, the indentation
     of a line inside a zone or plan block (deleting it would silently
     rezone the line and every line beneath it), else nothing."""
+    line_text = buffer.get_line(row).text
     meta = split_metadata_prefix(line_text)
     if meta is not None:
         return meta[0]
@@ -452,7 +453,8 @@ def _line_edit_prefix(line_text: str, *, in_block: bool = False) -> str:
         if idx < len(line_text) and line_text[idx] == " ":
             idx += 1
         return line_text[:idx]
-    if in_block:
+    texts = [bl.text for bl in buffer.get_lines()]
+    if zone_context_at(texts, row) is not None:
         return line_text[: len(line_text) - len(line_text.lstrip())]
     return ""
 
@@ -465,12 +467,19 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         return HandlerResult(exit_to_normal=True)
     if key == "i":
         line_text = state.buffer.get_line(state.cursor.row).text
+        zone = parse_zone_header(line_text)
+        if zone is not None:
+            return HandlerResult(
+                command_message=(
+                    f"E21: Cannot edit the {zone}: zone header "
+                    "(it opens the block below; edit the cards in it)"
+                ),
+                error=True,
+            )
         state.insert_submode = InsertSubmode.LINE_EDIT
         state.line_edit_original = line_text
         state.line_edit_row = state.cursor.row
-        texts = [bl.text for bl in state.buffer.get_lines()]
-        in_block = zone_context_at(texts, state.cursor.row) is not None
-        state.line_edit_prefix = _line_edit_prefix(line_text, in_block=in_block)
+        state.line_edit_prefix = _line_edit_prefix(state.buffer, state.cursor.row)
         return HandlerResult(enter_line_edit=True)
     if key in ("o", "O"):
         # Visual o/O swaps the selection's ends, vim-style — it must
@@ -1689,11 +1698,11 @@ def _replay_comment(state: EditorState, text: str) -> None:
 
 def _replay_line_edit(state: EditorState, text: str) -> None:
     """'.' after i: give this line the same value, keeping its own
-    locked prefix (metadata key or // marker)."""
+    locked prefix (metadata key, // marker, block indentation)."""
     row = state.cursor.row
     state.dot_repeat.record(RepeatableAction("line_edit", text=text))
     line = state.buffer.get_line(row).text
-    new = (_line_edit_prefix(line) + text).rstrip()
+    new = (_line_edit_prefix(state.buffer, row) + text).rstrip()
     if new == line:
         return
     state.buffer = state.buffer.set_line(row, new)

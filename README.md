@@ -361,7 +361,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 
 | Key | Action |
 |-----|--------|
-| `i` | Edit current line (value only on metadata lines) |
+| `i` | Edit current line (value only on metadata lines; a card in a zone block keeps its indentation) |
 | `o` / `O` | Add card below / above (`4o` adds four copies) |
 | `A` | Add or edit the card's inline comment |
 | `:` / `/` / `?` | Command line / search forward / backward |
