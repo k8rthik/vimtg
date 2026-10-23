@@ -319,7 +319,9 @@ Branches, Snapshots, Diff, Stats.
 ## Remapping
 
 `:map key action` remaps a key for the session (normal mode); `:unmap key`
-removes a mapping. Persistent maps live under `[keybindings]` in
+removes a mapping. The key is a single key (`s`, `ctrl_s`), and, as in
+vim, a mapping applies only where a command starts: mapping `s` leaves
+`zs` and `"s` alone. Persistent maps live under `[keybindings]` in
 `~/.config/vimtg/config.toml`, per mode (`normal`, `insert`, `visual`,
 `command`). Unbound keys such as `;`, `,`, `e`, `f`, `n`, `r`, `s`, or
 `Ctrl-S` are free to map.

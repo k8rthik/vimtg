@@ -86,6 +86,9 @@ from 1.0.0 onward.
 - `*`/`#` messages show the card name instead of the internal regex.
 - A sideboard-plan line with no card name (`-1 #tag`) is reported as
   unreadable instead of being saved back as `-1 `.
+- A `:map` remap applies only where a command starts, so mapping `s` no
+  longer breaks `zs` or a `"s` register name. `:map` refuses a key
+  sequence such as `gb` (E474), which could never fire.
 
 ## [1.0.0rc1] - 2026-10-10
 
