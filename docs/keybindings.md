@@ -182,9 +182,10 @@ mode.
 While a pane is focused it uses the shared navigation keys (`j`/`k`,
 `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel). The EDHREC pane adds
 `h`/`l` (or `Tab`/`Shift-Tab`) to switch tabs and `Enter` to add the
-selected card. `Esc` returns to the editor; `:`, `Ctrl-W` and `Space`
-sequences pass through; any other key refocuses the editor and runs
-there.
+selected card. `q` closes the pane and `Esc` returns to the editor,
+leaving it open. `:`, `Ctrl-W` and `Space` sequences pass through, and
+so do `g` sequences other than `gg` (`gh`, `g?`, `gc`); any other key
+refocuses the editor and runs there.
 
 `Space h` opens the sample-hand overlay rather than a pane. In it, `n`
 or `Space` draws, `m` takes a London mulligan, `j`/`k` select a card

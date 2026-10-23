@@ -224,7 +224,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b(("ctrl_w w", "ctrl_w W"), "Switch focus between the editor and the pane", WINDOWS,
        label="Ctrl-W w/W", shorts=("other window", "other window"),
        note="In a pane: j/k move, gg/G top/bottom, Ctrl-D/U half page, "
-            "h/l switch EDHREC tabs, Enter adds the selected card, Esc returns"),
+            "h/l switch EDHREC tabs, Enter adds the selected card, q closes "
+            "the pane, Esc returns to the editor"),
     _b(("ctrl_w h", "ctrl_w j", "ctrl_w k", "ctrl_w l"),
        "Focus the window left / below / above / right", WINDOWS, label="Ctrl-W h/j/k/l",
        shorts=("window left", "window below", "window above", "window right"),

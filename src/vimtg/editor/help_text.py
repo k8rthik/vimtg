@@ -445,7 +445,7 @@ COMMAND_HELP: dict[str, str] = {
         "\n"
         "The split pane is read-only — compare a netdeck or an old\n"
         "version while editing. Ctrl-W w switches pane focus (j/k scroll,\n"
-        "Esc returns), Ctrl-W c / :close closes it."
+        "q closes, Esc returns), Ctrl-W c / :close closes it."
     ),
     "split": (
         ":split deck-file  Open another deck below this one (alias :sp, :hsplit)\n"
@@ -462,8 +462,9 @@ COMMAND_HELP: dict[str, str] = {
         "sorcery, artifact, enchantment, planeswalker, battle, land).\n"
         "\n"
         "In the pane: j/k select, h/l switch tabs, Enter adds the\n"
-        "card to the deck, Esc returns to the editor. ✓ marks cards\n"
-        "already in the deck. Results are cached for 7 days."
+        "card to the deck, q closes the pane, Esc returns to the\n"
+        "editor. ✓ marks cards already in the deck. Results are\n"
+        "cached for 7 days."
     ),
     "analytics": (
         ":analytics  Live deck-analytics pane (alias :ana; Space a toggles it)\n"
@@ -475,7 +476,7 @@ COMMAND_HELP: dict[str, str] = {
         "to see the chance of drawing one by the opener or turn 3.\n"
         "Everything recomputes as the deck is edited.\n"
         "\n"
-        "Ctrl-W w focuses the pane (j/k scroll, Esc back); :close closes."
+        "Ctrl-W w focuses the pane (j/k scroll, q close, Esc back)."
     ),
     "hand": (
         ":hand [seed=N]  Sample hand / goldfish overlay (alias :goldfish;\n"
