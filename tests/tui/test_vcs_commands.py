@@ -265,3 +265,32 @@ async def test_rebase_unknown_branch_errors(tmp_path: Path) -> None:
         await _type_command(pilot, 'commit "initial"')
         await _type_command(pilot, "rebase nonexistent")
         assert "Branch not found" in _message(scr)
+
+
+@pytest.mark.asyncio
+async def test_unsaved_deck_refuses_history_until_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unsaved decks used to share one '(unsaved)' history, so one new
+    deck's snapshots showed up in the next."""
+    from vimtg.tui.screens.new_deck import NewDeckScreen
+
+    monkeypatch.chdir(tmp_path)
+    app = VimTGApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        if isinstance(app.screen, NewDeckScreen):
+            await pilot.press("escape")
+            await pilot.pause()
+        scr = _main_screen(app)
+        assert isinstance(scr, MainScreen)
+        assert scr.file_path is None
+        for command in ('commit "first"', "checkpoint v1"):
+            await _type_command(pilot, command)
+            assert _message(scr).startswith("E32: No file name"), command
+        await pilot.press("g", "h")
+        await pilot.pause()
+        assert app.screen is scr
+        assert _message(scr).startswith("E32: No file name")

@@ -162,6 +162,10 @@ overlay keys.
 | `:merge path.deck` | Merge another deck file's cards (empty merge base) |
 | `:rebase branch` | Replay this branch's commits onto another branch tip |
 
+History belongs to the deck file, so a deck that has never been written
+has none: `:commit`, `:checkpoint`, `gh`, and the other history commands
+say `E32: No file name` until the first `:w`.
+
 Merging and rebasing require a committed working state (`:commit` first).
 When both branches changed the same card differently, an interactive
 resolution screen opens: pick ours, theirs, or a custom quantity per

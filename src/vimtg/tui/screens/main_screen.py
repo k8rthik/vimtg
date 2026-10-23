@@ -938,7 +938,7 @@ class MainScreen(Screen[None]):
         if hr.file_path is not None:
             if self.file_path != hr.file_path:
                 # Rebind VCS history to the new path (e.g. first :w of an
-                # unsaved deck) instead of the stale "(unsaved)" bucket.
+                # unsaved deck, which had no history).
                 self._vcs_service = None
             self.file_path = hr.file_path
         if hr.file_saved:
@@ -1569,25 +1569,35 @@ class MainScreen(Screen[None]):
     # ── VCS integration ─────────────────────────────────────
 
     def _get_vcs_service(self) -> VersionControlService | None:
-        """Lazily initialize VCS service on first use."""
+        """Lazily initialize VCS service on first use. History is keyed
+        by the deck's path, so a deck with no file yet has none."""
         if self._vcs_service is not None:
             return self._vcs_service
-        if self._db is None:
+        if self._db is None or self.file_path is None:
             return None
         from vimtg.data.snapshot_repository import SnapshotRepository
         from vimtg.services.vcs_service import VersionControlService
-        deck_path = str(self.file_path.resolve()) if self.file_path else "(unsaved)"
         repo = SnapshotRepository(self._db)
-        self._vcs_service = VersionControlService(repo, deck_path)
+        self._vcs_service = VersionControlService(repo, str(self.file_path.resolve()))
         return self._vcs_service
+
+    def _vcs_or_report(self) -> VersionControlService | None:
+        """The VCS service, or None after saying on the command line why
+        there is none (an unsaved deck, or no database)."""
+        vcs = self._get_vcs_service()
+        if vcs is None:
+            cl = self.query_one("#command-line", CommandLine)
+            if self.file_path is None:
+                cl.set_message("E32: No file name (:w the deck first)", error=True)
+            else:
+                cl.set_message("VCS unavailable (no database)")
+        return vcs
 
     def _open_history(self) -> None:
         from vimtg.services.deck_diff_service import DeckDiffService
         from vimtg.tui.screens.history_screen import HistoryScreen
-        vcs = self._get_vcs_service()
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl = self.query_one("#command-line", CommandLine)
-            cl.set_message("VCS unavailable (no database)")
             return
         diff_svc = DeckDiffService(card_repo=self.card_repo)
         self.app.push_screen(HistoryScreen(
@@ -1622,11 +1632,10 @@ class MainScreen(Screen[None]):
 
     def _vcs_commit(self, description: str) -> None:
         """Create a VCS snapshot with the given description."""
-        vcs = self._get_vcs_service()
-        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl.set_message("VCS unavailable (no database)")
             return
+        cl = self.query_one("#command-line", CommandLine)
         try:
             snap = vcs.commit(self._state.buffer.to_text(), description)
         except sqlite3.Error as exc:
@@ -1637,11 +1646,10 @@ class MainScreen(Screen[None]):
 
     def _vcs_checkpoint(self, name: str) -> None:
         """Commit the current deck state and tag the snapshot with name."""
-        vcs = self._get_vcs_service()
-        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl.set_message("VCS unavailable (no database)")
             return
+        cl = self.query_one("#command-line", CommandLine)
         try:
             snap = vcs.commit(self._state.buffer.to_text(), name)
             vcs.tag(snap.id, name)
@@ -1653,11 +1661,10 @@ class MainScreen(Screen[None]):
 
     def _vcs_list_branches(self) -> None:
         """Show all branches on the command line, marking the current one."""
-        vcs = self._get_vcs_service()
-        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl.set_message("VCS unavailable (no database)")
             return
+        cl = self.query_one("#command-line", CommandLine)
         try:
             branches = vcs.list_branches()
         except sqlite3.Error as exc:
@@ -1674,11 +1681,10 @@ class MainScreen(Screen[None]):
 
     def _vcs_create_branch(self, name: str) -> None:
         """Create a branch at the current branch tip."""
-        vcs = self._get_vcs_service()
-        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl.set_message("VCS unavailable (no database)")
             return
+        cl = self.query_one("#command-line", CommandLine)
         try:
             existing = {b.name for b in vcs.list_branches()}
             if name in existing:
@@ -1695,11 +1701,10 @@ class MainScreen(Screen[None]):
 
     def _vcs_switch_branch(self, name: str) -> None:
         """Switch to a branch and load its tip into the buffer."""
-        vcs = self._get_vcs_service()
-        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl.set_message("VCS unavailable (no database)")
             return
+        cl = self.query_one("#command-line", CommandLine)
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
                 cl.set_message(
@@ -1723,14 +1728,10 @@ class MainScreen(Screen[None]):
         argument containing a path separator or ending in .deck is treated
         as a deck file. Anything else is an error.
         """
-        vcs = self._get_vcs_service()
-        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl.set_message("VCS unavailable (no database)")
             return
-        if self.file_path is None:
-            cl.set_message("E: Save the deck before merging (:w)", error=True)
-            return
+        cl = self.query_one("#command-line", CommandLine)
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
                 cl.set_message(
@@ -1825,11 +1826,10 @@ class MainScreen(Screen[None]):
         """Replay the current branch's commits onto the target branch tip."""
         from vimtg.services.vcs_service import MergeKind
 
-        vcs = self._get_vcs_service()
-        cl = self.query_one("#command-line", CommandLine)
+        vcs = self._vcs_or_report()
         if vcs is None:
-            cl.set_message("VCS unavailable (no database)")
             return
+        cl = self.query_one("#command-line", CommandLine)
         if self.file_path is None:
             cl.set_message("E: Save the deck before rebasing (:w)", error=True)
             return
