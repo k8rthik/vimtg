@@ -42,6 +42,34 @@ class TestFetchDispatch:
         with pytest.raises(DeckSourceError, match="[Uu]nsupported"):
             fetch_deck("https://example.com/decks/abc")
 
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://moxfield.com.evil.example/decks/abc123",
+            "https://evilmoxfield.com/decks/abc123",
+            "https://archidekt.com.evil.example/decks/12345",
+            "https://notmanabox.app/decks/xyz",
+            "https://deckstats.net.evil.example/decks/1/2-x",
+            "https://tappedout.net.evil.example/mtg-decks/slug/",
+            "https://mtggoldfish.com.evil.example/deck/123",
+        ],
+    )
+    def test_spoofed_host_is_unsupported(
+        self, url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import vimtg.services.deck_sources as ds
+
+        def no_network(*args: object, **kwargs: object) -> object:
+            raise AssertionError("a spoofed host must not be fetched")
+
+        monkeypatch.setattr(ds.httpx, "get", no_network)
+        with pytest.raises(DeckSourceError, match="[Uu]nsupported"):
+            fetch_deck(url)
+
+    def test_subdomain_of_a_site_is_supported(self) -> None:
+        with pytest.raises(DeckSourceError, match="deck id"):
+            fetch_deck("https://www.moxfield.com/about")
+
     def test_bad_moxfield_url_raises(self) -> None:
         with pytest.raises(DeckSourceError, match="deck id"):
             fetch_deck("https://moxfield.com/about")
@@ -266,8 +294,12 @@ class TestFetchNetwork:
             raise httpx.ConnectError("boom")
 
         monkeypatch.setattr(ds.httpx, "get", fake_get)
-        with pytest.raises(DeckSourceError, match="request failed"):
+        with pytest.raises(DeckSourceError) as info:
             fetch_deck("https://moxfield.com/decks/abc123")
+        assert str(info.value) == (
+            "Could not reach api2.moxfield.com — you seem to be offline; "
+            "try again once connected"
+        )
 
     def test_http_status_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import vimtg.services.deck_sources as ds

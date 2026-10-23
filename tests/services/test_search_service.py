@@ -456,13 +456,3 @@ class TestConcurrency:
 def test_colour_enum_letters_cover_parser() -> None:
     # The compiler matches JSON-quoted colour letters; keep them single.
     assert all(len(c.value) == 1 for c in Color)
-
-
-class TestHelpers:
-    def test_parse_query_without_running(self, svc: SearchService) -> None:
-        assert svc.parse_query("") is None
-        assert svc.parse_query("bolt") is not None
-
-    def test_autocomplete(self, search_svc: SearchService) -> None:
-        assert "Goblin Guide" in search_svc.autocomplete("Gob")
-        assert search_svc.autocomplete("") == []

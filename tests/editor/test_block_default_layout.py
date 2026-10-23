@@ -11,7 +11,7 @@ from vimtg.editor.sections import normalize_sections
 from vimtg.services.deck_service import (
     DeckService,
     scaffold_deck_body,
-    scaffold_missing_metadata,
+    scaffold_metadata,
 )
 
 
@@ -61,7 +61,7 @@ class TestMcLeavesNoEmptyTypeHeader:
 class TestScaffoldDeckBody:
     def test_empty_commander_deck_gets_cmd_and_dck(self):
         text = scaffold_deck_body(
-            scaffold_missing_metadata("// Format: commander\n")
+            scaffold_metadata("// Format: commander\n")[0]
         )
         lines = text.splitlines()
         assert "CMD:" in lines
@@ -70,7 +70,7 @@ class TestScaffoldDeckBody:
 
     def test_empty_other_format_gets_dck_only(self):
         text = scaffold_deck_body(
-            scaffold_missing_metadata("// Format: modern\n")
+            scaffold_metadata("// Format: modern\n")[0]
         )
         assert "DCK:" in text.splitlines()
         assert "CMD:" not in text.splitlines()
@@ -86,7 +86,7 @@ class TestScaffoldDeckBody:
     def test_scaffolded_body_survives_normalization(self):
         # An empty DCK:/CMD: must not be cleaned away on the first sync
         text = scaffold_deck_body(
-            scaffold_missing_metadata("// Format: commander\n")
+            scaffold_metadata("// Format: commander\n")[0]
         )
         cleaned = normalize_sections(Buffer.from_text(text))
         assert "DCK:" in cleaned.to_text()

@@ -223,14 +223,20 @@ class _HostApp(App[None]):
         super().__init__()
         self._target = screen
         self.launched: list[tuple[Path | None, str | None]] = []
+        self.messages: list[str] = []
+        self.card_repo: object = None
 
     def on_mount(self) -> None:
         self.push_screen(self._target)
 
     def open_deck(
-        self, file_path: Path | None = None, initial_text: str | None = None
+        self,
+        file_path: Path | None = None,
+        initial_text: str | None = None,
+        message: str = "",
     ) -> None:
         self.launched.append((file_path, initial_text))
+        self.messages.append(message)
 
 
 def _make_decks(directory: Path, names: list[str]) -> list[Path]:
@@ -755,3 +761,61 @@ async def test_typed_card_line_imports(
         await pilot.pause()
     assert len(app.launched) == 1
     assert "4 Lightning Bolt" in (app.launched[0][1] or "")
+
+
+@pytest.mark.asyncio
+async def test_import_file_resolves_names_against_the_card_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, real_shape_repo: object
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    listing = tmp_path / "list.txt"
+    listing.write_text("4 lightning bolt\n4 Frobnicator\n??? hmm\n", encoding="utf-8")
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    app.card_repo = real_shape_repo
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("i")
+        gv._input = str(listing)
+        await pilot.press("enter")
+        await pilot.pause()
+    _path, text = app.launched[0]
+    assert "    // Instants\n    4 Lightning Bolt\n" in (text or "")
+    assert app.messages[0].startswith("Imported 8 cards from list.txt | 1 line(s) skipped")
+    assert "W100: 1 cards not found" in app.messages[0]
+
+
+@pytest.mark.asyncio
+async def test_import_url_resolves_names_against_the_card_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, real_shape_repo: object
+) -> None:
+    from unittest.mock import patch
+
+    from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
+    from vimtg.services.deck_sources import RemoteDeck
+
+    monkeypatch.chdir(tmp_path)
+    remote = RemoteDeck(
+        name="Mono Red",
+        deck=Deck(
+            metadata=DeckMetadata(),
+            entries=(DeckEntry(4, "lightning bolt", DeckSection.MAIN),),
+            comments=(),
+        ),
+    )
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    app.card_repo = real_shape_repo
+    with patch("vimtg.tui.screens.greeter.fetch_deck", return_value=remote):
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("i")
+            gv = screen.query_one(GreeterView)
+            gv._input = "https://moxfield.com/decks/abc"
+            await pilot.press("enter")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+    _path, text = app.launched[0]
+    assert "    // Instants\n    4 Lightning Bolt\n" in (text or "")
+    assert app.messages[0].startswith("Imported 4 cards from moxfield.com — Mono Red")

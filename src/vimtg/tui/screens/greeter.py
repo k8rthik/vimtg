@@ -7,11 +7,11 @@ and the list of unsaved buffers left by an earlier session (recovery).
 
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from rich.text import Text
 from textual import events, work
@@ -24,9 +24,9 @@ from vimtg import __version__
 from vimtg.editor.help_text import HELP_OVERVIEW, is_section_header
 from vimtg.services.deck_sources import (
     DeckSourceError,
+    RemoteDeck,
     fetch_deck,
     is_deck_url,
-    stamped_deck,
 )
 from vimtg.services.recovery import (
     RecoveryCopy,
@@ -39,7 +39,6 @@ from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.theme import COLORS
 
 if TYPE_CHECKING:
-    from vimtg.domain.deck import Deck
     from vimtg.services.import_export_service import ImportExportService
 
 LOGO_LINES = [
@@ -575,25 +574,31 @@ class GreeterScreen(Screen[None]):
         gv._input += " ".join(text.split())
         gv.refresh()
 
+    def _importer(self) -> ImportExportService:
+        """The import pipeline, resolving names against the host app's
+        card database when it has one."""
+        from vimtg.data.card_repository import CardRepository
+        from vimtg.services.import_export_service import ImportExportService
+
+        repo = getattr(self.app, "card_repo", None)  # duck-typed host
+        return ImportExportService(repo if isinstance(repo, CardRepository) else None)
+
     def _import_decklist(self, text: str, gv: GreeterView) -> bool:
         """Open pasted decklist text in the editor; False (with a status
         message) when it holds no card lines."""
-        from vimtg.services.import_export_service import ImportExportService
-
-        service = ImportExportService()
         try:
-            report = service.import_deck_report(text)
+            result = self._importer().to_vimtg(text)
         except ValueError as exc:
-            report = None
+            result = None
             reason = str(exc)
         else:
             reason = "no card lines found (expected lines like '4 Lightning Bolt')"
-        if report is None or not report.deck.entries:
+        if result is None or not result.deck.entries:
             gv.set_mode(GreeterMode.IMPORT)
             gv._status = f"E: Not a decklist: {reason}"
             gv.refresh()
             return False
-        self._open_editor(None, _imported_text(service, text, report.deck))
+        self._open_editor(None, result.text, result.summary("pasted text"))
         return True
 
     def _handle_file_list_key(
@@ -654,7 +659,7 @@ class GreeterScreen(Screen[None]):
             open_deck(chosen.original, initial_text=text, recovery=chosen)
 
     def _open_editor(
-        self, file_path: Path | None, initial_text: str | None = None
+        self, file_path: Path | None, initial_text: str | None = None, message: str = ""
     ) -> None:
         app = self.app
         if initial_text is None and file_path is not None and file_path.exists():
@@ -675,7 +680,7 @@ class GreeterScreen(Screen[None]):
         open_deck = getattr(app, "open_deck", None)
         if callable(open_deck):  # duck-typed: hosts expose open_deck
             if initial_text is not None:
-                open_deck(file_path, initial_text=initial_text)
+                open_deck(file_path, initial_text=initial_text, message=message)
             else:
                 open_deck(file_path)
 
@@ -696,8 +701,6 @@ class GreeterScreen(Screen[None]):
 
     def _import_file(self, source: str, gv: GreeterView) -> None:
         """Local files parse synchronously — no network, no worker."""
-        from vimtg.services.import_export_service import ImportExportService
-
         path = Path(source).expanduser()
         if not path.is_file():
             # A single typed/pasted card line ("4 Lightning Bolt")
@@ -712,24 +715,24 @@ class GreeterScreen(Screen[None]):
             gv._status = f"E: Cannot read {path.name}: {exc}"
             gv.refresh()
             return
-        service = ImportExportService()
-        deck = service.import_deck(text)
-        if not deck.metadata.name:
-            deck = replace(deck, metadata=replace(deck.metadata, name=path.stem))
-        self._open_editor(None, _imported_text(service, text, deck))
+        result = self._importer().to_vimtg(text, name=path.stem)
+        self._open_editor(None, result.text, result.summary(path.name))
 
     @work(thread=True)
     def _import_worker(self, url: str) -> None:
         """URL fetches run off the event loop, like the card sync."""
-        from vimtg.services.import_export_service import structured_deck_text
-
         try:
             remote = fetch_deck(url)
         except DeckSourceError as exc:
             self.app.call_from_thread(self._import_failed, str(exc))
             return
-        text = structured_deck_text(stamped_deck(remote, url))
-        self.app.call_from_thread(self._open_editor, None, text)
+        self.app.call_from_thread(self._open_remote, remote, url)
+
+    def _open_remote(self, remote: RemoteDeck, url: str) -> None:
+        """Bring a fetched deck in on the UI thread, which owns the card
+        database connection."""
+        result = self._importer().to_vimtg(remote, url=url)
+        self._open_editor(None, result.text, result.summary(urlparse(url).hostname or url))
 
     def _import_failed(self, message: str) -> None:
         gv = self.query_one(GreeterView)
@@ -752,17 +755,3 @@ def _find_all_decks() -> list[Path]:
     from vimtg.data.deck_repository import DeckRepository
 
     return DeckRepository().list_decks(Path.cwd())
-
-
-def _imported_text(service: ImportExportService, text: str, deck: Deck) -> str:
-    """Editor text for an imported deck: a vimtg deck verbatim, anything
-    else in the structured new-deck layout (see structured_deck_text)."""
-    from vimtg.services.import_export_service import (
-        DeckFormat,
-        normalize_text,
-        structured_deck_text,
-    )
-
-    if service.detect_format(normalize_text(text)) is DeckFormat.VIMTG:
-        return normalize_text(text)
-    return structured_deck_text(deck)

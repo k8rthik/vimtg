@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from vimtg.config.category_history import load_category_history, record_category
 from vimtg.config.settings import Settings
-from vimtg.data.deck_repository import parse_deck_text
+from vimtg.data.deck_repository import missing_quantity_lines, parse_deck_text
 from vimtg.domain.card import Card
 from vimtg.domain.card_names import CardMap
 from vimtg.domain.categories import (
@@ -1895,7 +1895,9 @@ def resolve_cards(buffer: Buffer, card_repo: CardRepository) -> dict[str, Card]:
     # Plan entries name cards too — they render with mana/type and lint
     # unknown names like any card line
     plan_names = {e.card_name for plan in deck.plans for e in plan.entries}
-    names = list(deck.unique_card_names() | plan_names)
+    # A card written without a quantity is linted when it names a card
+    missing_names = {m.card_name for m in missing_quantity_lines(buffer.to_text())}
+    names = list(deck.unique_card_names() | plan_names | missing_names)
     try:
         return card_repo.get_by_names(names)
     except (sqlite3.Error, ValueError):

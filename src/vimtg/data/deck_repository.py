@@ -20,9 +20,11 @@ from vimtg.domain.deck_lines import (
 )
 from vimtg.domain.deck_lines import (
     PLAN_TAG,
+    MissingQuantityLine,
     format_inline_comment,
     is_mtgo_sideboard_header,
     parse_card_line,
+    parse_missing_quantity_line,
     parse_plan_header_parts,
     parse_plan_line,
     parse_zone_header,
@@ -91,6 +93,21 @@ def _parse_entry_line(line: str, line_number: int) -> DeckEntry | None:
         comment=card.comment,
         line_number=line_number,
     )
+
+
+def missing_quantity_lines(text: str) -> tuple[MissingQuantityLine, ...]:
+    """Lines the parser skips that could name a card ('Lightning Bolt',
+    '4x Shock'); lines in a sideboard plan are left to the plan checks."""
+    contexts = zone_block_contexts(strip_bom(text).split("\n"))
+    found: list[MissingQuantityLine] = []
+
+    def on_skip(line_number: int, line: str) -> None:
+        missing = parse_missing_quantity_line(line_number, line)
+        if missing is not None and contexts[line_number - 1] != PLAN_TAG:
+            found.append(missing)
+
+    parse_deck_text(text, on_skip=on_skip)
+    return tuple(found)
 
 
 def parse_deck_text(

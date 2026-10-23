@@ -666,48 +666,6 @@ class VersionControlService:
         self.commit(new_state, f"cherry-pick: {snap.description}")
         return diff
 
-    def squash(
-        self, snapshot_ids: list[str], description: str
-    ) -> VCSSnapshot | None:
-        """Combine multiple snapshots into one, keeping the final state.
-
-        The snapshots must be consecutive on the current branch.
-        Replaces them with a single snapshot.
-        """
-        if not snapshot_ids:
-            return None
-
-        # Get all snapshots and verify they exist
-        snapshots = []
-        for sid in snapshot_ids:
-            snap = self._repo.get_snapshot(sid)
-            if snap is None:
-                return None
-            snapshots.append(snap)
-
-        # Use the last snapshot's state
-        final_state = snapshots[-1].deck_state
-        first_parent = snapshots[0].parent_id
-
-        # Create replacement snapshot
-        replacement = VCSSnapshot(
-            id=_new_id(),
-            deck_path=self._deck_path,
-            parent_id=first_parent,
-            deck_state=final_state,
-            timestamp=_now(),
-            description=description,
-            branch=self._current_branch,
-            deck_hash=_deck_hash(final_state),
-        )
-        branch = self._repo.get_branch(self._deck_path, self._current_branch)
-        update_tip = branch is not None and branch.tip_id in snapshot_ids
-        self._repo.replace_snapshots(snapshot_ids, replacement, update_tip)
-
-        return replacement
-
-    # ── Status ────────────────────────────────────────────
-
     def is_dirty(self, current_deck_state: str) -> bool:
         """True if the working state meaningfully differs from the tip.
 

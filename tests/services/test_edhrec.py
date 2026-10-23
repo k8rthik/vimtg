@@ -200,7 +200,46 @@ class TestEdhrecClient:
         with patch(
             "vimtg.services.edhrec.httpx.get",
             side_effect=httpx.ConnectError("boom"),
-        ), pytest.raises(EdhrecError, match="request failed"):
+        ), pytest.raises(EdhrecError, match="offline") as info:
+            client.fetch(["Atraxa"])
+        assert "boom" not in str(info.value)
+
+    def _expired_cache(self, tmp_path: Path, days: float) -> None:
+        import os
+
+        cache_file = tmp_path / "edhrec" / "atraxa.json"
+        cache_file.parent.mkdir(parents=True)
+        cache_file.write_text(json.dumps(_payload(title="Stale")))
+        old = time.time() - days * 86400
+        os.utime(cache_file, (old, old))
+
+    def test_offline_falls_back_to_an_expired_cache(self, tmp_path: Path):
+        self._expired_cache(tmp_path, days=9.5)
+        client = EdhrecClient(cache_dir=tmp_path)
+        with patch(
+            "vimtg.services.edhrec.httpx.get",
+            side_effect=httpx.ConnectError("boom"),
+        ):
+            page = client.fetch(["Atraxa"])
+        assert page.commander == "Stale"
+        assert page.note == "cached 9 days ago (offline)"
+
+    def test_fresh_fetch_has_no_note(self, tmp_path: Path):
+        self._expired_cache(tmp_path, days=9.5)
+        client = EdhrecClient(cache_dir=tmp_path)
+        with patch(
+            "vimtg.services.edhrec.httpx.get", return_value=self._response(),
+        ):
+            page = client.fetch(["Atraxa"])
+        assert page.note == ""
+
+    def test_missing_page_does_not_fall_back(self, tmp_path: Path):
+        self._expired_cache(tmp_path, days=9.5)
+        client = EdhrecClient(cache_dir=tmp_path)
+        with patch(
+            "vimtg.services.edhrec.httpx.get",
+            return_value=self._response(status=404),
+        ), pytest.raises(EdhrecError, match="No EDHREC page"):
             client.fetch(["Atraxa"])
 
     def test_no_cache_dir_still_fetches(self):

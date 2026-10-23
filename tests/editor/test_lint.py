@@ -65,3 +65,23 @@ class TestLintBuffer:
         )
         assert 0 in result.line_errors
         assert result.line_errors[0].level == "error"
+
+
+class TestMissingQuantityLines:
+    _TEXT = "// Deck: X\nLightning Bolt\n4x Shock\nwhat a deck\n4 Mountain\n"
+
+    def test_known_card_without_quantity_gets_a_warning_sign(self, real_shape_repo):
+        from vimtg.editor.session import resolve_cards
+
+        buf = Buffer.from_text(self._TEXT)
+        result = lint_buffer(buf, resolve_cards(buf, real_shape_repo))
+        assert result.line_errors[1].level == "warning"
+        assert result.line_errors[1].message == (
+            "not a card line: add a quantity (1 Lightning Bolt)"
+        )
+        assert result.line_errors[2].message == "not a card line: drop the x (4 Shock)"
+        assert 3 not in result.line_errors  # prose stays prose
+
+    def test_without_card_data_only_nx_lines_are_flagged(self):
+        result = lint_buffer(Buffer.from_text(self._TEXT), {})
+        assert set(result.line_errors) == {2}
