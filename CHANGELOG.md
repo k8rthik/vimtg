@@ -211,6 +211,11 @@ from 1.0.0 onward.
 - `vimtg search` prices follow the `price_source` and `show_prices`
   settings, like the editor's search list, instead of always printing
   the USD price.
+- `:validate` without card data says legality checks were skipped and
+  suggests `:sync`, instead of a bare "Deck OK (modern)" that never
+  looked at legality. It also shows the Commander bracket estimate
+  `vimtg validate` prints; both now build one report
+  (`domain.validation.validation_report`).
 
 ### Security
 

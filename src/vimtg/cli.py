@@ -7,7 +7,7 @@ import re
 import sqlite3
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import click
 import httpx
@@ -23,10 +23,6 @@ from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync
 from vimtg.services.deck_service import DeckService, editor_line_numbers
 from vimtg.services.import_export_service import FORMAT_NAMES, IMPORT_FORMAT_NAMES
 from vimtg.services.search_service import SearchService, SearchSyntaxError
-
-if TYPE_CHECKING:
-    from vimtg.domain.card import Card
-    from vimtg.domain.deck import Deck
 
 
 def _make_service() -> DeckService:
@@ -248,19 +244,13 @@ def _no_card_db_note() -> str:
 def validate(path: str, strict: bool) -> None:
     """Validate a deck file (format-aware when a card database exists)."""
     from vimtg.config.settings import load_settings
+    from vimtg.domain.validation import legality_skipped_note, validation_report
+    from vimtg.editor.lint import effective_format
 
     card_repo = _try_card_repo()
     service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
     file_path = Path(path)
     text, deck = service.open_deck(file_path)
-
-    fmt = deck.metadata.format or load_settings().default_format
-    resolved = None
-    if card_repo is not None:
-        resolved, _unresolved = service.resolve_cards(deck)
-    errors = service.validate(
-        deck, resolved, fmt, card_db=card_repo is not None
-    )
 
     if strict and card_repo is None:
         click.echo(
@@ -268,20 +258,22 @@ def validate(path: str, strict: bool) -> None:
             "check card names; run 'vimtg sync'"
         )
         sys.exit(1)
-    if fmt and card_repo is None:
-        click.echo(
-            f"({_no_card_db_note()} — legality checks skipped; run 'vimtg sync')"
-        )
+    fmt = effective_format(deck, load_settings().default_format)
+    resolved = service.resolve_cards(deck)[0] if card_repo is not None else None
+    report = validation_report(deck, resolved, fmt)
+
+    if fmt and not report.legality_checked:
+        skipped = legality_skipped_note(_no_card_db_note(), "'vimtg sync'")
+        click.echo(f"({skipped})")
     if card_repo is not None:
         note = card_data_note(card_repo.count(), card_repo.get_last_sync())
         if note:
             click.echo(note)
 
-    bracket_note = _bracket_note(deck, fmt, resolved)
-    if not errors:
+    if not report.problems:
         click.echo(f"{file_path.name}: ok" + (f" ({fmt})" if fmt else ""))
-        if bracket_note:
-            click.echo(f"{file_path.name}: info: {bracket_note}")
+        if report.bracket:
+            click.echo(f"{file_path.name}: info: {report.bracket}")
         return
 
     has_errors = False
@@ -290,7 +282,7 @@ def validate(path: str, strict: bool) -> None:
     # that line elsewhere (it scaffolds missing '// Tags:'-style lines
     # on open), its line number follows the message
     shown_at = editor_line_numbers(text)
-    for err in errors:
+    for err in report.problems:
         line_part = f"{err.line_number}:" if err.line_number is not None else ""
         note = ""
         if err.line_number is not None:
@@ -301,31 +293,11 @@ def validate(path: str, strict: bool) -> None:
         if err.level == "error" or strict:
             has_errors = True
     # Informational only: never an error, and --strict ignores it.
-    if bracket_note:
-        click.echo(f"{file_path.name}: info: {bracket_note}")
+    if report.bracket:
+        click.echo(f"{file_path.name}: info: {report.bracket}")
 
     if has_errors:
         sys.exit(1)
-
-
-def _bracket_note(
-    deck: Deck, fmt: str, resolved: dict[str, Card] | None
-) -> str:
-    """Commander-bracket estimate for `validate`, or '' when it does not
-    apply (not Commander, or no card database to read Game Changers)."""
-    from vimtg.domain.analytics import estimate_bracket, is_commander_deck
-
-    if resolved is None:
-        return ""
-    applies = fmt.strip().lower() == "commander" if fmt else is_commander_deck(deck)
-    if not applies:
-        return ""
-    est = estimate_bracket(deck, resolved)
-    names = f" ({', '.join(est.game_changers)})" if est.game_changers else ""
-    return (
-        f"{est.count} Game Changers{names}; estimated Commander bracket "
-        f"{est.label} (heuristic: counts Game Changers only)"
-    )
 
 
 @main.command()
