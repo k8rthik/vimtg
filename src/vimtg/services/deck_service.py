@@ -12,7 +12,7 @@ from vimtg.domain.card_types import BASIC_LANDS  # noqa: F401  (re-export)
 from vimtg.domain.deck import Deck
 from vimtg.domain.deck_lines import match_metadata
 from vimtg.domain.formats import format_requires_commander
-from vimtg.domain.validation import ValidationError, validate_deck
+from vimtg.domain.validation import ValidationError
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
@@ -243,17 +243,6 @@ class DeckService:
         found: dict[str, Card] = self._card_repo.get_by_names(names)
         unresolved = [n for n in names if n not in found]
         return found, unresolved
-
-    def validate(
-        self,
-        deck: Deck,
-        resolved: dict[str, Card] | None = None,
-        fmt: str = "",
-        *,
-        card_db: bool | None = None,
-    ) -> list[ValidationError]:
-        """Validate deck structure and format legality. Delegates to domain."""
-        return validate_deck(deck, resolved, fmt, card_db=card_db)
 
 
 def editor_view_text(raw: str) -> str:

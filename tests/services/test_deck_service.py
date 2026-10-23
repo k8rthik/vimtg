@@ -8,6 +8,7 @@ import pytest
 
 from vimtg.data.deck_repository import DeckRepository, parse_deck_text
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
+from vimtg.domain.validation import validate_deck
 from vimtg.services.deck_service import DeckService, scaffold_metadata
 
 
@@ -66,12 +67,12 @@ def test_new_deck_parseable(service: DeckService) -> None:
 # --- validation ---
 
 
-def test_validate_valid_deck(service: DeckService, valid_deck: Deck) -> None:
-    errors = service.validate(valid_deck)
+def test_validate_valid_deck(valid_deck: Deck) -> None:
+    errors = validate_deck(valid_deck)
     assert errors == [], f"Expected no errors, got: {errors}"
 
 
-def test_validate_over_four_copies(service: DeckService) -> None:
+def test_validate_over_four_copies() -> None:
     entries = (
         DeckEntry(quantity=5, card_name="Lightning Bolt", section=DeckSection.MAIN),
     )
@@ -80,13 +81,13 @@ def test_validate_over_four_copies(service: DeckService) -> None:
         entries=entries,
         comments=(),
     )
-    errors = service.validate(deck)
+    errors = validate_deck(deck)
     warnings = [e for e in errors if e.level == "warning" and "More than 4" in e.message]
     assert len(warnings) == 1
     assert "Lightning Bolt" in warnings[0].message
 
 
-def test_validate_basic_land_exempt(service: DeckService) -> None:
+def test_validate_basic_land_exempt() -> None:
     entries = (
         DeckEntry(quantity=8, card_name="Mountain", section=DeckSection.MAIN),
     )
@@ -95,12 +96,12 @@ def test_validate_basic_land_exempt(service: DeckService) -> None:
         entries=entries,
         comments=(),
     )
-    errors = service.validate(deck)
+    errors = validate_deck(deck)
     four_copy_warnings = [e for e in errors if "More than 4" in e.message]
     assert four_copy_warnings == []
 
 
-def test_validate_zero_quantity(service: DeckService) -> None:
+def test_validate_zero_quantity() -> None:
     entries = (
         DeckEntry(quantity=0, card_name="Lightning Bolt", section=DeckSection.MAIN),
     )
@@ -109,12 +110,12 @@ def test_validate_zero_quantity(service: DeckService) -> None:
         entries=entries,
         comments=(),
     )
-    errors = service.validate(deck)
+    errors = validate_deck(deck)
     qty_errors = [e for e in errors if e.level == "error" and "Invalid quantity" in e.message]
     assert len(qty_errors) == 1
 
 
-def test_validate_small_mainboard(service: DeckService) -> None:
+def test_validate_small_mainboard() -> None:
     entries = (
         DeckEntry(quantity=4, card_name="Lightning Bolt", section=DeckSection.MAIN),
     )
@@ -123,12 +124,12 @@ def test_validate_small_mainboard(service: DeckService) -> None:
         entries=entries,
         comments=(),
     )
-    errors = service.validate(deck)
+    errors = validate_deck(deck)
     small_warnings = [e for e in errors if "minimum 60" in e.message]
     assert len(small_warnings) == 1
 
 
-def test_validate_large_sideboard(service: DeckService) -> None:
+def test_validate_large_sideboard() -> None:
     entries = (
         DeckEntry(quantity=16, card_name="Rest in Peace", section=DeckSection.SIDEBOARD),
     )
@@ -137,7 +138,7 @@ def test_validate_large_sideboard(service: DeckService) -> None:
         entries=entries,
         comments=(),
     )
-    errors = service.validate(deck)
+    errors = validate_deck(deck)
     side_warnings = [e for e in errors if "maximum 15" in e.message]
     assert len(side_warnings) == 1
 

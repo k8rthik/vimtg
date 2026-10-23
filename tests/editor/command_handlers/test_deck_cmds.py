@@ -202,7 +202,34 @@ class TestValidateFormatAware:
         buffer = Buffer.from_text(text)
         ctx = EditorContext()
         cmd_validate(buffer, Cursor(row=0), ParsedCommand(name="validate"), ctx)
-        assert ctx.message == "Deck OK (modern)"
+        assert ctx.message.startswith("Deck OK (modern)")
+
+    def test_without_card_data_legality_is_skipped(self) -> None:
+        text = "// Format: modern\n4 Lightning Bolt\n56 Mountain\n"
+        ctx = EditorContext()
+        cmd_validate(
+            Buffer.from_text(text), Cursor(row=0), ParsedCommand(name="validate"), ctx
+        )
+        assert ctx.message == (
+            "Deck OK (modern) | no card database — legality checks skipped; run :sync"
+        )
+
+    def test_commander_deck_shows_the_bracket_estimate(self, real_shape_repo) -> None:  # noqa: ANN001
+        from vimtg.editor.session import resolve_cards
+
+        text = (
+            "// Format: commander\nCMD: 1 Thrasios, Triton Hero\n"
+            "1 Rhystic Study\n98 Mountain\n"
+        )
+        buffer = Buffer.from_text(text)
+        ctx = EditorContext(
+            resolved_cards=resolve_cards(buffer, real_shape_repo), card_repo=real_shape_repo,
+        )
+        cmd_validate(buffer, Cursor(row=0), ParsedCommand(name="validate"), ctx)
+        assert ctx.message.startswith(
+            "Deck OK (commander) | 1 Game Changers (Rhystic Study); "
+            "estimated Commander bracket"
+        )
 
     def test_repeated_messages_deduped(self) -> None:
         # Same singleton violation across two lines with identical message text

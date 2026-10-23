@@ -18,6 +18,8 @@ from vimtg.domain.deck import Deck, DeckEntry, DeckSection
 from vimtg.domain.formats import FormatRules, get_format_rules, known_formats
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from vimtg.domain.card import Card
 
 # Sections whose entries count toward deck size / copy limits.
@@ -43,6 +45,53 @@ class ValidationError:
     line_number: int | None = None
     # Machine-readable kind ("" when unclassified), e.g. UNKNOWN_CARD
     code: str = ""
+
+
+@dataclass(frozen=True)
+class ValidationReport:
+    """What `vimtg validate` and :validate report for a deck; each
+    surface words it its own way (`file:12: error: …`, `E L12: …`)."""
+
+    fmt: str  # the format checked ('' for the generic rules)
+    problems: tuple[ValidationError, ...]
+    legality_checked: bool  # False without a card database
+    bracket: str = ""  # Commander-bracket estimate, '' when it does not apply
+
+
+def legality_skipped_note(reason: str, sync: str) -> str:
+    """The note for a report without card data: `reason` says why there
+    is none, `sync` is the surface's way to get it (":sync")."""
+    return f"{reason} — legality checks skipped; run {sync}"
+
+
+def validation_report(
+    deck: Deck, resolved: Mapping[str, Card] | None, fmt: str
+) -> ValidationReport:
+    """Validate `deck` against `fmt`; `resolved` None means there is no
+    card database, so card names and legality go unchecked."""
+    lookup = None if resolved is None else CardMap(resolved)
+    problems = validate_deck(deck, lookup, fmt, card_db=lookup is not None)
+    return ValidationReport(
+        fmt, tuple(problems), lookup is not None, _bracket_note(deck, fmt, lookup)
+    )
+
+
+def _bracket_note(deck: Deck, fmt: str, resolved: CardMap | None) -> str:
+    """Commander-bracket estimate, or '' when it does not apply (not
+    Commander, or no card database to read Game Changers)."""
+    from vimtg.domain.analytics import estimate_bracket, is_commander_deck
+
+    if resolved is None:
+        return ""
+    applies = fmt.strip().lower() == "commander" if fmt else is_commander_deck(deck)
+    if not applies:
+        return ""
+    est = estimate_bracket(deck, resolved)
+    names = f" ({', '.join(est.game_changers)})" if est.game_changers else ""
+    return (
+        f"{est.count} Game Changers{names}; estimated Commander bracket "
+        f"{est.label} (heuristic: counts Game Changers only)"
+    )
 
 
 def validate_deck(
