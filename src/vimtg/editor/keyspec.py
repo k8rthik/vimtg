@@ -114,7 +114,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b("f1", "Full-screen help (also :help)", MODES, label="F1", quick="Commands",
        brief="help"),
     _b("g?", "Toggle the quick-reference panel", MODES, shorts=("quick reference",)),
-    _b(("ZZ", "ZQ"), "Save and quit (:wq) / quit discarding changes (:q!)", MODES,
+    _b(("ZZ", "ZQ"), "Save if changed, then quit (:x) / quit discarding changes (:q!)", MODES,
        shorts=("save and quit", "quit without saving")),
     # ── Navigation ────────────────────────────────────────
     _b(("j", "k"), "Move down / up (blank lines skipped)", NAVIGATION, quick="Navigation",

@@ -131,9 +131,9 @@ def cmd_import(
     or (with no argument) the system clipboard.
 
     Files and clipboard text parse synchronously (format auto-detected).
-    A Moxfield, Archidekt, or ManaBox URL — typed or on the clipboard —
-    is fetched asynchronously by the TUI; the handler only records the
-    request.
+    A deck URL from any site in services.deck_sources, typed or on the
+    clipboard, is fetched asynchronously by the TUI; the handler only
+    records the request.
     """
     from vimtg.services.deck_sources import is_deck_url
 
@@ -241,7 +241,8 @@ def cmd_clipboard(
     fmt = _FORMAT_MAP.get(fmt_name)
     if fmt is None:
         ctx.message = (
-            f"E: Unknown format: {fmt_name}. Use arena, mtgo, dek, moxfield, archidekt, or vimtg"
+            f"E: Unknown format: {fmt_name}. "
+            "Use arena, mtgo, dek, moxfield, archidekt, vimtg, or guide"
         )
         ctx.error = True
         return buffer, cursor

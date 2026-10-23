@@ -1249,8 +1249,9 @@ class MainScreen(Screen[None]):
         )
 
     def _start_url_import(self, url: str) -> None:
-        """:import <url> — fetch a Moxfield/Archidekt/ManaBox deck off
-        the UI thread, then replace the buffer with the result."""
+        """:import <url> — fetch the deck from any site in
+        services.deck_sources off the UI thread, then replace the buffer
+        with the result."""
         host = urlparse(url).hostname or url
         self.query_one("#command-line", CommandLine).set_message(
             f"Fetching deck from {host}..."

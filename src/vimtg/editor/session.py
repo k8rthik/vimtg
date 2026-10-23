@@ -498,7 +498,7 @@ def handle_command(
     """Process ex command or search submission.
 
     Typed lines go into the : / search history; commands a key runs on
-    the user's behalf (ZZ is :wq) pass record_history=False.
+    the user's behalf (ZZ is :x) pass record_history=False.
     """
     if state.mode_mgr.current == Mode.SEARCH:
         state.cmd_history.add(SEARCH, action.text or "")
