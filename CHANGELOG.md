@@ -83,6 +83,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- The empty-deck tips panel stays up after the first card goes in, when
+  `+`/`-` and `:w` matter, until the first `:w` (or `Esc`, or `:tips off`),
+  instead of vanishing with the first card.
 - A new deck that holds only what the new-deck wizard filled in (its
   name, format and empty zone blocks) is not modified: `:q` on a deck made
   from the greeter and never edited quits instead of saying "Unsaved

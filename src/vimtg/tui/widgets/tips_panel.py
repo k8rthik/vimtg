@@ -1,8 +1,8 @@
 """First-run tips — a short "how do I do anything" panel.
 
-Shown under an empty deck (no cards yet) until the user turns it off
-with `:tips off`; Esc closes it for the session and `:tips` brings it
-back. Everything here also lives at the top of :help ("GETTING
+Shown under an empty deck, and on through its first cards until the
+first :w, until the user turns it off with `:tips off`; Esc closes it
+for the session and `:tips` brings it back. Everything here also lives at the top of :help ("GETTING
 STARTED"), so dismissing it loses nothing.
 """
 
