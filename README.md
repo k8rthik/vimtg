@@ -218,7 +218,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 
 ### Zones
 
-`zs` / `zm` / `zd` / `zc` / `zp` move the cursor card to the **s**ideboard, **m**aybeboard, main **d**eck, **c**ommander zone, or com**p**anion slot. The bare key moves all copies; `2zs` splits two off. Moving into a zone that already holds the card merges quantities and unions tags. Category, tags, and comments travel with the card. A move that creates a brand-new zone opens it as an indented block; moves into existing zones match the style already in use.
+`zs` / `zm` / `zd` / `zc` / `zp` move the cursor card to the **s**ideboard, **m**aybeboard, main **d**eck, **c**ommander zone, or com**p**anion slot. The bare key moves all copies; `2zs` splits two off. Moving into a zone that already holds the card merges quantities and unions tags; `zc` of a card that cannot be the commander moves it and says why. Category, tags, and comments travel with the card. A move that creates a brand-new zone opens it as an indented block; moves into existing zones match the style already in use.
 
 ### Sections, layouts, and placement
 

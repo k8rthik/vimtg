@@ -114,7 +114,10 @@ in the target zone, and match the zone's block or prefix style.
 The deck's format (`// Format:`, else the `default_format` setting)
 is checked: `zc` is refused outside commander formats, which have no
 command zone, and `zs` in a format without a sideboard (commander)
-moves the card but warns. An unknown or missing format checks nothing.
+moves the card but warns. `zc` of a card that cannot lead the deck
+moves it and says why ("Goblin King is not legendary and can't be your
+commander"), as the gutter's ✗ then does. An unknown or missing format
+checks nothing.
 `zz`/`zt`/`zb` scroll the view, as in vim.
 
 ### Marks, macros, registers
