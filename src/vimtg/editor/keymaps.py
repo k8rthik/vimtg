@@ -3,7 +3,9 @@
 Supports user-defined key remappings loaded from config. Mappings are
 per-mode: a key in NORMAL mode can map to something different than in
 INSERT mode. Remappings are resolved before the KeyMap state machine
-processes the key.
+processes the key, and only where a command starts (as vim matches
+mappings), so a mapped 's' leaves 'zs' alone. A mapping's left side is
+one key: :map refuses a sequence such as 'gb', which could never fire.
 """
 
 from __future__ import annotations
@@ -13,6 +15,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vimtg.editor.modes import Mode
+
+NAMED_KEYS = frozenset({
+    "escape", "enter", "tab", "backspace", "delete",
+    "space", "up", "down", "left", "right", "home", "end",
+})
+
+
+def is_named_key(key: str) -> bool:
+    """A single named key ("escape", "ctrl_r") vs a multi-char sequence."""
+    return key in NAMED_KEYS or "_" in key
+
+
+def is_single_key(key: str) -> bool:
+    """True when `key` is one key press: a character or a named key."""
+    return len(key) == 1 or is_named_key(key)
 
 
 @dataclass(frozen=True)

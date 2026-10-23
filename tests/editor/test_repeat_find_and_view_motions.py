@@ -68,11 +68,12 @@ class TestFindCardRow:
         buf = Buffer.from_text(DECK)
         assert find_card_row(buf, 1, "lightning", backward=True) == 6
 
-    def test_skips_current_and_non_card_lines(self) -> None:
+    def test_skips_non_card_lines_and_wraps_back_to_the_start(self) -> None:
         buf = Buffer.from_text(DECK)
         # "Instants" header matches "i" but is not a card line
         assert find_card_row(buf, 2, "instant") is None
-        assert find_card_row(buf, 7, "boros") is None
+        # The only match is the start row: vim wraps round to it
+        assert find_card_row(buf, 7, "boros") == 7
 
 
 class TestRepeatFind:

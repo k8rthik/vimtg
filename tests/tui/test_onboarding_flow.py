@@ -186,6 +186,29 @@ class TestNewDeckScreenKeys:
         wizard.feed("enter")
         assert results == [NewDeckInfo(name="", fmt="")]
 
+    def test_ctrl_u_clears_the_prefilled_name(self) -> None:
+        """`vimtg build.deck` prefills 'build': Ctrl-U clears it so the
+        typed name replaces it instead of being appended."""
+        wizard = NewDeckScreen(suggested_name="build")
+        results: list[NewDeckInfo | None] = []
+        wizard.dismiss = results.append  # type: ignore[assignment,method-assign]
+        wizard.feed("ctrl_u")
+        for ch in "Krenko Tokens":
+            wizard.feed(ch)
+        wizard.feed("enter")
+        wizard.feed("enter")
+        assert results == [NewDeckInfo(name="Krenko Tokens", fmt="")]
+
+    def test_ctrl_w_deletes_the_last_word(self) -> None:
+        wizard = NewDeckScreen(suggested_name="Krenko Tokens")
+        wizard.feed("ctrl_w")
+        assert wizard.name_text == "Krenko "
+        wizard.feed("down")
+        for ch in "pioneer":
+            wizard.feed(ch)
+        wizard.feed("ctrl_w")
+        assert wizard.fmt_text == ""
+
     def test_common_formats_listed_first(self) -> None:
         assert format_matches("")[:3] == ["standard", "pioneer", "modern"]
 

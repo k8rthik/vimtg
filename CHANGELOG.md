@@ -66,9 +66,6 @@ from 1.0.0 onward.
   is found for a deck path with undecodable bytes; an unreadable
   category history or a config directory that is a file fall back to
   defaults with a warning.
-
-### Fixed
-
 - Opening an unreadable deck from the greeter shows an error there
   instead of quitting vimtg.
 - `:w dir/` (or `:w` of an existing directory) is refused with E502
@@ -86,6 +83,30 @@ from 1.0.0 onward.
 - `*`/`#` messages show the card name instead of the internal regex.
 - A sideboard-plan line with no card name (`-1 #tag`) is reported as
   unreadable instead of being saved back as `-1 `.
+- A `:map` remap applies only where a command starts, so mapping `s` no
+  longer breaks `zs` or a `"s` register name. `:map` refuses a key
+  sequence such as `gb` (E474), which could never fire.
+- `qA` appends to macro `a` instead of replacing it, and `@A` plays it,
+  as in vim.
+- An edit that section cleanup undoes again (`:t$` on the trailing blank
+  line) no longer leaves an empty undo step or marks the deck modified.
+- Rapid `+`/`-` fold into one undo step only on the same card: `+ j +`
+  then `u` reverts just the second card. `u` and `Ctrl-R` move the
+  cursor to the line they changed, as in vim.
+- `/`, `?`, `n`, `N`, `*` and `#` wrap all the way round to the cursor
+  line when it is the only match, instead of saying "Pattern not found",
+  and a search that wraps says "search hit BOTTOM, continuing at TOP" as
+  in vim.
+- The greeter's `s` runs the same card sync as `:sync` and the automatic
+  one, so it can no longer start a second download while one is running.
+- The new-deck prompt accepts `Ctrl-U` and `Ctrl-W` like the other
+  prompts, so a name prefilled from the file name can be cleared before
+  typing.
+- A deck that has never been written no longer shares one history with
+  every other new deck: `:commit`, `:checkpoint`, `gh` and the other
+  history commands say `E32: No file name` until the first `:w`.
+- `:clipboard vimtg` copies the deck exactly as written, layout and
+  comments included, the same text as `:export vimtg`.
 
 ## [1.0.0rc1] - 2026-10-10
 

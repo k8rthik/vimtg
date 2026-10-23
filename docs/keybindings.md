@@ -57,7 +57,7 @@ Everything below is normal mode unless flagged otherwise.
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up |
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
-| `n` / `N` | Repeat the last search in the same / opposite direction (`n` after `?` goes backward), wrapping around the deck |
+| `n` / `N` | Repeat the last search in the same / opposite direction (`n` after `?` goes backward), wrapping around the deck (back to the cursor line when it is the only match) with "search hit BOTTOM, continuing at TOP" |
 | `*` / `#` | Search forward / backward for the card under the cursor (the whole name: `*` on Shock never stops on Shock Troops) |
 | `zz` / `zt` / `zb` | Scroll the view so the cursor line is at the center / top / bottom; the cursor does not move |
 | mouse wheel | Scroll three lines per notch, vim-style: the window moves and the cursor is dragged only when it would leave the screen |
@@ -113,7 +113,7 @@ moves the card but warns. An unknown or missing format checks nothing.
 |-----|--------|
 | `m{a-z}` | Set a mark (all 26 letters are available) |
 | `'{a-z}` | Jump to a mark. Marks shift through inserts, deletes, puts, and zone moves |
-| `q{a-z}` / `q` | Start recording a macro / stop recording |
+| `q{a-z}` / `q` | Start recording a macro / stop recording; `qA` appends to macro `a` |
 | `@{a-z}` / `@@` | Play a macro / replay the last one; `3@a` plays three times |
 | `"{a-z}` | Use a named register for the next yank, delete, or put. `"A`-`"Z` append, `"0` is the yank register, `"1`-`"9` the delete history |
 | `"_` | The black hole register: `"_dd` deletes without touching any register, so the next `p` still puts what was there |
@@ -319,7 +319,9 @@ Branches, Snapshots, Diff, Stats.
 ## Remapping
 
 `:map key action` remaps a key for the session (normal mode); `:unmap key`
-removes a mapping. Persistent maps live under `[keybindings]` in
+removes a mapping. The key is a single key (`s`, `ctrl_s`), and, as in
+vim, a mapping applies only where a command starts: mapping `s` leaves
+`zs` and `"s` alone. Persistent maps live under `[keybindings]` in
 `~/.config/vimtg/config.toml`, per mode (`normal`, `insert`, `visual`,
 `command`). Unbound keys such as `;`, `,`, `e`, `f`, `n`, `r`, `s`, or
 `Ctrl-S` are free to map.
