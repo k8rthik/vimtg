@@ -27,7 +27,7 @@ from vimtg.domain.categories import (
 )
 from vimtg.domain.deck_lines import split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
-from vimtg.domain.tags import TagFilter, format_tag_summary
+from vimtg.domain.tags import TagFilter, format_tag_summary, tag_lines
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.card_insert import (
     PendingInsert,
@@ -52,6 +52,7 @@ from vimtg.editor.command_handlers.search_cmds import (
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
+    Listing,
     ParsedCommand,
     RangeError,
     parse_command,
@@ -279,6 +280,8 @@ class HandlerResult:
     # :q! / :e! / :home! dropped unsaved changes on purpose
     discard_changes: bool = False
     search_open: str | None = None  # :search — open the card search overlay
+    # A listing's lines; command_message is its one-line form (see Listing)
+    listing: Listing | None = None
 
 
 # Motions vim counts as jumps: Ctrl-O comes back from them
@@ -668,6 +671,7 @@ def handle_command(
             ui_request=ctx.ui_request,
             discard_changes=ctx.discard_requested,
             search_open=ctx.search_open,
+            listing=ctx.listing,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)
@@ -1165,8 +1169,11 @@ def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
             tag_prompt=tag_prompts[sub_key],
         )
     if sub_key == "l":
-        # List all tags inline
-        return HandlerResult(command_message=format_tag_summary(state.buffer.tag_counts()))
+        counts = state.buffer.tag_counts()
+        return HandlerResult(
+            command_message=format_tag_summary(counts),
+            listing=Listing("Tags", tuple(tag_lines(counts))) if counts else None,
+        )
     if sub_key == "c":
         # Clear all tags from cursor card
         if state.buffer.is_card_line(state.cursor.row) and state.buffer.tags_at(state.cursor.row):

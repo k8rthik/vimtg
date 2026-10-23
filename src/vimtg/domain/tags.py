@@ -127,6 +127,11 @@ def format_inline_tags(tags: frozenset[str]) -> str:
     return "  " + " ".join(f"#{t}" for t in sorted_tags)
 
 
+def tag_lines(counts: dict[str, int]) -> list[str]:
+    """One '#tag  count' line per tag, sorted by tag name."""
+    return [f"#{t:<20} {c}" for t, c in sorted(counts.items())]
+
+
 def format_tag_summary(counts: dict[str, int]) -> str:
     """Render a tag-count map as a status message, sorted by tag name.
 

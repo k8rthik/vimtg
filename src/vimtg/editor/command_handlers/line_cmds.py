@@ -234,7 +234,10 @@ def cmd_registers(
         for name in registers.names()
         if wanted is None or name in wanted
     ]
-    ctx.message = " | ".join(shown) if shown else "No registers set"
+    if shown:
+        ctx.show_listing("Registers", shown, " | ".join(shown))
+    else:
+        ctx.message = "No registers set"
     return buffer, cursor
 
 
@@ -247,7 +250,10 @@ def cmd_marks(
     for name, mark in items:
         text = buffer.get_line(mark.row).text if mark.row < buffer.line_count() else ""
         shown.append(f"'{name} {mark.row + 1} {_preview(text.strip())}")
-    ctx.message = " | ".join(shown) if shown else "No marks set"
+    if shown:
+        ctx.show_listing("Marks", shown, " | ".join(shown))
+    else:
+        ctx.message = "No marks set"
     return buffer, cursor
 
 

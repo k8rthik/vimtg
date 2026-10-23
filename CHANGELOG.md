@@ -75,6 +75,12 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Listing commands no longer cut their output off at the terminal edge:
+  `:registers`, `:marks`, `:tags`, `:categories`, `:plans`, `:validate`,
+  `:branch`, `:g/pat/p` and `tl` print on the command line when the
+  output fits on one line, and otherwise open it in the floating pager
+  `:messages` uses, one entry per line, as vim's more-prompt does.
+  `:messages` keeps the output.
 - A command that says nothing clears the command line, as in vim: after
   `:3`, `:$`, or closing the view `:help`, `:history`, `:hand`, `:config`
   or `:messages` opened, the hint bar is back instead of the stale

@@ -114,7 +114,10 @@ def cmd_global(
 
     if sub_cmd == "p":
         names = [buffer.get_line(i).text.strip() for i in matching]
-        ctx.message = f"{len(matching)} match(es): " + " | ".join(names)
+        ctx.show_listing(
+            f"Matches ({len(matching)})", names,
+            f"{len(matching)} match(es): " + " | ".join(names),
+        )
         return buffer, cursor.move_to(matching[-1], 0)
 
     if name in ("y", "yank"):

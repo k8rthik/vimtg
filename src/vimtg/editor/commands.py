@@ -235,6 +235,17 @@ def _goto_range(cmd: ParsedCommand, buffer: Buffer, cursor: Cursor) -> Cursor:
     return cursor.move_to(max(0, min(row, buffer.line_count() - 1)), 0)
 
 
+@dataclass(frozen=True)
+class Listing:
+    """Output of a listing command (:reg, :marks, :tags, :validate ...),
+    one entry per line. Its one-line form is the message; the TUI shows
+    that when it fits on the command line, else `lines` in a pager
+    titled `title`, as vim's more-prompt does."""
+
+    title: str
+    lines: tuple[str, ...]
+
+
 @dataclass
 class EditorContext:
     """Mutable context passed to command handlers for side effects."""
@@ -309,6 +320,17 @@ class EditorContext:
     ui_request: str = ""
     # :search — open the card search overlay with this query (None = no)
     search_open: str | None = None
+    # A listing's lines; `message` holds its one-line form
+    listing: Listing | None = None
+
+    def show_listing(
+        self, title: str, lines: list[str] | tuple[str, ...], summary: str,
+        *, error: bool = False,
+    ) -> None:
+        """Output `lines` under `title`; `summary` is the one-line form."""
+        self.listing = Listing(title, tuple(lines))
+        self.message = summary
+        self.error = error
 
     def fail(self, message: str) -> None:
         """Set an error message with the standard 'E: ' prefix."""
