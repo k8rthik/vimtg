@@ -224,7 +224,7 @@ class GreeterView(Static):
             t.append_text(greeter_command.render(self.command))
         else:
             t.append("  Press a highlighted key\n" if compact
-                     else "  Press a highlighted key, or : for a command\n", style=_DIM)
+                     else "  Press a highlighted key (: commands)\n", style=_DIM)
         return t
 
 
