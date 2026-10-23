@@ -261,7 +261,8 @@ def validate(path: str, strict: bool) -> None:
     if strict and card_repo is None:
         click.echo(
             f"{file_path.name}: error: --strict needs a card database to "
-            "check card names; run 'vimtg sync'"
+            "check card names; run 'vimtg sync'",
+            err=True,
         )
         sys.exit(1)
     fmt = effective_format(deck, load_settings().default_format)
@@ -270,11 +271,11 @@ def validate(path: str, strict: bool) -> None:
 
     if fmt and not report.legality_checked:
         skipped = legality_skipped_note(_no_card_db_note(), "'vimtg sync'")
-        click.echo(f"({skipped})")
+        click.echo(f"({skipped})", err=True)
     if card_repo is not None:
         note = card_data_note(card_repo.count(), card_repo.get_last_sync())
         if note:
-            click.echo(note)
+            click.echo(note, err=True)
 
     if not report.problems:
         click.echo(f"{file_path.name}: ok" + (f" ({fmt})" if fmt else ""))
@@ -463,20 +464,21 @@ def _sync(db: Database, force: bool) -> None:
     def _progress(phase: str, current: int, total: int) -> None:
         if phase == "download" and total > 0:
             pct = current * 100 // total
-            click.echo(f"\rDownloading... {pct}%", nl=False)
+            click.echo(f"\rDownloading... {pct}%", nl=False, err=True)
         elif phase == "parse" and total > 0:
-            click.echo(f"\rParsing... {current}/{total}", nl=False)
+            click.echo(f"\rParsing... {current}/{total}", nl=False, err=True)
 
     try:
         count = syncer.sync(force=force, progress=_progress)
     except (httpx.HTTPError, RuntimeError, sqlite3.Error) as exc:
-        click.echo()  # end the in-place progress line
+        click.echo(err=True)  # end the in-place progress line
         raise click.ClickException(
             f"Sync failed: {describe_sync_error(exc)}"
         ) from exc
-    click.echo(f"\nSynced {count} cards")
+    click.echo(err=True)  # end the in-place progress line
+    click.echo(f"Synced {count} cards")
     if syncer.last_skipped:
-        click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse")
+        click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse", err=True)
 
 
 # A search key with its operator but no value ("mv>", "t:"). The overlay

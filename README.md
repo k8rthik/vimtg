@@ -470,6 +470,8 @@ vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing ou
 vimtg convert https://moxfield.com/decks/ID --to dek   # a deck URL works too; --to takes every :export format
 ```
 
+Notes, warnings and errors go to stderr; a command's own output (the deck, the validation report, search rows) goes to stdout, so it pipes cleanly.
+
 ## Known gaps
 
 Known limitations; none block normal use.
