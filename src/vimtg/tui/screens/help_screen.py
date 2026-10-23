@@ -1,9 +1,9 @@
 """HelpScreen — the floating help window.
 
 Opened by `:help` (overview) or `:help <command>` (single topic), F1,
-and `?` on every auxiliary screen; `:messages` shows its text in the
-same window. Navigable with j/k, Ctrl-D/U, gg/G, Home/End; dismissed
-with q, Esc, or ?.
+and `?` on every auxiliary screen; `:messages` and the listing pager
+show their text in the same window. Navigable with j/k, Ctrl-D/U, gg/G,
+Home/End; F1 switches to the overview; dismissed with q, Esc, or ?.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from vimtg.editor.help_text import get_help
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import (
     CLOSE_KEYS,
+    FULL_HELP_KEY,
     HELP_KEY,
     NAV_HINTS,
     PENDING,
@@ -27,7 +28,7 @@ from vimtg.tui.keys import (
 from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 
-HINTS = (*NAV_HINTS, ("q/Esc/?", "close"))
+HINTS = (*NAV_HINTS, ("F1", "overview"), ("q/Esc/?", "close"))
 
 HELP_TITLE = "vimtg Help"
 
@@ -77,6 +78,16 @@ class HelpScreen(FloatingScreen[None]):
         text.append("\n")
         self.query_one("#help-body", Static).update(text)
 
+    def _show_overview(self, scroll: VerticalScroll) -> None:
+        """F1: whatever this window shows, switch to the full overview."""
+        if self._topic is None and self._body is None:
+            return
+        self._topic = None
+        self._body = None
+        self.set_window_title(HELP_TITLE)
+        self._show_body()
+        scroll.scroll_home(animate=False)
+
     def on_key(self, event: Key) -> None:
         event.prevent_default()
         event.stop()
@@ -86,6 +97,9 @@ class HelpScreen(FloatingScreen[None]):
 
         if key in CLOSE_KEYS or key == HELP_KEY:
             self.app.pop_screen()
+            return
+        if key == FULL_HELP_KEY:
+            self._show_overview(scroll)
             return
         step = self._nav.feed(key, scroll.size.height)
         if step == PENDING:

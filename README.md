@@ -57,7 +57,7 @@ Inside the editor:
 1. Press `o` to open a card search below the cursor, type `lightning bolt`, and press `Enter` (`Tab` cycles through matches). Prefix a count for copies: `4o`.
 2. Move with `j`/`k`, `gg`/`G`; bump a quantity with `+`/`-`; delete a line with `dd`; undo with `u`.
 3. `:w` saves (and snapshots the deck in its history), `:q` quits, `:q!` quits without saving, `:wq` does both.
-4. Press `F1` (or type `:help`) any time for help; it opens on a "Getting started" section. `g?` toggles a quick-reference panel.
+4. Press `F1` (or type `:help`) any time for help; it opens on a "Getting started" section. `g?` toggles a short cheat sheet of the most used keys.
 
 A deck with no cards and a blank name or format (greeter `n`, `vimtg new "Burn"` without `-f`, or `vimtg name.deck` for a file that does not exist yet) first asks for its name and format: `Tab` completes the format, `Esc` skips. A new deck's first `:w` writes `<deck-name>.deck` in the current directory.
 
@@ -350,7 +350,7 @@ Empty decks show a short "Getting started" tips panel under the deck (`Esc` hide
 
 Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and a split pane steps aside while the terminal is too narrow for it.
 
-Help, `:messages`, `:config`, `:hand`, the history overlay, and the merge resolver all open as the same floating window over the editor (titled on its top border, its close keys on the bottom one); a window opened from another, such as `?` in the history overlay, floats above both. `F1` or `:help` opens the help window; `g?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `gg`/`G`, or the wheel). In the editor `?` is vim's backward search, not help; `:help <command>` opens that command's topic, under its full name or an alias (`:help export`, `:help exp`). The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
+Help, `:messages`, `:config`, `:hand`, the history overlay, and the merge resolver all open as the same floating window over the editor (titled on its top border, its close keys on the bottom one); a window opened from another, such as `?` in the history overlay, floats above both. `F1` or `:help` opens the help window; `g?` toggles a short cheat sheet under the deck, the rows the which-key popup shows (`F1` from it opens the full help). On a topic, `F1` switches the help window to the overview. The greeter's `?` and `F1` open the same help window. In the editor `?` is vim's backward search, not help; `:help <command>` opens that command's topic, under its full name or an alias (`:help export`, `:help exp`). The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
 
 ## Keybindings
 
@@ -418,7 +418,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `Ctrl-W w` / `Ctrl-W c` | Switch focus / close pane (`Ctrl-W h`/`j`/`k`/`l` focus by direction, `Ctrl-W o` only) |
 | `Space r` / `Space a` | Toggle the EDHREC pane / analytics pane |
 | `Space h` | Sample hand / goldfish overlay |
-| `F1` / `g?` | Full help / quick-reference panel |
+| `F1` / `g?` | Full help / cheat sheet |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 
 </details>

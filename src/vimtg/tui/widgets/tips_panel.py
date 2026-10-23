@@ -17,7 +17,7 @@ TIPS: tuple[tuple[str, str], ...] = (
     ("o", "add a card: type part of its name, Enter picks it"),
     ("j / k", "move down / up;  +/- change the quantity"),
     (":w", "save    :q quit    :q! quit without saving"),
-    ("F1", "full help (also :help);  g? quick-reference panel"),
+    ("F1", "full help (also :help);  g? cheat sheet"),
 )
 
 

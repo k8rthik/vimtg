@@ -64,29 +64,6 @@ class TestRenderMenu:
         assert "[1]" not in text.plain
 
 
-class TestRenderHelp:
-    def test_render_help_contains_navigation(self) -> None:
-        gv = GreeterView()
-        gv._mode = GreeterMode.HELP
-        text = gv._render_help()
-        plain = text.plain
-        assert "NAVIGATION" in plain
-        assert "EDITING" in plain
-        assert "COMMANDS" in plain
-
-    def test_render_help_shows_return_hint(self) -> None:
-        gv = GreeterView()
-        gv._mode = GreeterMode.HELP
-        text = gv._render_help()
-        assert "Esc" in text.plain
-
-    def test_render_dispatches_to_help(self) -> None:
-        gv = GreeterView()
-        gv._mode = GreeterMode.HELP
-        text = gv.render()
-        assert "NAVIGATION" in text.plain
-
-
 class TestRenderFileList:
     def test_render_files_shows_names(self, tmp_path: Path) -> None:
         f1 = tmp_path / "alpha.deck"
@@ -190,8 +167,8 @@ class TestCursorNavigation:
     def test_set_mode_resets_cursor(self) -> None:
         gv = GreeterView()
         gv._cursor = 3
-        gv.set_mode(GreeterMode.HELP)
-        assert gv._mode == GreeterMode.HELP
+        gv.set_mode(GreeterMode.RECENT)
+        assert gv._mode == GreeterMode.RECENT
         assert gv._cursor == 0
 
     def test_set_mode_changes_mode(self) -> None:
@@ -249,17 +226,27 @@ def _make_decks(directory: Path, names: list[str]) -> list[Path]:
 
 
 @pytest.mark.asyncio
-async def test_help_mode_toggle(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("key", ["question_mark", "f1"])
+async def test_help_keys_open_the_help_window(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, key: str
+) -> None:
+    """The greeter's help is the editor's: the floating help window on
+    the overview, not a third copy of the text."""
+    from vimtg.tui.screens.help_screen import HelpScreen
+
     monkeypatch.chdir(tmp_path)
     screen = GreeterScreen()
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
-        gv = screen.query_one(GreeterView)
-        await pilot.press("?")
-        assert gv._mode == GreeterMode.HELP
+        await pilot.press(key)
+        await pilot.pause()
+        assert isinstance(app.screen, HelpScreen)
+        assert app.screen._topic is None
+        assert "NAVIGATION" in str(app.screen.query_one("#help-body").render())
         await pilot.press("escape")
-        assert gv._mode == GreeterMode.MENU
+        await pilot.pause()
+        assert app.screen is screen
 
 
 @pytest.mark.asyncio

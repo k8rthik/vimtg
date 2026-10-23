@@ -165,3 +165,20 @@ async def test_help_unknown_topic_stays_in_editor(sample_deck_path: Path) -> Non
         from vimtg.tui.widgets.command_line import CommandLine
         cl = app.screen.query_one(CommandLine)
         assert "No help for: nonexistent" in cl.message
+
+
+@pytest.mark.asyncio
+async def test_f1_on_a_topic_switches_to_the_overview(sample_deck_path: Path) -> None:
+    app = VimTGApp(deck_path=sample_deck_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _type_command(pilot, "help sort")
+        screen = app.screen
+        assert isinstance(screen, HelpScreen)
+        assert "NAVIGATION" not in str(screen.query_one("#help-body").render())
+        await pilot.press("f1")
+        await pilot.pause()
+        assert app.screen is screen
+        assert screen._topic is None
+        assert "NAVIGATION" in str(screen.query_one("#help-body").render())
+        assert "sort" not in str(screen.window.border_title)

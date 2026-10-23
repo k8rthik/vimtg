@@ -13,7 +13,7 @@ GETTING STARTED
                 Enter adds it (+/- change the quantity after)
   :w            Save (a new deck is named after its // Deck: line)
   :q            Quit (:q! quits without saving, :wq saves and quits)
-  F1, :help     This full help (g? toggles a quick-reference panel)
+  F1, :help     This full help (g? toggles a cheat sheet)
   q             Careful: q starts recording a macro (the status line
                 says "recording @a"); press q again to stop
   :messages     Show recent messages and errors again

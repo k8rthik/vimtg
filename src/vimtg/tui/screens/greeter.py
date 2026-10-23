@@ -1,8 +1,9 @@
 """Greeter screen — shown when vimtg launches with no file argument.
 
 Inspired by alpha-nvim: centered ASCII logo, recent files, and quick actions.
-Supports menu (default), help, file browser, recent files browser, import,
-and the list of unsaved buffers left by an earlier session (recovery).
+Supports menu (default), file browser, recent files browser, import,
+and the list of unsaved buffers left by an earlier session (recovery);
+? and F1 open the editor's floating help window.
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg import __version__
-from vimtg.editor.help_text import HELP_OVERVIEW, is_section_header
 from vimtg.services.deck_sources import (
     DeckSourceError,
     RemoteDeck,
@@ -87,7 +87,6 @@ class GreeterMode(Enum):
     """Greeter view modes — separate from editor modes."""
 
     MENU = "menu"
-    HELP = "help"
     FILES = "files"
     RECENT = "recent"
     IMPORT = "import"
@@ -115,13 +114,9 @@ class GreeterView(Static):
         self._card_note_attention = False
         self._input = ""  # import prompt text (path or URL)
         self.nav = VimNav()
-        self._help_nav = VimNav()
-        self._help_offset = 0
         self._shown_recent = min(len(self._recent), MENU_RECENT)
 
     def render(self) -> Text:
-        if self._mode == GreeterMode.HELP:
-            return self._render_help()
         if self._mode == GreeterMode.FILES:
             return self._render_file_list(self._all_files, "Open File")
         if self._mode == GreeterMode.RECENT:
@@ -216,24 +211,6 @@ class GreeterView(Static):
 
         t.append("  Press a highlighted key\n" if compact
                  else "  Press a highlighted key to continue\n", style=_DIM)
-        return t
-
-    def _render_help(self) -> Text:
-        t = Text()
-        t.append("  vimtg Help\n", style=f"bold {COLORS['mana_blue']}")
-        t.append("  " + "=" * 40 + "\n\n", style=_DIM)
-
-        lines = HELP_OVERVIEW.split("\n")
-        start = self._help_offset
-        viewport = self.list_viewport() if self.size.height > 0 else len(lines)
-        for line in lines[start:start + viewport]:
-            if is_section_header(line):
-                t.append(f"  {line}\n", style=f"bold {COLORS['mana_green']}")
-            else:
-                t.append(f"  {line}\n", style="")
-
-        t.append("\n")
-        t.append("  j/k scroll  gg/G top/bottom  ?/Esc/q return\n", style=_DIM)
         return t
 
     def _render_import(self) -> Text:
@@ -387,38 +364,12 @@ class GreeterView(Static):
             event.stop()
             self.navigate(self._active_list(), 1)
             self.refresh()
-        elif self._mode == GreeterMode.HELP:
-            event.stop()
-            self.scroll_help_by_key("ctrl_d")
-            self.refresh()
 
     def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
         if self._mode in (GreeterMode.FILES, GreeterMode.RECENT, GreeterMode.RECOVER):
             event.stop()
             self.navigate(self._active_list(), -1)
             self.refresh()
-        elif self._mode == GreeterMode.HELP:
-            event.stop()
-            self.scroll_help_by_key("ctrl_u")
-            self.refresh()
-
-    def scroll_help_by_key(self, key: str) -> bool:
-        """Scroll the inline help overview; False when `key` is not a nav key."""
-        lines = HELP_OVERVIEW.count("\n") + 1
-        viewport = self.list_viewport()
-        step = self._help_nav.feed(key, viewport)
-        if step is None:
-            return False
-        if step == PENDING:
-            return True
-        max_offset = max(0, lines - viewport)
-        if step == "home":
-            self._help_offset = 0
-        elif step == "end":
-            self._help_offset = max_offset
-        else:
-            self._help_offset = max(0, min(self._help_offset + int(step), max_offset))
-        return True
 
     def select_next(self, file_list: list[Path]) -> None:
         if file_list:
@@ -487,8 +438,6 @@ class GreeterScreen(Screen[None]):
 
         if gv._mode == GreeterMode.MENU:
             self._handle_menu_key(key, gv)
-        elif gv._mode == GreeterMode.HELP:
-            self._handle_help_key(key, gv)
         elif gv._mode == GreeterMode.IMPORT:
             self._handle_import_key(key, gv)
         elif gv._mode == GreeterMode.RECOVER:
@@ -524,18 +473,11 @@ class GreeterScreen(Screen[None]):
         elif key == "q":
             self.app.exit()
         elif key in ("?", "f1"):
-            gv.set_mode(GreeterMode.HELP)
-            gv.refresh()
+            from vimtg.tui.screens.help_screen import HelpScreen
+
+            self.app.push_screen(HelpScreen())
         elif key.isdigit() and 1 <= int(key) <= gv._shown_recent:
             self._open_editor(file_path=self._recent[int(key) - 1])
-
-    def _handle_help_key(self, key: str, gv: GreeterView) -> None:
-        if key in ("escape", "q", "?", "f1"):
-            gv.set_mode(GreeterMode.MENU)
-            gv.refresh()
-            return
-        if gv.scroll_help_by_key(key):
-            gv.refresh()
 
     def _handle_import_key(self, key: str, gv: GreeterView) -> None:
         if key == "escape":

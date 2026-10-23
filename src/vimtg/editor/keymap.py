@@ -71,7 +71,7 @@ _SPACE = "space"
 _SHOWCMD = {"ctrl_w": "^W", _SPACE: "<Space>"}
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion);
-# gh history overlay, g? quick-reference panel
+# gh history overlay, g? cheat sheet
 _G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?", "v"})
 # Ctrl-W {v,s} split, {w,W,h,j,k,l} focus, {c,q} close, o only — vim's
 # window commands
