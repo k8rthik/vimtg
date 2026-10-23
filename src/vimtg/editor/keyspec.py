@@ -126,6 +126,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
             "A count sets copies: 4o adds four. Inside a VS: plan it writes "
             "a signed plan line"),
     _b(("v", "V"), "Visual / visual-line selection", MODES, quick="Commands", brief="visual mode"),
+    _b("gv", "Select the last visual selection again (in visual mode: swap)", MODES,
+       shorts=("reselect visual",)),
     _b(":", "Ex command line", MODES, quick="Commands", brief="command mode"),
     _b(("/", "?"), "Search forward / backward for a card (regex)", MODES,
        label="/ ?", quick="Commands", brief="search",
@@ -204,6 +206,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        brief="record macro"),
     _b((f"@{MARK}", "@@"), "Play a macro / replay the last one", MARKS_MACROS,
        shorts=("play macro", "replay last")),
+    _b("@:", "Run the last ex command line again; @@ repeats it, 3@: runs it 3 times",
+       MARKS_MACROS, shorts=("repeat ex command",)),
     _b(f'"{MARK}', "Use a named register for the next yank, delete, or put", MARKS_MACROS,
        completes=False, note='"A-Z appends, "0 is the yank register, "1-9 the delete history',
        shorts=("named register",)),

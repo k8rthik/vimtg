@@ -41,6 +41,7 @@ Everything below is normal mode unless flagged otherwise.
 | `A` | Add or edit the card's inline comment (`// …`); confirming empty text removes it |
 | `o` / `O` | Add a card below / above: opens card search. The card joins the zone under the cursor (inside a `CMD:`/`SB:` block it lands there; in the mainboard it auto-files by type). A count sets copies: `4o` adds four. Inside a `VS:` plan block it writes a signed plan line |
 | `v` / `V` | Visual / visual-line selection |
+| `gv` | Select the last visual selection again, in its mode and with the cursor at the same end; in visual mode it swaps with the current selection |
 | `:` | Ex command line |
 | `/` / `?` | Search forward / backward for a card (a regex, case-insensitive, like `:g` and `:s`). An empty pattern repeats the last one |
 | `Esc` | Back to normal mode; cancels a pending key sequence (in normal mode it also hides the getting-started tips) |
@@ -121,6 +122,7 @@ moves the card but warns. An unknown or missing format checks nothing.
 | `'{a-z}` | Jump to a mark. Marks shift through inserts, deletes, puts, and zone moves |
 | `q{a-z}` / `q` | Start recording a macro / stop recording; `qA` appends to macro `a` |
 | `@{a-z}` / `@@` | Play a macro / replay the last one; `3@a` plays three times |
+| `@:` | Run the last ex command line again (`@@` then repeats it; `3@:` runs it three times) |
 | `"{a-z}` | Use a named register for the next yank, delete, or put. `"A`-`"Z` append, `"0` is the yank register, `"1`-`"9` the delete history |
 | `"_` | The black hole register: `"_dd` deletes without touching any register, so the next `p` still puts what was there |
 | `"+` / `"*` | The clipboard register (one register, two names): a yank or delete also copies to the system clipboard via OSC52. `"+p` puts what was last yanked to it in this session (vimtg cannot read the system clipboard) |
@@ -151,7 +153,7 @@ the selection; other keys act on the cursor line.
 | `gC` | Clear the category; in a category-grouped deck the card moves to `// Uncategorized` |
 | `gl` | Toggle layout: group by card type / by category |
 
-`gg` (top), `gh` (history overlay), and `g?` (quick reference) share the prefix.
+`gg` (top), `gv` (reselect), `gh` (history overlay), and `g?` (quick reference) share the prefix.
 
 ### Tags (`t` prefix)
 
@@ -210,13 +212,13 @@ and `b` puts it on the bottom, `r` reshuffles a fresh hand, and
 
 | Prefix | Namespace | Keys |
 |--------|-----------|------|
-| `g` | go | `gg` `gc` `gC` `gl` `gh` `g?` |
+| `g` | go | `gg` `gv` `gc` `gC` `gl` `gh` `g?` |
 | `t` | tags | `ta` `tr` `tt` `tf` `tl` `tc` `tn` `tp` |
 | `Ctrl-W` | window | `v` `s` `w` `W` `h` `j` `k` `l` `c` `q` `o` |
 | `Space` | leader | `a` `r` `h` |
 | `z` | zones & scroll | `zs` `zm` `zd` `zc` `zp` `zo` `zi`, `zz` `zt` `zb` |
 | `m` / `'` | marks | `m{a-z}` `'{a-z}` |
-| `q` / `@` | macros | `q{a-z}` `q` `@{a-z}` `@@` |
+| `q` / `@` | macros | `q{a-z}` `q` `@{a-z}` `@@` `@:` |
 | `"` | registers | `"{a-z}` `"0` `"1`-`"9` `"_` `"+` `"*` |
 | `[` / `]` | jumps | `[[` `]]` `[v` `]v` |
 | `d` `y` `c` | operators | wait for a motion |

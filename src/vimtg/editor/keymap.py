@@ -71,7 +71,7 @@ _SHOWCMD = {"ctrl_w": "^W", _SPACE: "<Space>"}
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion);
 # gh history overlay, g? quick-reference panel
-_G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?"})
+_G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?", "v"})
 # Ctrl-W {v,s} split, {w,W,h,j,k,l} focus, {c,q} close, o only — vim's
 # window commands
 _WINDOW_SUB_KEYS = frozenset({"v", "s", "w", "W", "h", "j", "k", "l", "c", "q", "o"})
@@ -346,9 +346,10 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # @{a-z} — play macro, @@ — replay last
+            # @{a-z} — play macro, @@ — replay last, @: — repeat the last
+            # ex command
             if self._multi_key_prefix == "@" and (
-                (key.isalpha() and len(key) == 1) or key == "@"
+                (key.isalpha() and len(key) == 1) or key in ("@", ":")
             ):
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()

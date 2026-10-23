@@ -466,3 +466,49 @@ class TestKShowsCardDetails:
             scr = _screen(app)
             _feed(scr, "5G K")
             assert "E348" in _message(scr)
+
+
+class TestReselectAndRepeatEx:
+    @pytest.mark.asyncio
+    async def test_gv_reselects_the_last_selection(self, tmp_path: Path) -> None:
+        from vimtg.editor.modes import Mode
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "gv")
+            assert scr._state.mode_mgr.current == Mode.NORMAL
+            assert "No previous visual selection" in _message(scr)
+            _feed(scr, "6G Vj <Esc> 12G gv")
+            assert scr._state.mode_mgr.current == Mode.VISUAL_LINE
+            assert scr._state.cursor.row == 6
+            _feed(scr, "d")
+            assert _cards(scr)[0] == "2 Eidolon of the Great Revel"
+
+    @pytest.mark.asyncio
+    async def test_gv_after_an_operator(self, tmp_path: Path) -> None:
+        from vimtg.editor.modes import Mode
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "11G vj y G gv")
+            assert scr._state.mode_mgr.current == Mode.VISUAL
+            assert scr._state.visual_anchor == 10 and scr._state.cursor.row == 11
+
+    @pytest.mark.asyncio
+    async def test_at_colon_repeats_the_last_ex_command(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "@:")
+            assert "E30" in _message(scr)
+            _feed(scr, "6G :d<CR> @:")
+            assert _cards(scr)[0] == "2 Eidolon of the Great Revel"
+            _feed(scr, "10G @@")
+            assert "4 Searing Blaze" not in _cards(scr)
+            _feed(scr, "9G 2@:")
+            assert _cards(scr) == ["2 Eidolon of the Great Revel", "20 Mountain"]
