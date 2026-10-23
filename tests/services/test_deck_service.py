@@ -8,7 +8,7 @@ import pytest
 
 from vimtg.data.deck_repository import DeckRepository, parse_deck_text
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
-from vimtg.services.deck_service import DeckService, scaffold_missing_metadata
+from vimtg.services.deck_service import DeckService, scaffold_metadata
 
 
 @pytest.fixture
@@ -142,34 +142,34 @@ def test_validate_large_sideboard(service: DeckService) -> None:
     assert len(side_warnings) == 1
 
 
-class TestScaffoldMissingMetadata:
+class TestScaffoldMetadata:
     def test_empty_text_yields_full_scaffold(self) -> None:
-        text = scaffold_missing_metadata("")
+        text = scaffold_metadata("")[0]
         lines = text.split("\n")
         assert lines[0] == "// Deck:"
         assert lines[1] == "// Format:"
         assert lines[2] == "// Tags:"
 
     def test_no_metadata_prepends_scaffold(self) -> None:
-        text = scaffold_missing_metadata("4 Lightning Bolt\n")
+        text = scaffold_metadata("4 Lightning Bolt\n")[0]
         assert text.startswith("// Deck:\n// Format:\n// Tags:\n\n4 Lightning Bolt")
 
     def test_partial_metadata_fills_gaps_after_block(self) -> None:
-        text = scaffold_missing_metadata("// Deck: Burn\n\n4 Bolt\n")
+        text = scaffold_metadata("// Deck: Burn\n\n4 Bolt\n")[0]
         assert text.startswith("// Deck: Burn\n// Format:\n// Tags:\n")
 
     def test_complete_returns_same_object(self) -> None:
         original = "// Deck: X\n// Format: modern\n// Tags: a\n\n4 Bolt\n"
-        assert scaffold_missing_metadata(original) is original
+        assert scaffold_metadata(original)[0] is original
 
     def test_mid_file_metadata_not_duplicated(self) -> None:
-        text = scaffold_missing_metadata("4 Bolt\n// Tags: burn\n")
+        text = scaffold_metadata("4 Bolt\n// Tags: burn\n")[0]
         assert text.count("// Tags") == 1
         assert "// Deck:\n// Format:\n" in text
 
     def test_idempotent(self) -> None:
-        once = scaffold_missing_metadata("4 Bolt\n")
-        assert scaffold_missing_metadata(once) is once
+        once = scaffold_metadata("4 Bolt\n")[0]
+        assert scaffold_metadata(once)[0] is once
 
     def test_new_deck_writes_only_metadata_with_content(
         self, service: DeckService
@@ -180,7 +180,7 @@ class TestScaffoldMissingMetadata:
         assert text.startswith("// Deck: Burn\n")
         assert "// Format:" not in text
         assert "// Tags:" not in text
-        assert "// Format:" in scaffold_missing_metadata(text)
+        assert "// Format:" in scaffold_metadata(text)[0]
 
 
 class TestEditorLineNumbers:

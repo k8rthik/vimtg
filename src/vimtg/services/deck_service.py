@@ -27,7 +27,6 @@ __all__ = [
     "scaffold_metadata",
     "editor_line_numbers",
     "editor_view_text",
-    "scaffold_missing_metadata",
     "strip_unused_scaffold",
 ]
 
@@ -77,11 +76,6 @@ def scaffold_metadata(text: str) -> tuple[str, Scaffold]:
     blank = blank or not text.strip()
     new_lines = lines[:insert_at] + scaffold + lines[insert_at:]
     return "\n".join(new_lines), Scaffold(frozenset(missing), blank)
-
-
-def scaffold_missing_metadata(text: str) -> str:
-    """scaffold_metadata without the record of what was added."""
-    return scaffold_metadata(text)[0]
 
 
 def strip_unused_scaffold(text: str, added: Scaffold) -> str:
