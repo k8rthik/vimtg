@@ -22,8 +22,11 @@ if TYPE_CHECKING:
     from vimtg.domain.card import Card
     from vimtg.services.history_service import HistoryService
 
-# One address: a line number, '.', '$', or a mark ('a, '<, '>)
-_ADDRESS = r"(?:'[a-zA-Z<>]|[.\d$]+)"
+# One address: a line number, '.', '$', or a mark ('a, '<, '>), then any
+# +N / -N offsets ('+' alone is +1); an offset alone counts from '.'
+_ADDRESS = r"(?:(?:'[a-zA-Z<>]|[.\d$]+)(?:[+-]\d*)*|(?:[+-]\d*)+)"
+_ADDRESS_PARTS = re.compile(r"^('[a-zA-Z<>]|[.\d$]*)((?:[+-]\d*)*)$")
+_OFFSET = re.compile(r"([+-])(\d*)")
 _RANGE_PATTERN = re.compile(
     rf"^(%|(?:{_ADDRESS}(?:,{_ADDRESS})?))?(.*)$"
 )
@@ -31,6 +34,39 @@ _RANGE_PATTERN = re.compile(
 
 class RangeError(ValueError):
     """An ex range that names no line (vim's E20 for an unset mark)."""
+
+
+def address_line(
+    token: str,
+    cursor_row: int,
+    line_count: int,
+    marks: Mapping[str, int] | None = None,
+) -> int | None:
+    """The 1-based line an ex address names, offsets applied: '.+1',
+    '+3', '$-1', "'a+2". The result may lie outside the buffer (0, or
+    past the end) for the caller to judge; None when `token` is not an
+    address. A token like '1.5' counts as the cursor line. Raises
+    RangeError for a mark that is not set."""
+    parts = _ADDRESS_PARTS.match(token.strip())
+    if parts is None:
+        return None
+    base, offsets = parts.groups()
+    last_line = max(0, line_count - 1)
+    if base in ("", "."):
+        line = cursor_row + 1
+    elif base == "$":
+        line = last_line + 1
+    elif base.startswith("'"):
+        row = (marks or {}).get(base[1:])
+        if row is None:
+            raise RangeError("E20: Mark not set")
+        line = max(0, min(row, last_line)) + 1
+    else:
+        line = int(base) if base.isdigit() else cursor_row + 1
+    for sign, digits in _OFFSET.findall(offsets):
+        step = int(digits) if digits else 1
+        line += step if sign == "+" else -step
+    return line
 
 
 @dataclass(frozen=True)
@@ -78,25 +114,13 @@ class CommandRange:
 
         def _resolve(token: str) -> int:
             nonlocal past_end
-            if token == ".":
+            line = address_line(token, cursor_row, line_count, marks)
+            if line is None:
                 return cursor_row
-            if token == "$":
-                return last_line
-            if token.startswith("'"):
-                row = (marks or {}).get(token[1:])
-                if row is None:
-                    raise RangeError("E20: Mark not set")
-                return max(0, min(row, last_line))
-            try:
-                number = int(token)
-            except ValueError:
-                # Tokens like "1.5" or "$5" pass the range regex but
-                # aren't valid line numbers — treat as current line.
-                return cursor_row
-            if number > max(1, line_count):
+            if line > max(1, line_count) or line < 0:
                 past_end = True
-                return last_line
-            return max(0, number - 1)
+                return last_line if line > 0 else 0
+            return max(0, line - 1)
 
         if "," in stripped:
             parts = stripped.split(",", maxsplit=1)

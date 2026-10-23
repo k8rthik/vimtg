@@ -23,6 +23,8 @@ from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
+    RangeError,
+    address_line,
     command_line_range,
 )
 from vimtg.editor.cursor import Cursor
@@ -37,17 +39,20 @@ def _line_range(cmd: ParsedCommand, cursor: Cursor, buffer: Buffer) -> tuple[int
     return command_line_range(cmd, buffer.line_count(), (cursor.row, cursor.row))
 
 
-def _address(token: str, cursor: Cursor, buffer: Buffer) -> int | None:
+def _address(
+    token: str, cursor: Cursor, buffer: Buffer, ctx: EditorContext,
+) -> int | None:
     """A :m / :t destination as the row the lines go BELOW (-1 = above
-    the first line); None when it is not an address."""
-    token = token.strip()
-    if token == ".":
-        return cursor.row
-    if token == "$":
-        return buffer.line_count() - 1
-    if token.isdigit():
-        return min(int(token), buffer.line_count()) - 1
-    return None
+    the first line): 5, ., $, 'a, +1, -2. None when it is not an address
+    or names a line before the first."""
+    marks = {name: mark.row for name, mark in ctx.marks.items()} if ctx.marks else None
+    try:
+        line = address_line(token, cursor.row, buffer.line_count(), marks)
+    except RangeError:
+        return None
+    if line is None or line < 0:
+        return None
+    return min(line, buffer.line_count()) - 1
 
 
 def _registers(ctx: EditorContext) -> RegisterStore:
@@ -113,7 +118,7 @@ def _move_or_copy(
     buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext, *, move: bool,
 ) -> tuple[Buffer, Cursor]:
     usage = ":[range]m {address}" if move else ":[range]t {address}"
-    dest = _address(cmd.args, cursor, buffer) if cmd.args.strip() else None
+    dest = _address(cmd.args, cursor, buffer, ctx) if cmd.args.strip() else None
     if dest is None:
         ctx.fail(f"E14: Invalid address (usage: {usage})")
         return buffer, cursor

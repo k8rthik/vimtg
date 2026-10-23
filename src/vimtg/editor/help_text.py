@@ -211,7 +211,8 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "delete": ":[range]d [x]  Delete lines into register x (default: unnamed)",
     "yank": ":[range]y [x]  Yank lines into register x (default: unnamed)",
-    "move": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor)",
+    "move": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor,\n"
+            "               +1 / -2 relative: :m+1 moves the line down one)",
     "copy": ":[range]t {n}  Copy lines below line n (also :co, :copy)",
     "undo": ":undo / :redo  One undo / redo step (also u / Ctrl-R)",
     "registers": ":reg [x...]  Show register contents (also :registers, :di)",
