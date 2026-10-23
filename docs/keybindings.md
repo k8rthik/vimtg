@@ -62,6 +62,7 @@ Everything below is normal mode unless flagged otherwise.
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
 | `n` / `N` | Repeat the last search in the same / opposite direction (`n` after `?` goes backward), wrapping around the deck (back to the cursor line when it is the only match) with "search hit BOTTOM, continuing at TOP" |
 | `*` / `#` | Search forward / backward for the card under the cursor (the whole name: `*` on Shock never stops on Shock Troops) |
+| `K` | Show the cursor card's details (type, cost, rules text, price) inline, or hide them when the `auto_expand` setting already shows them: vim's keyword lookup. It lasts until the cursor moves |
 | `zz` / `zt` / `zb` | Scroll the view so the cursor line is at the center / top / bottom; the cursor does not move |
 | mouse wheel | Scroll three lines per notch, vim-style: the window moves and the cursor is dragged only when it would leave the screen |
 

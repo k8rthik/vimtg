@@ -2135,7 +2135,9 @@ class MainScreen(Screen[None]):
         dv.currency_symbol = cur_sym
         dv.show_prices = s.settings.show_prices
         dv.show_line_numbers = s.settings.show_line_numbers
-        dv.auto_expand = s.settings.auto_expand
+        if s.details_row != s.cursor.row:
+            s.details_row = None  # K's details end when the cursor moves
+        dv.auto_expand = s.settings.auto_expand != (s.details_row is not None)
         dv.tag_filter = s.tag_filter
         dv.line_errors = self._lint.line_errors
         dv.plan_deltas = self._plan_deltas()

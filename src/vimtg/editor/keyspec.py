@@ -158,6 +158,9 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        quick="Navigation", brief="next/prev match"),
     _b(("*", "#"), "Search forward / backward for the card under the cursor", NAVIGATION,
        note="The whole name: * on Shock never stops on Shock Troops"),
+    _b("K", "Show / hide the cursor card's details (vim's keyword lookup)", NAVIGATION,
+       note="The opposite of the auto_expand setting, for this card, until "
+            "the cursor moves"),
     _b(("zz", "zt", "zb"), "Scroll the cursor line to the center / top / bottom", NAVIGATION,
        shorts=("scroll: center", "scroll: top", "scroll: bottom")),
     # ── Editing ───────────────────────────────────────────

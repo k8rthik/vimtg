@@ -189,6 +189,9 @@ class EditorState:
     disk_stamp: FileStamp | None = None
     # Id of an unnamed buffer's crash-recovery copy (see services.recovery)
     recovery_id: str | None = None
+    # K flipped the auto_expand setting for the card on this row; it
+    # lasts until the cursor leaves the row, like vim's K popup
+    details_row: int | None = None
 
 
 @dataclass(frozen=True)
@@ -720,6 +723,21 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
         return _handle_tag_action(state, key[1])
     elif key == "A":
         return _handle_comment_action(state)
+    elif key == "K":
+        return _toggle_details(state)
+    return HandlerResult()
+
+
+def _toggle_details(state: EditorState) -> HandlerResult:
+    """K — vim's keyword lookup: show or hide the cursor card's details
+    (the opposite of what the auto_expand setting does there)."""
+    row = state.cursor.row
+    name = state.buffer.card_name_at(row)
+    if not name:
+        return HandlerResult(command_message="E348: No card under cursor", error=True)
+    if name not in state.resolved_cards:
+        return HandlerResult(command_message=f"No card data for {name} (:sync)", error=True)
+    state.details_row = None if state.details_row == row else row
     return HandlerResult()
 
 
