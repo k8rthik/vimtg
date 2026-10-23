@@ -43,7 +43,8 @@ COMMANDS
   :e[!] [file]  Edit another deck (:e! reloads, dropping changes)
   :s/pat/rep/g  Substitute (regex; & and \\1 in rep)
   :g/pat/cmd    Run d, p, y [x], or s/// on matching cards
-  :d / :y [x]   Delete / yank lines (range) into register x
+  :d / :y [x] [n] Delete / yank lines (range, or n lines) into
+                register x
   :m {n} :t {n} Move / copy lines below line n
   :undo :redo   One undo / redo step
   :reg :marks   Show registers / marks
@@ -209,8 +210,13 @@ COMMAND_HELP: dict[str, str] = {
         ":e!       reload this deck from disk\n"
         "Registers carry over."
     ),
-    "delete": ":[range]d [x]  Delete lines into register x (default: unnamed)",
-    "yank": ":[range]y [x]  Yank lines into register x (default: unnamed)",
+    "delete": (
+        ":[range]d [x] [n]  Delete lines into register x (default: unnamed)\n"
+        "\n"
+        "A number is a count: :d 3 deletes three lines from the cursor,\n"
+        ":5d a 2 deletes lines 5-6 into register a"
+    ),
+    "yank": ":[range]y [x] [n]  Yank lines into register x (n: a count, as :d)",
     "move": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor,\n"
             "               +1 / -2 relative: :m+1 moves the line down one)",
     "copy": ":[range]t {n}  Copy lines below line n (also :co, :copy)",
