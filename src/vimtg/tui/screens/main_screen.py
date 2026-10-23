@@ -1758,6 +1758,8 @@ class MainScreen(Screen[None]):
 
     def _vcs_commit(self, description: str) -> None:
         """Create a VCS snapshot with the given description."""
+        from vimtg.services.vcs_service import commit_message
+
         vcs = self._vcs_or_report()
         if vcs is None:
             return
@@ -1767,7 +1769,7 @@ class MainScreen(Screen[None]):
         except sqlite3.Error as exc:
             cl.set_message(f"E: Snapshot failed: {exc}", error=True)
             return
-        cl.set_message(f"Snapshot: {snap.description}")
+        cl.set_message(commit_message(snap, description))
         self._sync_widgets()
 
     def _vcs_checkpoint(self, name: str) -> None:

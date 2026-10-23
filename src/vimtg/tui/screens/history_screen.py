@@ -32,6 +32,7 @@ from vimtg.services.vcs_service import (
     PendingMerge,
     RebaseResult,
     VersionControlService,
+    commit_message,
 )
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
@@ -578,7 +579,7 @@ class HistoryScreen(FloatingScreen[None]):
             self._cl.show_message("Cancelled (empty description)")
             return
         snap = self._vcs.commit(self._current_state, text)
-        self._cl.show_message(f"Snapshot: {snap.description}")
+        self._cl.show_message(commit_message(snap, text))
         self._refresh_data()
         self._update_diff()
 
