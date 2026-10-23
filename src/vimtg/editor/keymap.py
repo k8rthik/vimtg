@@ -298,9 +298,9 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # q{a-z} — record macro into register
+            # q{a-z} — record macro into register; q{A-Z} appends to it
             if self._multi_key_prefix == "q" and key.isalpha() and len(key) == 1:
-                action = ParsedAction("special", full_key.lower(), count, self._register)
+                action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
             # @{a-z} — play macro, @@ — replay last

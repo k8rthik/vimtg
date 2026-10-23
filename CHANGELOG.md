@@ -89,6 +89,8 @@ from 1.0.0 onward.
 - A `:map` remap applies only where a command starts, so mapping `s` no
   longer breaks `zs` or a `"s` register name. `:map` refuses a key
   sequence such as `gb` (E474), which could never fire.
+- `qA` appends to macro `a` instead of replacing it, and `@A` plays it,
+  as in vim.
 
 ## [1.0.0rc1] - 2026-10-10
 

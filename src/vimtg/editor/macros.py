@@ -1,7 +1,8 @@
 """Vim-style macro recording and playback.
 
 Supports q{register} to record, q to stop, @{register} to play,
-and @@ to replay the last-played macro.
+and @@ to replay the last-played macro. As in vim, an uppercase
+register names its lowercase one: qA appends to macro a, @A plays it.
 
 TUI-agnostic: no Textual imports.
 """
@@ -52,9 +53,12 @@ class MacroRecorder:
         return self._recording
 
     def start_recording(self, register: str) -> None:
-        """Begin recording keys into the given register."""
-        self._recording = register
-        self._buffer = []
+        """Begin recording keys into the given register; an uppercase
+        register appends to the lowercase macro."""
+        name = register.lower()
+        existing = self._macros.get(name) if register.isupper() else None
+        self._recording = name
+        self._buffer = list(existing.keys) if existing else []
 
     def stop_recording(self) -> Macro | None:
         """Stop recording and store the macro. Returns the macro or None."""
@@ -73,7 +77,7 @@ class MacroRecorder:
 
     def get(self, register: str) -> Macro | None:
         """Look up a macro by register name."""
-        return self._macros.get(register)
+        return self._macros.get(register.lower())
 
     def play(self, register: str) -> tuple[str, ...] | None:
         """Return keys for the given register, or None if empty.
@@ -82,6 +86,7 @@ class MacroRecorder:
         """
         if register == "@" and self._last_played:
             register = self._last_played
+        register = register.lower()
         macro = self._macros.get(register)
         if macro is not None:
             self._last_played = register
