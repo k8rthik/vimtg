@@ -20,20 +20,12 @@ from vimtg.editor.cursor import Cursor
 from vimtg.services.clipboard import read_clipboard
 from vimtg.services.deck_service import saved_text
 from vimtg.services.import_export_service import (
+    FORMAT_NAMES,
+    PRIMARY_FORMAT_NAMES,
     DeckFormat,
     ImportExportService,
+    format_list,
 )
-
-_FORMAT_MAP: dict[str, DeckFormat] = {
-    "arena": DeckFormat.ARENA,
-    "mtga": DeckFormat.ARENA,
-    "mtgo": DeckFormat.MTGO,
-    "dek": DeckFormat.MTGO_DEK,
-    "moxfield": DeckFormat.MOXFIELD,
-    "archidekt": DeckFormat.ARCHIDEKT,
-    "vimtg": DeckFormat.VIMTG,
-    "guide": DeckFormat.GUIDE,  # sideboard guide (Markdown)
-}
 
 
 def _export_target(arg: str) -> Path:
@@ -95,16 +87,13 @@ def cmd_export(
     """
     parts = cmd.args.strip().split(maxsplit=1)
     if not parts:
-        ctx.fail("Usage: :export <arena|mtgo|dek|moxfield|archidekt|vimtg|guide> [file]")
+        ctx.fail(f"Usage: :export <{'|'.join(PRIMARY_FORMAT_NAMES)}> [file]")
         return buffer, cursor
 
     fmt_name = parts[0].lower()
-    fmt = _FORMAT_MAP.get(fmt_name)
+    fmt = FORMAT_NAMES.get(fmt_name)
     if fmt is None:
-        ctx.fail(
-            f"Unknown format: {fmt_name}. "
-            "Use arena, mtgo, dek, moxfield, archidekt, vimtg, or guide"
-        )
+        ctx.fail(f"Unknown format: {fmt_name}. Use {format_list()}")
         return buffer, cursor
 
     result = _render_export(buffer, fmt, ctx)
@@ -212,12 +201,9 @@ def cmd_clipboard(
     has to go through it): the handler only renders the text.
     """
     fmt_name = (cmd.args.strip() or "arena").lower()
-    fmt = _FORMAT_MAP.get(fmt_name)
+    fmt = FORMAT_NAMES.get(fmt_name)
     if fmt is None:
-        ctx.message = (
-            f"E: Unknown format: {fmt_name}. "
-            "Use arena, mtgo, dek, moxfield, archidekt, vimtg, or guide"
-        )
+        ctx.message = f"E: Unknown format: {fmt_name}. Use {format_list()}"
         ctx.error = True
         return buffer, cursor
 

@@ -63,6 +63,10 @@ from 1.0.0 onward.
   do (counts, visual mode, `.`).
 - Offline, the EDHREC pane opens a cached page older than seven days
   instead of failing, its header saying `cached N days ago (offline)`.
+- `vimtg convert` takes every `:export` format (`--to dek` and `--to
+  mtga` were missing; `--from dek`, `mtga` and `vimtg` too), and a deck-
+  site URL as its input: `vimtg convert https://moxfield.com/decks/ID
+  --to arena`. Offline, it says so in one line.
 
 ### Fixed
 

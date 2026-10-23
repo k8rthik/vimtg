@@ -21,6 +21,7 @@ from vimtg.data.deck_repository import DeckRepository
 from vimtg.data.file_io import atomic_write_text
 from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync_error
 from vimtg.services.deck_service import DeckService, editor_line_numbers
+from vimtg.services.import_export_service import FORMAT_NAMES, IMPORT_FORMAT_NAMES
 from vimtg.services.search_service import SearchService, SearchSyntaxError
 
 if TYPE_CHECKING:
@@ -504,49 +505,56 @@ def search(query: tuple[str, ...], limit: int) -> None:
 
 
 @main.command()
-@click.argument("input_path", type=click.Path(exists=True))
+@click.argument("source", type=click.Path())
 @click.option(
     "--from",
     "from_fmt",
-    type=click.Choice(["mtgo", "arena", "moxfield", "archidekt"]),
-    help="Source format (auto-detected if omitted)",
+    type=click.Choice(IMPORT_FORMAT_NAMES),
+    help="Source format (auto-detected if omitted; not for a deck URL)",
 )
 @click.option(
     "--to",
     "to_fmt",
-    type=click.Choice(["vimtg", "mtgo", "arena", "moxfield", "archidekt", "guide"]),
+    type=click.Choice(tuple(FORMAT_NAMES)),
     required=True,
-    help="Target format (guide = sideboard plans as Markdown)",
+    help="Target format (mtga = arena; guide = sideboard plans as Markdown)",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
 @click.option("--force", is_flag=True, help="Overwrite an existing output file")
 def convert(
-    input_path: str,
+    source: str,
     from_fmt: str | None,
     to_fmt: str,
     output: str | None,
     force: bool,
 ) -> None:
-    """Convert deck between formats.
+    """Convert a deck file, or a deck-site URL, between formats.
 
     Card names resolve against the card database when it has been
     synced, so exports carry each card's official name. -o refuses an
     existing file unless --force is given, and never overwrites the
     input file.
     """
-    in_path = Path(input_path)
+    from vimtg.services.deck_sources import is_deck_url
+
+    is_url = is_deck_url(source)
+    if is_url and from_fmt:
+        raise click.UsageError("--from does not apply to a deck URL")
+    in_path = None if is_url else Path(source)
+    if in_path is not None and not in_path.exists():
+        raise click.BadParameter(f"'{source}' does not exist.", param_hint="'SOURCE'")
     out_path = Path(output).expanduser() if output else None
     if out_path is not None:
-        if out_path.resolve() == in_path.resolve():
+        if in_path is not None and out_path.resolve() == in_path.resolve():
             raise click.ClickException(
-                f"refusing to overwrite the input file {input_path} "
+                f"refusing to overwrite the input file {source} "
                 "(choose another -o path)"
             )
         _check_output_path(out_path, force)
 
     card_db = _optional_card_db()
     try:
-        result = _convert_text(in_path, from_fmt, to_fmt, card_db)
+        result = _convert_text(source, in_path, from_fmt, to_fmt, card_db)
     finally:
         if card_db is not None:
             card_db.close()
@@ -558,26 +566,41 @@ def convert(
 
 
 def _convert_text(
-    in_path: Path, from_fmt: str | None, to_fmt: str, card_db: Database | None
+    source: str,
+    in_path: Path | None,
+    from_fmt: str | None,
+    to_fmt: str,
+    card_db: Database | None,
 ) -> str:
-    """The converted deck text (see convert)."""
+    """The converted deck text (see convert); `in_path` is None when
+    `source` is a deck URL."""
+    from vimtg.services import deck_sources
     from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
-    repo = CardRepository(card_db) if card_db is not None else None
-    service = ImportExportService(card_repo=repo)
-    text = in_path.read_text(encoding="utf-8")
-    imported = service.to_vimtg(
-        text, fmt=DeckFormat(from_fmt) if from_fmt else None, name=in_path.stem
+    service = ImportExportService(
+        card_repo=CardRepository(card_db) if card_db is not None else None
     )
+    if in_path is None:
+        try:
+            remote = deck_sources.fetch_deck(source)
+        except deck_sources.DeckSourceError as exc:
+            raise click.ClickException(str(exc)) from exc
+        imported = service.to_vimtg(remote, url=source)
+    else:
+        imported = service.to_vimtg(
+            in_path.read_text(encoding="utf-8"),
+            fmt=FORMAT_NAMES[from_fmt] if from_fmt else None,
+            name=in_path.stem,
+        )
     if imported.skipped:
         # stderr, so `vimtg convert ... > out.txt` stays a clean deck
         click.echo(
-            f"Skipped {len(imported.skipped)} unreadable line(s) in {in_path}:",
+            f"Skipped {len(imported.skipped)} unreadable line(s) in {source}:",
             err=True,
         )
         for skipped in imported.skipped:
             click.echo(f"  line {skipped.line_number}: {skipped.text}", err=True)
-    dst_fmt = DeckFormat(to_fmt)
+    dst_fmt = FORMAT_NAMES[to_fmt]
     if dst_fmt is DeckFormat.VIMTG:
         return imported.text
     resolved = dict(imported.resolution.resolved)

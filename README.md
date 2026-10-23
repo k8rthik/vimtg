@@ -467,6 +467,7 @@ vimtg info deck.deck                   # counts summary
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing out.txt
+vimtg convert https://moxfield.com/decks/ID --to dek   # a deck URL works too; --to takes every :export format
 ```
 
 ## Known gaps
