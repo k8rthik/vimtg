@@ -11,6 +11,7 @@ The vim ex commands that fit a deck's line model:
     :reg [x...]         show register contents (also :registers, :di)
     :marks              show the marks
     :e[!] [file]        edit another deck, or reload this one
+    :ene[w][!]          edit a new unnamed deck (the new-deck wizard)
 
 A bare range (:12, :$) moves the cursor; the registry handles it.
 """
@@ -21,8 +22,10 @@ from pathlib import Path
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
+    E37,
     CommandRegistry,
     EditorContext,
+    NewBuffer,
     ParsedCommand,
     RangeError,
     address_line,
@@ -281,7 +284,7 @@ def cmd_edit(
         ctx.fail("E32: No file name")
         return buffer, cursor
     if ctx.modified and not cmd.bang:
-        ctx.fail("E37: No write since last change (add ! to override)")
+        ctx.fail(E37)
         return buffer, cursor
     if target.is_dir():
         ctx.fail(f"E: {target.name} is a directory")
@@ -297,8 +300,22 @@ def cmd_edit(
     return buffer, cursor
 
 
+def cmd_enew(
+    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:enew — edit a new unnamed deck in place of this one (the
+    new-deck wizard asks for its name and format). Unsaved changes need
+    :enew! to drop."""
+    if ctx.modified and not cmd.bang:
+        ctx.fail(E37)
+        return buffer, cursor
+    ctx.new_buffer = NewBuffer()
+    ctx.discard_requested = cmd.bang and ctx.modified
+    return buffer, cursor
+
+
 def register_line_commands(registry: CommandRegistry) -> None:
-    """Register :d :y :m :t/:co :undo :redo :reg :marks :e."""
+    """Register :d :y :m :t/:co :undo :redo :reg :marks :e :enew."""
     registry.register("delete", cmd_delete, aliases=["d"])
     registry.register("yank", cmd_yank, aliases=["y"])
     registry.register("move", cmd_move, aliases=["m"])
@@ -308,3 +325,4 @@ def register_line_commands(registry: CommandRegistry) -> None:
     registry.register("registers", cmd_registers, aliases=["reg", "di", "display"])
     registry.register("marks", cmd_marks)
     registry.register("edit", cmd_edit, aliases=["e"])
+    registry.register("enew", cmd_enew, aliases=["ene"])

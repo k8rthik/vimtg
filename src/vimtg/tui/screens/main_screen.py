@@ -41,7 +41,7 @@ from vimtg.editor.card_insert import (
 )
 from vimtg.editor.cmdline_history import CommandHistory
 from vimtg.editor.command_completer import CommandCompleter
-from vimtg.editor.commands import CommandRegistry, Listing
+from vimtg.editor.commands import CommandRegistry, Listing, NewBuffer
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import VIEW_MOTIONS, KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import is_named_key, load_remapper
@@ -1052,7 +1052,7 @@ class MainScreen(Screen[None]):
 
             self.app.push_screen(HandScreen(hr.hand_open))
         if hr.import_url:
-            self._start_url_import(hr.import_url)
+            self._start_url_import(hr.import_url, force=hr.import_force)
         if hr.clipboard_text is not None:
             self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label)
         if hr.card_sync:
@@ -1070,21 +1070,36 @@ class MainScreen(Screen[None]):
         if hr.search_open is not None:
             self._open_card_search(hr.search_open)
         if hr.edit_file is not None:
-            self._edit_file(hr.edit_file)
+            self._replace_editor(lambda open_deck: open_deck(hr.edit_file))
+        if hr.new_buffer is not None:
+            self._open_new_buffer(hr.new_buffer)
 
-    def _edit_file(self, path: Path) -> None:
-        """:e — replace this editor with one on `path` (registers carry
-        over, as in vim)."""
+    def _replace_editor(self, open_with: Callable[[Callable[..., None]], None]) -> None:
+        """Replace this editor with the one `open_with(app.open_deck)`
+        opens (:e, :enew, :import); registers carry over, as in vim."""
         app = self.app
         open_deck = getattr(app, "open_deck", None)  # duck-typed navigation
         if not callable(open_deck):
             return
         registers = self._state.registers
         app.pop_screen()
-        open_deck(path)
-        new_screen = app.screen
-        if isinstance(new_screen, MainScreen):
+        open_with(open_deck)
+        new_screen = next(
+            (s for s in reversed(app.screen_stack) if isinstance(s, MainScreen)), None
+        )
+        if new_screen is not None and new_screen is not self:
             new_screen._state.registers = registers
+
+    def _open_new_buffer(self, request: NewBuffer) -> None:
+        """:enew — an empty unnamed deck (the wizard asks for its name and
+        format); :import — the imported deck, unsaved and unnamed."""
+        if request.text is None:
+            self._replace_editor(lambda open_deck: open_deck(None))
+        else:
+            text = request.text
+            self._replace_editor(
+                lambda open_deck: open_deck(None, initial_text=text, message=request.message)
+            )
 
     def _show_listing(self, listing: Listing, summary: str, *, error: bool = False) -> None:
         """A listing's one-line form on the command line when it fits,
@@ -1312,19 +1327,19 @@ class MainScreen(Screen[None]):
             f"Split: {spec.path.name}  (Ctrl-W w switch pane, :close to close)"
         )
 
-    def _start_url_import(self, url: str) -> None:
+    def _start_url_import(self, url: str, *, force: bool = False) -> None:
         """:import <url> — fetch the deck from any site in
-        services.deck_sources off the UI thread, then replace the buffer
-        with the result."""
+        services.deck_sources off the UI thread, then open it as a new
+        unnamed buffer (`force`: even over changes made meanwhile)."""
         host = urlparse(url).hostname or url
         self.query_one("#command-line", CommandLine).set_message(
             f"Fetching deck from {host}..."
         )
         self._import_generation += 1
-        self._run_url_import(url, self._import_generation)
+        self._run_url_import(url, self._import_generation, force)
 
     @work(thread=True)
-    def _run_url_import(self, url: str, generation: int) -> None:
+    def _run_url_import(self, url: str, generation: int, force: bool) -> None:
         try:
             remote = fetch_deck(url)
         except DeckSourceError as exc:
@@ -1333,7 +1348,7 @@ class MainScreen(Screen[None]):
             )
             return
         self.app.call_from_thread(
-            self._url_import_loaded, remote, url, generation
+            self._url_import_loaded, remote, url, generation, force
         )
 
     def _url_import_failed(self, message: str, generation: int) -> None:
@@ -1344,23 +1359,26 @@ class MainScreen(Screen[None]):
         )
 
     def _url_import_loaded(
-        self, remote: RemoteDeck, url: str, generation: int
+        self, remote: RemoteDeck, url: str, generation: int, force: bool = False
     ) -> None:
         if generation != self._import_generation:
             return
         from vimtg.services.import_export_service import ImportExportService
 
-        s = self._state
+        host = urlparse(url).hostname or url
+        if self._state.modified and not force:
+            # Edited while the deck was on its way: keep the edits
+            self.show_message(
+                f"E37: No write since last change: the deck from {host} was not "
+                "opened (:import! replaces the changes)",
+                error=True,
+            )
+            return
+        if self._state.modified:
+            self._discarded = True
+            self._drop_recovery()
         imported = ImportExportService(card_repo=self.card_repo).to_vimtg(remote, url=url)
-        s.buffer = Buffer.from_text(imported.text)
-        s.cursor = Cursor()
-        s.modified = True
-        s.history.record(s.buffer, f"import {remote.name or url}")
-        if self.card_repo:
-            s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
-        message = imported.summary(urlparse(url).hostname or url)
-        self.query_one("#command-line", CommandLine).set_message(message)
-        self._sync_widgets()
+        self._open_new_buffer(NewBuffer(text=imported.text, message=imported.summary(host)))
 
     def _open_analytics(self, req: AnalyticsOpen) -> None:
         # Focus stays in the editor: the pane is a live readout that

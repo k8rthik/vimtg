@@ -52,7 +52,7 @@ async def _run_import(pilot, app: VimTGApp, url: str = _URL) -> MainScreen:  # t
 
 
 @pytest.mark.asyncio
-async def test_url_import_replaces_buffer(tmp_path: Path) -> None:
+async def test_url_import_opens_the_deck(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck(tmp_path))
     with patch(
         "vimtg.tui.screens.main_screen.fetch_deck", return_value=_REMOTE
@@ -62,7 +62,7 @@ async def test_url_import_replaces_buffer(tmp_path: Path) -> None:
             text = screen._state.buffer.to_text()
             assert fetched.call_args[0][0] == _URL
             assert "4 Lightning Bolt" in text
-            assert "4 Goblin Guide" not in text  # old buffer replaced
+            assert "4 Goblin Guide" not in text  # a new buffer, not the old deck
             assert "// Deck: Mono Red Burn" in text
             assert f"// Source: {_URL}" in text
             # Zones survive: sideboard and maybeboard lines exist
@@ -72,16 +72,16 @@ async def test_url_import_replaces_buffer(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_url_import_is_undoable(tmp_path: Path) -> None:
-    app = VimTGApp(deck_path=_deck(tmp_path))
+async def test_url_import_leaves_the_open_deck_alone(tmp_path: Path) -> None:
+    deck = _deck(tmp_path)
+    app = VimTGApp(deck_path=deck)
     with patch(
         "vimtg.tui.screens.main_screen.fetch_deck", return_value=_REMOTE
     ):
         async with app.run_test() as pilot:
             screen = await _run_import(pilot, app)
-            await pilot.press("u")
-            await pilot.pause()
-            assert "4 Goblin Guide" in screen._state.buffer.to_text()
+            assert screen.file_path is None
+    assert deck.read_text(encoding="utf-8") == "4 Goblin Guide\n"
 
 
 @pytest.mark.asyncio
