@@ -58,6 +58,7 @@ from vimtg.editor.commands import (
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.dot_repeat import DotRepeat, RepeatableAction
+from vimtg.editor.jumplist import JumpList
 from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.layout import (
     LAYOUT_CATEGORY,
@@ -98,7 +99,7 @@ from vimtg.editor.registers import (
     is_clipboard_register,
 )
 from vimtg.editor.sort_keys import SORT_FIELDS
-from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen
+from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowCommand
 from vimtg.editor.tag_ops import (
     add_tags_in_range,
     remove_tags_in_range,
@@ -138,6 +139,7 @@ class EditorState:
     macros: MacroRecorder = field(default_factory=MacroRecorder)
     dot_repeat: DotRepeat = field(default_factory=DotRepeat)
     marks: MarkStore = field(default_factory=MarkStore)
+    jumps: JumpList = field(default_factory=JumpList)  # Ctrl-O / Ctrl-I
     visual_anchor: int | None = None
     # Copies the next confirmed card insert writes ('4o' -> 4); every
     # entry into card search sets it, so it can never go stale
@@ -189,6 +191,27 @@ class EditorState:
     disk_stamp: FileStamp | None = None
     # Id of an unnamed buffer's crash-recovery copy (see services.recovery)
     recovery_id: str | None = None
+    # The last ex command line typed, which @: runs again
+    last_ex: str = ""
+    # How the last visual selection ended — its mode, and whether the
+    # cursor was at its end (the rows are the '< and '> marks); gv
+    last_visual: tuple[Mode, bool] | None = None
+    # K flipped the auto_expand setting for the card on this row; it
+    # lasts until the cursor leaves the row, like vim's K popup
+    details_row: int | None = None
+
+    def remember_selection(self, anchor: int, row: int, mode: Mode) -> None:
+        """Keep an ending selection for gv: its rows as the '< and '>
+        marks (which follow edits), its mode and which end the cursor was."""
+        self.marks = self.marks.set("<", min(anchor, row)).set(">", max(anchor, row))
+        self.last_visual = (mode, row >= anchor)
+
+    def end_selection(self) -> None:
+        """End the visual selection, keeping it for gv when visual mode
+        is what it ends (a '.' replay's line span is not a selection)."""
+        if self.visual_anchor is not None and self.mode_mgr.is_visual():
+            self.remember_selection(self.visual_anchor, self.cursor.row, self.mode_mgr.current)
+        self.visual_anchor = None
 
 
 @dataclass(frozen=True)
@@ -238,9 +261,13 @@ class HandlerResult:
     clipboard_text: str | None = None  # text to put on the system clipboard
     clipboard_label: str = ""  # what clipboard_text is, for the message
     card_sync: str = ""  # "sync" / "force": start a background card sync
-    focus_next_pane: bool = False
+    window: WindowCommand | None = None  # a Ctrl-W window command
+    # A pane the Space leader toggles: closes it when it is the one open,
+    # else opens it ("analytics" / "edhrec", as _SplitPane.kind)
+    toggle_pane: str = ""
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
+    ex_repeat: int = 1  # how many times to run it (3@:)
     plan_changed: bool = False  # active plan or its entries changed
     # zz / zt / zb: put the cursor line at the view's "center"/"top"/"bottom"
     scroll_view: str = ""
@@ -254,7 +281,32 @@ class HandlerResult:
     search_open: str | None = None  # :search — open the card search overlay
 
 
+# Motions vim counts as jumps: Ctrl-O comes back from them
+JUMP_MOTIONS = frozenset({"G", "gg", "{", "}", "[[", "]]", "H", "M", "L"})
+
+
+def note_jump(state: EditorState, origin: int, *, far_only: bool = False) -> None:
+    """The cursor jumped from row `origin`: Ctrl-O and '' come back to
+    it. `far_only` (an insert or zone move filing a card elsewhere)
+    counts only a move past the neighbouring lines."""
+    row = state.cursor.row
+    if row == origin or (far_only and abs(row - origin) <= 1):
+        return
+    state.jumps = state.jumps.jump(origin)
+    state.marks = state.marks.set("'", origin)
+
+
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
+    """Process motion actions (j, k, G, gg, etc.); the jump motions are
+    recorded in the jumplist."""
+    origin = state.cursor.row
+    result = _motion(state, action)
+    if action.action in JUMP_MOTIONS:
+        note_jump(state, origin)
+    return result
+
+
+def _motion(state: EditorState, action: ParsedAction) -> HandlerResult:
     """Process motion actions (j, k, G, gg, etc.).
 
     A counted ``G`` (e.g. ``5G``) jumps to that line number; bare ``G`` falls
@@ -285,8 +337,8 @@ def _take_selection(state: EditorState) -> tuple[int, int] | None:
         return None
     last = max(0, state.buffer.line_count() - 1)
     anchor = min(state.visual_anchor, last)
-    state.visual_anchor = None
     row = min(state.cursor.row, last)
+    state.end_selection()
     return min(anchor, row), max(anchor, row)
 
 
@@ -400,7 +452,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
     """Process mode switch actions (i, o, :, v, escape)."""
     key = action.action
     if key == "escape":
-        state.visual_anchor = None
+        state.end_selection()
         return HandlerResult(exit_to_normal=True)
     if key == "i":
         line_text = state.buffer.get_line(state.cursor.row).text
@@ -449,7 +501,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         # Vim: the same visual key again ends the selection; the other
         # one switches kind and keeps the selection's anchor
         if current == target:
-            state.visual_anchor = None
+            state.end_selection()
             return HandlerResult(exit_to_normal=True)
         if not state.mode_mgr.is_visual() or state.visual_anchor is None:
             state.visual_anchor = state.cursor.row
@@ -479,8 +531,10 @@ def _submit_search(state: EditorState, text: str) -> HandlerResult:
     state.last_find_backward = backward
     if row is None:
         return HandlerResult(command_message=f"Pattern not found: {shown}")
-    wrap = wrapped(state.cursor.row, row, backward=backward)
+    origin = state.cursor.row
+    wrap = wrapped(origin, row, backward=backward)
     state.cursor = state.cursor.move_to(row, 0)
+    note_jump(state, origin)
     return HandlerResult(
         command_message=search_message(prefix + shown, wrap=wrap, backward=backward),
     )
@@ -494,11 +548,13 @@ def handle_command(
     save_fn: Callable[[Path, str], None] | None = None,
     *,
     record_history: bool = True,
+    pane_open: bool = False,
 ) -> HandlerResult:
     """Process ex command or search submission.
 
     Typed lines go into the : / search history; commands a key runs on
-    the user's behalf (ZZ is :x) pass record_history=False.
+    the user's behalf (ZZ is :x) pass record_history=False. `pane_open`
+    says a split pane is open, so :q closes it rather than the app.
     """
     if state.mode_mgr.current == Mode.SEARCH:
         state.cmd_history.add(SEARCH, action.text or "")
@@ -507,6 +563,7 @@ def handle_command(
         return HandlerResult()
     if record_history:
         state.cmd_history.add(COMMAND, action.text)
+        state.last_ex = action.text
     raw_text = action.text
 
     try:
@@ -530,10 +587,14 @@ def handle_command(
             marks=state.marks,
             last_pattern=state.last_find,
             recovery_id=state.recovery_id,
+            pane_open=pane_open,
         )
         before = state.buffer
         before_text = before.to_text()
+        origin = state.cursor.row
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
+        if not cmd.name and cmd.cmd_range is not None:
+            note_jump(state, origin)  # :{n}
         if cmd.name in ("find", "f") and cmd.args and not ctx.error:
             state.last_find = cmd.args
             state.last_find_label = ""
@@ -633,6 +694,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             if restored is None:
                 break
             restore_buffer(state, restored)
+    elif key in ("p", "P") and state.visual_anchor is not None and state.mode_mgr.is_visual():
+        return _put_over_selection(state, key, count, action.register)
     elif key in ("p", "P"):
         if _put(state, key, count, action.register):
             state.dot_repeat.record(RepeatableAction(
@@ -665,6 +728,11 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key.startswith("q") and len(key) == 2:
         state.macros.start_recording(key[1])
         return HandlerResult(command_message=f"recording @{key[1]}")
+    elif key == "@:" or (key == "@@" and state.macros.last_played == ":"):
+        if not state.last_ex:
+            return HandlerResult(command_message="E30: No previous command line", error=True)
+        state.macros.played_command_line()
+        return HandlerResult(run_ex_command=state.last_ex, ex_repeat=count)
     elif key.startswith("@") and len(key) == 2:
         keys = state.macros.play(key[1])
         if keys is None:
@@ -690,24 +758,34 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
         return HandlerResult(
             command_message=f"Mark '{mark_name}' set",
         )
+    elif key in ("ctrl_o", "tab"):
+        return _walk_jumps(state, back=key == "ctrl_o", count=count)
     elif key.startswith("'") and len(key) == 2:
         mark_name = key[1]
         mark = state.marks.get(mark_name)
         if mark is not None:
+            origin = state.cursor.row
             row = min(mark.row, state.buffer.line_count() - 1)
             state.cursor = state.cursor.move_to(row, 0)
+            note_jump(state, origin)
+        elif key == "''":
+            return HandlerResult(command_message="E20: Mark not set", error=True)
         else:
             return HandlerResult(
                 command_message=f"Mark '{mark_name}' not set",
             )
-    elif key in ("Sv", "Sh", "Ss", "Sc", "Sr", "Sa", "Sd"):
-        return _handle_split_key(key)
+    elif key in WINDOW_KEYS:
+        return WINDOW_KEYS[key]
+    elif key in LEADER_KEYS:
+        return LEADER_KEYS[key]
     elif key in ("gc", "gC", "gl"):
         return _handle_category_action(state, key[1])
     elif key == "gh":
         return HandlerResult(open_history_screen=True)
     elif key == "g?":
         return HandlerResult(help_requested=True)
+    elif key == "gv":
+        return _reselect(state)
     elif key in ("ZZ", "ZQ"):
         # Vim's ZZ / ZQ are exactly :x / :q! (ZZ writes only when modified)
         return HandlerResult(run_ex_command="x" if key == "ZZ" else "q!")
@@ -715,6 +793,49 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
         return _handle_tag_action(state, key[1])
     elif key == "A":
         return _handle_comment_action(state)
+    elif key == "K":
+        return _toggle_details(state)
+    return HandlerResult()
+
+
+def _walk_jumps(state: EditorState, *, back: bool, count: int) -> HandlerResult:
+    """Ctrl-O / Ctrl-I (Tab): `count` places back / forward in the jumplist."""
+    if back:
+        state.jumps, row = state.jumps.back(state.cursor.row, count)
+    else:
+        state.jumps, row = state.jumps.forward(count)
+    if row is not None:
+        state.cursor = state.cursor.move_to(min(row, max(0, state.buffer.line_count() - 1)), 0)
+    return HandlerResult()
+
+
+def _reselect(state: EditorState) -> HandlerResult:
+    """gv — select the last visual selection again, in its mode and with
+    the cursor at the same end; in visual mode the two swap, as in vim."""
+    start_mark, end_mark = state.marks.get("<"), state.marks.get(">")
+    if state.last_visual is None or start_mark is None or end_mark is None:
+        return HandlerResult(command_message="No previous visual selection")
+    mode, cursor_at_end = state.last_visual
+    last = max(0, state.buffer.line_count() - 1)
+    start, end = min(start_mark.row, last), min(end_mark.row, last)
+    current = state.mode_mgr.current
+    if state.mode_mgr.is_visual() and state.visual_anchor is not None:
+        state.remember_selection(state.visual_anchor, state.cursor.row, current)
+    state.visual_anchor = start if cursor_at_end else end
+    state.cursor = state.cursor.move_to(end if cursor_at_end else start, 0)
+    return HandlerResult(enter_visual=None if mode == current else mode)
+
+
+def _toggle_details(state: EditorState) -> HandlerResult:
+    """K — vim's keyword lookup: show or hide the cursor card's details
+    (the opposite of what the auto_expand setting does there)."""
+    row = state.cursor.row
+    name = state.buffer.card_name_at(row)
+    if not name:
+        return HandlerResult(command_message="E348: No card under cursor", error=True)
+    if name not in state.resolved_cards:
+        return HandlerResult(command_message=f"No card data for {name} (:sync)", error=True)
+    state.details_row = None if state.details_row == row else row
     return HandlerResult()
 
 
@@ -738,6 +859,39 @@ def _put(state: EditorState, key: str, count: int, register: str | None) -> bool
     state.modified = True
     state.history.record(state.buffer, "put" if key == "p" else "put above")
     return True
+
+
+UNNAMED = '"'  # the unnamed register
+
+
+def _put_over_selection(
+    state: EditorState, key: str, count: int, register: str | None,
+) -> HandlerResult:
+    """Visual p / P: replace the selected lines with the register, `count`
+    times, as one change, and leave visual mode. p keeps the replaced
+    lines in the unnamed register (and "1); P leaves the registers be."""
+    content = state.registers.get(register or UNNAMED).content
+    selection = _take_selection(state)
+    assert selection is not None
+    if not content:
+        return HandlerResult(
+            command_message=f"E353: Nothing in register {register or UNNAMED}",
+            error=True, exit_to_normal=True,
+        )
+    start, end = selection
+    buffer, deleted = state.buffer.delete_lines(start, end)
+    state.marks = state.marks.update_for_delete(start, end)
+    if key == "p":
+        state.registers = store_lines(state.registers, None, deleted, is_delete=True)
+    lines = content * count
+    for offset, text in enumerate(lines):
+        buffer = buffer.insert_line(start + offset, text)
+    state.marks = state.marks.update_for_insert(start, len(lines))
+    state.buffer = buffer
+    state.cursor = state.cursor.move_to(start, 0)
+    state.modified = True
+    state.history.record(state.buffer, "put over selection")
+    return HandlerResult(exit_to_normal=True)
 
 
 def _change_quantity(state: EditorState, key: str, count: int) -> HandlerResult:
@@ -844,36 +998,44 @@ def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerRe
             )
         wrap = wrap or wrapped(row, found, backward=backward)
         row = found
+    origin = state.cursor.row
     state.cursor = state.cursor.move_to(row, 0)
+    note_jump(state, origin)
     echo = ("?" if backward else "/") + shown
     return HandlerResult(
         command_message=search_message(echo, wrap=wrap, backward=backward),
     )
 
 
-def _handle_split_key(key: str) -> HandlerResult:
-    """Dispatch S sub-key: v/h open a split prompt, s switch, c close,
-    r EDHREC recommendations, a analytics, d sample hand."""
-    if key == "Sv":
-        return HandlerResult(enter_command=True, command_prefill="vsplit ")
-    if key == "Sh":
-        return HandlerResult(enter_command=True, command_prefill="split ")
-    if key == "Ss":
-        return HandlerResult(focus_next_pane=True)
-    if key == "Sc":
-        return HandlerResult(split_close=True)
-    if key == "Sa":
-        return HandlerResult(run_ex_command="analytics")
-    if key == "Sd":
-        return HandlerResult(run_ex_command="hand")
-    return HandlerResult(run_ex_command="edhrec")
+# Ctrl-W {key}: vim's window commands. v / s prompt for the deck to
+# split with; the rest act on the editor and its one pane.
+WINDOW_KEYS: dict[str, HandlerResult] = {
+    "ctrl_w v": HandlerResult(enter_command=True, command_prefill="vsplit "),
+    "ctrl_w s": HandlerResult(enter_command=True, command_prefill="split "),
+    "ctrl_w w": HandlerResult(window=WindowCommand.NEXT),
+    "ctrl_w W": HandlerResult(window=WindowCommand.NEXT),
+    "ctrl_w h": HandlerResult(window=WindowCommand.LEFT),
+    "ctrl_w j": HandlerResult(window=WindowCommand.DOWN),
+    "ctrl_w k": HandlerResult(window=WindowCommand.UP),
+    "ctrl_w l": HandlerResult(window=WindowCommand.RIGHT),
+    "ctrl_w c": HandlerResult(window=WindowCommand.CLOSE),
+    "ctrl_w q": HandlerResult(window=WindowCommand.QUIT),
+    "ctrl_w o": HandlerResult(window=WindowCommand.ONLY),
+}
+
+# <Space>{key}: the leader. The panes toggle; the hand is an overlay.
+LEADER_KEYS: dict[str, HandlerResult] = {
+    "space a": HandlerResult(toggle_pane="analytics"),
+    "space r": HandlerResult(toggle_pane="edhrec"),
+    "space h": HandlerResult(run_ex_command="hand"),
+}
 
 
 def _handle_comment_action(state: EditorState) -> HandlerResult:
     """Enter comment-input mode for the card under the cursor (A key)."""
     if not state.buffer.is_card_line(state.cursor.row):
         return HandlerResult(command_message="Comments attach to card lines")
-    state.visual_anchor = None
+    state.end_selection()
     state.insert_submode = InsertSubmode.COMMENT_INPUT
     return HandlerResult(
         enter_comment_input=True,
@@ -1263,6 +1425,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
     if selection is not None:
         last = max(0, state.buffer.line_count() - 1)
         state.cursor = origin.move_to(min(selection[0], last), 0)
+    else:
+        note_jump(state, origin.row, far_only=True)  # the cursor went with the card
     if moved == 0:
         if selection is not None and not rows:
             first_message = "No card lines selected"
@@ -1527,10 +1691,12 @@ def confirm_card_search(state: EditorState, card: Card) -> str:
     changes the next line to it too."""
     copies = state.insert_quantity
     state.insert_quantity = 1
+    origin = state.pending_insert.origin if state.pending_insert else state.cursor.row
     pending = state.pending_change
     fold_into = state.change_node if pending is not None else None
     state.change_node = None
     message = insert_card(state, card.name, card, copies, fold_into=fold_into)
+    note_jump(state, origin, far_only=True)  # auto-filed into another section
     state.pending_change = None
     if pending is not None:
         state.dot_repeat.record(

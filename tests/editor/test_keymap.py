@@ -526,7 +526,7 @@ class TestVisualMode:
 class TestNoMatch:
     def test_unknown_key(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("Y")
+        result, action = km.feed("Q")
         assert result == KeyResult.NO_MATCH
         assert action is None
 
@@ -803,3 +803,68 @@ class TestCountBeforeRegister:
             km.feed(key)
         assert km.awaiting_more_keys
         assert km.pending_display == '"a3'
+
+
+class TestPendingMenu:
+    """The which-key menu belongs to the sequence in progress, not to the
+    last key typed: after an operator it is the operator's motions."""
+
+    def _menu(self, *keys: str) -> str:
+        km = KeyMap(mode=Mode.NORMAL)
+        for key in keys:
+            result, _ = km.feed(key)
+            assert result == KeyResult.PENDING, keys
+        return km.pending_menu
+
+    def test_operator_then_g_keeps_the_operator_menu(self) -> None:
+        assert self._menu("d", "g") == "d"
+
+    def test_operator_count_keeps_the_operator_menu(self) -> None:
+        assert self._menu("y", "3") == "y"
+        assert self._menu("2", "c") == "c"
+
+    def test_prefix_and_register_menus(self) -> None:
+        assert self._menu("g") == "g"
+        assert self._menu('"') == '"'
+        assert self._menu("3", "z") == "z"
+
+    def test_a_bare_count_has_no_menu(self) -> None:
+        assert self._menu("3") == ""
+        assert self._menu('"', "a") == ""
+
+
+class TestLinewiseCapitals:
+    """Decks are linewise, so S and C are cc, D is dd and Y is yy, with
+    counts and registers."""
+
+    def _action(self, *keys: str) -> ParsedAction:
+        km = KeyMap(mode=Mode.NORMAL)
+        result, action = KeyResult.NO_MATCH, None
+        for key in keys:
+            result, action = km.feed(key)
+        assert result == KeyResult.COMPLETE and action is not None
+        return action
+
+    def test_capitals_are_the_doubled_operators(self) -> None:
+        for key, op in (("S", "cc"), ("C", "cc"), ("D", "dd"), ("Y", "yy")):
+            action = self._action(key)
+            assert (action.action_type, action.action, action.count) == ("operator", op, 1)
+
+    def test_count_and_register(self) -> None:
+        action = self._action('"', "a", "3", "Y")
+        assert (action.action, action.count, action.register) == ("yy", 3, "a")
+
+
+class TestCtrlAAndCtrlX:
+    def test_they_are_plus_and_minus_with_a_count(self) -> None:
+        for key, special in (("ctrl_a", "+"), ("ctrl_x", "-")):
+            km = KeyMap(mode=Mode.NORMAL)
+            km.feed("3")
+            result, action = km.feed(key)
+            assert result == KeyResult.COMPLETE and action is not None
+            assert (action.action_type, action.action, action.count) == ("special", special, 3)
+
+    def test_ctrl_a_is_not_a_register_name(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed('"')
+        assert km.feed("ctrl_a") == (KeyResult.NO_MATCH, None)

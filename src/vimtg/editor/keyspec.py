@@ -9,7 +9,8 @@ Prefix namespaces (normal mode), each with one meaning:
 
     g   go / global      gg gc gC gl gh g?
     t   tags             ta tr tt tf tl tc tn tp
-    S   splits & panes   Sv Sh Ss Sc Sr Sa Sd
+    ^W  windows          ^Wv ^Ws  ^Ww ^WW ^Wh ^Wj ^Wk ^Wl  ^Wc ^Wq ^Wo
+    ␣   leader           ␣a ␣r ␣h  (Space; panes toggle)
     z   zones & scroll   zs zm zd zc zp  zi zo  zz zt zb
     m   marks (set)      m{a-z}
     '   marks (jump)     '{a-z}
@@ -18,6 +19,9 @@ Prefix namespaces (normal mode), each with one meaning:
     "   registers        "{a-z} "{A-Z} "0 "1-9 "_ "+ "*
     [ ] jumps            [[ ]] [v ]v
     Z   quit             ZZ ZQ
+
+A key that starts with a named key spells its presses apart:
+"ctrl_w v" is Ctrl-W then v, "space a" is Space then a.
 """
 
 from __future__ import annotations
@@ -25,6 +29,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 MARK = "{a-z}"
+
+# Single presses the spec spells by name (as the TUI translates them)
+_NAMED = frozenset({
+    "escape", "f1", "tab", "shift_tab", "enter", "backspace",
+    "up", "down", "left", "right", "space",
+})
+
+
+def keystrokes(key: str) -> tuple[str, ...]:
+    """The presses a spec key stands for: 'gg' is g, g; 'ctrl_d' one
+    press; 'ctrl_w v' Ctrl-W, v; 'm{a-z}' m and the {a-z} placeholder."""
+    if " " in key:
+        return tuple(key.split(" "))
+    if key in _NAMED or key.startswith("ctrl_"):
+        return (key,)
+    if key.endswith(MARK) and key != MARK:
+        return (*keystrokes(key[: -len(MARK)]), MARK)
+    return tuple(key)
 
 
 @dataclass(frozen=True)
@@ -62,9 +84,7 @@ class KeyBinding:
     @property
     def display(self) -> str:
         """Help-overview spelling: Esc / F1 / Ctrl-D/U for named keys."""
-        if self.label and self.label != "S":
-            return self.label
-        return self.shown
+        return self.label or self.shown
 
 
 def _b(
@@ -87,7 +107,7 @@ MARKS_MACROS = "MARKS, MACROS & REGISTERS"
 VISUAL = "VISUAL MODE"
 CATEGORIES = "CATEGORIES"
 CMDLINE = "COMMAND LINE"
-SPLITS = "SPLITS, EDHREC & ANALYTICS"
+WINDOWS = "WINDOWS, PANES & THE LEADER"
 TAGS = "TAGS"
 VCS = "VERSION CONTROL"
 MODES = "MODES"
@@ -106,11 +126,15 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
             "A count sets copies: 4o adds four. Inside a VS: plan it writes "
             "a signed plan line"),
     _b(("v", "V"), "Visual / visual-line selection", MODES, quick="Commands", brief="visual mode"),
+    _b("gv", "Select the last visual selection again (in visual mode: swap)", MODES,
+       shorts=("reselect visual",)),
     _b(":", "Ex command line", MODES, quick="Commands", brief="command mode"),
     _b(("/", "?"), "Search forward / backward for a card (regex)", MODES,
        label="/ ?", quick="Commands", brief="search",
        note="An empty pattern repeats the last one; Up/Down recall earlier searches"),
-    _b("escape", "Back to normal mode; cancels a pending sequence", MODES, label="Esc"),
+    _b("escape", "Back to normal mode; cancels a pending sequence", MODES, label="Esc",
+       note="Ctrl-C does the same and never quits; with nothing to cancel "
+            "it says to type :q"),
     _b("f1", "Full-screen help (also :help)", MODES, label="F1", quick="Commands",
        brief="help"),
     _b("g?", "Toggle the quick-reference panel", MODES, shorts=("quick reference",)),
@@ -132,16 +156,27 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        quick="Navigation", brief="half page"),
     _b(("H", "M", "L"), "Top / middle / bottom of the visible deck view", NAVIGATION,
        note="A count offsets H and L: 3H is the third visible line"),
+    _b(("ctrl_o", "tab"), "Back / forward through the jumplist", NAVIGATION,
+       label="Ctrl-O/I",
+       note="Ctrl-I arrives as Tab. Jumps: G gg {n}G :{n} / ? n N * # { } [[ ]] "
+            "'a H M L '', and an insert or zone move that files the card far away"),
+    _b("''", "Back to where the latest jump left (again: forth)", NAVIGATION,
+       shorts=("before last jump",)),
     _b(("n", "N"), "Repeat the last search in the same / opposite direction", NAVIGATION,
        quick="Navigation", brief="next/prev match"),
     _b(("*", "#"), "Search forward / backward for the card under the cursor", NAVIGATION,
        note="The whole name: * on Shock never stops on Shock Troops"),
+    _b("K", "Show / hide the cursor card's details (vim's keyword lookup)", NAVIGATION,
+       note="The opposite of the auto_expand setting, for this card, until "
+            "the cursor moves"),
     _b(("zz", "zt", "zb"), "Scroll the cursor line to the center / top / bottom", NAVIGATION,
        shorts=("scroll: center", "scroll: top", "scroll: bottom")),
     # ── Editing ───────────────────────────────────────────
     _b("dd", "Delete the card line", EDITING, quick="Editing", brief="delete card"),
     _b("yy", "Yank (copy) the card line", EDITING, quick="Editing", brief="yank card"),
     _b("cc", "Change the line (delete, then card search)", EDITING),
+    _b(("S", "C", "D", "Y"), "Linewise capitals: S and C are cc, D is dd, Y is yy", EDITING,
+       label="S C D Y", note="Counts, registers and . work as with the doubled operator"),
     _b(("d", "y", "c"), "Operators: compose with a motion (dw, d}, y5G)", EDITING,
        completes=False,
        note="w b { } [[ ]] are exclusive: dw deletes this card, d} stops at "
@@ -150,6 +185,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b(("p", "P"), "Paste below / above", EDITING, quick="Editing", brief="paste below/above"),
     _b(("+", "-"), "Increment / decrement quantity (- at 0 deletes)", EDITING,
        quick="Editing", brief="inc/dec quantity"),
+    _b(("ctrl_a", "ctrl_x"), "Increment / decrement quantity (vim's names for + / -)",
+       EDITING, label="Ctrl-A/X"),
     _b(".", "Repeat the last change", EDITING, quick="Editing", brief="repeat last",
        note="Every edit repeats: operators (c with the card it added), o/O with "
             "their card, p, +/-, x, zone and plan moves, tags, categories, "
@@ -175,6 +212,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        brief="record macro"),
     _b((f"@{MARK}", "@@"), "Play a macro / replay the last one", MARKS_MACROS,
        shorts=("play macro", "replay last")),
+    _b("@:", "Run the last ex command line again; @@ repeats it, 3@: runs it 3 times",
+       MARKS_MACROS, shorts=("repeat ex command",)),
     _b(f'"{MARK}', "Use a named register for the next yank, delete, or put", MARKS_MACROS,
        completes=False, note='"A-Z appends, "0 is the yank register, "1-9 the delete history',
        shorts=("named register",)),
@@ -186,28 +225,46 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     # ── Visual mode ───────────────────────────────────────
     _b(("d", "y", "c"), "Delete / yank / change the selection", VISUAL, mode="visual"),
     _b("x", "Delete the selection (same as d)", VISUAL, mode="visual"),
+    _b(("S", "C", "D", "Y"), "Change / change / delete / yank the selected lines", VISUAL,
+       mode="visual", label="S C D Y"),
     _b(("+", "-"), "Increment / decrement every card in the selection", VISUAL, mode="visual"),
+    _b(("ctrl_a", "ctrl_x"), "Same as + / - on the selection", VISUAL, mode="visual",
+       label="Ctrl-A/X"),
     _b(("zs", "zm", "zd", "zc", "zp"), "Move every selected card to a zone", VISUAL,
        mode="visual"),
     _b(("zi", "zo"), "Board every selected card in / out of the active plan", VISUAL,
        mode="visual"),
+    _b(("p", "P"), "Replace the selection with the register (P keeps the register)",
+       VISUAL, mode="visual", note="p leaves the replaced lines in the unnamed register"),
     _b("o", "Jump to the other end of the selection", VISUAL, mode="visual"),
     _b("escape", "Exit visual mode", VISUAL, mode="visual", label="Esc"),
     # ── Categories ────────────────────────────────────────
     _b("gc", "Set the card's category (Tab completes)", CATEGORIES, shorts=("set category",)),
     _b("gC", "Clear the card's category", CATEGORIES, shorts=("clear category",)),
     _b("gl", "Toggle layout: by type / by category", CATEGORIES, shorts=("toggle layout",)),
-    # ── Splits, EDHREC, analytics (S prefix) ──────────────
-    _b(("Sv", "Sh"), "Open a vertical / horizontal split (prompts for a deck)", SPLITS,
-       quick="Commands", label="S", shorts=("vertical split", "horizontal split"),
-       brief="splits/EDHREC"),
-    _b("Sr", "EDHREC recommendations for the commander (:edhrec)", SPLITS, shorts=("EDHREC recs",)),
-    _b("Sa", "Live analytics pane (:analytics)", SPLITS, shorts=("analytics",)),
-    _b("Sd", "Sample hand / goldfish overlay (:hand)", SPLITS, shorts=("sample hand",)),
-    _b("Ss", "Switch focus between the editor and the pane", SPLITS, shorts=("switch pane",),
+    # ── Windows (Ctrl-W prefix) and the Space leader ──────
+    _b(("ctrl_w v", "ctrl_w s"), "Split vertically / horizontally (prompts for a deck)",
+       WINDOWS, quick="Commands", label="Ctrl-W v/s",
+       shorts=("vertical split", "horizontal split"), brief="split"),
+    _b(("ctrl_w w", "ctrl_w W"), "Switch focus between the editor and the pane", WINDOWS,
+       label="Ctrl-W w/W", shorts=("other window", "other window"),
        note="In a pane: j/k move, gg/G top/bottom, Ctrl-D/U half page, "
-            "h/l switch EDHREC tabs, Enter adds the selected card, Esc returns"),
-    _b("Sc", "Close the split", SPLITS, shorts=("close split",)),
+            "h/l switch EDHREC tabs, Enter adds the selected card, q closes "
+            "the pane, Esc returns to the editor"),
+    _b(("ctrl_w h", "ctrl_w j", "ctrl_w k", "ctrl_w l"),
+       "Focus the window left / below / above / right", WINDOWS, label="Ctrl-W hjkl",
+       shorts=("window left", "window below", "window above", "window right"),
+       note="The pane is right of a vertical split, below a horizontal one"),
+    _b(("ctrl_w c", "ctrl_w q"), "Close the pane (with no pane, Ctrl-W q is :q)", WINDOWS,
+       label="Ctrl-W c/q", shorts=("close pane", "quit window")),
+    _b("ctrl_w o", "Close every window but this one (the pane)", WINDOWS,
+       label="Ctrl-W o", shorts=("only window",)),
+    _b("space a", "Toggle the live analytics pane (:analytics)", WINDOWS,
+       quick="Commands", label="Space a", shorts=("analytics",), brief="analytics"),
+    _b("space r", "Toggle EDHREC recommendations for the commander (:edhrec)", WINDOWS,
+       label="Space r", shorts=("EDHREC recs",)),
+    _b("space h", "Sample hand / goldfish overlay (:hand)", WINDOWS,
+       label="Space h", shorts=("sample hand",)),
     # ── Tags (t prefix) ───────────────────────────────────
     _b("ta", "Add a tag to the card", TAGS, shorts=("add tag",)),
     _b("tr", "Remove a tag", TAGS, shorts=("remove tag",)),
@@ -237,10 +294,13 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
 
 # Prefix → which-key menu title; every prefix the keymap pends on.
 PREFIX_TITLES: dict[str, str] = {
-    "g": "go", "t": "tags", "S": "splits", "z": "zones & scroll", "m": "marks",
+    "g": "go", "t": "tags", "z": "zones & scroll", "m": "marks",
     "'": "marks", "q": "macros", "@": "macros", '"': "registers",
     "[": "jump back", "]": "jump forward", "Z": "quit",
+    "ctrl_w": "window", "space": "leader",
 }
+# Operator → which-key menu title
+OPERATOR_TITLES: dict[str, str] = {"d": "delete", "y": "yank", "c": "change"}
 
 # Motions that may follow an operator, for the d / y / c which-key menus.
 OPERATOR_MENU: tuple[tuple[str, str], ...] = (
@@ -257,18 +317,25 @@ def _menu_label(key: str) -> str:
     return key.replace("{", "").replace("}", "")
 
 
+def menu_title(prefix: str) -> str:
+    """The which-key heading for a pending prefix or operator."""
+    return PREFIX_TITLES.get(prefix) or OPERATOR_TITLES.get(prefix, prefix)
+
+
 def which_key_menus() -> dict[str, list[tuple[str, str]]]:
     """Pending-key menus: every two-key normal binding grouped by prefix,
-    plus the operator menus. Bare `q` (stop recording) is listed under q."""
+    plus the operator menus. The q menu only shows while nothing records
+    (a bare q stops a recording at once), so it lists q{a-z} alone."""
     menus: dict[str, list[tuple[str, str]]] = {}
     for b in bindings("normal"):
         for i, key in enumerate(b.keys):
-            if len(key) == 2 or key.endswith(MARK):
-                prefix = key[0]
-                if prefix in PREFIX_TITLES:
-                    menus.setdefault(prefix, []).append((_menu_label(key), _short(b, i)))
-            elif key == "q" and b.shorts:
-                menus.setdefault("q", []).append(("q", b.shorts[i]))
+            presses = keystrokes(key)
+            if len(presses) == 2 and presses[0] in PREFIX_TITLES:
+                prefix = presses[0]
+                # A named prefix is the menu's title; its rows show the
+                # key that follows
+                label = presses[1] if len(prefix) > 1 else _menu_label(key)
+                menus.setdefault(prefix, []).append((label, _short(b, i)))
     for op in ("d", "y", "c"):
         menus[op] = [
             (pattern.replace("{op}", op), desc) for pattern, desc in OPERATOR_MENU

@@ -79,6 +79,7 @@ from vimtg.editor.session import (
     handle_normal_special,
     handle_operator,
     handle_tag_input_special,
+    note_jump,
     resolve_cards,
 )
 from vimtg.editor.splits import (
@@ -86,6 +87,7 @@ from vimtg.editor.splits import (
     EdhrecOpen,
     SplitDirection,
     SplitOpen,
+    WindowCommand,
 )
 from vimtg.services.clipboard import copy_message, copy_to_clipboard
 from vimtg.services.deck_service import needs_new_deck_prompt, set_deck_identity
@@ -136,6 +138,8 @@ _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
 OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
+# Ctrl-C with nothing to cancel, as vim says it
+EXIT_HINT = "Type :q and press Enter to exit vimtg"
 SYNCING_SEARCH_NOTICE = "Card database is still downloading — search works once :sync finishes"
 
 def _hint_for_cursor(buffer: Buffer, row: int) -> str:
@@ -151,6 +155,16 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
 TIPS_MIN_HEIGHT = 18  # first-run tips panel
 SPLIT_MIN_WIDTH = 60  # side-by-side split
 SPLIT_MIN_HEIGHT = 16  # stacked split
+
+# Keys a focused pane leaves to the editor without giving up focus: the
+# command line, and the window and leader prefixes
+_PANE_PASS_KEYS = frozenset({":", "ctrl_w", " "})
+# Ctrl-W h/j/k/l: the direction that reaches the pane in each layout
+# (the other direction of the same axis is back to the editor)
+_TOWARD_PANE = {
+    SplitDirection.VERTICAL: (WindowCommand.RIGHT, WindowCommand.LEFT),
+    SplitDirection.HORIZONTAL: (WindowCommand.DOWN, WindowCommand.UP),
+}
 
 
 @dataclass
@@ -313,8 +327,8 @@ class MainScreen(Screen[None]):
             and pending_recovery(self.file_path, self._state.buffer.to_text())
         ):
             self.query_one("#command-line", CommandLine).set_message(
-                "Found unsaved changes from a crash: :recover to load them, "
-                ":recover! to discard"
+                "Found unsaved changes from an earlier session: :recover to "
+                "load them, :recover! to discard"
             )
         elif self._prompt_new_deck and needs_new_deck_prompt(
             self._state.buffer.to_text()
@@ -473,8 +487,10 @@ class MainScreen(Screen[None]):
             card_key=self._paste_card_key(),
         )
         s.buffer = result.buffer
+        origin = s.cursor.row
         if result.first_row is not None:
             s.cursor = s.cursor.move_to(result.first_row, 0)
+            note_jump(s, origin, far_only=True)
         s.modified = True
         s.history.record(s.buffer, f"paste {result.cards} cards")
         if self.card_repo:
@@ -523,9 +539,6 @@ class MainScreen(Screen[None]):
     # ── Key dispatch ─────────────────────────────────────────────
 
     def on_key(self, event: Key) -> None:
-        # Let Ctrl+C through for emergency quit
-        if event.key == "ctrl+c":
-            return
         event.prevent_default()
         event.stop()
 
@@ -556,6 +569,9 @@ class MainScreen(Screen[None]):
         if cl.message and not cl.error:
             cl.message = ""
         sticky = cl.message_serial if cl.message else None
+        # Ctrl-C arrives as Esc; with nothing for it to cancel, say how
+        # to quit instead
+        exit_hint = event.key == "ctrl+c" and self._nothing_to_cancel()
         self._last_action_type = ""
         self._process_key(key)
         if (
@@ -564,6 +580,17 @@ class MainScreen(Screen[None]):
             and self._last_action_type not in ("motion", "pending")
         ):
             cl.message = ""
+        if exit_hint:
+            cl.set_message(EXIT_HINT)
+
+    def _nothing_to_cancel(self) -> bool:
+        """Normal mode with no sequence pending and no pane focused."""
+        pane = self._split_pane
+        return (
+            self._state.mode_mgr.is_normal()
+            and not self.keymap.awaiting_more_keys
+            and not (pane is not None and pane.focused)
+        )
 
     def _process_key(self, key: str, resolve: bool = True) -> None:
         """Run one canonical key through remap, keymap, and dispatch.
@@ -601,7 +628,7 @@ class MainScreen(Screen[None]):
         return saved
 
     def preserve_unsaved(self) -> Path | None:
-        """The editor is going away (quit, Ctrl-C/Ctrl-Q, :home, a closed
+        """The editor is going away (quit, Ctrl-Q, :home, a closed
         terminal, SIGHUP/SIGTERM): keep unsaved changes as a recovery
         copy the next open offers. Nothing is written for a clean buffer
         or after a deliberate discard (:q!, ZQ)."""
@@ -654,8 +681,8 @@ class MainScreen(Screen[None]):
         if pasted is not None:  # a paste recorded in a macro
             self._handle_paste(pasted)
             return
-        # Split pane focused: navigation keys drive the pane; ':' and
-        # 'S' sequences pass through; any other key refocuses the editor
+        # Split pane focused: navigation keys drive the pane; ':', Ctrl-W
+        # and Space sequences pass through; any other key refocuses the editor
         # and is handled normally. Applies during macro replay too, so
         # replayed keys hit the same routing they were recorded under.
         if (
@@ -665,10 +692,17 @@ class MainScreen(Screen[None]):
             and self._state.mode_mgr.is_normal()
             and not self.keymap.awaiting_more_keys
         ):
-            if self._handle_split_pane_key(key):
+            if self._pane_nav.pending_g and key != "g":
+                # gh, g?, gc: the g starts an editor sequence, not gg —
+                # hand both keys to the editor, which takes focus back
+                self._pane_nav.reset()
+                self._split_pane.focused = False
+                self._sync_pane_focus()
+                self._handle_key("g", resolve)
+            elif self._handle_split_pane_key(key):
                 self._sync_widgets()
                 return
-            if key not in (":", "S"):
+            elif key not in _PANE_PASS_KEYS:
                 self._split_pane.focused = False
                 self._sync_pane_focus()
         # A bare 'q' only stops recording in NORMAL mode with no pending
@@ -707,7 +741,7 @@ class MainScreen(Screen[None]):
         sl.pending_keys = self.keymap.pending_display
         if result == KeyResult.PENDING:
             self._last_action_type = "pending"
-            wk.pending_key = key
+            wk.pending_key = self.keymap.pending_menu
             wk.display = self._state.settings.show_which_key
             return
         wk.pending_key = ""
@@ -729,7 +763,10 @@ class MainScreen(Screen[None]):
             hr = handle_mode_switch(s, action)
         elif action.action_type == "command_submit":
             prev_settings = s.settings
-            hr = handle_command(s, action, self.registry, self.file_path, self.save_fn)
+            hr = handle_command(
+                s, action, self.registry, self.file_path, self.save_fn,
+                pane_open=self._split_pane is not None,
+            )
             if s.settings is not prev_settings:
                 self._on_settings_saved(s.settings)
             s.mode_mgr.force_normal()
@@ -1011,9 +1048,11 @@ class MainScreen(Screen[None]):
             self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label)
         if hr.card_sync:
             self._start_card_sync(force=hr.card_sync == "force")
-        if hr.focus_next_pane:
-            self._toggle_pane_focus()
-        if hr.run_ex_command:
+        if hr.window is not None:
+            self._window_command(hr.window)
+        if hr.toggle_pane:
+            self._toggle_pane(hr.toggle_pane)
+        for _ in range(hr.ex_repeat if hr.run_ex_command else 0):
             self._execute_ex(hr.run_ex_command)
         if hr.scroll_view:
             self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)
@@ -1145,6 +1184,7 @@ class MainScreen(Screen[None]):
         hr = handle_command(
             s, ParsedAction("command_submit", "enter", text=text),
             self.registry, self.file_path, self.save_fn, record_history=False,
+            pane_open=self._split_pane is not None,
         )
         if s.settings is not prev_settings:
             self._on_settings_saved(s.settings)
@@ -1245,7 +1285,7 @@ class MainScreen(Screen[None]):
         )
         self._apply_split_layout()
         cl.set_message(
-            f"Split: {spec.path.name}  (Ss switch pane, :close to close)"
+            f"Split: {spec.path.name}  (Ctrl-W w switch pane, :close to close)"
         )
 
     def _start_url_import(self, url: str) -> None:
@@ -1326,7 +1366,7 @@ class MainScreen(Screen[None]):
         self._apply_split_layout()
         self._sync_widgets()
         self.query_one("#command-line", CommandLine).set_message(
-            "Analytics pane open  (Ss focus to scroll, :close to close)"
+            "Analytics pane open  (Ctrl-W w focus to scroll, Space a to close)"
         )
 
     def _open_edhrec(self, req: EdhrecOpen) -> None:
@@ -1399,25 +1439,58 @@ class MainScreen(Screen[None]):
         self.query_one("#edhrec-panel", EdhrecPanel).display = False
         self.query_one("#analytics-panel", AnalyticsPanel).display = False
 
-    def _toggle_pane_focus(self) -> None:
+    def _window_command(self, command: WindowCommand) -> None:
+        """Ctrl-W: move focus between the editor and the pane, or close
+        the pane. With no pane, Ctrl-W q is :quit and the rest say why
+        nothing happened, as in vim."""
+        comp = self._split_pane
         cl = self.query_one("#command-line", CommandLine)
-        if self._split_pane is None:
-            cl.set_message("E: No split open (Sv/Sh or :vsplit)", error=True)
+        if command in (WindowCommand.CLOSE, WindowCommand.QUIT, WindowCommand.ONLY):
+            if comp is not None:
+                self._close_split()
+            elif command is WindowCommand.QUIT:
+                self._execute_ex("quit")
+            elif command is WindowCommand.CLOSE:
+                cl.set_message("E444: Cannot close last window", error=True)
+            else:
+                cl.set_message("Already only one window")
+            return
+        if comp is None:
+            cl.set_message("E: No split open (Ctrl-W v / Ctrl-W s or :vsplit)", error=True)
             return
         if not self._split_pane_widget().display:
             cl.set_message("E: Terminal too small to show the split", error=True)
             return
-        self._split_pane.focused = not self._split_pane.focused
+        toward, back = _TOWARD_PANE[comp.direction]
+        if command is WindowCommand.NEXT:
+            comp.focused = not comp.focused
+        elif command in (toward, back):
+            comp.focused = command is toward
+        self._pane_nav.reset()
         self._sync_pane_focus()
+
+    def _toggle_pane(self, kind: str) -> None:
+        """Space a / Space r: close the pane when it is the one open,
+        else open it (in place of any other pane)."""
+        if self._split_pane is not None and self._split_pane.kind == kind:
+            self._close_split()
+            return
+        self._execute_ex(kind)
 
     def _handle_split_pane_key(self, key: str) -> bool:
         """Drive the focused split pane; True when the key was consumed.
 
         Every pane shares the navigation vocabulary (j/k, Ctrl-D/U, gg/G,
-        Home/End); the EDHREC pane adds tab switching and Enter.
+        Home/End) and the auxiliary-view keys: q closes the pane, Esc
+        goes back to the editor and leaves it open. The EDHREC pane adds
+        tab switching and Enter.
         """
         comp = self._split_pane
         assert comp is not None
+        if key == "q":
+            self._pane_nav.reset()
+            self._close_split()
+            return True
         if key == "escape":
             comp.focused = False
             self._pane_nav.reset()
@@ -1500,7 +1573,9 @@ class MainScreen(Screen[None]):
             row = self._place_new_card(card, rec.name, 1, None)
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
+        origin = s.cursor.row
         s.cursor = s.cursor.move_to(min(row, s.buffer.line_count() - 1), 0)
+        note_jump(s, origin, far_only=True)
         s.modified = True
         s.history.record(s.buffer, f"added {rec.name} (EDHREC)")
         cl.set_message(f"Added {rec.name}")
@@ -2069,7 +2144,9 @@ class MainScreen(Screen[None]):
         dv.currency_symbol = cur_sym
         dv.show_prices = s.settings.show_prices
         dv.show_line_numbers = s.settings.show_line_numbers
-        dv.auto_expand = s.settings.auto_expand
+        if s.details_row != s.cursor.row:
+            s.details_row = None  # K's details end when the cursor moves
+        dv.auto_expand = s.settings.auto_expand != (s.details_row is not None)
         dv.tag_filter = s.tag_filter
         dv.line_errors = self._lint.line_errors
         dv.plan_deltas = self._plan_deltas()

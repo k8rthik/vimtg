@@ -1,4 +1,5 @@
-"""Split-view requests — the pure model behind :vsplit / :split / :edhrec.
+"""Split-view requests — the pure model behind :vsplit / :split / :edhrec
+and the Ctrl-W window keys.
 
 The editor supports one split pane beside (or below) the main deck
 view, showing either another deck read-only or EDHREC recommendations.
@@ -20,6 +21,25 @@ class SplitDirection(Enum):
 
     VERTICAL = "vertical"
     HORIZONTAL = "horizontal"
+
+
+class WindowCommand(Enum):
+    """A Ctrl-W window command over the editor and its one pane.
+
+    Focus moves to the other window (w W) or the one in a direction
+    (h j k l: the pane is right of a vertical split, below a horizontal
+    one). CLOSE and ONLY close the pane; QUIT does too, and is :quit
+    when there is no pane.
+    """
+
+    NEXT = "next"
+    LEFT = "left"
+    DOWN = "down"
+    UP = "up"
+    RIGHT = "right"
+    CLOSE = "close"
+    QUIT = "quit"
+    ONLY = "only"
 
 
 @dataclass(frozen=True)

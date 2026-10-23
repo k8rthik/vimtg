@@ -1,4 +1,4 @@
-"""Analytics pane flow (Textual pilot): open via :analytics / Sa, live
+"""Analytics pane flow (Textual pilot): open via :analytics / Space a, live
 updates on edit, cursor-following odds, close via :close."""
 
 from __future__ import annotations
@@ -55,11 +55,11 @@ async def test_analytics_opens_unfocused_pane(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_sa_key_opens_pane(tmp_path: Path) -> None:
+async def test_leader_a_opens_pane(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck(tmp_path))
     async with app.run_test() as pilot:
         screen = _main_screen(app)
-        await pilot.press("S")
+        await pilot.press("space")
         await pilot.press("a")
         await pilot.pause()
         comp = screen._split_pane

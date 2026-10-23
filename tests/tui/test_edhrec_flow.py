@@ -175,12 +175,12 @@ async def test_fetch_failure_shows_error_in_panel(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_sr_key_opens_edhrec(tmp_path: Path) -> None:
+async def test_leader_r_opens_edhrec(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck(tmp_path))
     with patch("vimtg.tui.screens.main_screen.EdhrecClient", _StubClient):
         async with app.run_test() as pilot:
             screen = _main_screen(app)
-            await pilot.press("S", "r")
+            await pilot.press("space", "r")
             await app.workers.wait_for_complete()
             await pilot.pause()
             assert screen._split_pane is not None

@@ -594,7 +594,7 @@ def test_new_ex_commands_are_registered(line: str) -> None:
     buf = _buf()
     cmd = parse_command(line, 1, buf.line_count())
     _registry().execute(cmd, buf, Cursor(row=1), ctx)
-    assert not ctx.message.startswith("E: Unknown command")
+    assert not ctx.message.startswith("E492")
 
 
 # ── Audit regressions: counts, failing motions, marks, line edits ──

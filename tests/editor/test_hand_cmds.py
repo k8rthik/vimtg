@@ -1,4 +1,4 @@
-""":hand / :goldfish and the Sd key: argument parsing, the library the
+""":hand / :goldfish and the Space h key: argument parsing, the library the
 request carries (plan, commander, settings format), and the wiring from
 ex command to HandlerResult."""
 
@@ -172,16 +172,16 @@ class TestWiring:
         assert hr.hand_open.source.plan == "Tron"
         assert not state.modified
 
-    def test_sd_key_runs_hand(self) -> None:
+    def test_leader_h_runs_hand(self) -> None:
         km = KeyMap()
-        assert km.feed("S")[0] == KeyResult.PENDING
-        result, action = km.feed("d")
+        assert km.feed(" ")[0] == KeyResult.PENDING
+        result, action = km.feed("h")
         assert result == KeyResult.COMPLETE
-        assert action is not None and action.action == "Sd"
+        assert action is not None and action.action == "space h"
         hr = handle_normal_special(_state(), action)
         assert hr.run_ex_command == "hand"
 
-    def test_sd_is_documented_once(self) -> None:
-        rows = [b for b in EDITOR_BINDINGS if "Sd" in b.keys]
+    def test_leader_h_is_documented_once(self) -> None:
+        rows = [b for b in EDITOR_BINDINGS if "space h" in b.keys]
         assert len(rows) == 1
         assert ":hand" in rows[0].action

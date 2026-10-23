@@ -194,7 +194,7 @@ class TestRecoveryIsPerDeck:
 
 class TestExitKeepsUnsavedWork:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("key", ["ctrl+c", "ctrl+q"])
+    @pytest.mark.parametrize("key", ["ctrl+q"])
     async def test_quit_keys_leave_a_copy_the_next_open_offers(
         self, tmp_path: Path, key: str
     ) -> None:
@@ -224,7 +224,7 @@ class TestExitKeepsUnsavedWork:
         app = VimTGApp(deck_path=path)
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
-            await pilot.press("ctrl+c")
+            await pilot.press("ctrl+q")
             await pilot.pause()
         assert list_recoveries() == []
 
@@ -527,7 +527,7 @@ class TestCountThenRegister:
 
 class TestSaveAs:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("command", ["w other", "saveas other", "sav other"])
+    @pytest.mark.parametrize("command", ["saveas other", "sav other"])
     async def test_switching_file_is_announced(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str
     ) -> None:
@@ -542,6 +542,27 @@ class TestSaveAs:
             msg = _message(scr)
             assert "now editing other.deck" in msg and "burn.deck" in msg
             assert scr.file_path == tmp_path / "other.deck"
+        assert path.read_text() == CANONICAL
+
+    @pytest.mark.asyncio
+    async def test_w_name_writes_a_copy_and_keeps_editing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        path = _deck(tmp_path)
+        app = VimTGApp(deck_path=path)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, _keys("6G dd"))
+            _ex(scr, "w copy")
+            assert _message(scr) == '"copy.deck" written'
+            assert scr.file_path == path and scr._state.modified
+            assert "Goblin Guide" not in (tmp_path / "copy.deck").read_text()
+            _ex(scr, "w copy")
+            assert "E13" in _message(scr)
+            _ex(scr, "w! copy")
+            assert _message(scr) == '"copy.deck" written'
         assert path.read_text() == CANONICAL
 
     @pytest.mark.asyncio

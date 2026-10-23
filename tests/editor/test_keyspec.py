@@ -11,10 +11,13 @@ from pathlib import Path
 from vimtg.editor.help_text import HELP_OVERVIEW
 from vimtg.editor.keymap import (
     _G_SUB_KEYS,
+    _LEADER_SUB_KEYS,
     _QUIT_SUB_KEYS,
-    _SPLIT_SUB_KEYS,
     _TAG_SUB_KEYS,
+    _WINDOW_SUB_KEYS,
     _ZONE_SUB_KEYS,
+    KEY_ALIASES,
+    LINEWISE_KEYS,
     MODE_SWITCHES,
     MOTIONS,
     MULTI_KEY_STARTERS,
@@ -29,6 +32,7 @@ from vimtg.editor.keyspec import (
     PREFIX_TITLES,
     KeyBinding,
     bindings,
+    keystrokes,
     quick_hints,
     which_key_menus,
 )
@@ -46,10 +50,7 @@ def _atoms(mode: str = "normal") -> list[tuple[KeyBinding, str]]:
 
 def _sample(key: str) -> list[str]:
     """Keystrokes that exercise a spec key; patterns use `a`."""
-    key = key.replace(MARK, "a")
-    if key in ("ctrl_d", "ctrl_u", "ctrl_r", "escape", "f1"):
-        return [key]
-    return list(key)
+    return [press.replace(MARK, "a") for press in keystrokes(key)]
 
 
 class TestSpecMatchesKeymap:
@@ -73,7 +74,11 @@ class TestSpecMatchesKeymap:
 
     def test_every_keymap_single_key_is_in_the_spec(self) -> None:
         declared = {key for _, key in _atoms("normal")}
-        for key in MOTIONS | OPERATORS | set(MODE_SWITCHES) | SPECIAL_KEYS | {"G"}:
+        singles = (
+            MOTIONS | OPERATORS | set(MODE_SWITCHES) | SPECIAL_KEYS
+            | set(LINEWISE_KEYS) | set(KEY_ALIASES)
+        )
+        for key in singles | {"G"}:
             assert key in declared, key
 
     def test_every_prefix_and_sub_key_is_in_the_spec(self) -> None:
@@ -84,8 +89,10 @@ class TestSpecMatchesKeymap:
             assert f"g{sub}" in declared
         for sub in _TAG_SUB_KEYS:
             assert f"t{sub}" in declared
-        for sub in _SPLIT_SUB_KEYS:
-            assert f"S{sub}" in declared
+        for sub in _WINDOW_SUB_KEYS:
+            assert f"ctrl_w {sub}" in declared
+        for sub in _LEADER_SUB_KEYS:
+            assert f"space {sub}" in declared
         for sub in _ZONE_SUB_KEYS:
             assert f"z{sub}" in declared
         for sub in _QUIT_SUB_KEYS:
@@ -140,3 +147,11 @@ class TestDocsMatchTheSpec:
         assert "`zs`" in readme and "`zo`" in readme
         for old in ("`ms`", "`mo`", "`mi`"):
             assert old not in readme, old
+
+
+class TestWhichKeyMenus:
+    def test_q_menu_only_offers_recording(self) -> None:
+        """The q menu only shows while nothing is recording (a recording
+        stops on the bare q), so it never offers 'stop recording'."""
+        entries = which_key_menus()["q"]
+        assert entries == [("qa-z", "record macro")]

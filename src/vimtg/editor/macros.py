@@ -52,6 +52,15 @@ class MacroRecorder:
         """The register currently being recorded into, or None."""
         return self._recording
 
+    @property
+    def last_played(self) -> str | None:
+        """The register @@ replays: a macro's, or ':' after @:."""
+        return self._last_played
+
+    def played_command_line(self) -> None:
+        """@: ran, so @@ repeats it (vim's ':' register)."""
+        self._last_played = ":"
+
     def start_recording(self, register: str) -> None:
         """Begin recording keys into the given register; an uppercase
         register appends to the lowercase macro."""

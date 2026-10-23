@@ -1,4 +1,4 @@
-"""Sample-hand overlay (Textual pilot): :hand / Sd open it, n/Space
+"""Sample-hand overlay (Textual pilot): :hand / Space h open it, n/Space
 draw, m + b run a London mulligan, r reshuffles, q/Esc close, and the
 seed makes it repeatable. Plus the pure render function."""
 
@@ -72,11 +72,11 @@ async def test_hand_command_opens_overlay(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_sd_key_opens_overlay(tmp_path: Path) -> None:
+async def test_leader_h_opens_overlay(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck(tmp_path))
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        await pilot.press("S", "d")
+        await pilot.press("space", "h")
         await pilot.pause()
         assert isinstance(app.screen, HandScreen)
 

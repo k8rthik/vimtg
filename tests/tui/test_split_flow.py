@@ -91,7 +91,7 @@ async def test_close_hides_pane(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ss_switches_focus_and_j_scrolls_companion(
+async def test_ctrl_w_w_switches_focus_and_j_scrolls_companion(
     tmp_path: Path,
 ) -> None:
     deck = _deck(tmp_path, "mine.deck", "4 Lightning Bolt\n4 Shock\n")
@@ -104,7 +104,7 @@ async def test_ss_switches_focus_and_j_scrolls_companion(
         assert comp is not None and comp.focused is False
 
         main_row = screen._state.cursor.row
-        await pilot.press("S", "s")
+        await pilot.press("ctrl+w", "w")
         assert comp.focused is True
 
         await pilot.press("j")
@@ -120,7 +120,7 @@ async def test_ss_switches_focus_and_j_scrolls_companion(
 
 
 @pytest.mark.asyncio
-async def test_sc_closes_split(tmp_path: Path) -> None:
+async def test_ctrl_w_c_closes_split(tmp_path: Path) -> None:
     deck = _deck(tmp_path, "mine.deck", "4 Lightning Bolt\n")
     other = _deck(tmp_path, "other.deck", "4 Opt\n")
     app = VimTGApp(deck_path=deck)
@@ -128,29 +128,29 @@ async def test_sc_closes_split(tmp_path: Path) -> None:
         screen = _main_screen(app)
         await _type_command(pilot, f":vsplit {other}")
         assert screen._split_pane is not None
-        await pilot.press("S", "c")
+        await pilot.press("ctrl+w", "c")
         assert screen._split_pane is None
 
 
 @pytest.mark.asyncio
-async def test_sv_prefills_command_line(tmp_path: Path) -> None:
+async def test_ctrl_w_v_prefills_command_line(tmp_path: Path) -> None:
     deck = _deck(tmp_path, "mine.deck", "4 Lightning Bolt\n")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         screen = _main_screen(app)
-        await pilot.press("S", "v")
+        await pilot.press("ctrl+w", "v")
         cl = screen.query_one("#command-line", CommandLine)
         assert cl.prefix == ":"
         assert cl.text == "vsplit "
 
 
 @pytest.mark.asyncio
-async def test_ss_without_split_reports_error(tmp_path: Path) -> None:
+async def test_ctrl_w_w_without_split_reports_error(tmp_path: Path) -> None:
     deck = _deck(tmp_path, "mine.deck", "4 Lightning Bolt\n")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         screen = _main_screen(app)
-        await pilot.press("S", "s")
+        await pilot.press("ctrl+w", "w")
         cl = screen.query_one("#command-line", CommandLine)
         assert cl.error
         assert "No split open" in cl.message

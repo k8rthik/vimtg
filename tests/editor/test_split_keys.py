@@ -1,14 +1,18 @@
-"""Tests for the S split-key sequences (keymap + normal-mode handler)."""
+"""Window keys (vim's Ctrl-W prefix) and the Space leader: the keymap
+sequences and what the normal-mode handler asks the screen to do."""
 
 from __future__ import annotations
+
+import pytest
 
 from vimtg.config.settings import Settings
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult
-from vimtg.editor.modes import ModeManager
+from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
-from vimtg.editor.session import EditorState, handle_normal_special
+from vimtg.editor.session import EditorState, HandlerResult, handle_normal_special
+from vimtg.editor.splits import WindowCommand
 from vimtg.services.history_service import HistoryService
 
 
@@ -28,61 +32,68 @@ def _state() -> EditorState:
     return state
 
 
-class TestKeymapSplitSequences:
-    def test_s_pends(self):
+def _press(*keys: str) -> HandlerResult:
+    km = KeyMap()
+    result, action = KeyResult.NO_MATCH, None
+    for key in keys:
+        result, action = km.feed(key)
+    assert result == KeyResult.COMPLETE and action is not None, keys
+    assert action.action_type == "special"
+    return handle_normal_special(_state(), action)
+
+
+class TestWindowPrefix:
+    def test_ctrl_w_pends_and_shows_as_caret_w(self) -> None:
         km = KeyMap()
-        result, action = km.feed("S")
-        assert result == KeyResult.PENDING
-        assert action is None
+        assert km.feed("ctrl_w")[0] == KeyResult.PENDING
+        assert km.pending_display == "^W"
 
-    def test_split_sub_keys_complete_as_specials(self):
-        for sub in ("v", "h", "s", "c", "r", "a"):
-            km = KeyMap()
-            km.feed("S")
-            result, action = km.feed(sub)
-            assert result == KeyResult.COMPLETE
-            assert action is not None
-            assert action.action_type == "special"
-            assert action.action == f"S{sub}"
-
-    def test_unknown_sub_key_no_match(self):
+    def test_unknown_window_key_is_dropped(self) -> None:
         km = KeyMap()
-        km.feed("S")
-        result, action = km.feed("z")
-        assert result == KeyResult.NO_MATCH
-        assert action is None
+        km.feed("ctrl_w")
+        assert km.feed("z") == (KeyResult.NO_MATCH, None)
+
+    def test_v_and_s_prompt_for_a_deck(self) -> None:
+        assert _press("ctrl_w", "v") == HandlerResult(
+            enter_command=True, command_prefill="vsplit ",
+        )
+        assert _press("ctrl_w", "s") == HandlerResult(
+            enter_command=True, command_prefill="split ",
+        )
+
+    @pytest.mark.parametrize(("key", "command"), [
+        ("w", WindowCommand.NEXT), ("W", WindowCommand.NEXT),
+        ("h", WindowCommand.LEFT), ("j", WindowCommand.DOWN),
+        ("k", WindowCommand.UP), ("l", WindowCommand.RIGHT),
+        ("c", WindowCommand.CLOSE), ("q", WindowCommand.QUIT),
+        ("o", WindowCommand.ONLY),
+    ])
+    def test_window_commands(self, key: str, command: WindowCommand) -> None:
+        assert _press("ctrl_w", key).window is command
+
+    def test_s_is_no_longer_a_window_prefix(self) -> None:
+        assert KeyMap().feed("S")[0] != KeyResult.PENDING
+
+    def test_visual_mode_ignores_the_window_and_leader_prefixes(self) -> None:
+        for key in ("ctrl_w", " "):
+            km = KeyMap(mode=Mode.VISUAL)
+            assert km.feed(key) == (KeyResult.NO_MATCH, None)
 
 
-class TestSplitKeyHandlers:
-    def _handle(self, key: str):
+class TestSpaceLeader:
+    def test_space_pends(self) -> None:
         km = KeyMap()
-        km.feed("S")
-        _, action = km.feed(key[1])
-        assert action is not None
-        return handle_normal_special(_state(), action)
+        assert km.feed(" ")[0] == KeyResult.PENDING
+        assert km.pending_menu == "space"
 
-    def test_sv_prefills_vsplit_command(self):
-        hr = self._handle("Sv")
-        assert hr.enter_command
-        assert hr.command_prefill == "vsplit "
+    def test_a_and_r_toggle_their_panes(self) -> None:
+        assert _press(" ", "a").toggle_pane == "analytics"
+        assert _press(" ", "r").toggle_pane == "edhrec"
 
-    def test_sh_prefills_split_command(self):
-        hr = self._handle("Sh")
-        assert hr.enter_command
-        assert hr.command_prefill == "split "
+    def test_h_opens_the_sample_hand(self) -> None:
+        assert _press(" ", "h").run_ex_command == "hand"
 
-    def test_ss_requests_pane_focus_switch(self):
-        hr = self._handle("Ss")
-        assert hr.focus_next_pane
-
-    def test_sc_requests_split_close(self):
-        hr = self._handle("Sc")
-        assert hr.split_close
-
-    def test_sr_runs_edhrec_command(self):
-        hr = self._handle("Sr")
-        assert hr.run_ex_command == "edhrec"
-
-    def test_sa_runs_analytics_command(self):
-        hr = self._handle("Sa")
-        assert hr.run_ex_command == "analytics"
+    def test_unknown_leader_key_is_dropped(self) -> None:
+        km = KeyMap()
+        km.feed(" ")
+        assert km.feed("x") == (KeyResult.NO_MATCH, None)

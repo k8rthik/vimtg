@@ -90,7 +90,16 @@ def cmd_search(
     return buffer, cursor
 
 
+def cmd_nohlsearch(
+    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:noh[lsearch] — vimtg draws no search highlight, so there is none
+    to clear; accepted so the vim habit is not an error."""
+    return buffer, cursor
+
+
 def register_search_commands(registry: CommandRegistry) -> None:
     """Register :find/:f and :search."""
     registry.register("find", cmd_find, aliases=["f"])
     registry.register("search", cmd_search)
+    registry.register("nohlsearch", cmd_nohlsearch, aliases=["noh"])

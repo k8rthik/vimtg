@@ -9,14 +9,17 @@ which screen is open:
    `g` never means "top".
 2. **One dismissal vocabulary.** `q` and `Esc` close every auxiliary
    screen; `Esc` cancels an open prompt first. In the editor `Esc` exits
-   the current mode and `q` is vim's macro key.
+   the current mode and `q` is vim's macro key. `Ctrl-C` is `Esc`
+   everywhere and never quits: with nothing to cancel the editor says
+   "Type :q and press Enter to exit vimtg" (the greeter: press `q`).
+   `Ctrl-Q` quits at once, keeping unsaved changes for `:recover`.
 3. **One help vocabulary.** `F1` opens the full help on every screen.
    Outside the editor `?` opens help for the current screen; in the
    editor `?` is vim's backward search, so help there is `F1` or `:help`
    and the quick-reference panel is `g?`.
 4. **Separated editor prefixes.** Each prefix has one job: `g` go, `t`
-   tags, `S` splits, `z` zones, `m` marks, `'` jump to mark, `q`/`@`
-   macros, `"` registers, `[`/`]` jumps.
+   tags, `Ctrl-W` windows, `Space` the leader (panes), `z` zones, `m`
+   marks, `'` jump to mark, `q`/`@` macros, `"` registers, `[`/`]` jumps.
 5. **One source of truth.** The editor keys are declared in
    `src/vimtg/editor/keyspec.py`; which-key, the in-app help overview,
    and the drift tests read that table. Screen hint bars render from
@@ -38,6 +41,7 @@ Everything below is normal mode unless flagged otherwise.
 | `A` | Add or edit the card's inline comment (`// …`); confirming empty text removes it |
 | `o` / `O` | Add a card below / above: opens card search. The card joins the zone under the cursor (inside a `CMD:`/`SB:` block it lands there; in the mainboard it auto-files by type). A count sets copies: `4o` adds four. Inside a `VS:` plan block it writes a signed plan line |
 | `v` / `V` | Visual / visual-line selection |
+| `gv` | Select the last visual selection again, in its mode and with the cursor at the same end; in visual mode it swaps with the current selection |
 | `:` | Ex command line |
 | `/` / `?` | Search forward / backward for a card (a regex, case-insensitive, like `:g` and `:s`). An empty pattern repeats the last one |
 | `Esc` | Back to normal mode; cancels a pending key sequence (in normal mode it also hides the getting-started tips) |
@@ -57,8 +61,11 @@ Everything below is normal mode unless flagged otherwise.
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up |
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
+| `Ctrl-O` / `Ctrl-I` | Back / forward through the jumplist (`Ctrl-I` arrives as `Tab`; a count moves that many). Jumps, as in vim: `G`, `gg`, `{n}G`, `:{n}`, `/`, `?`, `n`, `N`, `*`, `#`, `{`, `}`, `[[`, `]]`, `'a`, `H`, `M`, `L`, `''`, and an insert or zone move that files the card more than a line away (`o` auto-filing it into another section, `zs`). The list holds 100 places; rows do not follow later edits |
+| `''` | Back to where the latest jump left; again to come back |
 | `n` / `N` | Repeat the last search in the same / opposite direction (`n` after `?` goes backward), wrapping around the deck (back to the cursor line when it is the only match) with "search hit BOTTOM, continuing at TOP" |
 | `*` / `#` | Search forward / backward for the card under the cursor (the whole name: `*` on Shock never stops on Shock Troops) |
+| `K` | Show the cursor card's details (type, cost, rules text, price) inline, or hide them when the `auto_expand` setting already shows them: vim's keyword lookup. It lasts until the cursor moves |
 | `zz` / `zt` / `zb` | Scroll the view so the cursor line is at the center / top / bottom; the cursor does not move |
 | mouse wheel | Scroll three lines per notch, vim-style: the window moves and the cursor is dragged only when it would leave the screen |
 
@@ -82,10 +89,12 @@ as in vim, and never eat the next section's blank line or header:
 | Key | Action |
 |-----|--------|
 | `dd` / `yy` / `cc` | Delete / yank / change the card line (`cc` deletes, then opens card search) |
+| `S` / `C` / `D` / `Y` | The linewise capitals: `S` and `C` are `cc`, `D` is `dd`, `Y` is `yy` (decks have no columns). Counts, registers and `.` work as with the doubled operator: `"a3Y` yanks three lines into `a` |
 | `d` `y` `c` + motion | Operators compose with a motion: `dw` deletes this card entry, `d}` to the end of the section, `y5G` through line 5. Counts multiply: `2d3j` |
 | `x` | Delete the card under the cursor (into the register); card lines only. A count deletes that many consecutive card lines as one change (`3x`, then one `u`) |
 | `p` / `P` | Paste below / above; `3p` pastes three copies |
 | `+` / `-` | Increment / decrement quantity; `-` at 0 deletes the line. Both keep zone prefixes, plan signs, `@category`, `#tags`, and comments |
+| `Ctrl-A` / `Ctrl-X` | vim's names for `+` / `-`: counts, visual mode and `.` work the same |
 | `.` | Repeat the last change (a count overrides the recorded one). Every edit repeats: operators, `c` together with the card it added, `o`/`O` with their card and copies, `p`/`P`, `+`/`-`, `x`, zone and plan moves, tags, categories, comments, `i`, and `:s` (on the cursor line). A change made on a visual selection repeats on as many lines from the cursor |
 | `u` / `Ctrl-R` | Undo / redo, one change per `u`. Only a quick burst of `+` or `-` folds into one step |
 
@@ -115,6 +124,7 @@ moves the card but warns. An unknown or missing format checks nothing.
 | `'{a-z}` | Jump to a mark. Marks shift through inserts, deletes, puts, and zone moves |
 | `q{a-z}` / `q` | Start recording a macro / stop recording; `qA` appends to macro `a` |
 | `@{a-z}` / `@@` | Play a macro / replay the last one; `3@a` plays three times |
+| `@:` | Run the last ex command line again (`@@` then repeats it; `3@:` runs it three times) |
 | `"{a-z}` | Use a named register for the next yank, delete, or put. `"A`-`"Z` append, `"0` is the yank register, `"1`-`"9` the delete history |
 | `"_` | The black hole register: `"_dd` deletes without touching any register, so the next `p` still puts what was there |
 | `"+` / `"*` | The clipboard register (one register, two names): a yank or delete also copies to the system clipboard via OSC52. `"+p` puts what was last yanked to it in this session (vimtg cannot read the system clipboard) |
@@ -125,9 +135,12 @@ moves the card but warns. An unknown or missing format checks nothing.
 |-----|--------|
 | `d` / `y` / `c` | Delete / yank / change the selection |
 | `x` | Delete the selection (same as `d`) |
+| `S` / `C` / `D` / `Y` | Change / change / delete / yank the selected lines |
 | `+` / `-` | Increment / decrement every card in the selection (`3+` adds three to each) |
+| `Ctrl-A` / `Ctrl-X` | Same as `+` / `-` on the selection |
 | `zs` / `zm` / `zd` / `zc` / `zp` | Move every selected card to that zone |
 | `zi` / `zo` | Board every selected card in / out of the active plan |
+| `p` / `P` | Replace the selection with the register's lines (`3p`: three times). `p` leaves the replaced lines in the unnamed register, so the next `p` puts them; `P` leaves every register as it was |
 | `o` | Jump to the other end of the selection |
 | `gc` / `gC`, `ta` / `tr` / `tt` | Category and tag prompts apply to the whole selection |
 | `Esc` | Exit visual mode |
@@ -143,7 +156,7 @@ the selection; other keys act on the cursor line.
 | `gC` | Clear the category; in a category-grouped deck the card moves to `// Uncategorized` |
 | `gl` | Toggle layout: group by card type / by category |
 
-`gg` (top), `gh` (history overlay), and `g?` (quick reference) share the prefix.
+`gg` (top), `gv` (reselect), `gh` (history overlay), and `g?` (quick reference) share the prefix.
 
 ### Tags (`t` prefix)
 
@@ -155,27 +168,42 @@ the selection; other keys act on the cursor line.
 | `tc` | Clear the card's tags |
 | `tn` / `tp` | Next / previous card sharing a tag with the cursor |
 
-### Splits, EDHREC, analytics (`S` prefix)
+### Windows (`Ctrl-W` prefix)
+
+vim's window commands, over the editor and its one pane:
 
 | Key | Action |
 |-----|--------|
-| `Sv` / `Sh` | Open a **v**ertical / **h**orizontal split (prompts `:vsplit ` / `:split ` for a deck file) |
-| `Sr` | EDHREC **r**ecommendations for the commander (`:edhrec`) |
-| `Sa` | Live **a**nalytics pane (`:analytics`) |
-| `Sd` | Sample hand: **d**raw an opening seven and goldfish (`:hand`) |
-| `Ss` | **S**witch focus between the editor and the pane |
-| `Sc` | **C**lose the pane |
+| `Ctrl-W v` / `Ctrl-W s` | Split **v**ertically / horizontally (**s**plit): prompts `:vsplit ` / `:split ` for a deck file |
+| `Ctrl-W w` / `Ctrl-W W` | Switch focus between the editor and the pane |
+| `Ctrl-W h` / `Ctrl-W j` / `Ctrl-W k` / `Ctrl-W l` | Focus the window left / below / above / right: the pane is right of a vertical split and below a horizontal one |
+| `Ctrl-W c` / `Ctrl-W q` | **C**lose the pane / **q**uit the window (the pane). With no pane `Ctrl-W c` says E444 and `Ctrl-W q` is `:q` |
+| `Ctrl-W o` | **O**nly: close every window but the editor (the pane) |
+
+### The leader (`Space`)
+
+| Key | Action |
+|-----|--------|
+| `Space a` | Toggle the live **a**nalytics pane (`:analytics`) |
+| `Space r` | Toggle EDHREC **r**ecommendations for the commander (`:edhrec`) |
+| `Space h` | Sample **h**and: draw an opening seven and goldfish (`:hand`) |
+
+`Space a` and `Space r` close their pane when it is the one open, and
+otherwise replace any other pane. Space does nothing else in normal
+mode.
 
 While a pane is focused it uses the shared navigation keys (`j`/`k`,
 `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel). The EDHREC pane adds
 `h`/`l` (or `Tab`/`Shift-Tab`) to switch tabs and `Enter` to add the
-selected card. `Esc` returns to the editor; `:` and `S` sequences pass
-through; any other key refocuses the editor and runs there.
+selected card. `q` closes the pane and `Esc` returns to the editor,
+leaving it open. `:`, `Ctrl-W` and `Space` sequences pass through, and
+so do `g` sequences other than `gg` (`gh`, `g?`, `gc`); any other key
+refocuses the editor and runs there.
 
-`Sd` opens the sample-hand overlay rather than a pane. In it, `n` or
-`Space` draws, `m` takes a London mulligan, `j`/`k` select a card and
-`b` puts it on the bottom, `r` reshuffles a fresh hand, and `q`/`Esc`
-close it.
+`Space h` opens the sample-hand overlay rather than a pane. In it, `n`
+or `Space` draws, `m` takes a London mulligan, `j`/`k` select a card
+and `b` puts it on the bottom, `r` reshuffles a fresh hand, and
+`q`/`Esc` close it.
 
 ### Version control
 
@@ -187,12 +215,13 @@ close it.
 
 | Prefix | Namespace | Keys |
 |--------|-----------|------|
-| `g` | go | `gg` `gc` `gC` `gl` `gh` `g?` |
+| `g` | go | `gg` `gv` `gc` `gC` `gl` `gh` `g?` |
 | `t` | tags | `ta` `tr` `tt` `tf` `tl` `tc` `tn` `tp` |
-| `S` | splits | `Sv` `Sh` `Sr` `Sa` `Sd` `Ss` `Sc` |
+| `Ctrl-W` | window | `v` `s` `w` `W` `h` `j` `k` `l` `c` `q` `o` |
+| `Space` | leader | `a` `r` `h` |
 | `z` | zones & scroll | `zs` `zm` `zd` `zc` `zp` `zo` `zi`, `zz` `zt` `zb` |
 | `m` / `'` | marks | `m{a-z}` `'{a-z}` |
-| `q` / `@` | macros | `q{a-z}` `q` `@{a-z}` `@@` |
+| `q` / `@` | macros | `q{a-z}` `q` `@{a-z}` `@@` `@:` |
 | `"` | registers | `"{a-z}` `"0` `"1`-`"9` `"_` `"+` `"*` |
 | `[` / `]` | jumps | `[[` `]]` `[v` `]v` |
 | `d` `y` `c` | operators | wait for a motion |
@@ -254,7 +283,7 @@ Every screen accepts the shared vocabulary:
 | `1`-`5` | Open the nth recent deck listed |
 | `R` | Unsaved buffers left by an earlier session (listed only when there are any). `Enter` opens one, `d` discards it |
 | `?` / `F1` | Help overview (scrolls with the shared keys) |
-| `q` | Quit vimtg. `Esc` does nothing on the menu; in a sub-mode it goes back |
+| `q` | Quit vimtg. `Esc` does nothing on the menu (`Ctrl-C` says to press `q`); in a sub-mode it goes back |
 | lists | Shared navigation, `Enter` open, `n` new deck, `q`/`Esc` back |
 | import | Type or paste a path or URL, `Enter` import, `Esc` back |
 

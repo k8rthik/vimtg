@@ -8,8 +8,81 @@ from 1.0.0 onward.
 
 ## [Unreleased]
 
+### Changed (breaking key changes)
+
+- Window keys moved to vim's `Ctrl-W` prefix, and the `S` prefix is gone:
+  - `Sv` -> `Ctrl-W v` (vertical split, prompts for a deck)
+  - `Sh` -> `Ctrl-W s` (horizontal split)
+  - `Ss` -> `Ctrl-W w` / `Ctrl-W W`, and `Ctrl-W h`/`j`/`k`/`l` focus by
+    direction (the pane is right of a vertical split, below a
+    horizontal one)
+  - `Sc` -> `Ctrl-W c` / `Ctrl-W q`; `Ctrl-W o` closes every window but
+    the editor. Ctrl-W works from the editor and from a focused pane.
+- Panes moved to a `Space` leader, and they toggle:
+  - `Sa` -> `Space a` (analytics pane; `Space a` again closes it)
+  - `Sr` -> `Space r` (EDHREC pane; `Space r` again closes it)
+  - `Sd` -> `Space h` (sample hand overlay)
+- `S` is vim's substitute-line, the same as `cc`, now that it no longer
+  starts a split key. `C` is `cc`, `D` is `dd` and `Y` is `yy` (decks
+  are linewise), with counts, registers and `.`.
+- `Ctrl-C` is `Esc`, as in vim, and never quits: it cancels a pending
+  key, a prompt, visual mode, card search or a focused pane, and on its
+  own in normal mode says "Type :q and press Enter to exit vimtg". The
+  same goes for every auxiliary screen; on the greeter menu it says to
+  press `q`. `Ctrl-Q` still quits at once, keeping unsaved work for
+  `:recover`.
+- `:w file` writes a copy and goes on editing the deck's own file, its
+  unsaved changes still unsaved, as in vim (`"copy.deck" written`). A
+  deck with no file yet still takes the name, and `:saveas file` still
+  switches. `:wq file` with unsaved changes writes the copy and stays
+  (E37) unless given `!`.
+- Which-key menus are titled by their prefix (`window`, `leader`, `go`,
+  `delete` ...) instead of "Next".
+
+### Added
+
+- `K` shows the cursor card's details inline when the `auto_expand`
+  setting is off, and hides them when it is on, until the cursor moves
+  (vim's keyword lookup).
+- `gv` selects the last visual selection again; `@:` repeats the last
+  ex command line, and `@@` after it repeats it again.
+- A jumplist: `Ctrl-O` / `Ctrl-I` (or `Tab`) walk back and forth through
+  the places jumps left, and `''` returns to where the latest jump left.
+  The jumps are vim's (`G`, `gg`, `:{n}`, searches, `{` `}` `[[` `]]`,
+  marks, `H` `M` `L`), plus an insert or zone move that files the card
+  far from the cursor.
+- `:qa`, `:qa!`, `:wa`, `:wqa` and `:xa` (with `:qall`, `:quitall`,
+  `:wall`, `:wqall`, `:xall`). With a split pane open, `:q` (and `:wq`,
+  `:x`, `ZZ`, `ZQ`) close the pane, as vim closes one of two windows;
+  vimtg quits when the editor is the last window.
+- Relative ex addresses: `.+1`, `+3`, `-2`, `$-1`, `'a+2`, so `.,+3d`,
+  `:m+1`, `:m-2` and `:t-1` work as in vim.
+- `:noh` / `:nohlsearch` are accepted (vimtg draws no search highlight,
+  so they do nothing) instead of being unknown commands.
+- `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
+  do (counts, visual mode, `.`).
+
 ### Fixed
 
+- Visual `p` / `P` replace the selection with the register and leave
+  visual mode, as in vim (`p` keeps the replaced lines in the unnamed
+  register, `P` keeps the registers as they were), instead of pasting
+  below the cursor and staying in visual mode.
+- An unknown ex command says vim's `E492: Not an editor command: {cmd}`
+  (in red) instead of `E: Unknown command`. The registration tests
+  checked for a message that never started that way; they check E492.
+- `:d 3` and `:y 3` take the number as a count, as in vim, instead of
+  as register `3`; `:d a 3` is register `a`, three lines.
+- Opening a deck with a recovery copy says "Found unsaved changes from
+  an earlier session" instead of calling every unsaved exit a crash.
+- In a focused pane `q` closes the pane instead of starting a macro
+  recording in the editor, and `Esc` returns to the editor leaving the
+  pane open. `g` sequences (`gh`, `g?`, `gc`) reach the editor instead of
+  the pane: `gh` in the EDHREC pane no longer switches tab. The pane hint
+  bars name `q` and `Esc`.
+- The which-key popup after an operator shows that operator's motions:
+  `dg` (on the way to `dgg`) no longer shows the `g` menu. The `q` menu
+  no longer offers "stop recording" when nothing is recording.
 - The editor and the deck parser now read every card line through one
   grammar, so the card under the cursor is always the card validation,
   analytics and export see: a pasted `(ZEN) 126 *F*` printing suffix is
