@@ -145,6 +145,17 @@ async def test_help_topic_shows_command_help(sample_deck_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_help_alias_shows_its_commands_help(sample_deck_path: Path) -> None:
+    app = VimTGApp(deck_path=sample_deck_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _type_command(pilot, "help exp")
+        assert isinstance(app.screen, HelpScreen)
+        text = app.screen.query_one("#help-body").render()
+        assert ":export format [file]" in text.plain
+
+
+@pytest.mark.asyncio
 async def test_help_unknown_topic_stays_in_editor(sample_deck_path: Path) -> None:
     app = VimTGApp(deck_path=sample_deck_path)
     async with app.run_test() as pilot:
