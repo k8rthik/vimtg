@@ -157,7 +157,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b(("H", "M", "L"), "Top / middle / bottom of the visible deck view", NAVIGATION,
        note="A count offsets H and L: 3H is the third visible line"),
     _b(("ctrl_o", "tab"), "Back / forward through the jumplist", NAVIGATION,
-       label="Ctrl-O / Ctrl-I",
+       label="Ctrl-O/I",
        note="Ctrl-I arrives as Tab. Jumps: G gg {n}G :{n} / ? n N * # { } [[ ]] "
             "'a H M L '', and an insert or zone move that files the card far away"),
     _b("''", "Back to where the latest jump left (again: forth)", NAVIGATION,
@@ -252,7 +252,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
             "h/l switch EDHREC tabs, Enter adds the selected card, q closes "
             "the pane, Esc returns to the editor"),
     _b(("ctrl_w h", "ctrl_w j", "ctrl_w k", "ctrl_w l"),
-       "Focus the window left / below / above / right", WINDOWS, label="Ctrl-W h/j/k/l",
+       "Focus the window left / below / above / right", WINDOWS, label="Ctrl-W hjkl",
        shorts=("window left", "window below", "window above", "window right"),
        note="The pane is right of a vertical split, below a horizontal one"),
     _b(("ctrl_w c", "ctrl_w q"), "Close the pane (with no pane, Ctrl-W q is :q)", WINDOWS,

@@ -43,7 +43,7 @@ COMMANDS
   :e[!] [file]  Edit another deck (:e! reloads, dropping changes)
   :s/pat/rep/g  Substitute (regex; & and \\1 in rep)
   :g/pat/cmd    Run d, p, y [x], or s/// on matching cards
-  :d / :y [x] [n] Delete / yank lines (range, or n lines) into
+  :d/:y [x] [n] Delete / yank lines (range, or n lines) into
                 register x
   :m {n} :t {n} Move / copy lines below line n
   :undo :redo   One undo / redo step
