@@ -8,7 +8,7 @@ _GETTING_STARTED = """
 GETTING STARTED
   Modes         vimtg is modal, like vim: NORMAL mode moves and edits
                 with single keys; o / i open a prompt to type into;
-                Esc always returns to NORMAL
+                Esc (or Ctrl-C) always returns to NORMAL
   o             Add a card: type part of its name, Tab/Down picks,
                 Enter adds it (+/- change the quantity after)
   :w            Save (a new deck is named after its // Deck: line)

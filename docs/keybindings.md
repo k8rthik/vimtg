@@ -283,7 +283,7 @@ Every screen accepts the shared vocabulary:
 | `1`-`5` | Open the nth recent deck listed |
 | `R` | Unsaved buffers left by an earlier session (listed only when there are any). `Enter` opens one, `d` discards it |
 | `?` / `F1` | Help overview (scrolls with the shared keys) |
-| `q` | Quit vimtg. `Esc` does nothing on the menu; in a sub-mode it goes back |
+| `q` | Quit vimtg. `Esc` does nothing on the menu (`Ctrl-C` says to press `q`); in a sub-mode it goes back |
 | lists | Shared navigation, `Enter` open, `n` new deck, `q`/`Esc` back |
 | import | Type or paste a path or URL, `Enter` import, `Esc` back |
 
