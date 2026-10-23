@@ -421,7 +421,7 @@ class TestCrashSafetyNet:
 # ── Random-key fuzz ────────────────────────────────────────────────
 
 # Normal/visual-mode vocabulary. Left out: keys that leave the editor or
-# touch the outside world (':' '/' 'S' 'Z' 'gh' '?' F1) — the ex line is
+# touch the outside world (':' '/' 'Z' 'gh' '?' F1, Ctrl-W, Space) — the ex line is
 # covered by its own tests, and random :w would write files.
 _FUZZ_KEYS = (
     list("jjkkwb{}GgHMLnN")

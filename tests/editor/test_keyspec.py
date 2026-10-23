@@ -11,9 +11,10 @@ from pathlib import Path
 from vimtg.editor.help_text import HELP_OVERVIEW
 from vimtg.editor.keymap import (
     _G_SUB_KEYS,
+    _LEADER_SUB_KEYS,
     _QUIT_SUB_KEYS,
-    _SPLIT_SUB_KEYS,
     _TAG_SUB_KEYS,
+    _WINDOW_SUB_KEYS,
     _ZONE_SUB_KEYS,
     MODE_SWITCHES,
     MOTIONS,
@@ -29,6 +30,7 @@ from vimtg.editor.keyspec import (
     PREFIX_TITLES,
     KeyBinding,
     bindings,
+    keystrokes,
     quick_hints,
     which_key_menus,
 )
@@ -46,10 +48,7 @@ def _atoms(mode: str = "normal") -> list[tuple[KeyBinding, str]]:
 
 def _sample(key: str) -> list[str]:
     """Keystrokes that exercise a spec key; patterns use `a`."""
-    key = key.replace(MARK, "a")
-    if key in ("ctrl_d", "ctrl_u", "ctrl_r", "escape", "f1"):
-        return [key]
-    return list(key)
+    return [press.replace(MARK, "a") for press in keystrokes(key)]
 
 
 class TestSpecMatchesKeymap:
@@ -84,8 +83,10 @@ class TestSpecMatchesKeymap:
             assert f"g{sub}" in declared
         for sub in _TAG_SUB_KEYS:
             assert f"t{sub}" in declared
-        for sub in _SPLIT_SUB_KEYS:
-            assert f"S{sub}" in declared
+        for sub in _WINDOW_SUB_KEYS:
+            assert f"ctrl_w {sub}" in declared
+        for sub in _LEADER_SUB_KEYS:
+            assert f"space {sub}" in declared
         for sub in _ZONE_SUB_KEYS:
             assert f"z{sub}" in declared
         for sub in _QUIT_SUB_KEYS:

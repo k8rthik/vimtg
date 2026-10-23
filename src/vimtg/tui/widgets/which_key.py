@@ -11,7 +11,7 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from vimtg.editor.keyspec import quick_hints, which_key_menus
+from vimtg.editor.keyspec import menu_title, quick_hints, which_key_menus
 from vimtg.tui.theme import COLORS
 
 # Both tables are derived from the editor key spec, the single source of
@@ -28,7 +28,8 @@ class WhichKey(Static):
     def render(self) -> Text:
         # Show pending key hints if we're mid-sequence
         if self.pending_key and self.pending_key in PENDING_HINTS:
-            return self._render_hints({"Next": PENDING_HINTS[self.pending_key]})
+            title = menu_title(self.pending_key)
+            return self._render_hints({title: PENDING_HINTS[self.pending_key]})
         return self._render_hints(NORMAL_HINTS)
 
     def _render_hints(self, hints: dict[str, list[tuple[str, str]]]) -> Text:

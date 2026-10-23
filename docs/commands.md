@@ -88,8 +88,9 @@ In-group card order follows the `sort_order` setting
 The editor supports one split pane beside (`:vsplit`) or below
 (`:split`) the main deck view. It shows either another deck read-only —
 compare a netdeck or an old version while editing — or EDHREC
-recommendations for the deck's commander. `Ss` switches focus into the
-pane (`j`/`k` scroll or select, `h`/`l` switch tabs, `Esc` returns).
+recommendations for the deck's commander. `Ctrl-W w` switches focus
+into the pane (`j`/`k` scroll or select, `h`/`l` switch tabs, `Esc`
+returns).
 
 | Command | Description |
 |---------|-------------|
@@ -186,8 +187,8 @@ by id. Note that merge and rebase results are normalized on write
 |---------|-------------|
 | `:stats` | Print a one-line summary on the command line: card count, average CMC, cards per type, and the total price with its source, e.g. `$12.34 (usd)`. Without card data it counts the card lines in each zone. For the curve, colors, and mana base, use `:analytics` |
 | `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency |
-| `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
-| `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Sd`): see below |
+| `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Space a`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
+| `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Space h`): see below |
 
 ### Sample hand
 

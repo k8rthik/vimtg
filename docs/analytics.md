@@ -1,6 +1,6 @@
 # Analytics methodology
 
-How `:stats`, the `:analytics` pane (`Sa`) and the bracket note in
+How `:stats`, the `:analytics` pane (`Space a`) and the bracket note in
 `vimtg validate` compute their numbers. Everything here is computed from
 the synced Scryfall data; nothing is fetched live.
 
