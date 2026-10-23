@@ -75,6 +75,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- A command that says nothing clears the command line, as in vim: after
+  `:3`, `:$`, or closing the view `:help`, `:history`, `:hand`, `:config`
+  or `:messages` opened, the hint bar is back instead of the stale
+  `:help` text.
 - Errors in the history overlay and the merge resolver are `E:` errors
   drawn in red, like the editor's (a database error used to show in the
   green of a status message). The editor and the overlay word the same
