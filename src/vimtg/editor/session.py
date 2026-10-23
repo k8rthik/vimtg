@@ -27,7 +27,7 @@ from vimtg.domain.categories import (
 )
 from vimtg.domain.deck_lines import split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
-from vimtg.domain.tags import TagFilter, format_tag_summary, tag_lines
+from vimtg.domain.tags import TagFilter, tag_lines
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.card_insert import (
     PendingInsert,
@@ -105,6 +105,7 @@ from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowComm
 from vimtg.editor.tag_ops import (
     add_tags_in_range,
     remove_tags_in_range,
+    tag_summary,
     toggle_tag_in_range,
 )
 from vimtg.services.history_service import HistoryService
@@ -1177,7 +1178,7 @@ def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
     if sub_key == "l":
         counts = state.buffer.tag_counts()
         return HandlerResult(
-            command_message=format_tag_summary(counts),
+            command_message=tag_summary(state.buffer),
             listing=Listing("Tags", tuple(tag_lines(counts))) if counts else None,
         )
     if sub_key == "c":

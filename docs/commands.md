@@ -128,7 +128,7 @@ Responses are cached for 7 days under the XDG cache directory.
 |---------|-------------|
 | `:tag name` | Tag the current line (or range) `#name` |
 | `:untag name` | Remove `#name`. `:untag!` clears every tag in the range |
-| `:tags` | List every tag in the deck with counts |
+| `:tags` | List every card tag in the deck with counts (with none, names the deck's own `// Tags:`) |
 | `:filter expr` | Filter the view to cards matching the tag expression |
 | `:retag /old/new/` | Rename a tag everywhere it appears |
 | `:dtag name...` | Add deck-level tags to the `// Tags:` metadata line, creating the line when the deck has none |

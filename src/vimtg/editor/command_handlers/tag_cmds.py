@@ -9,7 +9,6 @@ from vimtg.domain.tags import (
     TAG_NAME_RE as _TAG_NAME_RE,
 )
 from vimtg.domain.tags import (
-    format_tag_summary,
     matches_filter,
     parse_tag_filter,
     tag_lines,
@@ -26,6 +25,7 @@ from vimtg.editor.tag_ops import (
     add_tags_in_range,
     clear_tags_in_range,
     remove_tags_in_range,
+    tag_summary,
 )
 
 
@@ -121,9 +121,9 @@ def cmd_tags(
 
     counts = buf.tag_counts()
     if counts:
-        ctx.show_listing("Tags", tag_lines(counts), format_tag_summary(counts))
+        ctx.show_listing("Tags", tag_lines(counts), tag_summary(buf))
     else:
-        ctx.message = format_tag_summary(counts)
+        ctx.message = tag_summary(buf)
     return buf, cursor
 
 
