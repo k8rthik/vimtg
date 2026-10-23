@@ -357,7 +357,7 @@ class TestSortIsAChange:
             assert scr._state.modified is True
             # :q refuses instead of silently losing the sort
             _ex(scr, "q")
-            assert app.is_running and "Unsaved changes" in _message(scr)
+            assert app.is_running and _message(scr).startswith("E37: No write since last change")
             _feed(scr, ["u"])
             assert _text(scr) == CANONICAL
             assert scr._state.modified is False
