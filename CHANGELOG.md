@@ -100,6 +100,8 @@ from 1.0.0 onward.
   line when it is the only match, instead of saying "Pattern not found",
   and a search that wraps says "search hit BOTTOM, continuing at TOP" as
   in vim.
+- The greeter's `s` runs the same card sync as `:sync` and the automatic
+  one, so it can no longer start a second download while one is running.
 
 ## [1.0.0rc1] - 2026-10-10
 
