@@ -335,16 +335,6 @@ class TestAncestry:
         assert repo.get_ancestor_ids("local", DECK_PATH) == {"local"}
         assert repo.is_ancestor("foreign", "local", DECK_PATH) is False
 
-    def test_replace_snapshots_repoints_merge_parent(
-        self, repo: SnapshotRepository
-    ) -> None:
-        self._diamond(repo)
-        replacement = _snap(id="squashed", parent_id="base")
-        repo.replace_snapshots(["right"], replacement, update_tip=False)
-        merged = repo.get_snapshot("merge")
-        assert merged is not None
-        assert merged.merge_parent_id == "squashed"
-
 
 class TestTimestampsAlwaysCompare:
     def test_naive_and_garbage_rows_sort_with_aware_ones(

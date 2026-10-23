@@ -115,3 +115,39 @@ async def test_open_deck_with_initial_text_starts_modified(tmp_path: Path) -> No
         assert "4 Lightning Bolt" in screen._state.buffer.to_text()
         assert screen._state.modified
         assert screen.file_path is None
+
+
+@pytest.mark.asyncio
+async def test_url_import_summary_names_host_and_deck(tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    with patch("vimtg.tui.screens.main_screen.fetch_deck", return_value=_REMOTE):
+        async with app.run_test() as pilot:
+            screen = await _run_import(pilot, app)
+            cl = screen.query_one("#command-line", CommandLine)
+            assert cl.message.startswith("Imported 27 cards from moxfield.com — Mono Red")
+
+
+@pytest.mark.asyncio
+async def test_open_deck_shows_the_import_summary(tmp_path: Path) -> None:
+    import os
+
+    os.chdir(tmp_path)
+    app = VimTGApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.open_deck(
+            initial_text="// Deck: Imported\n\n4 Lightning Bolt\n",
+            message="Imported 4 cards from list.txt",
+        )
+        # The editor shows the message once it has mounted, which can take
+        # more than one frame on a slow runner
+        for _ in range(50):
+            await pilot.pause()
+            screen = app.screen
+            if isinstance(screen, MainScreen) and screen.query_one(
+                "#command-line", CommandLine,
+            ).message:
+                break
+        assert isinstance(screen, MainScreen)
+        cl = screen.query_one("#command-line", CommandLine)
+        assert cl.message == "Imported 4 cards from list.txt"

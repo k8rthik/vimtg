@@ -214,3 +214,19 @@ async def test_enter_respects_category_layout(tmp_path: Path) -> None:
             lines = screen._state.buffer.to_text().splitlines()
             assert lines[-2:] == ["// Uncategorized", "1 Sol Ring"]
             assert not any(line.startswith("// Artifact") for line in lines)
+
+
+@pytest.mark.asyncio
+async def test_offline_cached_page_says_how_old_it_is(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    class _OfflineClient(_StubClient):
+        def fetch(self, commanders: object) -> EdhrecPage:
+            return replace(_PAGE, note="cached 9 days ago (offline)")
+
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    with patch("vimtg.tui.screens.main_screen.EdhrecClient", _OfflineClient):
+        async with app.run_test() as pilot:
+            panel = await _open_edhrec(pilot, app)
+            header = panel.render().plain.splitlines()[0]
+            assert header.endswith("  cached 9 days ago (offline)")

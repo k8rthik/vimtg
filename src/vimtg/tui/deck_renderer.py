@@ -15,6 +15,7 @@ from rich.text import Text
 from vimtg.domain.card import Card
 from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.config_options import price_text
 from vimtg.editor.header_counts import HeaderCount
 from vimtg.tui.theme import COLORS
 
@@ -327,10 +328,9 @@ def _render_expansion(
     if card.set_code:
         meta_parts.append(f"Set: {card.set_code.upper()}")
     meta_parts.append(f"Rarity: {card.rarity.value.title()}")
-    if show_prices:
-        price = card.prices.get(price_source)
-        if price is not None:
-            meta_parts.append(f"{currency_symbol}{price:.2f}")
+    price = price_text(card, price_source, currency_symbol)
+    if show_prices and price:
+        meta_parts.append(price)
     lines.append(Text(f"{prefix}{'  '.join(meta_parts)}", style=_EXPANSION_STYLE))
 
     return lines

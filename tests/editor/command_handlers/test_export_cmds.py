@@ -195,6 +195,39 @@ class TestClipboard:
         if fmt == "vimtg":
             assert clipped.clipboard_text == text
 
+    def test_export_vimtg_writes_what_w_writes(self, tmp_path: Path) -> None:
+        from vimtg.services.deck_service import scaffold_metadata
+
+        raw = "// Deck: Burn\n\n4 Lightning Bolt\n"
+        deck = tmp_path / "burn.deck"
+        deck.write_text(raw)
+        buffer = Buffer.from_text(scaffold_metadata(raw)[0])
+        assert "// Tags:" in buffer.to_text()
+        ctx = EditorContext(file_path=deck)
+        out = tmp_path / "copy.deck"
+        cmd_export(buffer, Cursor(row=0), ParsedCommand(name="export", args=f"vimtg {out}"), ctx)
+        assert not ctx.error, ctx.message
+        assert out.read_text() == raw
+
+    def test_export_vimtg_of_a_new_deck_drops_empty_scaffold(self, tmp_path: Path) -> None:
+        buffer = Buffer.from_text(
+            "// Deck: Burn\n// Format:\n// Tags:\n\nDCK:\n    4 Lightning Bolt\n"
+        )
+        ctx = EditorContext()
+        cmd_clipboard(buffer, Cursor(row=0), ParsedCommand(name="clipboard", args="vimtg"), ctx)
+        assert ctx.clipboard_text == "// Deck: Burn\n\nDCK:\n    4 Lightning Bolt\n"
+
+    def test_export_vimtg_keeps_empty_metadata_the_file_has(self, tmp_path: Path) -> None:
+        raw = "// Deck: Burn\n// Format:\n// Tags:\n\n4 Lightning Bolt\n"
+        deck = tmp_path / "burn.deck"
+        deck.write_text(raw)
+        ctx = EditorContext(file_path=deck)
+        cmd_clipboard(
+            Buffer.from_text(raw), Cursor(row=0),
+            ParsedCommand(name="clipboard", args="vimtg"), ctx,
+        )
+        assert ctx.clipboard_text == raw
+
     def test_clipboard_unknown_format(self) -> None:
         buffer = Buffer.from_text(_deck_text())
         cursor = Cursor(row=0)

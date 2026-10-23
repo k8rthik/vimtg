@@ -11,9 +11,7 @@ from vimtg.domain.card import Card
 from vimtg.domain.search import (
     And,
     LegalityMatch,
-    Node,
     SearchSyntaxError,
-    parse_search,
     parse_search_with_order,
 )
 
@@ -23,10 +21,6 @@ __all__ = ["SearchService", "SearchSyntaxError"]
 class SearchService:
     def __init__(self, card_repo: CardRepository) -> None:
         self._repo = card_repo
-
-    def parse_query(self, raw: str) -> Node | None:
-        """Parse without running; ``None`` for a query with no terms."""
-        return parse_search(raw)
 
     def search(
         self, query: str, limit: int = 20, legal_in: str | None = None
@@ -43,6 +37,3 @@ class SearchService:
         if legal_in:
             node = And((node, LegalityMatch(legal_in, "legal")))
         return self._repo.search_parsed(node, limit=limit, order=order)
-
-    def autocomplete(self, prefix: str) -> list[str]:
-        return self._repo.autocomplete(prefix)

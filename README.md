@@ -74,7 +74,7 @@ vimtg works offline once card data is downloaded. It makes **no telemetry, analy
 | When | Where | What |
 |---|---|---|
 | `vimtg sync`, the greeter's `[s]`, or the TUI's background auto-sync (on launch and hourly, only when card data is missing or more than seven days old) | `api.scryfall.com`, `data.scryfall.io` | The public `oracle_cards` bulk file (card text, legalities, prices). Turn auto-sync off with `:set noautosync` or `VIMTG_NO_AUTOSYNC=1`. |
-| You open the EDHREC pane (`Space r` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days; disable with `VIMTG_NO_EDHREC=1`. |
+| You open the EDHREC pane (`Space r` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days (offline, an older cached page is shown and says how old it is); disable with `VIMTG_NO_EDHREC=1`. |
 | You import a deck URL (`:import <url>` or the greeter's `[i]`) | The site in the URL: Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or MTGGoldfish | That one public deck. |
 
 Requests identify themselves with a `vimtg/<version>` User-Agent and send nothing about your decks except the commander name (EDHREC) or the deck URL you asked to import. Your decks, settings, and history stay on your machine: card data and history in `~/.local/share/vimtg/`, config in `~/.config/vimtg/`, download caches in `~/.cache/vimtg/` (XDG variables are honoured).
@@ -163,7 +163,7 @@ VS: 4c Control  // grind plan
 | Zone block header | `DCK:` / `SB:` / `MB:` / `CMD:` / `CMP:` alone on a line | Python-style: indented lines below belong to the zone, a blank line is neutral, any unindented line closes the block. This is the default style for new decks. |
 | Zone prefix | `SB: 2 Rest in Peace` | Per-line prefix. An explicit prefix always wins over the enclosing block. |
 | Section header | `// Creatures`, `// @ramp`, `// Sideboard` | Type headers accept singular or plural in any case. Category headers use `@`. |
-| Card entry | `N Name  @category  #tag #tag  // comment` | Quantity defaults to 1. Two-space delimiters keep double-faced names like `Fire // Ice` unambiguous. |
+| Card entry | `N Name  @category  #tag #tag  // comment` | The quantity is required: a bare `Lightning Bolt` or `4x Shock` line is not a card, and the editor, `vimtg validate` and `vimtg info` warn about it. Two-space delimiters keep double-faced names like `Fire // Ice` unambiguous. |
 | Plan header | `VS: Matchup  // note` | Starts a sideboard plan block. |
 | Plan entry | `-N Card` / `+N Card` | Indented under `VS:`. Never counted as deck cards. |
 | Comment | any other `// text` | Freeform, preserved. |
@@ -260,7 +260,7 @@ Formats with rules (names are Scryfall legality keys): standard, pioneer, modern
 - **Live gutter signs**: `✗` error and `!` warning in a two-character column. The reason appears in the status line when the cursor is on the line. The status line also totals `✗N` and `!N`.
 - **Checks**: invalid quantity, unknown card, unknown format, banned/not-legal/restricted cards (warnings only in the maybeboard), copy limits across main + side + command zone with basic lands exempt and oracle text honoured ("any number of cards named" Relentless Rats, "up to seven" Seven Dwarves), minimum or exact deck size, sideboard allowed and size (over the limit is an error; a companion counts toward the 15 unless it is already listed in `SB:`), companion count, quantity, actual Companion ability, and colour identity in commander formats, commander present, quantity 1, at most two, eligible (legendary creature or Vehicle, "can be your commander", or a Background beside a "Choose a Background" commander; Brawl also allows planeswalkers, Pauper Commander any creature, Oathbreaker a planeswalker plus its Signature Spell, and a missing Signature Spell is an error), partner-pair heuristic, and colour identity of every mainboard card.
 - **Plan lint**: an out must be in the mainboard, an in must be in the sideboard, never more copies than the zone holds, a missing sign is an error; unbalanced ins/outs, duplicate plan names, and a card listed twice are warnings.
-- `:validate` prints the full list; `vimtg validate deck.deck` does the same from the shell and exits non-zero on errors. `vimtg validate --strict` also fails on warnings such as unknown card names, and needs a synced card database. For Commander decks it also prints an `info:` line with the Game Changer count and an estimated bracket. This line never fails validation, even with `--strict`.
+- `:validate` prints the full list; `vimtg validate deck.deck` prints the same report from the shell and exits non-zero on errors. Without a card database both say legality checks were skipped and suggest `:sync` (`vimtg sync`). `vimtg validate --strict` also fails on warnings such as unknown card names, and needs a synced card database. For Commander decks both also show the Game Changer count and an estimated bracket (an `info:` line in the shell). This line never fails validation, even with `--strict`.
 
 ### Sideboard plans
 
@@ -277,7 +277,7 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 - `:stats` prints a one-line summary on the command line: card count, average CMC, cards per type, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it). For the curve, colour pips, and mana base, use `:analytics`.
 - `:analytics` (or `Space a`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
-- `vimtg info deck.deck` prints counts from the shell.
+- `vimtg info deck.deck` prints the deck's name, its format (the `default_format` setting when the deck names none), the card count of every zone in use (commander, companion, mainboard, sideboard, maybeboard) and, with card data, the same summary line as `:stats`.
 
 ### Sample hand
 
@@ -292,13 +292,13 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 One pane at a time, beside (`Ctrl-W v`, `:vsplit file`) or below (`Ctrl-W s`, `:split file`) the editor.
 
 - **Deck pane**: another deck file, read-only, for comparing a netdeck or an old version. `j`/`k`, `Ctrl-D`/`Ctrl-U`, `gg`/`G` scroll.
-- **EDHREC pane** (`Space r`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory. `VIMTG_NO_EDHREC` disables lookups.
+- **EDHREC pane** (`Space r`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory; offline, an older cached page still opens, its header saying `cached N days ago (offline)`. `VIMTG_NO_EDHREC` disables lookups.
 - **Analytics pane** (`Space a`, `:analytics`): described above; opens unfocused because it is a readout. `Space a` / `Space r` again close their pane.
 - `Ctrl-W w` switches focus (`Ctrl-W h`/`j`/`k`/`l` by direction), `Ctrl-W c`, `Ctrl-W o` or `:close` closes. A focused pane has an orange border; in it `q` closes the pane and `Esc` returns to the editor. Any editing key (and `gh`, `g?`, `gc`) falls through to the editor and refocuses it.
 
 ### Import, export, and clipboard
 
-- **Formats**: vimtg, MTGO text, MTGO `.dek` XML, Arena, Moxfield CSV, Archidekt CSV, and a Markdown sideboard guide (export only). `:import file` auto-detects the format; `:export fmt [file]` writes it (no file: copies it to the clipboard). `vimtg convert` does the same from the shell, resolving names against the synced card database when there is one.
+- **Formats**: vimtg, MTGO text, MTGO `.dek` XML, Arena, Moxfield CSV, Archidekt CSV, and a Markdown sideboard guide (export only). `:import file` auto-detects the format; `:export fmt [file]` writes it (no file: copies it to the clipboard). `vimtg convert` does the same from the shell. Every import (`:import`, the greeter, `vimtg convert`) runs the same steps: names resolve to each card's official name against the synced card database when there is one, the deck is grouped by card type, duplicates merge, and skipped lines and unknown cards are reported.
 - **No accidental overwrites**: `:export fmt file` refuses an existing file (E13) unless you write `:export!`, and never writes over the deck you have open; `vimtg convert -o` refuses an existing file without `--force` and never overwrites its input. Writes are atomic. `vimtg convert deck.deck --to vimtg` copies the deck file unchanged.
 - **Imports are laid out like a new deck**: `// Deck:` and `// Format:` lines (the message reminds you when the format is unknown), then `CMD:` / `DCK:` / `SB:` blocks, with type sections when card data is synced. Imported names become each card's official name (`Fire/Ice` → `Fire // Ice`, `Insectile Aberration` → `Delver of Secrets // Insectile Aberration`), so copies merge and count per card.
 - **URL import** from Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, and MTGGoldfish via `:import <url>` or the greeter's `[i]` prompt. Commanders, companions, Oathbreaker signature spells, sideboards, and maybeboards map to the right zones; the deck title lands in `// Deck:`, the site's format in `// Format:` (Moxfield, Archidekt), and the URL in `// Source:`. No API keys needed.
@@ -461,13 +461,16 @@ vimtg burn.deck                        # open a deck (vim-style); a new path is 
 vimtg edit [file]                      # same, explicit
 vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats; --force overwrites)
 vimtg sync [--force]                   # download or refresh the card database
-vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md)
+vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices follow price_source/show_prices
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
-vimtg info deck.deck                   # counts summary
+vimtg info deck.deck                   # zones, format, and the :stats line
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing out.txt
+vimtg convert https://moxfield.com/decks/ID --to dek   # a deck URL works too; --to takes every :export format
 ```
+
+Notes, warnings and errors go to stderr; a command's own output (the deck, the validation report, search rows) goes to stdout, so it pipes cleanly.
 
 ## Known gaps
 

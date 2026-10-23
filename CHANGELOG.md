@@ -61,6 +61,12 @@ from 1.0.0 onward.
   so they do nothing) instead of being unknown commands.
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
+- Offline, the EDHREC pane opens a cached page older than seven days
+  instead of failing, its header saying `cached N days ago (offline)`.
+- `vimtg convert` takes every `:export` format (`--to dek` and `--to
+  mtga` were missing; `--from dek`, `mtga` and `vimtg` too), and a deck-
+  site URL as its input: `vimtg convert https://moxfield.com/decks/ID
+  --to arena`. Offline, it says so in one line.
 
 ### Fixed
 
@@ -186,6 +192,48 @@ from 1.0.0 onward.
   `:stats` (a one-line summary), `:dtag` / `:duntag` (deck-level
   `// Tags:`), `ZZ` (`:x`), mark ranges, `:g` sub-commands, the keys
   that are safe to `:map`, and the greeter's `R`.
+- `:export vimtg` and `:clipboard vimtg` write the text `:w` writes: the
+  empty `// Format:` and `// Tags:` lines the editor shows for a file
+  that never had them are left out.
+- Deck URL import and the EDHREC pane explain a failed request the way
+  `:sync` does (offline, timed out, proxy, TLS) instead of showing raw
+  httpx text.
+- Every import works the same way: `:import file`, `:import <url>`, the
+  greeter's file, URL and pasted-list imports, and `vimtg convert` all
+  go through one pipeline, so each one writes official card names,
+  groups the deck by card type when card data exists, merges duplicates,
+  and reports skipped lines and unknown cards. The greeter's imports
+  used to keep names as typed, and the URL imports did not report
+  skipped lines; the greeter now shows the import summary when the
+  editor opens.
+- `vimtg search` without card data says `no card database (run 'vimtg
+  sync' first)` instead of borrowing vim's unrelated E100 code.
+- `vimtg search` prices follow the `price_source` and `show_prices`
+  settings, like the editor's search list, instead of always printing
+  the USD price.
+- `:validate` without card data says legality checks were skipped and
+  suggests `:sync`, instead of a bare "Deck OK (modern)" that never
+  looked at legality. It also shows the Commander bracket estimate
+  `vimtg validate` prints; both now build one report
+  (`domain.validation.validation_report`).
+- `vimtg info` counts the commander, companion and maybeboard too, shows
+  the `default_format` setting when the deck names no format, and with
+  card data prints the same summary line as `:stats`.
+- A card written without a quantity (`Lightning Bolt`, `4x Shock`) was
+  silently read as a comment. The editor now marks such a line with a
+  `!` sign and `not a card line: add a quantity (1 Lightning Bolt)` when
+  it names a known card (without card data, only the `4x Shock` shape),
+  and `vimtg validate`, `:validate` and `vimtg info` warn about it. The
+  docs no longer claim the quantity is optional.
+- CLI notes go to stderr like the errors already did: `vimtg validate`'s
+  card-data notes and its `--strict` error, and `vimtg sync`'s progress
+  and skipped-card count. The command's own output stays on stdout.
+
+### Security
+
+- Deck URL import matches each site by its exact domain or a subdomain
+  of it, so a look-alike host such as `moxfield.com.evil.example` is
+  refused as unsupported instead of being read as that site.
 
 ## [1.0.0rc1] - 2026-10-10
 

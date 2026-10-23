@@ -1324,35 +1324,17 @@ class MainScreen(Screen[None]):
     ) -> None:
         if generation != self._import_generation:
             return
-        from vimtg.services.deck_sources import stamped_deck
-        from vimtg.services.import_export_service import (
-            NO_FORMAT_NOTE,
-            ImportExportService,
-            canonicalize_names,
-            merge_duplicate_entries,
-            structured_deck_text,
-        )
+        from vimtg.services.import_export_service import ImportExportService
 
         s = self._state
-        service = ImportExportService(card_repo=self.card_repo)
-        deck = stamped_deck(remote, url)
-        resolution = service.resolve_cards(deck)
-        deck = merge_duplicate_entries(canonicalize_names(deck, resolution.resolved))
-        s.buffer = Buffer.from_text(structured_deck_text(deck, resolution.resolved))
+        imported = ImportExportService(card_repo=self.card_repo).to_vimtg(remote, url=url)
+        s.buffer = Buffer.from_text(imported.text)
         s.cursor = Cursor()
         s.modified = True
         s.history.record(s.buffer, f"import {remote.name or url}")
         if self.card_repo:
             s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
-        message = f"Imported {deck.total_cards()} cards"
-        if remote.name:
-            message += f" — {remote.name}"
-        if resolution.unresolved:
-            from vimtg.domain.errors import CardsNotFoundWarning
-
-            message += f" | {CardsNotFoundWarning(len(resolution.unresolved))}"
-        if not deck.metadata.format:
-            message += f" | {NO_FORMAT_NOTE}"
+        message = imported.summary(urlparse(url).hostname or url)
         self.query_one("#command-line", CommandLine).set_message(message)
         self._sync_widgets()
 

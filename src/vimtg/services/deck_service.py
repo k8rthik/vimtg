@@ -12,7 +12,7 @@ from vimtg.domain.card_types import BASIC_LANDS  # noqa: F401  (re-export)
 from vimtg.domain.deck import Deck
 from vimtg.domain.deck_lines import match_metadata
 from vimtg.domain.formats import format_requires_commander
-from vimtg.domain.validation import ValidationError, validate_deck
+from vimtg.domain.validation import ValidationError
 
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
@@ -27,7 +27,7 @@ __all__ = [
     "scaffold_metadata",
     "editor_line_numbers",
     "editor_view_text",
-    "scaffold_missing_metadata",
+    "saved_text",
     "strip_unused_scaffold",
 ]
 
@@ -79,11 +79,6 @@ def scaffold_metadata(text: str) -> tuple[str, Scaffold]:
     return "\n".join(new_lines), Scaffold(frozenset(missing), blank)
 
 
-def scaffold_missing_metadata(text: str) -> str:
-    """scaffold_metadata without the record of what was added."""
-    return scaffold_metadata(text)[0]
-
-
 def strip_unused_scaffold(text: str, added: Scaffold) -> str:
     """Drop scaffold lines that are still empty before writing to disk.
 
@@ -116,6 +111,13 @@ def strip_unused_scaffold(text: str, added: Scaffold) -> str:
     if added.blank and not scaffold_left and rest and not rest[0].strip():
         rest = rest[1:]
     return "\n".join(kept + rest)
+
+
+def saved_text(text: str, on_disk: str | None) -> str:
+    """The text `:w` writes for an editor buffer opened from `on_disk`
+    (None for a new deck): the scaffold lines the file lacked go again
+    while still empty, as in the editor's own save."""
+    return strip_unused_scaffold(text, scaffold_metadata(on_disk or "")[1])
 
 
 def scaffold_deck_body(text: str) -> str:
@@ -241,17 +243,6 @@ class DeckService:
         found: dict[str, Card] = self._card_repo.get_by_names(names)
         unresolved = [n for n in names if n not in found]
         return found, unresolved
-
-    def validate(
-        self,
-        deck: Deck,
-        resolved: dict[str, Card] | None = None,
-        fmt: str = "",
-        *,
-        card_db: bool | None = None,
-    ) -> list[ValidationError]:
-        """Validate deck structure and format legality. Delegates to domain."""
-        return validate_deck(deck, resolved, fmt, card_db=card_db)
 
 
 def editor_view_text(raw: str) -> str:

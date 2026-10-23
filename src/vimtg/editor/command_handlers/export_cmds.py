@@ -5,13 +5,11 @@ Wires to ImportExportService for deck format conversion.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.file_io import atomic_write_text
 from vimtg.domain.card_names import CardMap
-from vimtg.domain.errors import CardsNotFoundWarning
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -20,24 +18,14 @@ from vimtg.editor.commands import (
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.services.clipboard import read_clipboard
+from vimtg.services.deck_service import saved_text
 from vimtg.services.import_export_service import (
-    NO_FORMAT_NOTE,
+    FORMAT_NAMES,
+    PRIMARY_FORMAT_NAMES,
     DeckFormat,
     ImportExportService,
-    normalize_text,
-    structured_deck_text,
+    format_list,
 )
-
-_FORMAT_MAP: dict[str, DeckFormat] = {
-    "arena": DeckFormat.ARENA,
-    "mtga": DeckFormat.ARENA,
-    "mtgo": DeckFormat.MTGO,
-    "dek": DeckFormat.MTGO_DEK,
-    "moxfield": DeckFormat.MOXFIELD,
-    "archidekt": DeckFormat.ARCHIDEKT,
-    "vimtg": DeckFormat.VIMTG,
-    "guide": DeckFormat.GUIDE,  # sideboard guide (Markdown)
-}
 
 
 def _export_target(arg: str) -> Path:
@@ -67,12 +55,22 @@ def _export_conflict(target: Path, ctx: EditorContext, bang: bool) -> str | None
 def _render_export(buffer: Buffer, fmt: DeckFormat, ctx: EditorContext) -> str:
     """The deck in `fmt`, as :export and :clipboard both produce it."""
     if fmt is DeckFormat.VIMTG:
-        # vimtg -> vimtg is the buffer itself: re-serializing would drop
-        # section headers, block layout and comment positions
-        return buffer.to_text()
+        # vimtg -> vimtg is the buffer as :w writes it: re-serializing
+        # would drop section headers, block layout and comment positions
+        return saved_text(buffer.to_text(), _on_disk(ctx.file_path))
     deck = parse_deck_text(buffer.to_text())
     service = ImportExportService(card_repo=ctx.card_repo)
     return service.export_deck(deck, fmt, resolved=ctx.resolved_cards or {})
+
+
+def _on_disk(path: Path | None) -> str | None:
+    """The deck file's text as the editor read it, or None without one."""
+    if path is None:
+        return None
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def cmd_export(
@@ -89,16 +87,13 @@ def cmd_export(
     """
     parts = cmd.args.strip().split(maxsplit=1)
     if not parts:
-        ctx.fail("Usage: :export <arena|mtgo|dek|moxfield|archidekt|vimtg|guide> [file]")
+        ctx.fail(f"Usage: :export <{'|'.join(PRIMARY_FORMAT_NAMES)}> [file]")
         return buffer, cursor
 
     fmt_name = parts[0].lower()
-    fmt = _FORMAT_MAP.get(fmt_name)
+    fmt = FORMAT_NAMES.get(fmt_name)
     if fmt is None:
-        ctx.fail(
-            f"Unknown format: {fmt_name}. "
-            "Use arena, mtgo, dek, moxfield, archidekt, vimtg, or guide"
-        )
+        ctx.fail(f"Unknown format: {fmt_name}. Use {format_list()}")
         return buffer, cursor
 
     result = _render_export(buffer, fmt, ctx)
@@ -179,50 +174,18 @@ def _import_text(
     require_cards: bool = False,
     deck_name: str = "",
 ) -> tuple[Buffer, Cursor]:
-    """Replace the buffer with the deck parsed from `text`.
-
-    A vimtg deck comes in verbatim (its layout is the user's). Any other
-    format is laid out like a new deck — '// Deck:' / '// Format:' lines
-    and CMD:/DCK:/SB: blocks, grouped by type when cards resolve — with
-    names normalised to each card's official name. `deck_name` (the
-    file's stem) names a deck whose text does not.
-    """
-    service = ImportExportService(card_repo=ctx.card_repo)
-    report = service.import_deck_report(text)
-    deck = report.deck
-    if require_cards and not deck.entries:
+    """Replace the buffer with the deck parsed from `text` (see
+    ImportExportService.to_vimtg); `deck_name` (the file's stem) names
+    a deck whose text does not."""
+    result = ImportExportService(card_repo=ctx.card_repo).to_vimtg(text, name=deck_name)
+    if require_cards and not result.deck.entries:
         ctx.fail(f"No cards found in {source}")
         return buffer, cursor
-    if deck_name and not deck.metadata.name:
-        deck = replace(deck, metadata=replace(deck.metadata, name=deck_name))
-    resolution = service.resolve_cards(deck)
-    if service.detect_format(text) is DeckFormat.VIMTG:
-        vimtg_text = normalize_text(text)
-    else:
-        vimtg_text = structured_deck_text(deck, resolution.resolved)
-    new_buffer = Buffer.from_text(vimtg_text)
+    new_buffer = Buffer.from_text(result.text)
     ctx.modified = True
-    ctx.message = f"Imported {deck.total_cards()} cards from {source}"
-    if report.skipped:
-        first = report.skipped[0]
-        ctx.message += (
-            f" | {len(report.skipped)} line(s) skipped"
-            f" (line {first.line_number}: {first.text[:40]})"
-        )
-
-    if resolution.resolved:
-        ctx.resolved_cards = CardMap(resolution.resolved)
-    if resolution.unresolved:
-        warning = str(CardsNotFoundWarning(len(resolution.unresolved)))
-        first_missing = next(
-            (n for n in resolution.unresolved if n in resolution.suggestions), None,
-        )
-        if first_missing is not None:
-            suggestion = resolution.suggestions[first_missing]
-            warning += f" (did you mean '{suggestion}' for '{first_missing}'?)"
-        ctx.message += f" | {warning}"
-    if deck.entries and not deck.metadata.format.strip():
-        ctx.message += f" | {NO_FORMAT_NOTE}"
+    ctx.message = result.summary(source)
+    if result.resolution.resolved:
+        ctx.resolved_cards = CardMap(result.resolution.resolved)
     return new_buffer, cursor.clamp(new_buffer.line_count() - 1)
 
 
@@ -238,12 +201,9 @@ def cmd_clipboard(
     has to go through it): the handler only renders the text.
     """
     fmt_name = (cmd.args.strip() or "arena").lower()
-    fmt = _FORMAT_MAP.get(fmt_name)
+    fmt = FORMAT_NAMES.get(fmt_name)
     if fmt is None:
-        ctx.message = (
-            f"E: Unknown format: {fmt_name}. "
-            "Use arena, mtgo, dek, moxfield, archidekt, vimtg, or guide"
-        )
+        ctx.message = f"E: Unknown format: {fmt_name}. Use {format_list()}"
         ctx.error = True
         return buffer, cursor
 

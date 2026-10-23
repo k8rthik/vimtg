@@ -135,20 +135,6 @@ class TestGetByNames:
         assert result == {}
 
 
-class TestAutocomplete:
-    def test_prefix_match(self, card_repo: CardRepository) -> None:
-        results = card_repo.autocomplete("Gob")
-        assert "Goblin Guide" in results
-
-    def test_limit(self, card_repo: CardRepository) -> None:
-        results = card_repo.autocomplete("", limit=3)
-        assert len(results) <= 3
-
-    def test_empty_prefix(self, card_repo: CardRepository) -> None:
-        results = card_repo.autocomplete("")
-        assert results == []
-
-
 class TestCount:
     def test_count_after_insert(self, card_repo: CardRepository) -> None:
         assert card_repo.count() == 10

@@ -6,7 +6,6 @@ import errno
 import re
 import sqlite3
 import sys
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -21,13 +20,14 @@ from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
 from vimtg.data.file_io import atomic_write_text
 from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync_error
-from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService, editor_line_numbers
+from vimtg.services.import_export_service import FORMAT_NAMES, IMPORT_FORMAT_NAMES
 from vimtg.services.search_service import SearchService, SearchSyntaxError
 
 if TYPE_CHECKING:
     from vimtg.domain.card import Card
-    from vimtg.domain.deck import Deck
+    from vimtg.domain.deck import Deck, DeckEntry
+    from vimtg.domain.deck_lines import MissingQuantityLine
 
 
 def _make_service() -> DeckService:
@@ -215,7 +215,7 @@ def _open_card_db() -> tuple[Database | None, str]:
         db.initialize()
         if CardRepository(db).count() > 0:
             return db, ""
-    except (sqlite3.Error, DatabaseNotInitializedError):
+    except sqlite3.Error:
         db.close()
         return None, _UNREADABLE_CARD_DB
     db.close()
@@ -249,40 +249,38 @@ def _no_card_db_note() -> str:
 def validate(path: str, strict: bool) -> None:
     """Validate a deck file (format-aware when a card database exists)."""
     from vimtg.config.settings import load_settings
+    from vimtg.data.deck_repository import missing_quantity_lines
+    from vimtg.domain.validation import legality_skipped_note, validation_report
+    from vimtg.editor.lint import effective_format
 
     card_repo = _try_card_repo()
     service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
     file_path = Path(path)
     text, deck = service.open_deck(file_path)
 
-    fmt = deck.metadata.format or load_settings().default_format
-    resolved = None
-    if card_repo is not None:
-        resolved, _unresolved = service.resolve_cards(deck)
-    errors = service.validate(
-        deck, resolved, fmt, card_db=card_repo is not None
-    )
-
     if strict and card_repo is None:
         click.echo(
             f"{file_path.name}: error: --strict needs a card database to "
-            "check card names; run 'vimtg sync'"
+            "check card names; run 'vimtg sync'",
+            err=True,
         )
         sys.exit(1)
-    if fmt and card_repo is None:
-        click.echo(
-            f"({_no_card_db_note()} — legality checks skipped; run 'vimtg sync')"
-        )
+    fmt = effective_format(deck, load_settings().default_format)
+    missing = missing_quantity_lines(text)
+    report = validation_report(deck, _resolve(card_repo, deck, missing), fmt, missing)
+
+    if fmt and not report.legality_checked:
+        skipped = legality_skipped_note(_no_card_db_note(), "'vimtg sync'")
+        click.echo(f"({skipped})", err=True)
     if card_repo is not None:
         note = card_data_note(card_repo.count(), card_repo.get_last_sync())
         if note:
-            click.echo(note)
+            click.echo(note, err=True)
 
-    bracket_note = _bracket_note(deck, fmt, resolved)
-    if not errors:
+    if not report.problems:
         click.echo(f"{file_path.name}: ok" + (f" ({fmt})" if fmt else ""))
-        if bracket_note:
-            click.echo(f"{file_path.name}: info: {bracket_note}")
+        if report.bracket:
+            click.echo(f"{file_path.name}: info: {report.bracket}")
         return
 
     has_errors = False
@@ -291,7 +289,7 @@ def validate(path: str, strict: bool) -> None:
     # that line elsewhere (it scaffolds missing '// Tags:'-style lines
     # on open), its line number follows the message
     shown_at = editor_line_numbers(text)
-    for err in errors:
+    for err in report.problems:
         line_part = f"{err.line_number}:" if err.line_number is not None else ""
         note = ""
         if err.line_number is not None:
@@ -302,52 +300,75 @@ def validate(path: str, strict: bool) -> None:
         if err.level == "error" or strict:
             has_errors = True
     # Informational only: never an error, and --strict ignores it.
-    if bracket_note:
-        click.echo(f"{file_path.name}: info: {bracket_note}")
+    if report.bracket:
+        click.echo(f"{file_path.name}: info: {report.bracket}")
 
     if has_errors:
         sys.exit(1)
 
 
-def _bracket_note(
-    deck: Deck, fmt: str, resolved: dict[str, Card] | None
-) -> str:
-    """Commander-bracket estimate for `validate`, or '' when it does not
-    apply (not Commander, or no card database to read Game Changers)."""
-    from vimtg.domain.analytics import estimate_bracket, is_commander_deck
-
-    if resolved is None:
-        return ""
-    applies = fmt.strip().lower() == "commander" if fmt else is_commander_deck(deck)
-    if not applies:
-        return ""
-    est = estimate_bracket(deck, resolved)
-    names = f" ({', '.join(est.game_changers)})" if est.game_changers else ""
-    return (
-        f"{est.count} Game Changers{names}; estimated Commander bracket "
-        f"{est.label} (heuristic: counts Game Changers only)"
-    )
-
-
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
 def info(path: str) -> None:
-    """Show deck summary."""
-    service = _make_service()
+    """Show deck summary: name, format, every zone's card count, and
+    (with card data) the :stats line."""
+    from vimtg.config.settings import load_settings
+    from vimtg.data.deck_repository import missing_quantity_lines
+    from vimtg.domain.analytics import stats_summary
+    from vimtg.domain.validation import missing_quantity_warnings
+    from vimtg.editor.config_options import currency_symbol_for
+
+    card_repo = _try_card_repo()
+    service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
     file_path = Path(path)
-    _text, deck = service.open_deck(file_path)
+    text, deck = service.open_deck(file_path)
+    settings = load_settings()
+    missing = missing_quantity_lines(text)
+    resolved = _resolve(card_repo, deck, missing)
 
-    main_entries = deck.mainboard()
-    side_entries = deck.sideboard()
-    main_count = sum(e.quantity for e in main_entries)
-    side_count = sum(e.quantity for e in side_entries)
-    main_unique = len({e.card_name for e in main_entries})
-    side_unique = len({e.card_name for e in side_entries})
+    fmt = deck.metadata.format.strip() or "(none)"
+    if not deck.metadata.format.strip() and settings.default_format:
+        fmt = f"{settings.default_format} (default_format)"
+    rows = [("Deck", deck.metadata.name or "(unnamed)"), ("Format", fmt)]
+    for label, entries, always in (
+        ("Commander", deck.commanders(), False),
+        ("Companion", deck.companions(), False),
+        ("Mainboard", deck.mainboard(), True),
+        ("Sideboard", deck.sideboard(), True),
+        ("Maybeboard", deck.maybeboard(), False),
+    ):
+        if entries or always:
+            rows.append((label, _zone_count(entries)))
+    if resolved is not None:
+        source = settings.price_source
+        rows.append(
+            ("Stats", stats_summary(deck, resolved, source, currency_symbol_for(source)))
+        )
+    for label, value in rows:
+        click.echo(f"{label + ':':<12}{value}")
+    for warning in missing_quantity_warnings(missing, resolved):
+        click.echo(
+            f"{file_path.name}:{warning.line_number}: warning: {warning.message}", err=True
+        )
 
-    click.echo(f"Deck:      {deck.metadata.name or '(unnamed)'}")
-    click.echo(f"Format:    {deck.metadata.format or '(none)'}")
-    click.echo(f"Mainboard: {main_count} cards ({main_unique} unique)")
-    click.echo(f"Sideboard: {side_count} cards ({side_unique} unique)")
+
+def _resolve(
+    card_repo: CardRepository | None, deck: Deck, missing: tuple[MissingQuantityLine, ...]
+) -> dict[str, Card] | None:
+    """The deck's cards (and the cards its quantity-less lines name) by name, or
+    None without a card database."""
+    if card_repo is None:
+        return None
+    return card_repo.get_by_names(
+        [*deck.unique_card_names(), *(m.card_name for m in missing)]
+    )
+
+
+def _zone_count(entries: tuple[DeckEntry, ...]) -> str:
+    """'56 cards (2 unique)' for one zone's entries."""
+    total = sum(e.quantity for e in entries)
+    unique = len({e.card_name for e in entries})
+    return f"{total} card{'' if total == 1 else 's'} ({unique} unique)"
 
 
 @main.command()
@@ -443,20 +464,21 @@ def _sync(db: Database, force: bool) -> None:
     def _progress(phase: str, current: int, total: int) -> None:
         if phase == "download" and total > 0:
             pct = current * 100 // total
-            click.echo(f"\rDownloading... {pct}%", nl=False)
+            click.echo(f"\rDownloading... {pct}%", nl=False, err=True)
         elif phase == "parse" and total > 0:
-            click.echo(f"\rParsing... {current}/{total}", nl=False)
+            click.echo(f"\rParsing... {current}/{total}", nl=False, err=True)
 
     try:
         count = syncer.sync(force=force, progress=_progress)
     except (httpx.HTTPError, RuntimeError, sqlite3.Error) as exc:
-        click.echo()  # end the in-place progress line
+        click.echo(err=True)  # end the in-place progress line
         raise click.ClickException(
             f"Sync failed: {describe_sync_error(exc)}"
         ) from exc
-    click.echo(f"\nSynced {count} cards")
+    click.echo(err=True)  # end the in-place progress line
+    click.echo(f"Synced {count} cards")
     if syncer.last_skipped:
-        click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse")
+        click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse", err=True)
 
 
 # A search key with its operator but no value ("mv>", "t:"). The overlay
@@ -474,6 +496,9 @@ def search(query: tuple[str, ...], limit: int) -> None:
     """Search for cards with Scryfall-style syntax, for example
     'vimtg search t:creature c:r mv<=2'. Put '--' before a query that
     starts with '-': 'vimtg search -- -t:land c:boros'."""
+    from vimtg.config.settings import load_settings
+    from vimtg.editor.config_options import price_text
+
     text = " ".join(query)
     # Quoted phrases and /regexes/ are values, not terms
     empty = _EMPTY_TERM.search(re.sub(r'"[^"]*"|/[^/]*/', "_", text))
@@ -483,7 +508,7 @@ def search(query: tuple[str, ...], limit: int) -> None:
         )
     repo = _make_card_repo()
     if repo.count() == 0:
-        raise click.ClickException(str(DatabaseNotInitializedError()))
+        raise click.ClickException(f"{_NO_CARD_DB} (run 'vimtg sync' first)")
     service = SearchService(card_repo=repo)
     try:
         results = service.search(text, limit=limit)
@@ -494,61 +519,68 @@ def search(query: tuple[str, ...], limit: int) -> None:
         click.echo("No cards found.")
         return
 
+    settings = load_settings()
     for card in results:
-        price = f"${card.price_usd:.2f}" if card.price_usd is not None else "-"
         name = card.name[:30] if len(card.name) > 30 else card.name
         mana = card.mana_cost  # in full: a split card's is "{1}{R} // {1}{U}"
         type_line = card.type_line[:26] if len(card.type_line) > 26 else card.type_line
-        click.echo(
-            f"{name:<32}{mana:<16}{type_line:<28}"
-            f"{card.set_code.upper():<8}{price:>8}"
-        )
+        row = f"{name:<32}{mana:<16}{type_line:<28}{card.set_code.upper():<8}"
+        if settings.show_prices:
+            row += f"{price_text(card, settings.price_source) or '-':>8}"
+        click.echo(row.rstrip())
 
 
 @main.command()
-@click.argument("input_path", type=click.Path(exists=True))
+@click.argument("source", type=click.Path())
 @click.option(
     "--from",
     "from_fmt",
-    type=click.Choice(["mtgo", "arena", "moxfield", "archidekt"]),
-    help="Source format (auto-detected if omitted)",
+    type=click.Choice(IMPORT_FORMAT_NAMES),
+    help="Source format (auto-detected if omitted; not for a deck URL)",
 )
 @click.option(
     "--to",
     "to_fmt",
-    type=click.Choice(["vimtg", "mtgo", "arena", "moxfield", "archidekt", "guide"]),
+    type=click.Choice(tuple(FORMAT_NAMES)),
     required=True,
-    help="Target format (guide = sideboard plans as Markdown)",
+    help="Target format (mtga = arena; guide = sideboard plans as Markdown)",
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
 @click.option("--force", is_flag=True, help="Overwrite an existing output file")
 def convert(
-    input_path: str,
+    source: str,
     from_fmt: str | None,
     to_fmt: str,
     output: str | None,
     force: bool,
 ) -> None:
-    """Convert deck between formats.
+    """Convert a deck file, or a deck-site URL, between formats.
 
     Card names resolve against the card database when it has been
     synced, so exports carry each card's official name. -o refuses an
     existing file unless --force is given, and never overwrites the
     input file.
     """
-    in_path = Path(input_path)
+    from vimtg.services.deck_sources import is_deck_url
+
+    is_url = is_deck_url(source)
+    if is_url and from_fmt:
+        raise click.UsageError("--from does not apply to a deck URL")
+    in_path = None if is_url else Path(source)
+    if in_path is not None and not in_path.exists():
+        raise click.BadParameter(f"'{source}' does not exist.", param_hint="'SOURCE'")
     out_path = Path(output).expanduser() if output else None
     if out_path is not None:
-        if out_path.resolve() == in_path.resolve():
+        if in_path is not None and out_path.resolve() == in_path.resolve():
             raise click.ClickException(
-                f"refusing to overwrite the input file {input_path} "
+                f"refusing to overwrite the input file {source} "
                 "(choose another -o path)"
             )
         _check_output_path(out_path, force)
 
     card_db = _optional_card_db()
     try:
-        result = _convert_text(in_path, from_fmt, to_fmt, card_db)
+        result = _convert_text(source, in_path, from_fmt, to_fmt, card_db)
     finally:
         if card_db is not None:
             card_db.close()
@@ -560,45 +592,45 @@ def convert(
 
 
 def _convert_text(
-    in_path: Path, from_fmt: str | None, to_fmt: str, card_db: Database | None
+    source: str,
+    in_path: Path | None,
+    from_fmt: str | None,
+    to_fmt: str,
+    card_db: Database | None,
 ) -> str:
-    """The converted deck text (see convert)."""
-    from vimtg.services.import_export_service import (
-        DeckFormat,
-        ImportExportService,
-        normalize_text,
-        structured_deck_text,
-    )
+    """The converted deck text (see convert); `in_path` is None when
+    `source` is a deck URL."""
+    from vimtg.services import deck_sources
+    from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
-    repo = CardRepository(card_db) if card_db is not None else None
-    service = ImportExportService(card_repo=repo)
-    text = normalize_text(in_path.read_text(encoding="utf-8"))
-    src_fmt = DeckFormat(from_fmt) if from_fmt else service.detect_format(text)
-    dst_fmt = DeckFormat(to_fmt)
-    report = service.import_deck_report(text, src_fmt)
-    if report.skipped:
+    service = ImportExportService(
+        card_repo=CardRepository(card_db) if card_db is not None else None
+    )
+    if in_path is None:
+        try:
+            remote = deck_sources.fetch_deck(source)
+        except deck_sources.DeckSourceError as exc:
+            raise click.ClickException(str(exc)) from exc
+        imported = service.to_vimtg(remote, url=source)
+    else:
+        imported = service.to_vimtg(
+            in_path.read_text(encoding="utf-8"),
+            fmt=FORMAT_NAMES[from_fmt] if from_fmt else None,
+            name=in_path.stem,
+        )
+    if imported.skipped:
         # stderr, so `vimtg convert ... > out.txt` stays a clean deck
         click.echo(
-            f"Skipped {len(report.skipped)} unreadable line(s) in {in_path}:",
+            f"Skipped {len(imported.skipped)} unreadable line(s) in {source}:",
             err=True,
         )
-        for skipped in report.skipped:
+        for skipped in imported.skipped:
             click.echo(f"  line {skipped.line_number}: {skipped.text}", err=True)
-    deck = report.deck
-    if dst_fmt is DeckFormat.VIMTG and src_fmt is DeckFormat.VIMTG:
-        # Lossless: the deck file's own layout, comments and blocks
-        result = text
-    else:
-        resolved = dict(service.resolve_cards(deck).resolved)
-        if dst_fmt is DeckFormat.VIMTG:
-            if not deck.metadata.name:
-                deck = replace(
-                    deck, metadata=replace(deck.metadata, name=in_path.stem)
-                )
-            result = structured_deck_text(deck, resolved)
-        else:
-            result = service.export_deck(deck, dst_fmt, resolved=resolved)
-    return result
+    dst_fmt = FORMAT_NAMES[to_fmt]
+    if dst_fmt is DeckFormat.VIMTG:
+        return imported.text
+    resolved = dict(imported.resolution.resolved)
+    return service.export_deck(imported.deck, dst_fmt, resolved=resolved)
 
 
 def _optional_card_db() -> Database | None:

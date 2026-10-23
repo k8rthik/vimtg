@@ -67,7 +67,7 @@ def test_cli_smoke_new_info_validate(tmp_path: Path) -> None:
     assert info.exit_code == 0, info.output
     assert "Smoke" in info.output
     assert "modern" in info.output
-    assert "Mainboard: 24 cards (2 unique)" in info.output
+    assert "Mainboard:  24 cards (2 unique)" in info.output
 
     # Without a card database legality is skipped; size warnings remain and
     # warnings alone do not fail validation.

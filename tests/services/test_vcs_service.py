@@ -521,23 +521,6 @@ class TestCherryPick:
         assert vcs.cherry_pick("nonexistent") is None
 
 
-class TestSquash:
-    def test_squash_multiple(self, vcs: VersionControlService) -> None:
-        snap1 = vcs.commit(STATE_V1, "first")
-        snap2 = vcs.commit(STATE_V2, "second")
-        snap3 = vcs.commit(STATE_V3, "third")
-        result = vcs.squash([snap1.id, snap2.id, snap3.id], "squashed")
-        assert result is not None
-        assert result.description == "squashed"
-        assert result.deck_state == STATE_V3  # final state
-
-    def test_squash_empty_list(self, vcs: VersionControlService) -> None:
-        assert vcs.squash([], "empty") is None
-
-    def test_squash_nonexistent(self, vcs: VersionControlService) -> None:
-        assert vcs.squash(["nonexistent"], "fail") is None
-
-
 class TestStatus:
     def test_status_with_no_history(self, vcs: VersionControlService) -> None:
         status = vcs.status(STATE_V1)

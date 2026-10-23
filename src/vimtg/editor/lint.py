@@ -10,8 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from vimtg.data.deck_repository import parse_deck_text
-from vimtg.domain.validation import ValidationError, validate_deck
+from vimtg.data.deck_repository import missing_quantity_lines, parse_deck_text
+from vimtg.domain.validation import ValidationError, missing_quantity_warnings, validate_deck
 
 if TYPE_CHECKING:
     from vimtg.domain.card import Card
@@ -73,6 +73,7 @@ def lint_buffer(
         deck = parse_deck_text(buffer.to_text())
 
     errors = validate_deck(deck, resolved, effective_format(deck, default_format))
+    errors += missing_quantity_warnings(missing_quantity_lines(buffer.to_text()), resolved or None)
 
     line_errors: dict[int, ValidationError] = {}
     deck_errors: list[ValidationError] = []

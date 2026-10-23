@@ -192,6 +192,45 @@ def test_search_shows_full_split_cost(
     assert "{1}{R} // {1}{U}" in result.output
 
 
+def test_search_without_card_data_says_to_sync(
+    runner: CliRunner, db_factory: Callable[..., Database], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    empty = CardRepository(db_factory())
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: empty)
+    result = runner.invoke(main, ["search", "bolt"])
+    assert result.exit_code == 1
+    assert "no card database (run 'vimtg sync' first)" in result.output
+
+
+def _write_config(text: str) -> None:
+    from vimtg.config.paths import config_dir
+
+    config_dir().mkdir(parents=True, exist_ok=True)
+    (config_dir() / "config.toml").write_text(text, encoding="utf-8")
+
+
+def test_search_prices_follow_price_source(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config('[editor]\nprice_source = "eur"\n')
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "!\"Lightning Bolt\""])
+    assert result.exit_code == 0, result.output
+    assert result.output.rstrip().endswith("\u20ac1.20")
+    assert "$" not in result.output
+
+
+def test_search_hides_prices_when_show_prices_is_off(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config("[editor]\nshow_prices = false\n")
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    result = runner.invoke(main, ["search", "!\"Lightning Bolt\""])
+    assert result.exit_code == 0, result.output
+    assert "1.50" not in result.output
+    assert result.output.rstrip().endswith("STA")
+
+
 def test_search_no_results(
     runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
 ) -> None:
