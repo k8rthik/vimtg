@@ -83,6 +83,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `i` on a bare zone header says `E21: Cannot edit the DCK: zone header`
+  instead of opening a raw edit, and `.` after an `i` edit keeps the
+  block indentation of the line it repeats on, so the card stays in its
+  block.
 - The deck view's type column ends a long type line in "…"
   (`Legendary Enchantme…`) instead of cutting it mid-word, and a card
   line in a narrow split pane is cut at the pane's edge with "…" instead
