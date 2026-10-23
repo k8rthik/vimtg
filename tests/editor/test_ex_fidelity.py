@@ -1,0 +1,50 @@
+"""Ex command fidelity: relative addresses."""
+
+from __future__ import annotations
+
+import pytest
+
+from tests.editor.test_vim_fidelity import _ex, _state, _texts
+from vimtg.editor.commands import CommandRange, parse_command
+
+# Rows (0-based), as in test_vim_fidelity:
+#  0 // Creature   4 // Instant         8 // Land
+#  1 4 Goblin      5 4 Lightning Bolt   9 20 Mountain
+#  2 4 Swiftspear  6 4 Searing Blaze
+#  3 (blank)       7 (blank)
+
+
+class TestRelativeAddresses:
+    @pytest.mark.parametrize(("text", "start", "end"), [
+        (".+1", 6, 6), ("+3", 8, 8), ("-2", 3, 3), ("+", 6, 6), ("-", 4, 4),
+        (".,+3", 5, 8), ("-1,.", 4, 5), ("$-1", 8, 8), ("3+2", 4, 4), ("'a+1", 3, 3),
+    ])
+    def test_offsets_count_from_their_base(self, text: str, start: int, end: int) -> None:
+        cmd = parse_command(f"{text}d", cursor_row=5, line_count=10, marks={"a": 2})
+        assert cmd.name == "d"
+        assert cmd.cmd_range == CommandRange(start=start, end=end)
+
+    def test_a_bare_offset_moves_the_cursor(self) -> None:
+        state = _state(row=1)
+        _ex(state, "+3")
+        assert state.cursor.row == 4
+
+    def test_dot_comma_plus_deletes_a_span(self) -> None:
+        state = _state(row=5)
+        _ex(state, ".,+1d")
+        assert "4 Lightning Bolt" not in _texts(state.buffer)
+        assert "4 Searing Blaze" not in _texts(state.buffer)
+
+    def test_move_down_and_up_by_offset(self) -> None:
+        state = _state(row=1)
+        _ex(state, "m+1")
+        assert _texts(state.buffer)[1:3] == ["4 Monastery Swiftspear", "4 Goblin Guide"]
+        _ex(state, "m-2")
+        assert _texts(state.buffer)[1:3] == ["4 Goblin Guide", "4 Monastery Swiftspear"]
+
+    def test_copy_above_by_offset(self) -> None:
+        state = _state(row=6)
+        _ex(state, "t-1")
+        assert _texts(state.buffer)[5:8] == [
+            "4 Lightning Bolt", "4 Searing Blaze", "4 Searing Blaze",
+        ]

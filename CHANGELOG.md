@@ -55,6 +55,8 @@ from 1.0.0 onward.
   `:wall`, `:wqall`, `:xall`). With a split pane open, `:q` (and `:wq`,
   `:x`, `ZZ`, `ZQ`) close the pane, as vim closes one of two windows;
   vimtg quits when the editor is the last window.
+- Relative ex addresses: `.+1`, `+3`, `-2`, `$-1`, `'a+2`, so `.,+3d`,
+  `:m+1`, `:m-2` and `:t-1` work as in vim.
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
 

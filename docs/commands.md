@@ -2,7 +2,9 @@
 
 All commands are entered after `:` in normal mode. Most accept a vim-style
 range prefix (`%` for the whole file, `5,10` for a line range, `.` for the
-current line, `'a,'b` for marks).
+current line, `'a,'b` for marks). Any address takes `+N` / `-N` offsets, and
+an offset alone counts from the cursor line: `.,+3d` deletes four lines,
+`:+2` goes two lines down, `$-1` is the line before the last.
 
 ## File
 
@@ -36,7 +38,7 @@ current line, `'a,'b` for marks).
 | `:v/pattern/cmd`, `:g!/pattern/cmd` | Inverse: run on every card line **not** matching |
 | `:[range]d [x]` | Delete lines (default: the cursor line) into register `x` |
 | `:[range]y [x]` | Yank lines into register `x` |
-| `:[range]m {n}` | Move lines below line `n` (`0` = to the top, `$` = to the end, `.` = the cursor line) |
+| `:[range]m {n}` | Move lines below line `n` (`0` = to the top, `$` = to the end, `.` = the cursor line, `+1` / `-2` relative to it, `'a` a mark) |
 | `:[range]t {n}` | Copy lines below line `n` (also `:co`, `:copy`) |
 | `:undo` / `:redo` | One undo / redo step (also `:u`, `:red`) |
 | `:reg [x...]` | Show what the registers hold (also `:registers`, `:di`) |
@@ -54,11 +56,12 @@ Examples:
 :1,20sort cmc            sort lines 1–20 by mana cost
 :5,8m0                   move lines 5–8 to the top
 :'a,'bd                  delete from mark a through mark b
+:m+1 / :m-2              move the line down one / up one
+:t-1                     copy the line above itself
 ```
 
 Not supported, because the deck is line-oriented or the feature has no
-deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, and `+N`/`-N`
-address offsets.
+deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, and `:r[ead]`.
 
 ## Search & navigation
 
