@@ -20,7 +20,6 @@ from vimtg.data.database import Database
 from vimtg.data.deck_repository import DeckRepository
 from vimtg.data.file_io import atomic_write_text
 from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync_error
-from vimtg.domain.errors import DatabaseNotInitializedError
 from vimtg.services.deck_service import DeckService, editor_line_numbers
 from vimtg.services.search_service import SearchService, SearchSyntaxError
 
@@ -214,7 +213,7 @@ def _open_card_db() -> tuple[Database | None, str]:
         db.initialize()
         if CardRepository(db).count() > 0:
             return db, ""
-    except (sqlite3.Error, DatabaseNotInitializedError):
+    except sqlite3.Error:
         db.close()
         return None, _UNREADABLE_CARD_DB
     db.close()
@@ -482,7 +481,7 @@ def search(query: tuple[str, ...], limit: int) -> None:
         )
     repo = _make_card_repo()
     if repo.count() == 0:
-        raise click.ClickException(str(DatabaseNotInitializedError()))
+        raise click.ClickException(f"{_NO_CARD_DB} (run 'vimtg sync' first)")
     service = SearchService(card_repo=repo)
     try:
         results = service.search(text, limit=limit)
