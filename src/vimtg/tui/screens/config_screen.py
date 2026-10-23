@@ -26,7 +26,15 @@ from vimtg.editor.config_options import (
     options_for_group,
 )
 from vimtg.tui.key_translator import translate
-from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
+from vimtg.tui.keys import (
+    CLOSE_KEYS,
+    FULL_HELP_KEY,
+    HELP_KEY,
+    PENDING,
+    DiscardGuard,
+    VimNav,
+    render_hints,
+)
 from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 
@@ -128,7 +136,7 @@ class ConfigScreen(FloatingScreen[None]):
         self._original = settings
         self._settings = settings
         self._on_save = on_save
-        self._discard_armed = False  # first q with unsaved changes warns
+        self._discard = DiscardGuard()
         self._nav = VimNav()
 
     def compose_window(self) -> ComposeResult:
@@ -146,8 +154,8 @@ class ConfigScreen(FloatingScreen[None]):
         view = self.query_one("#config-view", ConfigView)
         all_options = navigable_options()
         max_idx = len(all_options) - 1
-        if key not in CLOSE_KEYS and self._discard_armed:
-            self._discard_armed = False
+        if key not in CLOSE_KEYS and self._discard.armed:
+            self._discard.disarm()
             view.warning = ""
 
         step = self._nav.feed(key, max(1, max_idx + 1))
@@ -188,8 +196,7 @@ class ConfigScreen(FloatingScreen[None]):
 
     def _close(self, view: ConfigView) -> None:
         """Close, but warn once before discarding unsaved changes."""
-        if view.unsaved and not self._discard_armed:
-            self._discard_armed = True
+        if not self._discard.allow_close(view.unsaved):
             view.warning = "Unsaved changes — press q again to discard, s to save"
             return
         self.app.pop_screen()

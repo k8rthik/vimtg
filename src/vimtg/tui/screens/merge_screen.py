@@ -19,7 +19,15 @@ from textual.widgets import Static
 from vimtg.domain.deck_merge import CardKey
 from vimtg.services.vcs_service import PendingMerge
 from vimtg.tui.key_translator import translate
-from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
+from vimtg.tui.keys import (
+    CLOSE_KEYS,
+    FULL_HELP_KEY,
+    HELP_KEY,
+    PENDING,
+    DiscardGuard,
+    VimNav,
+    render_hints,
+)
 from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.conflicts_panel import ConflictsPanel
@@ -129,6 +137,7 @@ class MergeScreen(FloatingScreen[None]):
         self._resolutions: dict[CardKey, int | None] = {}
         self._input_mode = MergeInputMode.NORMAL
         self._input_text = ""
+        self._discard = DiscardGuard()
 
     def compose_window(self) -> ComposeResult:
         yield MergeHeader(id="merge-header")
@@ -158,6 +167,8 @@ class MergeScreen(FloatingScreen[None]):
         cl = self.query_one("#merge-command", MergeCommandLine)
         if cl.message:
             cl.hide()
+        if key not in CLOSE_KEYS:
+            self._discard.disarm()
 
         cp = self.query_one("#conflicts-panel", ConflictsPanel)
         step = self._nav.feed(key, max(1, len(cp.conflicts)))
@@ -266,6 +277,12 @@ class MergeScreen(FloatingScreen[None]):
         self._on_complete(dict(self._resolutions))
 
     def _abort(self) -> None:
+        """Close without merging; with resolutions made, only on a second q."""
+        if not self._discard.allow_close(bool(self._resolutions)):
+            self.query_one("#merge-command", MergeCommandLine).show_message(
+                "Resolutions not applied — press q again to discard, Enter to confirm"
+            )
+            return
         self.app.pop_screen()
         if self._on_abort is not None:
             self._on_abort()
