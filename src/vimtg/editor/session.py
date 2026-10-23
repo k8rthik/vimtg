@@ -757,7 +757,9 @@ def _change_quantity(state: EditorState, key: str, count: int) -> HandlerResult:
     lines = end - start + 1 if selection is not None else 0
     if state.buffer is not before:
         state.modified = True
-        state.history.record(state.buffer, "increment" if key == "+" else "decrement")
+        state.history.record(
+            state.buffer, "increment" if key == "+" else "decrement", rows=(start, end),
+        )
     state.dot_repeat.record(
         RepeatableAction("quantity", operator=key, count=count, lines=lines)
     )
@@ -783,17 +785,31 @@ def _search_card_under_cursor(
     return _repeat_find(state, backward=backward, count=count)
 
 
+def _first_changed_row(old: Buffer, new: Buffer) -> int | None:
+    """The first row where `new` differs from `old`; None if identical."""
+    old_lines = [line.text for line in old.get_lines()]
+    new_lines = [line.text for line in new.get_lines()]
+    for row, (a, b) in enumerate(zip(old_lines, new_lines, strict=False)):
+        if a != b:
+            return row
+    return None if len(old_lines) == len(new_lines) else min(len(old_lines), len(new_lines))
+
+
 def restore_buffer(state: EditorState, buffer: Buffer) -> None:
     """Swap in a buffer from history (undo/redo), keeping every row
     reference inside it.
 
-    The restored buffer can be shorter than the one it replaces, so the
+    The cursor goes to the first line the step changed, as in vim; the
+    restored buffer can be shorter than the one it replaces, so the
     cursor and visual anchor are clamped, and the modified flag follows
     whether the text differs from the last loaded/saved state — undoing
     back to it is clean again, as in vim.
     """
+    changed = _first_changed_row(state.buffer, buffer)
     state.buffer = buffer
     last = max(0, buffer.line_count() - 1)
+    if changed is not None:
+        state.cursor = state.cursor.move_to(changed, 0)
     state.cursor = state.cursor.clamp(last)
     if state.visual_anchor is not None:
         state.visual_anchor = max(0, min(state.visual_anchor, last))
