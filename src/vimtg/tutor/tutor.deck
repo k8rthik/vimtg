@@ -1,0 +1,169 @@
+// Deck: vimtg tutor
+// Format: modern
+// Author: vimtg
+// Tags: tutorial
+
+// ============================================================
+//   W E L C O M E   T O   T H E   V I M T G   T U T O R
+// ============================================================
+// vimtg edits decklists the way vim edits text. This deck is a
+// set of lessons, and the cards under each lesson are yours to
+// practice on. It is a throwaway copy with its own small card
+// database and default settings: nothing here touches your
+// real decks. Run `vimtg tutor` again for a fresh copy.
+//
+// Press j to move down one line and k to move up. Hold j now.
+
+// ------------------------------------------------------------
+// Lesson 1: MOVING AROUND
+// ------------------------------------------------------------
+// j / k        down / up one line (blank lines are skipped)
+// w / b        next / previous card, skipping these comments
+// gg / G       first / last line of the deck
+// Ctrl-D/U     half a page down / up
+// Rest the cursor on a card and its rules text opens under it.
+// Try it: press w until the cursor is on Goblin Guide.
+4 Goblin Guide
+4 Monastery Swiftspear
+
+// ------------------------------------------------------------
+// Lesson 2: QUANTITIES
+// ------------------------------------------------------------
+// +  or  Ctrl-A    one more copy
+// -  or  Ctrl-X    one fewer (at zero the card is removed)
+// A count goes first, like vim: 3+ adds three copies.
+// Try it: Lava Spike has 1 copy. Press 3+ on it to make 4.
+// Then press - on Rift Bolt to take it from 5 down to 4.
+1 Lava Spike
+5 Rift Bolt
+
+// ------------------------------------------------------------
+// Lesson 3: DELETE, UNDO, REPEAT
+// ------------------------------------------------------------
+// dd       delete the card (x does the same)
+// u        undo                Ctrl-R    redo
+// .        repeat your last change on the card under the cursor
+// The two cards below are banned in modern, so they must go.
+// Try it: dd on Ponder. Press u to bring it back, then Ctrl-R
+// to delete it again. On Faithless Looting press . to repeat.
+4 Ponder
+4 Faithless Looting
+
+// ------------------------------------------------------------
+// Lesson 4: ADDING CARDS
+// ------------------------------------------------------------
+// o / O    open card search below / above the cursor: type
+//          part of a name, Tab or Down picks, Enter adds it
+// 4o       a count before o adds that many copies
+// vimtg files every new card under its type's // header. This
+// deck has no // Instants header yet, so it starts one at the
+// end of the main deck and the cursor follows the card there.
+// Ctrl-O   jump back to where you were (Ctrl-I goes forward)
+// Try it: on Lightning Bolt press 4o, type helix, press Enter.
+// Then press Ctrl-O to come back here.
+4 Lightning Bolt
+
+// ------------------------------------------------------------
+// Lesson 5: SIDEBOARD AND ZONES (the z keys)
+// ------------------------------------------------------------
+// zs   move the card to the sideboard    zd   back to the deck
+// zm   move it to the maybeboard
+// A count splits copies off: 2zs moves just two.
+// *    jump to the next line with the same card
+// Try it: on Skewer the Critics press 2zs. Press * to find the
+// SB: copy it made at the bottom, then zd to bring it home.
+4 Skewer the Critics
+
+// ------------------------------------------------------------
+// Lesson 6: VISUAL MODE
+// ------------------------------------------------------------
+// V starts a selection and j / k grows it. Then one key acts
+// on every selected card: d delete, + / - quantity, zs side.
+// Esc leaves visual mode.
+// Try it: on Eidolon press V, then j twice, then + to add a
+// copy of all three cards at once.
+3 Eidolon of the Great Revel
+3 Light Up the Stage
+3 Play with Fire
+
+// ------------------------------------------------------------
+// Lesson 7: SEARCH
+// ------------------------------------------------------------
+// /bolt Enter   jump to the next card whose name has "bolt"
+// n / N         next / previous match     ? searches upward
+// Try it: type /mesa and press Enter, then n to wrap around.
+8 Mountain
+4 Arid Mesa
+4 Bloodstained Mire
+
+// ------------------------------------------------------------
+// Lesson 8: EX COMMANDS
+// ------------------------------------------------------------
+// :w            save          :q   quit (:q! throws changes away)
+// :s/a/b/       rename the card on this line
+// :%s/a/b/      rename everywhere    :g/pat/d   delete matches
+// Try it: on the card below, type :s/Shock/Lightning Bolt/ and
+// press Enter. Then u to undo it.
+4 Shock
+
+// ------------------------------------------------------------
+// Lesson 9: FORMATS AND LEGALITY
+// ------------------------------------------------------------
+// The // Format: line at the top turns on legality checks.
+// A card that breaks a rule gets a sign in the left gutter,
+// and the reason shows in the status bar when you are on it.
+// Ponder is banned in modern; Rift Bolt started at 5 copies.
+// Try it: type :validate and press Enter to list every problem.
+
+// ------------------------------------------------------------
+// Lesson 10: TAGS AND CATEGORIES
+// ------------------------------------------------------------
+// ta    add a #tag to the card      tf   filter the view by tag
+// gc    set the card's @category (Tab completes)
+// Try it: on Searing Blaze press ta, type burn, Enter. Then tf,
+// burn, Enter to show only #burn cards. tf, Enter clears it.
+4 Searing Blaze
+
+// ------------------------------------------------------------
+// Lesson 11: SIDEBOARD PLANS
+// ------------------------------------------------------------
+// A VS: block at the bottom lists what comes in and goes out
+// against one matchup. :plan Tron makes that plan active, so
+// analytics count the boarded deck. zo boards the card under
+// the cursor out, zi boards it in, [v and ]v step plans.
+// Try it: type :plan Tron, Enter, then zo on Monastery Swiftspear.
+
+// ------------------------------------------------------------
+// Lesson 12: PANES AND WINDOWS
+// ------------------------------------------------------------
+// Space a     live analytics: curve, colors, draw odds
+// Space h     sample hand: draw seven, mulligan, goldfish
+// Ctrl-W v    open a second deck side by side
+// Ctrl-W w    switch windows        q or Esc closes a pane
+// Try it: press Space a, look around, then q.
+
+// ------------------------------------------------------------
+// Lesson 13: VERSION HISTORY
+// ------------------------------------------------------------
+// :commit saves a snapshot of the deck with a message.
+// gh opens the history: snapshots, diffs, branches. q closes.
+// Try it: type :w Enter, then :commit first try Enter, then gh.
+
+// ------------------------------------------------------------
+// Lesson 14: GETTING HELP, AND LEAVING
+// ------------------------------------------------------------
+// ?        help for the screen you are on
+// F1       the full manual        :help sort   one topic
+// g?       a quick-reference card
+// Pause after a prefix key (g, z, t, ...) to list what follows.
+// ZZ       save and quit           :q!   quit without saving
+//
+// That is the tour. Open a real deck with `vimtg mydeck.deck`
+// or start one with `vimtg new`. Happy brewing.
+
+// Sideboard
+SB: 3 Rest in Peace
+SB: 2 Kor Firewalker
+VS: Tron
+    +2 Kor Firewalker
+    -2 Light Up the Stage
