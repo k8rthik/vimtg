@@ -225,6 +225,9 @@ from 1.0.0 onward.
   it names a known card (without card data, only the `4x Shock` shape),
   and `vimtg validate`, `:validate` and `vimtg info` warn about it. The
   docs no longer claim the quantity is optional.
+- CLI notes go to stderr like the errors already did: `vimtg validate`'s
+  card-data notes and its `--strict` error, and `vimtg sync`'s progress
+  and skipped-card count. The command's own output stays on stdout.
 
 ### Security
 
