@@ -140,6 +140,7 @@ moves the card but warns. An unknown or missing format checks nothing.
 | `Ctrl-A` / `Ctrl-X` | Same as `+` / `-` on the selection |
 | `zs` / `zm` / `zd` / `zc` / `zp` | Move every selected card to that zone |
 | `zi` / `zo` | Board every selected card in / out of the active plan |
+| `p` / `P` | Replace the selection with the register's lines (`3p`: three times). `p` leaves the replaced lines in the unnamed register, so the next `p` puts them; `P` leaves every register as it was |
 | `o` | Jump to the other end of the selection |
 | `gc` / `gC`, `ta` / `tr` / `tt` | Category and tag prompts apply to the whole selection |
 | `Esc` | Exit visual mode |

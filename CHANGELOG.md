@@ -64,6 +64,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Visual `p` / `P` replace the selection with the register and leave
+  visual mode, as in vim (`p` keeps the replaced lines in the unnamed
+  register, `P` keeps the registers as they were), instead of pasting
+  below the cursor and staying in visual mode.
 - An unknown ex command says vim's `E492: Not an editor command: {cmd}`
   (in red) instead of `E: Unknown command`. The registration tests
   checked for a message that never started that way; they check E492.

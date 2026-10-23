@@ -694,6 +694,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             if restored is None:
                 break
             restore_buffer(state, restored)
+    elif key in ("p", "P") and state.visual_anchor is not None and state.mode_mgr.is_visual():
+        return _put_over_selection(state, key, count, action.register)
     elif key in ("p", "P"):
         if _put(state, key, count, action.register):
             state.dot_repeat.record(RepeatableAction(
@@ -857,6 +859,39 @@ def _put(state: EditorState, key: str, count: int, register: str | None) -> bool
     state.modified = True
     state.history.record(state.buffer, "put" if key == "p" else "put above")
     return True
+
+
+UNNAMED = '"'  # the unnamed register
+
+
+def _put_over_selection(
+    state: EditorState, key: str, count: int, register: str | None,
+) -> HandlerResult:
+    """Visual p / P: replace the selected lines with the register, `count`
+    times, as one change, and leave visual mode. p keeps the replaced
+    lines in the unnamed register (and "1); P leaves the registers be."""
+    content = state.registers.get(register or UNNAMED).content
+    selection = _take_selection(state)
+    assert selection is not None
+    if not content:
+        return HandlerResult(
+            command_message=f"E353: Nothing in register {register or UNNAMED}",
+            error=True, exit_to_normal=True,
+        )
+    start, end = selection
+    buffer, deleted = state.buffer.delete_lines(start, end)
+    state.marks = state.marks.update_for_delete(start, end)
+    if key == "p":
+        state.registers = store_lines(state.registers, None, deleted, is_delete=True)
+    lines = content * count
+    for offset, text in enumerate(lines):
+        buffer = buffer.insert_line(start + offset, text)
+    state.marks = state.marks.update_for_insert(start, len(lines))
+    state.buffer = buffer
+    state.cursor = state.cursor.move_to(start, 0)
+    state.modified = True
+    state.history.record(state.buffer, "put over selection")
+    return HandlerResult(exit_to_normal=True)
 
 
 def _change_quantity(state: EditorState, key: str, count: int) -> HandlerResult:
