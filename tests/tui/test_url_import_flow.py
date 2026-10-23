@@ -139,8 +139,15 @@ async def test_open_deck_shows_the_import_summary(tmp_path: Path) -> None:
             initial_text="// Deck: Imported\n\n4 Lightning Bolt\n",
             message="Imported 4 cards from list.txt",
         )
-        await pilot.pause()
-        screen = app.screen
+        # The editor shows the message once it has mounted, which can take
+        # more than one frame on a slow runner
+        for _ in range(50):
+            await pilot.pause()
+            screen = app.screen
+            if isinstance(screen, MainScreen) and screen.query_one(
+                "#command-line", CommandLine,
+            ).message:
+                break
         assert isinstance(screen, MainScreen)
         cl = screen.query_one("#command-line", CommandLine)
         assert cl.message == "Imported 4 cards from list.txt"
