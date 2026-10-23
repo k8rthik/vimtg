@@ -187,6 +187,12 @@ from 1.0.0 onward.
   `// Tags:`), `ZZ` (`:x`), mark ranges, `:g` sub-commands, the keys
   that are safe to `:map`, and the greeter's `R`.
 
+### Security
+
+- Deck URL import matches each site by its exact domain or a subdomain
+  of it, so a look-alike host such as `moxfield.com.evil.example` is
+  refused as unsupported instead of being read as that site.
+
 ## [1.0.0rc1] - 2026-10-10
 
 ### Added
