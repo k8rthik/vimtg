@@ -186,6 +186,9 @@ from 1.0.0 onward.
   `:stats` (a one-line summary), `:dtag` / `:duntag` (deck-level
   `// Tags:`), `ZZ` (`:x`), mark ranges, `:g` sub-commands, the keys
   that are safe to `:map`, and the greeter's `R`.
+- `:export vimtg` and `:clipboard vimtg` write the text `:w` writes: the
+  empty `// Format:` and `// Tags:` lines the editor shows for a file
+  that never had them are left out.
 
 ### Security
 

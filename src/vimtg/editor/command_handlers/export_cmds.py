@@ -20,6 +20,7 @@ from vimtg.editor.commands import (
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.services.clipboard import read_clipboard
+from vimtg.services.deck_service import saved_text
 from vimtg.services.import_export_service import (
     NO_FORMAT_NOTE,
     DeckFormat,
@@ -67,12 +68,22 @@ def _export_conflict(target: Path, ctx: EditorContext, bang: bool) -> str | None
 def _render_export(buffer: Buffer, fmt: DeckFormat, ctx: EditorContext) -> str:
     """The deck in `fmt`, as :export and :clipboard both produce it."""
     if fmt is DeckFormat.VIMTG:
-        # vimtg -> vimtg is the buffer itself: re-serializing would drop
-        # section headers, block layout and comment positions
-        return buffer.to_text()
+        # vimtg -> vimtg is the buffer as :w writes it: re-serializing
+        # would drop section headers, block layout and comment positions
+        return saved_text(buffer.to_text(), _on_disk(ctx.file_path))
     deck = parse_deck_text(buffer.to_text())
     service = ImportExportService(card_repo=ctx.card_repo)
     return service.export_deck(deck, fmt, resolved=ctx.resolved_cards or {})
+
+
+def _on_disk(path: Path | None) -> str | None:
+    """The deck file's text as the editor read it, or None without one."""
+    if path is None:
+        return None
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def cmd_export(
