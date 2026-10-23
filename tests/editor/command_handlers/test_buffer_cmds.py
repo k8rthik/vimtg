@@ -15,8 +15,9 @@ from vimtg.editor.command_handlers.buffer_cmds import (
     cmd_write,
     cmd_write_quit,
     cmd_xit,
+    register_buffer_commands,
 )
-from vimtg.editor.commands import EditorContext, ParsedCommand
+from vimtg.editor.commands import CommandRegistry, EditorContext, ParsedCommand, parse_command
 from vimtg.editor.cursor import Cursor
 
 
@@ -481,3 +482,61 @@ class TestWriteQuitToACopy:
         )
         cmd_write_quit(_sample_buffer(), Cursor(), _make_cmd("wq", args=str(tmp_path / "c")), ctx)
         assert ctx.quit_requested
+
+
+def _registry() -> CommandRegistry:
+    registry = CommandRegistry()
+    register_buffer_commands(registry)
+    return registry
+
+
+def _run(text: str, ctx: EditorContext) -> None:
+    _registry().execute(parse_command(text, 0, 1), _sample_buffer(), Cursor(), ctx)
+
+
+class TestWindowsAndAll:
+    def test_q_with_a_pane_open_closes_the_pane(self) -> None:
+        ctx = EditorContext(modified=True, pane_open=True)
+        _run("q", ctx)
+        assert ctx.split_close and not ctx.quit_requested and not ctx.error
+
+    def test_wq_and_x_with_a_pane_close_it_after_writing(self, tmp_path: Path) -> None:
+        for command in ("wq", "x"):
+            saved: list[Path] = []
+            ctx = EditorContext(
+                file_path=tmp_path / "m.deck", modified=True, pane_open=True,
+                save_fn=lambda p, t, saved=saved: saved.append(p),
+            )
+            _run(command, ctx)
+            assert saved and ctx.split_close and not ctx.quit_requested, command
+
+    @pytest.mark.parametrize("command", ["qa", "qall", "quitall"])
+    def test_qa_quits_past_the_pane_but_guards_changes(self, command: str) -> None:
+        ctx = EditorContext(modified=True, pane_open=True)
+        _run(command, ctx)
+        assert ctx.error and not ctx.quit_requested
+        forced = EditorContext(modified=True, pane_open=True)
+        _run(f"{command}!", forced)
+        assert forced.quit_requested and forced.discard_requested
+
+    @pytest.mark.parametrize("command", ["wa", "wall"])
+    def test_wa_writes_only_a_changed_deck(self, tmp_path: Path, command: str) -> None:
+        saved: list[Path] = []
+        clean = EditorContext(file_path=tmp_path / "m.deck", save_fn=lambda p, t: saved.append(p))
+        _run(command, clean)
+        assert saved == [] and not clean.error
+        dirty = EditorContext(
+            file_path=tmp_path / "m.deck", modified=True, save_fn=lambda p, t: saved.append(p),
+        )
+        _run(command, dirty)
+        assert saved == [tmp_path / "m.deck"] and dirty.file_saved
+
+    @pytest.mark.parametrize("command", ["wqa", "wqall", "xa", "xall"])
+    def test_wqa_writes_and_quits(self, tmp_path: Path, command: str) -> None:
+        saved: list[Path] = []
+        ctx = EditorContext(
+            file_path=tmp_path / "m.deck", modified=True, pane_open=True,
+            save_fn=lambda p, t: saved.append(p),
+        )
+        _run(command, ctx)
+        assert saved == [tmp_path / "m.deck"] and ctx.quit_requested

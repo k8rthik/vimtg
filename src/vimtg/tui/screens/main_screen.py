@@ -763,7 +763,10 @@ class MainScreen(Screen[None]):
             hr = handle_mode_switch(s, action)
         elif action.action_type == "command_submit":
             prev_settings = s.settings
-            hr = handle_command(s, action, self.registry, self.file_path, self.save_fn)
+            hr = handle_command(
+                s, action, self.registry, self.file_path, self.save_fn,
+                pane_open=self._split_pane is not None,
+            )
             if s.settings is not prev_settings:
                 self._on_settings_saved(s.settings)
             s.mode_mgr.force_normal()
@@ -1181,6 +1184,7 @@ class MainScreen(Screen[None]):
         hr = handle_command(
             s, ParsedAction("command_submit", "enter", text=text),
             self.registry, self.file_path, self.save_fn, record_history=False,
+            pane_open=self._split_pane is not None,
         )
         if s.settings is not prev_settings:
             self._on_settings_saved(s.settings)

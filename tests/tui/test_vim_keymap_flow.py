@@ -600,3 +600,28 @@ class TestJumplist:
             assert _row(scr) == 6
             _feed(scr, "<C-o>")
             assert _row(scr) == 16
+
+
+class TestQuitClosesWindows:
+    @pytest.mark.asyncio
+    async def test_q_closes_the_pane_then_quits(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, f":vsplit {_other(tmp_path)}<CR>:q<CR>")
+            assert scr._split_pane is None and app.is_running
+            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w:q<CR>")
+            assert scr._split_pane is None and app.is_running
+            _feed(scr, ":q<CR>")
+            await pilot.pause()
+            assert not app.is_running
+
+    @pytest.mark.asyncio
+    async def test_qa_quits_with_a_pane_open(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            _feed(_screen(app), f":vsplit {_other(tmp_path)}<CR>:qa<CR>")
+            await pilot.pause()
+            assert not app.is_running

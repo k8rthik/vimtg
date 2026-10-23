@@ -51,6 +51,10 @@ from 1.0.0 onward.
   The jumps are vim's (`G`, `gg`, `:{n}`, searches, `{` `}` `[[` `]]`,
   marks, `H` `M` `L`), plus an insert or zone move that files the card
   far from the cursor.
+- `:qa`, `:qa!`, `:wa`, `:wqa` and `:xa` (with `:qall`, `:quitall`,
+  `:wall`, `:wqall`, `:xall`). With a split pane open, `:q` (and `:wq`,
+  `:x`, `ZZ`, `ZQ`) close the pane, as vim closes one of two windows;
+  vimtg quits when the editor is the last window.
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
 

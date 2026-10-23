@@ -30,7 +30,8 @@ COUNTS
 _COMMANDS = """
 COMMANDS
   :w            Save deck
-  :q            Quit (:q! force)
+  :q            Quit (:q! force); with a pane open, close the pane
+  :qa / :wqa    Quit / save and quit, pane or not (:xa, :wa write)
   :wq           Save and quit
   :x / ZZ       Save if changed, then quit
   :saveas file  Write to file and edit it from now on
@@ -121,7 +122,12 @@ COMMAND_HELP: dict[str, str] = {
         "if taken). Empty // Format: or // Tags: lines the file never\n"
         "had are not written."
     ),
-    "q": ":q        Quit (:q! force quit with unsaved changes)",
+    "q": (
+        ":q        Quit (:q! force quit with unsaved changes)\n"
+        "\n"
+        "With a split pane open, :q (and :wq, :x, ZZ, ZQ) close the pane,\n"
+        "the other window, as in vim. :qa quits vimtg whatever is open."
+    ),
     "wq": ":wq      Save and quit",
     "x": ":x       Save if there are changes, then quit (ZZ)",
     "saveas": ":saveas file  Write to file and edit that file from now on",

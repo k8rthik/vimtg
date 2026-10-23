@@ -247,6 +247,9 @@ class EditorContext:
     tag_filter: Any = None
     tag_filter_set: bool = False
     remapper: Any = None  # KeyRemapper — :map/:unmap mutate it
+    # A split pane is open beside the editor: :q / :wq / :x close it
+    # (the window) instead of quitting
+    pane_open: bool = False
     # Companion-pane requests (SplitOpen / EdhrecOpen from editor.splits)
     split_open: Any = None
     split_close: bool = False

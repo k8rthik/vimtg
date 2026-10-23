@@ -548,11 +548,13 @@ def handle_command(
     save_fn: Callable[[Path, str], None] | None = None,
     *,
     record_history: bool = True,
+    pane_open: bool = False,
 ) -> HandlerResult:
     """Process ex command or search submission.
 
     Typed lines go into the : / search history; commands a key runs on
-    the user's behalf (ZZ is :x) pass record_history=False.
+    the user's behalf (ZZ is :x) pass record_history=False. `pane_open`
+    says a split pane is open, so :q closes it rather than the app.
     """
     if state.mode_mgr.current == Mode.SEARCH:
         state.cmd_history.add(SEARCH, action.text or "")
@@ -585,6 +587,7 @@ def handle_command(
             marks=state.marks,
             last_pattern=state.last_find,
             recovery_id=state.recovery_id,
+            pane_open=pane_open,
         )
         before = state.buffer
         before_text = before.to_text()
