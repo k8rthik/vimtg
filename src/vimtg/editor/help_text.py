@@ -8,7 +8,7 @@ _GETTING_STARTED = """
 GETTING STARTED
   Modes         vimtg is modal, like vim: NORMAL mode moves and edits
                 with single keys; o / i open a prompt to type into;
-                Esc always returns to NORMAL
+                Esc (or Ctrl-C) always returns to NORMAL
   o             Add a card: type part of its name, Tab/Down picks,
                 Enter adds it (+/- change the quantity after)
   :w            Save (a new deck is named after its // Deck: line)
@@ -30,7 +30,8 @@ COUNTS
 _COMMANDS = """
 COMMANDS
   :w            Save deck
-  :q            Quit (:q! force)
+  :q            Quit (:q! force); with a pane open, close the pane
+  :qa / :wqa    Quit / save and quit, pane or not (:xa, :wa write)
   :wq           Save and quit
   :x / ZZ       Save if changed, then quit
   :saveas file  Write to file and edit it from now on
@@ -42,7 +43,8 @@ COMMANDS
   :e[!] [file]  Edit another deck (:e! reloads, dropping changes)
   :s/pat/rep/g  Substitute (regex; & and \\1 in rep)
   :g/pat/cmd    Run d, p, y [x], or s/// on matching cards
-  :d / :y [x]   Delete / yank lines (range) into register x
+  :d/:y [x] [n] Delete / yank lines (range, or n lines) into
+                register x
   :m {n} :t {n} Move / copy lines below line n
   :undo :redo   One undo / redo step
   :reg :marks   Show registers / marks
@@ -50,7 +52,7 @@ COMMANDS
   :search [q]   Open card search (as o) with query q
   :stats        One-line deck summary (:analytics has more)
   :validate     Check format legality (uses // Format:)
-  :hand [seed]  Sample hand / goldfish (draw, mulligan; Sd)
+  :hand [seed]  Sample hand / goldfish (draw, mulligan; Space h)
   :cat name     Set card category (:cat! clears)
   :categories   List categories with counts
   :layout       Toggle type/category layout
@@ -111,8 +113,9 @@ COMMAND_HELP: dict[str, str] = {
     "w": (
         ":w [file]  Save deck to file\n"
         "\n"
-        ":w file  writes to file and makes it the deck's file (like :saveas);\n"
-        "         the status line says 'now editing file'\n"
+        ":w file  writes a copy to file and goes on editing this deck, its\n"
+        "         changes still unsaved (as vim); a deck with no file yet\n"
+        "         takes the name. :saveas file switches to it\n"
         ":w!      overwrite another existing file, or a file changed on disk\n"
         "\n"
         "A deck with no file yet is written to the current directory,\n"
@@ -120,7 +123,12 @@ COMMAND_HELP: dict[str, str] = {
         "if taken). Empty // Format: or // Tags: lines the file never\n"
         "had are not written."
     ),
-    "q": ":q        Quit (:q! force quit with unsaved changes)",
+    "q": (
+        ":q        Quit (:q! force quit with unsaved changes)\n"
+        "\n"
+        "With a split pane open, :q (and :wq, :x, ZZ, ZQ) close the pane,\n"
+        "the other window, as in vim. :qa quits vimtg whatever is open."
+    ),
     "wq": ":wq      Save and quit",
     "x": ":x       Save if there are changes, then quit (ZZ)",
     "saveas": ":saveas file  Write to file and edit that file from now on",
@@ -128,7 +136,7 @@ COMMAND_HELP: dict[str, str] = {
         ":recover  Load the crash-recovery copy of this deck\n"
         "\n"
         "If vimtg hits an internal error, or the session ends with unsaved\n"
-        "changes (terminal closed, SSH dropped, Ctrl-C, Ctrl-Q, a kill),\n"
+        "changes (terminal closed, SSH dropped, Ctrl-Q, a kill),\n"
         "the buffer is saved under ~/.local/state/vimtg/recovery/.\n"
         "Opening that deck again offers the copy; copies of unnamed\n"
         "buffers or deleted files are listed on the greeter (R).\n"
@@ -202,9 +210,15 @@ COMMAND_HELP: dict[str, str] = {
         ":e!       reload this deck from disk\n"
         "Registers carry over."
     ),
-    "delete": ":[range]d [x]  Delete lines into register x (default: unnamed)",
-    "yank": ":[range]y [x]  Yank lines into register x (default: unnamed)",
-    "move": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor)",
+    "delete": (
+        ":[range]d [x] [n]  Delete lines into register x (default: unnamed)\n"
+        "\n"
+        "A number is a count: :d 3 deletes three lines from the cursor,\n"
+        ":5d a 2 deletes lines 5-6 into register a"
+    ),
+    "yank": ":[range]y [x] [n]  Yank lines into register x (n: a count, as :d)",
+    "move": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor,\n"
+            "               +1 / -2 relative: :m+1 moves the line down one)",
     "copy": ":[range]t {n}  Copy lines below line n (also :co, :copy)",
     "undo": ":undo / :redo  One undo / redo step (also u / Ctrl-R)",
     "registers": ":reg [x...]  Show register contents (also :registers, :di)",
@@ -444,15 +458,15 @@ COMMAND_HELP: dict[str, str] = {
         ":vsplit deck-file  Open another deck beside this one (alias :vsp, :vs)\n"
         "\n"
         "The split pane is read-only — compare a netdeck or an old\n"
-        "version while editing. Ss switches pane focus (j/k scroll,\n"
-        "Esc returns), Sc / :close closes it."
+        "version while editing. Ctrl-W w switches pane focus (j/k scroll,\n"
+        "q closes, Esc returns), Ctrl-W c / :close closes it."
     ),
     "split": (
         ":split deck-file  Open another deck below this one (alias :sp, :hsplit)\n"
         "\n"
-        "Horizontal variant of :vsplit — same keys: Ss switch, :close close."
+        "Horizontal variant of :vsplit — same keys: Ctrl-W w switch, :close close."
     ),
-    "close": ":close  Close the split pane (alias :only; also the Sc key)",
+    "close": ":close  Close the split pane (alias :only; also Ctrl-W c)",
     "edhrec": (
         ":edhrec [type]  EDHREC recommendations for the commander (alias :rec)\n"
         "\n"
@@ -462,11 +476,12 @@ COMMAND_HELP: dict[str, str] = {
         "sorcery, artifact, enchantment, planeswalker, battle, land).\n"
         "\n"
         "In the pane: j/k select, h/l switch tabs, Enter adds the\n"
-        "card to the deck, Esc returns to the editor. ✓ marks cards\n"
-        "already in the deck. Results are cached for 7 days."
+        "card to the deck, q closes the pane, Esc returns to the\n"
+        "editor. ✓ marks cards already in the deck. Results are\n"
+        "cached for 7 days."
     ),
     "analytics": (
-        ":analytics  Live deck-analytics pane (alias :ana; also the Sa key)\n"
+        ":analytics  Live deck-analytics pane (alias :ana; Space a toggles it)\n"
         "\n"
         "Mana curve, card counts per type / zone / category, a\n"
         "mana-base check (colored sources vs pip requirements, a\n"
@@ -475,11 +490,11 @@ COMMAND_HELP: dict[str, str] = {
         "to see the chance of drawing one by the opener or turn 3.\n"
         "Everything recomputes as the deck is edited.\n"
         "\n"
-        "Ss focuses the pane (j/k scroll, Esc back); :close closes."
+        "Ctrl-W w focuses the pane (j/k scroll, q close, Esc back)."
     ),
     "hand": (
         ":hand [seed=N]  Sample hand / goldfish overlay (alias :goldfish;\n"
-        "also the Sd key)\n"
+        "also Space h)\n"
         "\n"
         "Shuffles the main deck and draws an opening seven. Sideboard,\n"
         "maybeboard, commander and companion cards stay out of the\n"

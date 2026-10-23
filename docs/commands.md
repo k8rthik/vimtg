@@ -2,18 +2,23 @@
 
 All commands are entered after `:` in normal mode. Most accept a vim-style
 range prefix (`%` for the whole file, `5,10` for a line range, `.` for the
-current line, `'a,'b` for marks).
+current line, `'a,'b` for marks). Any address takes `+N` / `-N` offsets, and
+an offset alone counts from the cursor line: `.,+3d` deletes four lines,
+`:+2` goes two lines down, `$-1` is the line before the last.
 
 ## File
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]` | Save deck. Without an argument, writes back to the loaded file; a deck with no file yet is written to the current directory as its `// Deck:` name slugified (`Mono-Red Burn` → `mono-red-burn.deck`, `-2`, `-3`… when taken; a random name when the deck is unnamed). Empty `// Deck:` / `// Format:` / `// Tags:` lines the file never had are not written. `:w file` writes to `file` (`~` expands, `.deck` is appended when missing) and makes it the deck's file from then on, like vim's `:saveas`. Refuses to overwrite another existing file (E13) or a file that changed on disk since it was read |
+| `:w [file]` | Save deck. Without an argument, writes back to the loaded file; a deck with no file yet is written to the current directory as its `// Deck:` name slugified (`Mono-Red Burn` → `mono-red-burn.deck`, `-2`, `-3`… when taken; a random name when the deck is unnamed). Empty `// Deck:` / `// Format:` / `// Tags:` lines the file never had are not written. `:w file` writes a copy to `file` (`~` expands, `.deck` is appended when missing) and goes on editing the deck's own file, its unsaved changes still unsaved, as in vim (`"copy.deck" written`); a deck with no file yet takes the name instead. `:saveas file` switches to the new file. Refuses to overwrite another existing file (E13) or a file that changed on disk since it was read |
 | `:w! [file]` | Save even over an existing file or outside changes |
-| `:q` | Quit. Errors if there are unsaved changes (E37) |
-| `:q!` | Quit, discarding changes |
-| `:wq` | Save and quit |
-| `:x` | Save if there are unsaved changes, then quit (also `ZZ`, `:xit`, `:exit`). A deck with no changes is not rewritten |
+| `:q` | Quit. Errors if there are unsaved changes (E37). With a split pane open it closes the pane instead (the other window, as in vim), from the editor or the pane |
+| `:q!` | Quit, discarding changes (with a pane open: close the pane) |
+| `:qa[!]` | Quit vimtg even with a pane open (also `:qall`, `:quitall`); `!` discards changes |
+| `:wa` | Write the deck if it has changes (also `:wall`) |
+| `:wqa` / `:xa` | Write the deck if it has changes, then quit vimtg (also `:wqall`, `:xall`) |
+| `:wq` | Save and quit (with a pane open: save and close the pane). `:wq file` writes the copy, then quits only when the deck itself has no unsaved changes (E37 otherwise; `:wq!` quits anyway) |
+| `:x` | Save if there are unsaved changes, then quit (also `ZZ`, `:xit`, `:exit`); with a pane open it closes the pane. A deck with no changes is not rewritten |
 | `:saveas file` | Write the deck to `file` and edit that file from now on (alias `:sav`). `:saveas!` overwrites an existing file |
 | `:home` | Return to the greeter (alias `:greeter`). Refuses with unsaved changes, like `:q`; `:home!` discards them |
 | `:recover` | Load the recovery copy of this deck (`:recover!` deletes it). vimtg writes the copy under `~/.local/state/vimtg/recovery/` when it hits an internal error, and when the editor closes with unsaved changes, for example on `Ctrl-Q`, a closed terminal, or a dropped SSH connection. `:q!`, `ZQ`, `:e!`, and `:home!` discard the changes and the copy. Opening the deck again offers the copy; copies of unnamed buffers and deleted decks are listed on the greeter (`R`). The next successful `:w` removes the copy |
@@ -31,9 +36,9 @@ current line, `'a,'b` for marks).
 | `:%s/Bolt/Helix/g` | Substitute across the deck |
 | `:[range]g/pattern/cmd` | Run `cmd` on every card line in the range (the whole deck by default; `'<,'>` from visual mode) matching `pattern`, in any zone (mainboard, sideboard, maybeboard, command zone, companion). Headers, comments, metadata, and plan entries never match. `cmd` is one of `d` (delete), `p` (list the matches), `y [x]` (yank into register `x`; `"A` appends), `s/pat/rep/[flags]` (substitute; an empty `pat` is the `:g` pattern) |
 | `:v/pattern/cmd`, `:g!/pattern/cmd` | Inverse: run on every card line **not** matching |
-| `:[range]d [x]` | Delete lines (default: the cursor line) into register `x` |
-| `:[range]y [x]` | Yank lines into register `x` |
-| `:[range]m {n}` | Move lines below line `n` (`0` = to the top, `$` = to the end, `.` = the cursor line) |
+| `:[range]d [x] [n]` | Delete lines (default: the cursor line) into register `x`. A number is a count, as in vim: `:d 3` deletes three lines from the cursor, `:5d a 2` lines 5-6 into `a`; with a range the count starts at its last line |
+| `:[range]y [x] [n]` | Yank lines into register `x`, with the same count |
+| `:[range]m {n}` | Move lines below line `n` (`0` = to the top, `$` = to the end, `.` = the cursor line, `+1` / `-2` relative to it, `'a` a mark) |
 | `:[range]t {n}` | Copy lines below line `n` (also `:co`, `:copy`) |
 | `:undo` / `:redo` | One undo / redo step (also `:u`, `:red`) |
 | `:reg [x...]` | Show what the registers hold (also `:registers`, `:di`) |
@@ -51,16 +56,18 @@ Examples:
 :1,20sort cmc            sort lines 1–20 by mana cost
 :5,8m0                   move lines 5–8 to the top
 :'a,'bd                  delete from mark a through mark b
+:m+1 / :m-2              move the line down one / up one
+:t-1                     copy the line above itself
 ```
 
 Not supported, because the deck is line-oriented or the feature has no
-deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, and `+N`/`-N`
-address offsets.
+deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, and `:r[ead]`.
 
 ## Search & navigation
 
 | Command | Description |
 |---------|-------------|
+| `:noh` | Accepted for the vim habit (also `:nohlsearch`); vimtg draws no search highlight to clear |
 | `:find pattern` | Jump to the next card matching `pattern` (also `/`; `?` searches backward; `n` / `N` repeat in the same / opposite direction) |
 | `:search [query]` | Open the card database search overlay, like `o`, with `query` typed in ([syntax](search.md)); an empty search says "No matches" |
 
@@ -88,8 +95,9 @@ In-group card order follows the `sort_order` setting
 The editor supports one split pane beside (`:vsplit`) or below
 (`:split`) the main deck view. It shows either another deck read-only —
 compare a netdeck or an old version while editing — or EDHREC
-recommendations for the deck's commander. `Ss` switches focus into the
-pane (`j`/`k` scroll or select, `h`/`l` switch tabs, `Esc` returns).
+recommendations for the deck's commander. `Ctrl-W w` switches focus
+into the pane (`j`/`k` scroll or select, `h`/`l` switch tabs, `Esc`
+returns).
 
 | Command | Description |
 |---------|-------------|
@@ -186,8 +194,8 @@ by id. Note that merge and rebase results are normalized on write
 |---------|-------------|
 | `:stats` | Print a one-line summary on the command line: card count, average CMC, cards per type, and the total price with its source, e.g. `$12.34 (usd)`. Without card data it counts the card lines in each zone. For the curve, colors, and mana base, use `:analytics` |
 | `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency |
-| `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
-| `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Sd`): see below |
+| `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Space a`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
+| `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Space h`): see below |
 
 ### Sample hand
 

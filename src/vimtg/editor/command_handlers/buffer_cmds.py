@@ -88,10 +88,23 @@ def cmd_write(
 ) -> tuple[Buffer, Cursor]:
     """Save deck to file via ctx.save_fn.
 
-    `:w name` writes to `name` and makes it the deck's file from then
-    on (vim's :saveas). Overwriting another existing file, or a file
+    `:w name` writes a copy to `name` and goes on editing the deck's own
+    file, its modified flag untouched, as in vim; a deck with no file
+    yet takes the name. Overwriting another existing file, or a file
     that changed on disk since it was read, needs `:w!`.
     """
+    return _write(buffer, cursor, cmd, ctx, rename=False)
+
+
+def _write(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+    *,
+    rename: bool,
+) -> tuple[Buffer, Cursor]:
+    """Write the deck; `rename` makes the target the deck's file (:saveas)."""
     if ctx.save_fn is None:
         ctx.fail("Save not available")
         return buffer, cursor
@@ -115,6 +128,9 @@ def cmd_write(
         return buffer, cursor
 
     previous = ctx.file_path
+    if previous is not None and not rename and not _same_file(target, previous):
+        ctx.message = f'"{target.name}" written'
+        return buffer, cursor
     ctx.file_path = target
     ctx.disk_stamp = file_stamp(target)
     ctx.file_saved = True
@@ -134,11 +150,11 @@ def cmd_saveas(
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
     """:sav[eas][!] name — write the deck to `name` and edit that file
-    from now on (what `:w name` also does)."""
+    from now on (`:w name` only writes a copy)."""
     if not cmd.args.strip():
         ctx.fail("E471: Argument required")
         return buffer, cursor
-    return cmd_write(buffer, cursor, cmd, ctx)
+    return _write(buffer, cursor, cmd, ctx, rename=True)
 
 
 def cmd_quit(
@@ -147,7 +163,12 @@ def cmd_quit(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Quit editor. Fails if buffer modified without bang (configurable)."""
+    """Quit editor. Fails if buffer modified without bang (configurable).
+    With a split pane open it closes that window instead, as vim's :q
+    closes one of two windows."""
+    if ctx.pane_open:
+        ctx.split_close = True
+        return buffer, cursor
     if ctx.modified and not cmd.bang and _confirm_quit_enabled(ctx):
         ctx.fail("Unsaved changes (use :q! to force)")
         return buffer, cursor
@@ -168,10 +189,18 @@ def cmd_write_quit(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Write then quit. Delegates to cmd_write first."""
+    """Write then quit. Delegates to cmd_write first; `:wq copy` of a
+    deck with unsaved changes writes the copy and stays (E37), as vim."""
     buffer, cursor = cmd_write(buffer, cursor, cmd, ctx)
-    if not ctx.error:
-        ctx.quit_requested = True
+    if ctx.error:
+        return buffer, cursor
+    if ctx.pane_open:
+        ctx.split_close = True
+        return buffer, cursor
+    if ctx.modified and not cmd.bang and _confirm_quit_enabled(ctx):
+        ctx.fail("E37: No write since last change (add ! to override)")
+        return buffer, cursor
+    ctx.quit_requested = True
     return buffer, cursor
 
 
@@ -184,9 +213,39 @@ def cmd_xit(
     """:x / ZZ — like :wq, but write only when there are changes (an
     unmodified deck's file is left untouched, mtime and all)."""
     if not ctx.modified and not cmd.args.strip():
-        ctx.quit_requested = True
+        if ctx.pane_open:
+            ctx.split_close = True
+        else:
+            ctx.quit_requested = True
         return buffer, cursor
     return cmd_write_quit(buffer, cursor, cmd, ctx)
+
+
+def cmd_quit_all(
+    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:qa[!] — quit vimtg, pane and all; changes need ! as with :q."""
+    ctx.pane_open = False
+    return cmd_quit(buffer, cursor, cmd, ctx)
+
+
+def cmd_write_all(
+    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:wa — write the deck when it has changes (one buffer to write)."""
+    if not ctx.modified:
+        return buffer, cursor
+    return cmd_write(buffer, cursor, cmd, ctx)
+
+
+def cmd_write_quit_all(
+    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:wqa / :xa — write the deck when changed, then quit vimtg."""
+    buffer, cursor = cmd_write_all(buffer, cursor, cmd, ctx)
+    if not ctx.error:
+        ctx.quit_requested = True
+    return buffer, cursor
 
 
 def cmd_home(
@@ -230,11 +289,14 @@ def cmd_recover(
 
 
 def register_buffer_commands(registry: CommandRegistry) -> None:
-    """Register :w, :saveas, :q, :wq, :x, :home, :recover."""
+    """Register :w, :saveas, :q, :wq, :x, :qa, :wa, :wqa/:xa, :home, :recover."""
     registry.register("w", cmd_write, aliases=["write"])
     registry.register("saveas", cmd_saveas, aliases=["sav"])
     registry.register("q", cmd_quit, aliases=["quit"])
     registry.register("wq", cmd_write_quit)
     registry.register("x", cmd_xit, aliases=["xit", "exit"])
+    registry.register("qa", cmd_quit_all, aliases=["qall", "quitall"])
+    registry.register("wa", cmd_write_all, aliases=["wall"])
+    registry.register("wqa", cmd_write_quit_all, aliases=["wqall", "xa", "xall"])
     registry.register("home", cmd_home, aliases=["greeter"])
     registry.register("recover", cmd_recover)

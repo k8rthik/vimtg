@@ -81,7 +81,7 @@ class TestPaneNavigation:
             screen = app.screen
             await pilot.press(*f":vsplit {deck}", "enter")
             await pilot.pause()
-            await pilot.press("S", "s")  # focus the pane
+            await pilot.press("ctrl+w", "w")  # focus the pane
             pane = screen._split_pane  # type: ignore[attr-defined]
             assert pane is not None and pane.focused
             await pilot.press("G")

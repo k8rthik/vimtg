@@ -44,12 +44,13 @@ DECK = (
 def _keys(seq: str) -> list[str]:
     """'12G d8G' -> ['1', '2', 'G', 'd', '8', 'G']. Spaces only separate;
     <Space> types one. <CR> <Esc> <BS> <Up> <Down> <C-w> <C-u> <C-b>
-    <C-e> <Left> name the other named keys."""
+    <C-e> <C-a> <C-x> <C-o> <Tab> <Left> name the other named keys."""
     named = {
         "<CR>": "enter", "<Esc>": "escape", "<BS>": "backspace",
         "<Up>": "up", "<Down>": "down", "<Left>": "left", "<Right>": "right",
         "<C-w>": "ctrl_w", "<C-u>": "ctrl_u", "<C-b>": "ctrl_b", "<C-e>": "ctrl_e",
-        "<Space>": " ",
+        "<Space>": " ", "<C-a>": "ctrl_a", "<C-x>": "ctrl_x", "<C-o>": "ctrl_o",
+        "<Tab>": "tab",
     }
     out: list[str] = []
     i = 0
@@ -450,7 +451,7 @@ class TestCommandLine:
             assert cl.text == "stats"  # prefix match skips :tags
             _feed(scr, "<CR>")
             assert scr._state.mode_mgr.current == Mode.NORMAL
-            _feed(scr, "Sa")  # runs :analytics for you: not history
+            _feed(scr, "<Space>a")  # runs :analytics for you: not history
             assert scr._state.cmd_history.entries("cmd") == ("tags", "stats")
 
     @pytest.mark.asyncio

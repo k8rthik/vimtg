@@ -33,6 +33,7 @@ from vimtg.domain.probabilities import (
     draws_by_turn,
     prob_at_least,
 )
+from vimtg.tui.keys import render_hints
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.scrolling import (
     WHEEL_LINES,
@@ -100,6 +101,10 @@ def build_analytics_data(
             else None
         ),
     )
+
+
+# The focused pane's hint bar; q and Esc are the editor's pane keys
+HINTS = (("j/k", "scroll"), ("q", "close"), ("Esc", "editor"))
 
 
 class AnalyticsPanel(Static):
@@ -172,7 +177,8 @@ class AnalyticsPanel(Static):
         if end < len(lines):
             t.append(marker_below(len(lines) - end) + "\n", style=_DIM)
         if self.focused_panel:
-            t.append(" j/k scroll  Esc back\n", style=_DIM)
+            t.append(render_hints(HINTS))
+            t.append("\n")
         return t
 
     def _render_header(self, t: Text) -> None:

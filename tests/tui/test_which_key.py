@@ -7,6 +7,7 @@ per-mode hint sets — those were unreachable UI and have been removed.
 
 from __future__ import annotations
 
+from vimtg.editor.keyspec import menu_title
 from vimtg.tui.widgets.which_key import PENDING_HINTS, WhichKey
 
 
@@ -40,7 +41,7 @@ class TestPendingKeyOverride:
         w = WhichKey()
         w.pending_key = "d"
         plain = w.render().plain
-        assert "Next:" in plain
+        assert "delete:" in plain
         assert "dd" in plain
         assert "dw" in plain
         # Should not show full normal-mode hints when pending
@@ -73,10 +74,10 @@ class TestPendingKeyOverride:
         assert "Navigation:" in w.render().plain
 
     def test_all_documented_pending_keys_render(self) -> None:
-        """Every key in PENDING_HINTS produces a non-empty hint render."""
+        """Every key in PENDING_HINTS renders under its menu title."""
         for key in PENDING_HINTS:
             w = WhichKey()
             w.pending_key = key
             plain = w.render().plain
-            assert "Next:" in plain
+            assert f"{menu_title(key)}:" in plain
             assert len(plain.strip()) > 5

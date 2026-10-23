@@ -255,7 +255,8 @@ async def test_command_mode_unknown_shows_message(tmp_path: Path) -> None:
         from vimtg.tui.widgets.command_line import CommandLine
 
         cl = scr.query_one("#command-line", CommandLine)
-        assert "Unknown command" in cl.message
+        assert cl.message == "E492: Not an editor command: bogus"
+        assert cl.error
 
 
 @pytest.mark.asyncio

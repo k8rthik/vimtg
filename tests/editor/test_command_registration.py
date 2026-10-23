@@ -56,7 +56,7 @@ def test_search_and_substitute_commands_resolve(
     registry: CommandRegistry, line: str
 ) -> None:
     ctx = _execute(registry, line)
-    assert not (ctx.message or "").startswith("Unknown command")
+    assert not (ctx.message or "").startswith("E492")
 
 
 def test_duplicate_registration_raises() -> None:

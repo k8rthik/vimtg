@@ -336,12 +336,12 @@ async def test_error_survives_motion_and_goes_with_next_key(tmp_path: Path) -> N
         await _type(pilot, ":nosuchcmd")
         await pilot.press("enter")
         await pilot.pause()
-        assert "Unknown command" in _cl(screen).message
+        assert "E492" in _cl(screen).message
         await pilot.press("j")
         await pilot.press("k")
-        assert "Unknown command" in _cl(screen).message
+        assert "E492" in _cl(screen).message
         await pilot.press("x")  # an edit, not a motion
-        assert "Unknown command" not in _cl(screen).message
+        assert "E492" not in _cl(screen).message
 
 
 @pytest.mark.asyncio

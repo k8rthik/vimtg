@@ -148,8 +148,6 @@ class MergeScreen(Screen[None]):
     # ── Key dispatch ──────────────────────────────────────
 
     def on_key(self, event: Key) -> None:
-        if event.key == "ctrl+c":
-            return
         event.prevent_default()
         event.stop()
         key = translate(event.key)

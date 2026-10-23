@@ -61,7 +61,7 @@ class TestModifierTranslation:
     @pytest.mark.parametrize(
         "textual_key, expected",
         [
-            ("ctrl+c", "ctrl_c"),
+            ("ctrl+c", "escape"),  # Ctrl-C is Esc everywhere, as in vim
             ("ctrl+r", "ctrl_r"),
             ("ctrl+d", "ctrl_d"),
             ("ctrl+u", "ctrl_u"),

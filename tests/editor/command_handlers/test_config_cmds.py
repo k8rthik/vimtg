@@ -150,7 +150,7 @@ class TestRegisterConfigCommands:
         for name in ("set", "config", "map", "unmap", "settings", "preferences"):
             ctx = _make_ctx()
             registry.execute(ParsedCommand(name=name), _BUF, Cursor(), ctx)
-            assert "Unknown command" not in ctx.message, f"{name} should be registered"
+            assert "E492" not in ctx.message, f"{name} should be registered"
 
 
 class TestMapWiring:

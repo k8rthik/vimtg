@@ -53,18 +53,31 @@ MODE_SWITCHES: dict[str, str] = {
     "/": "SEARCH",
     "?": "SEARCH",  # backward
 }
+# Decks are linewise, so the capitals that act to the end of the line
+# (or on it, S) are the doubled operators
+LINEWISE_KEYS: dict[str, str] = {"S": "cc", "C": "cc", "D": "dd", "Y": "yy"}
+# vim's Ctrl-A / Ctrl-X add to / subtract from the number: the quantity
+KEY_ALIASES: dict[str, str] = {"ctrl_a": "+", "ctrl_x": "-"}
 SPECIAL_KEYS = frozenset(
-    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#"}
+    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#", "K",
+     "ctrl_o", "tab"}
 )
 MULTI_KEY_STARTERS = frozenset(
-    {"g", "[", "]", "m", "'", "t", "q", "@", "S", "z", "Z"}
+    {"g", "[", "]", "m", "'", "t", "q", "@", "z", "Z", "ctrl_w", "space"}
 )
+# The Space key arrives as " "; as a prefix it is named, like ctrl_w
+_SPACE = "space"
+# How a pending named prefix shows in the status line (vim's showcmd)
+_SHOWCMD = {"ctrl_w": "^W", _SPACE: "<Space>"}
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion);
 # gh history overlay, g? quick-reference panel
-_G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?"})
-# S{v,h,s,c,r} — split panes: vertical/horizontal, switch, close, EDHREC
-_SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r", "a", "d"})
+_G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?", "v"})
+# Ctrl-W {v,s} split, {w,W,h,j,k,l} focus, {c,q} close, o only — vim's
+# window commands
+_WINDOW_SUB_KEYS = frozenset({"v", "s", "w", "W", "h", "j", "k", "l", "c", "q", "o"})
+# <Space>{a,r,h} — the leader: analytics pane, EDHREC pane, sample hand
+_LEADER_SUB_KEYS = frozenset({"a", "r", "h"})
 # z{s,m,d,c,p} — zone moves; z{i,o} — board in/out of the sideboard plan.
 # m{a-z} is marks only.
 _ZONE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
@@ -76,6 +89,12 @@ _SCROLL_SUB_KEYS = frozenset({"z", "t", "b"})
 _REGISTER_SYMBOLS = frozenset({'"', "_", "+", "*"})
 # Z{Z,Q} — write and quit (:wq) / quit discarding changes (:q!)
 _QUIT_SUB_KEYS = frozenset({"Z", "Q"})
+
+
+def _sequence(prefix: str, key: str) -> str:
+    """The action name of a prefix sequence: 'gg', 'zs', and for a named
+    prefix the two key names apart, 'ctrl_w v' / 'space a'."""
+    return f"{prefix} {key}" if len(prefix) > 1 else prefix + key
 
 
 def _apply_text_edit(
@@ -143,12 +162,26 @@ class KeyMap:
         return self._state != _State.IDLE
 
     @property
+    def pending_menu(self) -> str:
+        """The which-key menu for the sequence in progress: the operator's
+        while one waits for its motion (dg is still d's), else the prefix's,
+        '"' while a register name is awaited, '' when only a count is."""
+        if self._operator:
+            return self._operator
+        if self._multi_key_prefix:
+            return self._multi_key_prefix
+        if self._state == _State.REGISTER:
+            return '"'
+        return ""
+
+    @property
     def pending_display(self) -> str:
         """The in-progress key sequence for status display (e.g. "10", "2d")."""
         register = f'"{self._register}' if self._register else ""
+        prefix = _SHOWCMD.get(self._multi_key_prefix, self._multi_key_prefix)
         return (
             register + self._count_str + (self._operator or "")
-            + self._operator_count_str + self._multi_key_prefix
+            + self._operator_count_str + prefix
         )
 
     def set_mode(self, mode: Mode) -> None:
@@ -199,6 +232,8 @@ class KeyMap:
         return self._feed_normal(key)
 
     def _feed_normal(self, key: str) -> tuple[KeyResult, ParsedAction | None]:
+        if key == " ":
+            key = _SPACE
         if key == "escape":
             self.reset()
             return KeyResult.COMPLETE, ParsedAction("special", "escape")
@@ -242,12 +277,20 @@ class KeyMap:
             self.reset()
             return KeyResult.COMPLETE, ParsedAction("special", "q_stop")
 
+        if key in KEY_ALIASES and self._state in (_State.IDLE, _State.COUNT):
+            key = KEY_ALIASES[key]
+
+        if key in LINEWISE_KEYS and self._state in (_State.IDLE, _State.COUNT):
+            action = ParsedAction("operator", LINEWISE_KEYS[key], count, self._register)
+            self.reset()
+            return KeyResult.COMPLETE, action
+
         if key in MULTI_KEY_STARTERS and self._state in (_State.IDLE, _State.COUNT):
             self._multi_key_prefix = key
             self._state = _State.MULTI_KEY
             return KeyResult.PENDING, None
         if self._state == _State.MULTI_KEY:
-            full_key = self._multi_key_prefix + key
+            full_key = _sequence(self._multi_key_prefix, key)
             if full_key in ("gg", "[[", "]]"):
                 action = ParsedAction("motion", full_key, count, self._register)
                 self.reset()
@@ -273,8 +316,11 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # m{a-z} — set mark, '{a-z} — jump to mark
-            if self._multi_key_prefix in ("m", "'") and key.isalpha() and len(key) == 1:
+            # m{a-z} — set mark, '{a-z} — jump to mark, '' — back to
+            # where the latest jump left
+            if (self._multi_key_prefix in ("m", "'") and key.isalpha() and len(key) == 1) or (
+                full_key == "''"
+            ):
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
@@ -283,8 +329,9 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # S{v,h,s,c,r} — split panes and EDHREC recommendations
-            if self._multi_key_prefix == "S" and key in _SPLIT_SUB_KEYS:
+            if (self._multi_key_prefix == "ctrl_w" and key in _WINDOW_SUB_KEYS) or (
+                self._multi_key_prefix == _SPACE and key in _LEADER_SUB_KEYS
+            ):
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
@@ -303,9 +350,10 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # @{a-z} — play macro, @@ — replay last
+            # @{a-z} — play macro, @@ — replay last, @: — repeat the last
+            # ex command
             if self._multi_key_prefix == "@" and (
-                (key.isalpha() and len(key) == 1) or key == "@"
+                (key.isalpha() and len(key) == 1) or key in ("@", ":")
             ):
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
@@ -430,6 +478,9 @@ class KeyMap:
         # read its 'c' as change.
         if self._state != _State.IDLE:
             return self._feed_normal(key)
+        # Window and leader keys belong to normal mode
+        if key in ("ctrl_w", " "):
+            return KeyResult.NO_MATCH, None
         # Visual x is d, as in vim
         if key in ("d", "y", "c", "x"):
             register = self._register

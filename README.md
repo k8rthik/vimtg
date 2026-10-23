@@ -74,7 +74,7 @@ vimtg works offline once card data is downloaded. It makes **no telemetry, analy
 | When | Where | What |
 |---|---|---|
 | `vimtg sync`, the greeter's `[s]`, or the TUI's background auto-sync (on launch and hourly, only when card data is missing or more than seven days old) | `api.scryfall.com`, `data.scryfall.io` | The public `oracle_cards` bulk file (card text, legalities, prices). Turn auto-sync off with `:set noautosync` or `VIMTG_NO_AUTOSYNC=1`. |
-| You open the EDHREC pane (`Sr` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days; disable with `VIMTG_NO_EDHREC=1`. |
+| You open the EDHREC pane (`Space r` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days; disable with `VIMTG_NO_EDHREC=1`. |
 | You import a deck URL (`:import <url>` or the greeter's `[i]`) | The site in the URL: Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or MTGGoldfish | That one public deck. |
 
 Requests identify themselves with a `vimtg/<version>` User-Agent and send nothing about your decks except the commander name (EDHREC) or the deck URL you asked to import. Your decks, settings, and history stay on your machine: card data and history in `~/.local/share/vimtg/`, config in `~/.config/vimtg/`, download caches in `~/.cache/vimtg/` (XDG variables are honoured).
@@ -187,13 +187,13 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Line editing**: `i` edits the current line in place. On a `// Key:` metadata line the prefix is locked and only the value is editable. On `// Format:` the value ghost-completes from the known formats and warns when you confirm an unknown one. `A` adds or edits the card's inline comment.
 - **Visual mode**: `v`/`V` select, `d`/`y`/`c`/`x` act on the range, `+`/`-` and the `z` zone and plan keys act on every card in it (one undo step), `o` swaps the selection ends. Category and tag prompts honour the visual range.
 - **Registers**: `"a`–`"z` named, `"A`–`"Z` append, unnamed, yank register `0`, delete history shifted through `1`–`9`, black hole `"_`, and the clipboard register `"+`/`"*` (yanks and deletes also copy to the system clipboard via OSC52).
-- **Marks**: `m{a-z}` set, `'{a-z}` jump, all 26 letters. Marks shift correctly through inserts, deletes, puts, and zone moves.
-- **Macros**: `q{a-z}` record, `q` stop, `@{a-z}` play, `@@` replay last, `3@a` plays three times. Playback re-feeds keys through the full pipeline.
+- **Marks**: `m{a-z}` set, `'{a-z}` jump, all 26 letters. Marks shift correctly through inserts, deletes, puts, and zone moves. `Ctrl-O` / `Ctrl-I` walk vim's jumplist and `''` returns to before the latest jump.
+- **Macros**: `q{a-z}` record, `q` stop, `@{a-z}` play, `@@` replay last, `3@a` plays three times, `@:` repeats the last ex command. Playback re-feeds keys through the full pipeline.
 - **Dot repeat**: `.` replays the last change: operators (`c` together with the card it added), `o`/`O` with their card and copies, puts, quantity, `x`, zone and plan moves, tags, categories, comments, `i` line edits, and `:s`. A visual change repeats on as many lines; a count on `.` overrides the recorded one.
 - **Command line**: `Up`/`Down` recall history (prefix-matched, separate for `:` and searches, kept across sessions in `~/.local/state/vimtg/`), `Ctrl-W`/`Ctrl-U` delete a word / to the start, `Ctrl-B`/`Ctrl-E` and `Left`/`Right` move, `Backspace` on an empty line leaves the prompt. The card-search prompt has the same line editing.
 - **Undo/redo**: `u`/`Ctrl-R`, counted. Session history is a snapshot tree: undo walks to the parent, redo to the newest child, and abandoned branches are kept. Each change is its own undo step, as in vim; only a quick burst of `+` or `-` on a card (within two seconds, not interrupted by an undo) collapses into one step. Undoing back to the loaded or last-saved state clears the modified flag.
 - **Remapping**: `:map key action` (session-only, multi-character targets allowed, `:`-prefixed targets auto-submit), `:unmap key`, bare `:map` lists. Persistent maps live in `[keybindings]` in `config.toml`, per mode.
-- **Which-key**: when a key sequence is pending (`d`, `y`, `c`, `g`, `[`, `]`, `"`, `q`, `@`, `m`, `'`, `S`, `t`, `z`) a popup shows the possible completions, derived from the same key spec as the help overview. The status line shows the pending sequence and counts.
+- **Which-key**: when a key sequence is pending (`d`, `y`, `c`, `g`, `[`, `]`, `"`, `q`, `@`, `m`, `'`, `Ctrl-W`, `Space`, `t`, `z`) a popup titled by the prefix shows the possible completions, derived from the same key spec as the help overview. The status line shows the pending sequence and counts.
 - **Mouse**: wheel and trackpad scroll the deck view, the split pane, the EDHREC pane, and the analytics pane, vim-style: three lines per notch, the cursor is dragged only when it would leave the scroll-off band. There is no click-to-position.
 
 ### Card database and search
@@ -214,7 +214,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - `Tab`/`Ctrl-J`/`Ctrl-N`/`Down` next, `Shift-Tab`/`Ctrl-K`/`Ctrl-P`/`Up` previous, `Enter` confirms, `Escape` discards the scratch line and restores the cursor.
 - Confirming a card already in the same zone bumps its quantity instead of adding a line.
 - The new card follows the cursor's zone. Inside a `SB:`/`CMD:` block it lands there in matching style. In the mainboard it is filed by the placement policy (see below). Inside a `VS:` block the search runs against the deck's own cards and writes a signed plan line.
-- **Inline expansion**: with `auto_expand` on, the cursor's card renders a detail block under it: type line and P/T, word-wrapped oracle text, set, rarity, and price. The deck view windows by rendered rows so the expansion never clips.
+- **Inline expansion**: with `auto_expand` on, the cursor's card renders a detail block under it: type line and P/T, word-wrapped oracle text, set, rarity, and price. `K` shows it for the cursor card when `auto_expand` is off, and hides it when on. The deck view windows by rendered rows so the expansion never clips.
 
 ### Zones
 
@@ -275,13 +275,13 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 ### Analytics
 
 - `:stats` prints a one-line summary on the command line: card count, average CMC, cards per type, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it). For the curve, colour pips, and mana base, use `:analytics`.
-- `:analytics` (or `Sa`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
+- `:analytics` (or `Space a`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
 - `vimtg info deck.deck` prints counts from the shell.
 
 ### Sample hand
 
-- `:hand` (alias `:goldfish`, key `Sd`) opens a goldfish overlay: it shuffles the main deck and draws an opening seven. Sideboard, maybeboard, commander and companion cards stay out of the library; for Commander the commander is shown in the command zone and the hand comes from the 99. With a sideboard plan active, the post-board deck is used.
+- `:hand` (alias `:goldfish`, key `Space h`) opens a goldfish overlay: it shuffles the main deck and draws an opening seven. Sideboard, maybeboard, commander and companion cards stay out of the library; for Commander the commander is shown in the command zone and the hand comes from the 99. With a sideboard plan active, the post-board deck is used.
 - `n`/`Space` draws the next card, `m` takes a London mulligan (draw seven, then select cards with `j`/`k` and press `b` to put one on the bottom per mulligan; the first mulligan is free in Commander and Brawl), `r` reshuffles a fresh hand, `q`/`Esc` closes.
 - The overlay shows the land count in hand and hypergeometric odds: at least one / two lands in the opening seven, and the chance of hitting every land drop through turns 1 to 5, on the play and on the draw. Lands come from the card database; without one, only basic lands are counted.
 - `:hand seed=42` seeds the shuffle so the same hands come up every time (useful for tests and comparisons).
@@ -289,12 +289,12 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 
 ### Split panes and EDHREC
 
-One pane at a time, beside (`Sv`, `:vsplit file`) or below (`Sh`, `:split file`) the editor.
+One pane at a time, beside (`Ctrl-W v`, `:vsplit file`) or below (`Ctrl-W s`, `:split file`) the editor.
 
 - **Deck pane**: another deck file, read-only, for comparing a netdeck or an old version. `j`/`k`, `Ctrl-D`/`Ctrl-U`, `gg`/`G` scroll.
-- **EDHREC pane** (`Sr`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory. `VIMTG_NO_EDHREC` disables lookups.
-- **Analytics pane** (`Sa`, `:analytics`): described above; opens unfocused because it is a readout.
-- `Ss` switches focus, `Sc` or `:close` closes. A focused pane has an orange border. Any editing key falls through to the editor and refocuses it.
+- **EDHREC pane** (`Space r`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory. `VIMTG_NO_EDHREC` disables lookups.
+- **Analytics pane** (`Space a`, `:analytics`): described above; opens unfocused because it is a readout. `Space a` / `Space r` again close their pane.
+- `Ctrl-W w` switches focus (`Ctrl-W h`/`j`/`k`/`l` by direction), `Ctrl-W c`, `Ctrl-W o` or `:close` closes. A focused pane has an orange border; in it `q` closes the pane and `Esc` returns to the editor. Any editing key (and `gh`, `g?`, `gc`) falls through to the editor and refocuses it.
 
 ### Import, export, and clipboard
 
@@ -354,7 +354,7 @@ Below 30×8 the editor shows a "terminal too small" notice instead of a garbled 
 
 ## Keybindings
 
-Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`), one help vocabulary (`F1` everywhere; `?` on screens other than the editor, where it is backward search), one job per editor prefix (`g` go, `t` tags, `S` splits, `z` zones and scrolling, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
+Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`; `Ctrl-C` is `Esc` and never quits), one help vocabulary (`F1` everywhere; `?` on screens other than the editor, where it is backward search), one job per editor prefix (`g` go, `t` tags, `Ctrl-W` windows, `Space` the leader, `z` zones and scrolling, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
 
 <details>
 <summary><strong>Modes and navigation</strong></summary>
@@ -378,6 +378,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `*` / `#` | Search forward / backward for the card under the cursor |
 | `zz` / `zt` / `zb` | Scroll the cursor line to center / top / bottom |
 | `m{a-z}` / `'{a-z}` | Set / jump to mark (all 26 letters) |
+| `Ctrl-O` / `Ctrl-I` (`Tab`) / `''` | Back / forward through the jumplist / back to before the latest jump |
 
 </details>
 
@@ -387,14 +388,16 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | Key | Action |
 |-----|--------|
 | `dd` / `yy` / `cc` | Delete / yank / change line |
+| `D` / `Y` / `S` / `C` | Same as `dd` / `yy` / `cc` / `cc` (decks are linewise) |
 | `d` `y` `c` + motion | Operators (`dw`, `d}`, `y5G`, ...) |
 | `x` | Delete card at cursor |
 | `p` / `P` | Paste below / above |
-| `+` / `-` | Increment / decrement quantity |
+| `+` / `-`, `Ctrl-A` / `Ctrl-X` | Increment / decrement quantity |
 | `zs` `zm` `zd` `zc` `zp` | Move to sideboard / maybeboard / main / commander / companion |
 | `zo` / `zi` | Board out of / into the active plan |
 | `"{x}` | Use register `x` for the next operator (`"_` black hole, `"+` clipboard) |
 | `q{x}` / `@{x}` / `@@` | Record / play / replay macro |
+| `@:` / `gv` | Repeat the last ex command / reselect the last visual selection |
 | `.` | Repeat last change |
 | `u` / `Ctrl-R` | Undo / redo |
 
@@ -411,10 +414,10 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `tf` / `tl` | Filter by expression / list tags |
 | `tn` / `tp` | Next / previous card sharing a tag |
 | `gh` | Toggle the history overlay |
-| `Sv` / `Sh` | Vertical / horizontal split (prompts for a deck) |
-| `Sr` / `Sa` | EDHREC pane / analytics pane |
-| `Sd` | Sample hand / goldfish overlay |
-| `Ss` / `Sc` | Switch focus / close pane |
+| `Ctrl-W v` / `Ctrl-W s` | Vertical / horizontal split (prompts for a deck) |
+| `Ctrl-W w` / `Ctrl-W c` | Switch focus / close pane (`Ctrl-W h`/`j`/`k`/`l` focus by direction, `Ctrl-W o` only) |
+| `Space r` / `Space a` | Toggle the EDHREC pane / analytics pane |
+| `Space h` | Sample hand / goldfish overlay |
 | `F1` / `g?` | Full help / quick-reference panel |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 
@@ -429,7 +432,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e[!] [file]`, `:{n}`, `:home`, `:recover` | File and navigation (`:w file` binds the deck to `file`, like `:saveas`; a deck with no file yet is named after its `// Deck:` line; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
+| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:qa`, `:wa`, `:wqa`/`:xa`, `:e[!] [file]`, `:{n}`, `:home`, `:recover` | File and navigation (`:w file` writes a copy and keeps editing this deck, as in vim, and `:saveas file` switches to it; a deck with no file yet is named after its `// Deck:` line, or takes the `:w file` name; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:q` with a pane open closes the pane, `:qa` quits regardless; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
 | `:[range]d [x]`, `:[range]y [x]`, `:[range]m {n}`, `:[range]t {n}` (`:co`), `:undo`, `:redo`, `:reg`, `:marks` | Line commands, as in vim |
 | `:sort [field]`, `:sort!` | Sort section or range |
 | `:s/pat/rep/[gI]` | Substitute (regex like `/`, case-insensitive unless `I`; `&` and `\1` in the replacement) |
