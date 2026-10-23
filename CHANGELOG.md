@@ -22,6 +22,9 @@ from 1.0.0 onward.
   - `Sa` -> `Space a` (analytics pane; `Space a` again closes it)
   - `Sr` -> `Space r` (EDHREC pane; `Space r` again closes it)
   - `Sd` -> `Space h` (sample hand overlay)
+- `S` is vim's substitute-line, the same as `cc`, now that it no longer
+  starts a split key. `C` is `cc`, `D` is `dd` and `Y` is `yy` (decks
+  are linewise), with counts, registers and `.`.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
 

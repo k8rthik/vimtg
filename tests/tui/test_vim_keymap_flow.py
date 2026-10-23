@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.tui.test_vim_fidelity_flow import _deck, _feed, _message, _screen
+from tests.tui.test_vim_fidelity_flow import _cards, _deck, _feed, _message, _screen
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.widgets.command_line import CommandLine
 from vimtg.tui.widgets.which_key import WhichKey
@@ -259,3 +259,49 @@ class TestFocusedPaneKeys:
             _feed(scr, "<Space>a<C-w>w")
             plain = scr.query_one("#analytics-panel", AnalyticsPanel).render().plain
             assert "q close" in plain and "Esc editor" in plain
+
+
+class TestLinewiseCapitals:
+    @pytest.mark.asyncio
+    async def test_d_deletes_lines_and_repeats(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G D")
+            assert _cards(scr)[0] == "4 Monastery Swiftspear"
+            _feed(scr, ".")
+            assert _cards(scr)[0] == "2 Eidolon of the Great Revel"
+            _feed(scr, "u u 6G 2D")
+            assert _cards(scr)[0] == "2 Eidolon of the Great Revel"
+
+    @pytest.mark.asyncio
+    async def test_y_yanks_into_a_register(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, '11G "aY 6G "ap')
+            assert _cards(scr)[:2] == ["4 Goblin Guide", "4 Lightning Bolt"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("key", ["S", "C"])
+    async def test_s_and_c_change_the_line(self, tmp_path: Path, key: str) -> None:
+        from vimtg.editor.modes import Mode
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, f"6G {key}")
+            assert scr._state.mode_mgr.current == Mode.INSERT
+            assert "4 Goblin Guide" not in _cards(scr)
+
+    @pytest.mark.asyncio
+    async def test_visual_d_deletes_the_selection(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G Vj D")
+            assert _cards(scr)[0] == "2 Eidolon of the Great Revel"

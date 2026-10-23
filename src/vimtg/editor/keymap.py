@@ -53,6 +53,9 @@ MODE_SWITCHES: dict[str, str] = {
     "/": "SEARCH",
     "?": "SEARCH",  # backward
 }
+# Decks are linewise, so the capitals that act to the end of the line
+# (or on it, S) are the doubled operators
+LINEWISE_KEYS: dict[str, str] = {"S": "cc", "C": "cc", "D": "dd", "Y": "yy"}
 SPECIAL_KEYS = frozenset(
     {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#"}
 )
@@ -270,6 +273,11 @@ class KeyMap:
         if key == "q" and self._macro_recording and self._state in (_State.IDLE, _State.COUNT):
             self.reset()
             return KeyResult.COMPLETE, ParsedAction("special", "q_stop")
+
+        if key in LINEWISE_KEYS and self._state in (_State.IDLE, _State.COUNT):
+            action = ParsedAction("operator", LINEWISE_KEYS[key], count, self._register)
+            self.reset()
+            return KeyResult.COMPLETE, action
 
         if key in MULTI_KEY_STARTERS and self._state in (_State.IDLE, _State.COUNT):
             self._multi_key_prefix = key

@@ -82,6 +82,7 @@ as in vim, and never eat the next section's blank line or header:
 | Key | Action |
 |-----|--------|
 | `dd` / `yy` / `cc` | Delete / yank / change the card line (`cc` deletes, then opens card search) |
+| `S` / `C` / `D` / `Y` | The linewise capitals: `S` and `C` are `cc`, `D` is `dd`, `Y` is `yy` (decks have no columns). Counts, registers and `.` work as with the doubled operator: `"a3Y` yanks three lines into `a` |
 | `d` `y` `c` + motion | Operators compose with a motion: `dw` deletes this card entry, `d}` to the end of the section, `y5G` through line 5. Counts multiply: `2d3j` |
 | `x` | Delete the card under the cursor (into the register); card lines only. A count deletes that many consecutive card lines as one change (`3x`, then one `u`) |
 | `p` / `P` | Paste below / above; `3p` pastes three copies |
@@ -125,6 +126,7 @@ moves the card but warns. An unknown or missing format checks nothing.
 |-----|--------|
 | `d` / `y` / `c` | Delete / yank / change the selection |
 | `x` | Delete the selection (same as `d`) |
+| `S` / `C` / `D` / `Y` | Change / change / delete / yank the selected lines |
 | `+` / `-` | Increment / decrement every card in the selection (`3+` adds three to each) |
 | `zs` / `zm` / `zd` / `zc` / `zp` | Move every selected card to that zone |
 | `zi` / `zo` | Board every selected card in / out of the active plan |
