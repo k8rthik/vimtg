@@ -1962,7 +1962,9 @@ class MainScreen(Screen[None]):
         new_row = follow_line(s.buffer, cleaned, s.cursor.row)
         s.buffer = cleaned
         s.cursor = s.cursor.move_to(new_row).clamp(cleaned.line_count() - 1)
-        s.modified = s.modified or cleaned.to_text() != s.clean_text
+        # Modified follows the text, as after u: cleanup can bring an
+        # edit (:t$ of the trailing blank) back to the saved deck
+        s.modified = cleaned.to_text() != s.clean_text
         s.history.amend(cleaned)
 
     def _sync_analytics_pane(self) -> None:
