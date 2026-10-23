@@ -25,9 +25,10 @@ from vimtg.domain.categories import (
     complete_category,
     completion_candidates,
 )
-from vimtg.domain.deck_lines import split_metadata_prefix, zone_context_at
+from vimtg.domain.deck_lines import parse_zone_header, split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
-from vimtg.domain.tags import TagFilter, format_tag_summary
+from vimtg.domain.tags import TagFilter, tag_lines
+from vimtg.domain.validation import commander_refusal
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.card_insert import (
     PendingInsert,
@@ -52,6 +53,8 @@ from vimtg.editor.command_handlers.search_cmds import (
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
+    Listing,
+    NewBuffer,
     ParsedCommand,
     RangeError,
     parse_command,
@@ -103,6 +106,7 @@ from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowComm
 from vimtg.editor.tag_ops import (
     add_tags_in_range,
     remove_tags_in_range,
+    tag_summary,
     toggle_tag_in_range,
 )
 from vimtg.services.history_service import HistoryService
@@ -279,6 +283,11 @@ class HandlerResult:
     # :q! / :e! / :home! dropped unsaved changes on purpose
     discard_changes: bool = False
     search_open: str | None = None  # :search — open the card search overlay
+    # A listing's lines; command_message is its one-line form (see Listing)
+    listing: Listing | None = None
+    # :enew / :import — open this unnamed buffer in place of the deck
+    new_buffer: NewBuffer | None = None
+    import_force: bool = False  # :import! <url> — the fetch may drop changes
 
 
 # Motions vim counts as jumps: Ctrl-O comes back from them
@@ -428,11 +437,12 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
     return HandlerResult()
 
 
-def _line_edit_prefix(line_text: str, *, in_block: bool = False) -> str:
+def _line_edit_prefix(buffer: Buffer, row: int) -> str:
     """The part of a line `i` keeps locked: the whole '// Key: ' prefix
     of a metadata line, the '// ' marker of a comment, the indentation
     of a line inside a zone or plan block (deleting it would silently
     rezone the line and every line beneath it), else nothing."""
+    line_text = buffer.get_line(row).text
     meta = split_metadata_prefix(line_text)
     if meta is not None:
         return meta[0]
@@ -443,7 +453,8 @@ def _line_edit_prefix(line_text: str, *, in_block: bool = False) -> str:
         if idx < len(line_text) and line_text[idx] == " ":
             idx += 1
         return line_text[:idx]
-    if in_block:
+    texts = [bl.text for bl in buffer.get_lines()]
+    if zone_context_at(texts, row) is not None:
         return line_text[: len(line_text) - len(line_text.lstrip())]
     return ""
 
@@ -456,12 +467,19 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         return HandlerResult(exit_to_normal=True)
     if key == "i":
         line_text = state.buffer.get_line(state.cursor.row).text
+        zone = parse_zone_header(line_text)
+        if zone is not None:
+            return HandlerResult(
+                command_message=(
+                    f"E21: Cannot edit the {zone}: zone header "
+                    "(it opens the block below; edit the cards in it)"
+                ),
+                error=True,
+            )
         state.insert_submode = InsertSubmode.LINE_EDIT
         state.line_edit_original = line_text
         state.line_edit_row = state.cursor.row
-        texts = [bl.text for bl in state.buffer.get_lines()]
-        in_block = zone_context_at(texts, state.cursor.row) is not None
-        state.line_edit_prefix = _line_edit_prefix(line_text, in_block=in_block)
+        state.line_edit_prefix = _line_edit_prefix(state.buffer, state.cursor.row)
         return HandlerResult(enter_line_edit=True)
     if key in ("o", "O"):
         # Visual o/O swaps the selection's ends, vim-style — it must
@@ -668,6 +686,9 @@ def handle_command(
             ui_request=ctx.ui_request,
             discard_changes=ctx.discard_requested,
             search_open=ctx.search_open,
+            listing=ctx.listing,
+            new_buffer=ctx.new_buffer,
+            import_force=ctx.import_force,
         )
     except Exception as exc:
         return HandlerResult(command_message=f"E: {exc}", error=True)
@@ -1165,8 +1186,11 @@ def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
             tag_prompt=tag_prompts[sub_key],
         )
     if sub_key == "l":
-        # List all tags inline
-        return HandlerResult(command_message=format_tag_summary(state.buffer.tag_counts()))
+        counts = state.buffer.tag_counts()
+        return HandlerResult(
+            command_message=tag_summary(state.buffer),
+            listing=Listing("Tags", tuple(tag_lines(counts))) if counts else None,
+        )
     if sub_key == "c":
         # Clear all tags from cursor card
         if state.buffer.is_card_line(state.cursor.row) and state.buffer.tags_at(state.cursor.row):
@@ -1347,6 +1371,21 @@ def _placement_policy(state: EditorState) -> PlacementPolicy:
     )
 
 
+def _commander_warning(state: EditorState, row: int) -> str:
+    """Why the card zc just put at `row` can't be the deck's commander
+    ('' when it can, or its card or format is unknown)."""
+    name = state.buffer.card_name_at(row)
+    card = state.resolved_cards.get(name) if name else None
+    if name is None or card is None:
+        return ""
+    deck = parse_deck_text(state.buffer.to_text())
+    fmt = (deck.metadata.format or state.settings.default_format).strip().lower()
+    rules = get_format_rules(fmt) if fmt else None
+    if rules is None:
+        return ""
+    return commander_refusal(name, card, rules.name) or ""
+
+
 def _zone_refusal(state: EditorState, target: LineType) -> tuple[str, bool]:
     """(message, refuse) when the deck's format lacks the target zone:
     a command zone outside commander formats is refused; a sideboard in
@@ -1444,6 +1483,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
         first_message if selection is None
         else f"Moved {moved} card(s) to {ZONE_LABELS[target]}"
     )
+    if target == LineType.COMMANDER_ENTRY and selection is None:
+        warning = _commander_warning(state, state.cursor.row)
     if warning:
         message = f"{message} — warning: {warning}"
     return HandlerResult(command_message=message, exit_to_normal=selection is not None)
@@ -1657,11 +1698,11 @@ def _replay_comment(state: EditorState, text: str) -> None:
 
 def _replay_line_edit(state: EditorState, text: str) -> None:
     """'.' after i: give this line the same value, keeping its own
-    locked prefix (metadata key or // marker)."""
+    locked prefix (metadata key, // marker, block indentation)."""
     row = state.cursor.row
     state.dot_repeat.record(RepeatableAction("line_edit", text=text))
     line = state.buffer.get_line(row).text
-    new = (_line_edit_prefix(line) + text).rstrip()
+    new = (_line_edit_prefix(state.buffer, row) + text).rstrip()
     if new == line:
         return
     state.buffer = state.buffer.set_line(row, new)

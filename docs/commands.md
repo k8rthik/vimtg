@@ -6,6 +6,12 @@ current line, `'a,'b` for marks). Any address takes `+N` / `-N` offsets, and
 an offset alone counts from the cursor line: `.,+3d` deletes four lines,
 `:+2` goes two lines down, `$-1` is the line before the last.
 
+A command that lists things (`:registers`, `:marks`, `:tags`,
+`:categories`, `:plans`, `:validate`, `:branch`, `:g/pat/p`, and the `tl`
+key) prints on the command line when its output fits on one line, and
+otherwise opens it in a floating pager, one entry per line, as vim's
+more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
+
 ## File
 
 | Command | Description |
@@ -23,6 +29,7 @@ an offset alone counts from the cursor line: `.,+3d` deletes four lines,
 | `:home` | Return to the greeter (alias `:greeter`). Refuses with unsaved changes, like `:q`; `:home!` discards them |
 | `:recover` | Load the recovery copy of this deck (`:recover!` deletes it). vimtg writes the copy under `~/.local/state/vimtg/recovery/` when it hits an internal error, and when the editor closes with unsaved changes, for example on `Ctrl-Q`, a closed terminal, or a dropped SSH connection. `:q!`, `ZQ`, `:e!`, and `:home!` discard the changes and the copy. Opening the deck again offers the copy; copies of unnamed buffers and deleted decks are listed on the greeter (`R`). The next successful `:w` removes the copy |
 | `:e file` | Edit another deck in place of this one (`.deck` is tried when `file` has no suffix; a missing file opens as a new deck). Refuses with unsaved changes (E37) |
+| `:enew[!]` | Edit a new, unnamed deck in place of this one (also `:ene`); the new-deck wizard asks for its name and format. Refuses with unsaved changes (E37); `!` discards them |
 | `:e! [file]` | The same, discarding unsaved changes; `:e!` alone reloads this deck from disk |
 | `:{n}`, `:$`, `:.` | Go to line `n` / the last line / stay (a range goes to its last line) |
 
@@ -69,7 +76,7 @@ deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, and `:r[ead]`.
 |---------|-------------|
 | `:noh` | Accepted for the vim habit (also `:nohlsearch`); vimtg draws no search highlight to clear |
 | `:find pattern` | Jump to the next card matching `pattern` (also `/`; `?` searches backward; `n` / `N` repeat in the same / opposite direction) |
-| `:search [query]` | Open the card database search overlay, like `o`, with `query` typed in ([syntax](search.md)); an empty search says "No matches" |
+| `:search [query]` | Open the card database search overlay, like `o`, with `query` typed in ([syntax](search.md)); an empty search says "No matches", or `No matches legal in modern (3 more in other formats)` when the deck's format filtered the matches out; `Enter` on it closes the search with that message |
 
 ## Categories & layout
 
@@ -121,7 +128,7 @@ Responses are cached for 7 days under the XDG cache directory.
 |---------|-------------|
 | `:tag name` | Tag the current line (or range) `#name` |
 | `:untag name` | Remove `#name`. `:untag!` clears every tag in the range |
-| `:tags` | List every tag in the deck with counts |
+| `:tags` | List every card tag in the deck with counts (with none, names the deck's own `// Tags:`) |
 | `:filter expr` | Filter the view to cards matching the tag expression |
 | `:retag /old/new/` | Rename a tag everywhere it appears |
 | `:dtag name...` | Add deck-level tags to the `// Tags:` metadata line, creating the line when the deck has none |
@@ -144,7 +151,7 @@ So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
 |---------|-------------|
 | `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard. `vimtg` is the text `:w` writes, so empty `// Format:`/`// Tags:` lines the file never had are left out |
 | `:export! fmt file` | Same, overwriting an existing `file` (`:export` refuses with E13). The open deck's own file is never an export target |
-| `:import file` | Replace the buffer with `file`, auto-detecting format. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
+| `:import[!] file` | Open `file` as a new unnamed deck in place of this one, as the greeter's import does (the open deck is left as it is on disk; the first `:w` names the new file after its `// Deck:` line), auto-detecting format. Refuses with unsaved changes (E37); `!` discards them. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
 | `:import` | Same, with the decklist (or deck URL) on the system clipboard |
 | `:clipboard [fmt]` | Copy the deck to the system clipboard in any `:export` format (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
 
@@ -209,9 +216,10 @@ sideboard plan active (`:plan`), the post-board deck is used.
 |-----|--------|
 | `n` / `Space` | Draw the next card |
 | `m` | London mulligan: shuffle, draw seven, then owe one card to the bottom per mulligan (the first is free in Commander, Brawl, Oathbreaker and Pauper Commander) |
-| `j` / `k` | Select a card in hand |
+| `j` / `k` | Select a card in hand (`gg` / `G`, `Ctrl-D` / `Ctrl-U`, `Home` / `End` too) |
 | `b` | Put the selected card on the bottom (after a mulligan) |
 | `r` | Reshuffle and deal a fresh hand |
+| `?` / `F1` | This topic / the full help |
 | `q` / `Esc` | Close |
 
 Drawing waits until the mulligan's cards are on the bottom, and a hand
@@ -270,8 +278,8 @@ missing or older than a week (`:set noautosync` turns this off; the
 
 | Command | Description |
 |---------|-------------|
-| `:help` | Open full-screen help overview (also `F1`; `g?` toggles the quick-reference panel) |
+| `:help` | Open the help window on the overview (also `F1`; `g?` toggles the cheat sheet) |
 | `:help cmd` | Open help for a specific command |
 | `:messages` | Show the last 100 command-line messages and errors (alias `:mes`; `:messages clear` empties it). Messages vanish at the next key; errors stay up while you move the cursor |
 | `:tips` | Show the getting-started tips panel (`Esc` hides it) |
-| `:tips off` / `:tips on` | Stop / resume showing the tips under empty decks (remembered across sessions) |
+| `:tips off` / `:tips on` | Stop / resume showing the tips under empty decks, which keep them through the first cards until the first `:w` (remembered across sessions) |

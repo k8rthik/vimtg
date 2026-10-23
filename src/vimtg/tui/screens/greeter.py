@@ -1,27 +1,30 @@
 """Greeter screen — shown when vimtg launches with no file argument.
 
 Inspired by alpha-nvim: centered ASCII logo, recent files, and quick actions.
-Supports menu (default), help, file browser, recent files browser, import,
-and the list of unsaved buffers left by an earlier session (recovery).
+Supports menu (default), file browser, recent files browser, import,
+and the list of unsaved buffers left by an earlier session (recovery);
+? and F1 open the editor's floating help window.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from rich.text import Text
-from textual import events, work
+from textual import events
 from textual.app import ComposeResult
 from textual.events import Key, Paste
 from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg import __version__
-from vimtg.editor.help_text import HELP_OVERVIEW, is_section_header
+from vimtg.editor.command_completer import CommandCompleter
+from vimtg.editor.commands import is_error_message
 from vimtg.services.deck_sources import (
     DeckSourceError,
     RemoteDeck,
@@ -36,6 +39,7 @@ from vimtg.services.recovery import (
 )
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
+from vimtg.tui.screens import greeter_command
 from vimtg.tui.theme import COLORS
 
 if TYPE_CHECKING:
@@ -60,10 +64,12 @@ ACTIONS = [
     ("q", "Quit"),
 ]
 
+SYNC_KEY = "s"
+
 LOGO_WIDTH = max(len(line) for line in LOGO_LINES)
 MENU_RECENT = 5  # recent decks listed on the menu (all of them under `r`)
-# Ctrl-C on the menu: the greeter quits with q (it has no : line)
-EXIT_HINT = "Press q to exit vimtg"
+# Ctrl-C on the menu: the greeter quits with q or :q
+EXIT_HINT = "Press q (or type :q) to exit vimtg"
 
 _DIM = f"dim {COLORS['comment']}"
 
@@ -87,7 +93,6 @@ class GreeterMode(Enum):
     """Greeter view modes — separate from editor modes."""
 
     MENU = "menu"
-    HELP = "help"
     FILES = "files"
     RECENT = "recent"
     IMPORT = "import"
@@ -114,14 +119,14 @@ class GreeterView(Static):
         self._card_note = ""  # card database readout (no data, age, sync)
         self._card_note_attention = False
         self._input = ""  # import prompt text (path or URL)
+        # The `:` command line while it is open, None when closed
+        self.command: greeter_command.CommandLineState | None = None
+        # A card sync is running: the menu does not offer another
+        self.sync_running = False
         self.nav = VimNav()
-        self._help_nav = VimNav()
-        self._help_offset = 0
         self._shown_recent = min(len(self._recent), MENU_RECENT)
 
     def render(self) -> Text:
-        if self._mode == GreeterMode.HELP:
-            return self._render_help()
         if self._mode == GreeterMode.FILES:
             return self._render_file_list(self._all_files, "Open File")
         if self._mode == GreeterMode.RECENT:
@@ -146,10 +151,11 @@ class GreeterView(Static):
             (1 if self._status else 0) + (1 if self._card_note else 0)
             + (1 if self._recoveries else 0)
         )
+        actions = [a for a in ACTIONS if not (self.sync_running and a[0] == SYNC_KEY)]
         # Always shown: the actions (one per line plus a blank, or two
         # per line when that does not fit), any status, and the hint
-        compact = height < len(ACTIONS) + 1 + status_lines + 1
-        action_lines = (len(ACTIONS) + 1) // 2 if compact else len(ACTIONS) + 1
+        compact = height < len(actions) + 1 + status_lines + 1
+        action_lines = (len(actions) + 1) // 2 if compact else len(actions) + 1
         room = height - action_lines - status_lines - 1
         show_logo = width >= LOGO_WIDTH + 2 and room >= len(LOGO_LINES) + 1 + 3
         if show_logo:
@@ -180,14 +186,14 @@ class GreeterView(Static):
             t.append("\n")
 
         if compact:
-            for i in range(0, len(ACTIONS), 2):
-                for key, label in ACTIONS[i:i + 2]:
+            for i in range(0, len(actions), 2):
+                for key, label in actions[i:i + 2]:
                     # First word only ("Recent"), so two fit in 30 columns
                     t.append(f" [{key}]", style=f"bold {COLORS['quantity']}")
                     t.append(f" {label.split()[0]:<7}")
                 t.append("\n")
         else:
-            for key, label in ACTIONS:
+            for key, label in actions:
                 t.append(f"  [{key}]", style=f"bold {COLORS['quantity']}")
                 t.append(f"  {label}\n", style="")
             t.append("\n")
@@ -212,29 +218,16 @@ class GreeterView(Static):
                 style=f"bold {COLORS['warning']}",
             )
         if self._status:
-            t.append(f"  {self._status}\n", style=f"bold {COLORS['mana_green']}")
+            colour = COLORS["error"] if is_error_message(self._status) else COLORS["mana_green"]
+            t.append(f"  {self._status}\n", style=f"bold {colour}")
 
-        t.append("  Press a highlighted key\n" if compact
-                 else "  Press a highlighted key to continue\n", style=_DIM)
+        if self.command is not None:
+            t.append_text(greeter_command.render(self.command))
+        else:
+            t.append("  Press a highlighted key\n" if compact
+                     else "  Press a highlighted key (: commands)\n", style=_DIM)
         return t
 
-    def _render_help(self) -> Text:
-        t = Text()
-        t.append("  vimtg Help\n", style=f"bold {COLORS['mana_blue']}")
-        t.append("  " + "=" * 40 + "\n\n", style=_DIM)
-
-        lines = HELP_OVERVIEW.split("\n")
-        start = self._help_offset
-        viewport = self.list_viewport() if self.size.height > 0 else len(lines)
-        for line in lines[start:start + viewport]:
-            if is_section_header(line):
-                t.append(f"  {line}\n", style=f"bold {COLORS['mana_green']}")
-            else:
-                t.append(f"  {line}\n", style="")
-
-        t.append("\n")
-        t.append("  j/k scroll  gg/G top/bottom  ?/Esc/q return\n", style=_DIM)
-        return t
 
     def _render_import(self) -> Text:
         t = Text()
@@ -387,38 +380,12 @@ class GreeterView(Static):
             event.stop()
             self.navigate(self._active_list(), 1)
             self.refresh()
-        elif self._mode == GreeterMode.HELP:
-            event.stop()
-            self.scroll_help_by_key("ctrl_d")
-            self.refresh()
 
     def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
         if self._mode in (GreeterMode.FILES, GreeterMode.RECENT, GreeterMode.RECOVER):
             event.stop()
             self.navigate(self._active_list(), -1)
             self.refresh()
-        elif self._mode == GreeterMode.HELP:
-            event.stop()
-            self.scroll_help_by_key("ctrl_u")
-            self.refresh()
-
-    def scroll_help_by_key(self, key: str) -> bool:
-        """Scroll the inline help overview; False when `key` is not a nav key."""
-        lines = HELP_OVERVIEW.count("\n") + 1
-        viewport = self.list_viewport()
-        step = self._help_nav.feed(key, viewport)
-        if step is None:
-            return False
-        if step == PENDING:
-            return True
-        max_offset = max(0, lines - viewport)
-        if step == "home":
-            self._help_offset = 0
-        elif step == "end":
-            self._help_offset = max_offset
-        else:
-            self._help_offset = max(0, min(self._help_offset + int(step), max_offset))
-        return True
 
     def select_next(self, file_list: list[Path]) -> None:
         if file_list:
@@ -448,6 +415,8 @@ class GreeterScreen(Screen[None]):
         super().__init__()
         self._recent = recent_files or []
         self._all_files = _find_all_decks()
+        self._commands = greeter_command.greeter_registry()
+        self._completer = CommandCompleter(self._commands)
 
     def compose(self) -> ComposeResult:
         yield GreeterView(
@@ -471,6 +440,7 @@ class GreeterScreen(Screen[None]):
         # The greeter's sync key is s, not :sync
         gv._card_note = "no card data - press s to download" if text == NO_CARD_DATA else text
         gv._card_note_attention = attention
+        gv.sync_running = bool(getattr(self.app, "card_sync_running", False))
         gv.refresh()
 
     def on_key(self, event: Key) -> None:
@@ -479,6 +449,13 @@ class GreeterScreen(Screen[None]):
 
         key = translate(event.key)
         gv = self.query_one(GreeterView)
+        if gv.command is not None:
+            outcome = greeter_command.feed(gv.command, key, event.character, self._completer)
+            gv.command = outcome.line
+            if outcome.submitted:
+                self._run_command(outcome.submitted, gv)
+            gv.refresh()
+            return
         if event.key == "ctrl+c" and gv._mode == GreeterMode.MENU:
             # Ctrl-C is Esc and never quits; say what does
             gv._status = EXIT_HINT
@@ -487,8 +464,6 @@ class GreeterScreen(Screen[None]):
 
         if gv._mode == GreeterMode.MENU:
             self._handle_menu_key(key, gv)
-        elif gv._mode == GreeterMode.HELP:
-            self._handle_help_key(key, gv)
         elif gv._mode == GreeterMode.IMPORT:
             self._handle_import_key(key, gv)
         elif gv._mode == GreeterMode.RECOVER:
@@ -502,7 +477,11 @@ class GreeterScreen(Screen[None]):
             self._handle_file_list_key(key, gv, file_list)
 
     def _handle_menu_key(self, key: str, gv: GreeterView) -> None:
-        if key == "n":
+        if key == ":":
+            gv.command = greeter_command.CommandLineState()
+            gv._status = ""
+            gv.refresh()
+        elif key == "n":
             self._open_editor(file_path=None)
         elif key == "e":
             gv.set_mode(GreeterMode.FILES)
@@ -512,7 +491,7 @@ class GreeterScreen(Screen[None]):
             gv._input = ""
             gv._status = ""
             gv.refresh()
-        elif key == "s":
+        elif key == SYNC_KEY:
             self._run_sync()
         elif key == "r":
             gv.set_mode(GreeterMode.RECENT)
@@ -524,18 +503,11 @@ class GreeterScreen(Screen[None]):
         elif key == "q":
             self.app.exit()
         elif key in ("?", "f1"):
-            gv.set_mode(GreeterMode.HELP)
-            gv.refresh()
+            from vimtg.tui.screens.help_screen import HelpScreen
+
+            self.app.push_screen(HelpScreen())
         elif key.isdigit() and 1 <= int(key) <= gv._shown_recent:
             self._open_editor(file_path=self._recent[int(key) - 1])
-
-    def _handle_help_key(self, key: str, gv: GreeterView) -> None:
-        if key in ("escape", "q", "?", "f1"):
-            gv.set_mode(GreeterMode.MENU)
-            gv.refresh()
-            return
-        if gv.scroll_help_by_key(key):
-            gv.refresh()
 
     def _handle_import_key(self, key: str, gv: GreeterView) -> None:
         if key == "escape":
@@ -550,6 +522,25 @@ class GreeterScreen(Screen[None]):
         elif len(key) == 1 and key.isprintable():
             gv._input += key
             gv.refresh()
+
+    def _run_command(self, text: str, gv: GreeterView) -> None:
+        """Run `text` with the editor's own handlers, then do what they
+        asked for: open a deck, a new one, the help, a sync, or quit."""
+        ctx = greeter_command.run(text, self._commands)
+        if ctx.error:
+            gv._status = ctx.message
+        elif ctx.quit_requested:
+            self.app.exit()
+        elif ctx.edit_path is not None:
+            self._open_editor(file_path=ctx.edit_path)
+        elif ctx.new_buffer is not None:
+            self._open_editor(file_path=None)
+        elif ctx.open_help_screen:
+            from vimtg.tui.screens.help_screen import HelpScreen
+
+            self.app.push_screen(HelpScreen(topic=ctx.help_topic))
+        elif ctx.card_sync:
+            self._run_sync(force=ctx.card_sync == "force")
 
     def on_paste(self, event: Paste) -> None:
         """Terminals deliver a paste as one Paste event, not keys.
@@ -695,7 +686,11 @@ class GreeterScreen(Screen[None]):
         if is_deck_url(source):
             gv._status = "Fetching deck..."
             gv.refresh()
-            self._import_worker(source)
+            # An app worker, not this screen's: opening the deck replaces the
+            # greeter, which would cancel a screen worker while it is returning
+            self.app.run_worker(
+                partial(self._import_worker, source), name="url-import", thread=True,
+            )
             return
         self._import_file(source, gv)
 
@@ -718,7 +713,6 @@ class GreeterScreen(Screen[None]):
         result = self._importer().to_vimtg(text, name=path.stem)
         self._open_editor(None, result.text, result.summary(path.name))
 
-    @work(thread=True)
     def _import_worker(self, url: str) -> None:
         """URL fetches run off the event loop, like the card sync."""
         try:
@@ -739,14 +733,15 @@ class GreeterScreen(Screen[None]):
         gv._status = f"E: {message}"
         gv.refresh()
 
-    def _run_sync(self) -> None:
-        """s: start the app's card sync (one sync at a time, app-wide);
-        its progress reaches the card note through set_card_data_status."""
+    def _run_sync(self, force: bool = False) -> None:
+        """s / :sync: start the app's card sync (one sync at a time,
+        app-wide); its progress reaches the card note through
+        set_card_data_status."""
         start = getattr(self.app, "start_card_sync", None)
         if not callable(start):
             return
         gv = self.query_one(GreeterView)
-        gv._status = start()
+        gv._status = start(force=True) if force else start()
         gv.refresh()
 
 

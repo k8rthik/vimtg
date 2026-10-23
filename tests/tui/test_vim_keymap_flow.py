@@ -397,7 +397,9 @@ class TestCtrlCIsEsc:
             await pilot.press("ctrl+c")
             await pilot.pause()
             assert app.is_running
-            assert "Press q to exit vimtg" in str(app.screen.query_one(GreeterView).render())
+            assert "Press q (or type :q) to exit vimtg" in str(
+                app.screen.query_one(GreeterView).render()
+            )
 
     @pytest.mark.asyncio
     async def test_a_recovery_copy_is_not_called_a_crash(self, tmp_path: Path) -> None:

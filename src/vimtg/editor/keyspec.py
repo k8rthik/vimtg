@@ -135,9 +135,9 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b("escape", "Back to normal mode; cancels a pending sequence", MODES, label="Esc",
        note="Ctrl-C does the same and never quits; with nothing to cancel "
             "it says to type :q"),
-    _b("f1", "Full-screen help (also :help)", MODES, label="F1", quick="Commands",
+    _b("f1", "Help window (also :help)", MODES, label="F1", quick="Commands",
        brief="help"),
-    _b("g?", "Toggle the quick-reference panel", MODES, shorts=("quick reference",)),
+    _b("g?", "Toggle the cheat sheet (the which-key rows)", MODES, shorts=("cheat sheet",)),
     _b(("ZZ", "ZQ"), "Save if changed, then quit (:x) / quit discarding changes (:q!)", MODES,
        shorts=("save and quit", "quit without saving")),
     # ── Navigation ────────────────────────────────────────

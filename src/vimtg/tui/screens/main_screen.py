@@ -13,6 +13,7 @@ import traceback
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -41,7 +42,7 @@ from vimtg.editor.card_insert import (
 )
 from vimtg.editor.cmdline_history import CommandHistory
 from vimtg.editor.command_completer import CommandCompleter
-from vimtg.editor.commands import CommandRegistry
+from vimtg.editor.commands import CommandRegistry, Listing, NewBuffer
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import VIEW_MOTIONS, KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import is_named_key, load_remapper
@@ -105,6 +106,7 @@ from vimtg.services.recovery import (
     pending_recovery,
     write_recovery,
 )
+from vimtg.services.vcs_service import BRANCH_EXISTS, UNCOMMITTED_CHANGES
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.screens.new_deck import NewDeckInfo, NewDeckScreen
@@ -138,9 +140,11 @@ _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
 OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
+NO_MATCHES = "No matches"
 # Ctrl-C with nothing to cancel, as vim says it
 EXIT_HINT = "Type :q and press Enter to exit vimtg"
-SYNCING_SEARCH_NOTICE = "Card database is still downloading — search works once :sync finishes"
+# While the (automatic) first sync runs; {progress} as the status line has it
+SYNCING_SEARCH_NOTICE = "Card database {progress}: search works when it finishes"
 
 def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     """Return the appropriate command-line hint for the current cursor position."""
@@ -285,6 +289,9 @@ class MainScreen(Screen[None]):
         # even for a deck with cards (:tips)
         self._tips_dismissed = app_state.tips_dismissed()
         self._tips_forced = False
+        # The deck was empty this session and has not been written since:
+        # the tips stay up through its first cards, when +/- and :w matter
+        self._tips_until_write = False
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -353,7 +360,9 @@ class MainScreen(Screen[None]):
 
     def apply_new_deck_info(self, info: NewDeckInfo | None) -> None:
         """Write the wizard's answers into the metadata lines as one
-        undoable change (nothing changes when it was skipped)."""
+        undoable change (nothing changes when it was skipped). The
+        answers fill in the scaffold of a deck with no cards yet, so
+        they leave it unmodified: :q on an untouched new deck quits."""
         if info is None:
             return
         s = self._state
@@ -363,7 +372,8 @@ class MainScreen(Screen[None]):
             return
         s.buffer = Buffer.from_text(new)
         s.cursor = s.cursor.clamp(s.buffer.line_count() - 1)
-        s.modified = True
+        if not s.modified:
+            s.clean_text = new
         s.history.record(s.buffer, "new deck")
         message = f"New deck: {info.name or '(unnamed)'}"
         if info.fmt:
@@ -394,6 +404,10 @@ class MainScreen(Screen[None]):
         lines = self.query("#status-line").results(StatusLine)
         for sl in lines:  # none before compose; on_mount pulls the status
             sl.card_data, sl.card_data_attention = self._card_status
+        # A search waiting on the sync follows its progress
+        for sr in self.query("#search-results").results(SearchResults):
+            if sr.display and sr.notice and not self._card_data_available():
+                sr.notice = self._offline_notice()
 
     def _card_data_available(self) -> bool:
         """True when card search has a populated database behind it."""
@@ -404,7 +418,8 @@ class MainScreen(Screen[None]):
 
     def _offline_notice(self) -> str:
         if getattr(self.app, "card_sync_running", False):
-            return SYNCING_SEARCH_NOTICE
+            progress = getattr(self.app, "card_sync_progress", "") or "downloading"
+            return SYNCING_SEARCH_NOTICE.format(progress=progress)
         return OFFLINE_SEARCH_NOTICE
 
     def show_message(self, text: str, *, error: bool = False) -> None:
@@ -542,13 +557,16 @@ class MainScreen(Screen[None]):
         event.prevent_default()
         event.stop()
 
-        # ── Help panel modal: ? / Escape close, scroll keys scroll,
-        # everything else is swallowed so it never reaches the editor ──
+        # ── Help panel modal: ? / Escape close, F1 trades it for the full
+        # help, scroll keys scroll, everything else is swallowed so it
+        # never reaches the editor ──
         hp = self.query_one("#help-panel", HelpPanel)
         if hp.display:
             key = translate(event.key)
-            if key in ("?", "escape", "q"):
+            if key in ("?", "escape", "q", "f1"):
                 hp.display = False
+                if key == "f1":
+                    self._open_help(None)
             else:
                 hp.scroll_by_key(key)
             return
@@ -772,6 +790,9 @@ class MainScreen(Screen[None]):
             s.mode_mgr.force_normal()
             s.visual_anchor = None  # :'<,'> consumed the selection
             self.keymap.set_mode(Mode.NORMAL)
+            # The typed line goes, as in vim: a command that says nothing
+            # leaves the hint bar, not its own text
+            self.query_one("#command-line", CommandLine).hide()
         elif action.action_type == "special":
             hr = self._dispatch_special(action)
 
@@ -924,7 +945,11 @@ class MainScreen(Screen[None]):
         self.keymap.set_mode(Mode.INSERT)
         self.keymap.reset_text()
         self._latest_search = None
-        self._update_search_results([])  # never confirm a stale result
+        # Never confirm a stale result, and show no "No matches" box
+        # before a query has run
+        sr = self.query_one("#search-results", SearchResults)
+        sr.results = []
+        sr.display = False
         cl = self.query_one("#command-line", CommandLine)
         cl.show("")
         cl.message = (
@@ -968,7 +993,9 @@ class MainScreen(Screen[None]):
         if hr.enter_visual:
             s.mode_mgr.transition(hr.enter_visual)
             self.keymap.set_mode(hr.enter_visual)
-        if hr.command_message:
+        if hr.command_message and hr.listing is not None:
+            self._show_listing(hr.listing, hr.command_message, error=hr.error)
+        elif hr.command_message:
             self.query_one("#command-line", CommandLine).set_message(
                 hr.command_message, error=hr.error
             )
@@ -981,6 +1008,7 @@ class MainScreen(Screen[None]):
         if hr.file_saved:
             # The deck is safely on disk: its crash copy is obsolete
             self._drop_recovery()
+            self._tips_until_write = False
             # Only an actual save auto-snapshots — every ex command carries
             # file_path, and committing on each one would defeat the
             # uncommitted-changes guard on merge/rebase/switch.
@@ -1043,7 +1071,7 @@ class MainScreen(Screen[None]):
 
             self.app.push_screen(HandScreen(hr.hand_open))
         if hr.import_url:
-            self._start_url_import(hr.import_url)
+            self._start_url_import(hr.import_url, force=hr.import_force)
         if hr.clipboard_text is not None:
             self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label)
         if hr.card_sync:
@@ -1061,21 +1089,51 @@ class MainScreen(Screen[None]):
         if hr.search_open is not None:
             self._open_card_search(hr.search_open)
         if hr.edit_file is not None:
-            self._edit_file(hr.edit_file)
+            self._replace_editor(lambda open_deck: open_deck(hr.edit_file))
+        if hr.new_buffer is not None:
+            self._open_new_buffer(hr.new_buffer)
 
-    def _edit_file(self, path: Path) -> None:
-        """:e — replace this editor with one on `path` (registers carry
-        over, as in vim)."""
+    def _replace_editor(self, open_with: Callable[[Callable[..., None]], None]) -> None:
+        """Replace this editor with the one `open_with(app.open_deck)`
+        opens (:e, :enew, :import); registers carry over, as in vim."""
         app = self.app
         open_deck = getattr(app, "open_deck", None)  # duck-typed navigation
         if not callable(open_deck):
             return
         registers = self._state.registers
         app.pop_screen()
-        open_deck(path)
-        new_screen = app.screen
-        if isinstance(new_screen, MainScreen):
+        open_with(open_deck)
+        new_screen = next(
+            (s for s in reversed(app.screen_stack) if isinstance(s, MainScreen)), None
+        )
+        if new_screen is not None and new_screen is not self:
             new_screen._state.registers = registers
+
+    def _open_new_buffer(self, request: NewBuffer) -> None:
+        """:enew — an empty unnamed deck (the wizard asks for its name and
+        format); :import — the imported deck, unsaved and unnamed."""
+        if request.text is None:
+            self._replace_editor(lambda open_deck: open_deck(None))
+        else:
+            text = request.text
+            self._replace_editor(
+                lambda open_deck: open_deck(None, initial_text=text, message=request.message)
+            )
+
+    def _show_listing(self, listing: Listing, summary: str, *, error: bool = False) -> None:
+        """A listing's one-line form on the command line when it fits,
+        else its lines in the floating pager (vim's more-prompt). Either
+        way :messages keeps it."""
+        cl = self.query_one("#command-line", CommandLine)
+        width = cl.size.width
+        if len(listing.lines) <= 1 or not width or len(summary) + 2 <= width:
+            cl.set_message(summary, error=error)
+            return
+        text = "\n".join(listing.lines)
+        cl.history.append((error, text))
+        from vimtg.tui.screens.help_screen import HelpScreen
+
+        self.app.push_screen(HelpScreen(body=text, title=listing.title))
 
     def _open_card_search(self, query: str) -> None:
         """:search — open the card search exactly as `o` does (ignoring any
@@ -1164,6 +1222,9 @@ class MainScreen(Screen[None]):
             cl.hide()
             if not self._card_data_available() and not self._in_plan_zone():
                 cl.set_message(f"Nothing added: {self._offline_notice()}", error=True)
+            elif sr.display and sr.notice:
+                # Say why Enter added nothing, as the overlay did
+                cl.set_message(f"Nothing added: {sr.notice[:1].lower()}{sr.notice[1:]}")
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
@@ -1288,19 +1349,23 @@ class MainScreen(Screen[None]):
             f"Split: {spec.path.name}  (Ctrl-W w switch pane, :close to close)"
         )
 
-    def _start_url_import(self, url: str) -> None:
+    def _start_url_import(self, url: str, *, force: bool = False) -> None:
         """:import <url> — fetch the deck from any site in
-        services.deck_sources off the UI thread, then replace the buffer
-        with the result."""
+        services.deck_sources off the UI thread, then open it as a new
+        unnamed buffer (`force`: even over changes made meanwhile)."""
         host = urlparse(url).hostname or url
         self.query_one("#command-line", CommandLine).set_message(
             f"Fetching deck from {host}..."
         )
         self._import_generation += 1
-        self._run_url_import(url, self._import_generation)
+        # An app worker, not this screen's: the import replaces this screen,
+        # which would cancel a screen worker while it is still returning
+        self.app.run_worker(
+            partial(self._run_url_import, url, self._import_generation, force),
+            name="url-import", thread=True,
+        )
 
-    @work(thread=True)
-    def _run_url_import(self, url: str, generation: int) -> None:
+    def _run_url_import(self, url: str, generation: int, force: bool) -> None:
         try:
             remote = fetch_deck(url)
         except DeckSourceError as exc:
@@ -1309,7 +1374,7 @@ class MainScreen(Screen[None]):
             )
             return
         self.app.call_from_thread(
-            self._url_import_loaded, remote, url, generation
+            self._url_import_loaded, remote, url, generation, force
         )
 
     def _url_import_failed(self, message: str, generation: int) -> None:
@@ -1320,23 +1385,26 @@ class MainScreen(Screen[None]):
         )
 
     def _url_import_loaded(
-        self, remote: RemoteDeck, url: str, generation: int
+        self, remote: RemoteDeck, url: str, generation: int, force: bool = False
     ) -> None:
         if generation != self._import_generation:
             return
         from vimtg.services.import_export_service import ImportExportService
 
-        s = self._state
+        host = urlparse(url).hostname or url
+        if self._state.modified and not force:
+            # Edited while the deck was on its way: keep the edits
+            self.show_message(
+                f"E37: No write since last change: the deck from {host} was not "
+                "opened (:import! replaces the changes)",
+                error=True,
+            )
+            return
+        if self._state.modified:
+            self._discarded = True
+            self._drop_recovery()
         imported = ImportExportService(card_repo=self.card_repo).to_vimtg(remote, url=url)
-        s.buffer = Buffer.from_text(imported.text)
-        s.cursor = Cursor()
-        s.modified = True
-        s.history.record(s.buffer, f"import {remote.name or url}")
-        if self.card_repo:
-            s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
-        message = imported.summary(urlparse(url).hostname or url)
-        self.query_one("#command-line", CommandLine).set_message(message)
-        self._sync_widgets()
+        self._open_new_buffer(NewBuffer(text=imported.text, message=imported.summary(host)))
 
     def _open_analytics(self, req: AnalyticsOpen) -> None:
         # Focus stays in the editor: the pane is a live readout that
@@ -1648,7 +1716,7 @@ class MainScreen(Screen[None]):
             if self.file_path is None:
                 cl.set_message("E32: No file name (:w the deck first)", error=True)
             else:
-                cl.set_message("VCS unavailable (no database)")
+                cl.set_message("E: VCS unavailable (no database)", error=True)
         return vcs
 
     def _open_history(self) -> None:
@@ -1735,7 +1803,7 @@ class MainScreen(Screen[None]):
             f"*{b.name}" if b.name == vcs.current_branch else b.name
             for b in branches
         ]
-        cl.set_message("Branches: " + ", ".join(names))
+        self._show_listing(Listing("Branches", tuple(names)), "Branches: " + ", ".join(names))
 
     def _vcs_create_branch(self, name: str) -> None:
         """Create a branch at the current branch tip."""
@@ -1746,7 +1814,7 @@ class MainScreen(Screen[None]):
         try:
             existing = {b.name for b in vcs.list_branches()}
             if name in existing:
-                cl.set_message(f"E: Branch exists: {name}", error=True)
+                cl.set_message(BRANCH_EXISTS.format(name=name), error=True)
                 return
             branch = vcs.create_branch(name)
         except sqlite3.Error as exc:
@@ -1765,9 +1833,7 @@ class MainScreen(Screen[None]):
         cl = self.query_one("#command-line", CommandLine)
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
-                cl.set_message(
-                    "E: Uncommitted changes — :commit first", error=True
-                )
+                cl.set_message(UNCOMMITTED_CHANGES.format(key=":commit"), error=True)
                 return
             state = vcs.switch_branch(name)
         except sqlite3.Error as exc:
@@ -1792,9 +1858,7 @@ class MainScreen(Screen[None]):
         cl = self.query_one("#command-line", CommandLine)
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
-                cl.set_message(
-                    "E: Uncommitted changes — :commit first", error=True
-                )
+                cl.set_message(UNCOMMITTED_CHANGES.format(key=":commit"), error=True)
                 return
             branch_names = {b.name for b in vcs.list_branches()}
             result: MergeResult | None
@@ -1893,9 +1957,7 @@ class MainScreen(Screen[None]):
             return
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
-                cl.set_message(
-                    "E: Uncommitted changes — :commit first", error=True
-                )
+                cl.set_message(UNCOMMITTED_CHANGES.format(key=":commit"), error=True)
                 return
             result = vcs.rebase(target)
         except sqlite3.Error as exc:
@@ -1947,19 +2009,26 @@ class MainScreen(Screen[None]):
             deck = parse_deck_text(self._state.buffer.to_text())
             fmt = effective_format(deck, settings.default_format)
             rules = get_format_rules(fmt) if fmt else None
+            limit = settings.search_limit
             try:
                 results = self.search_service.search(
-                    query,
-                    limit=settings.search_limit,
-                    legal_in=rules.name if rules is not None else None,
+                    query, limit=limit, legal_in=rules.name if rules is not None else None,
+                )
+                elsewhere = (
+                    self.search_service.search(query, limit=limit)
+                    if not results and rules is not None else []
                 )
             except SearchSyntaxError as exc:
                 self.app.call_from_thread(
                     self._show_search_error, query, str(exc), generation
                 )
                 return
+            notice = NO_MATCHES
+            if elsewhere and rules is not None:
+                more = f"{len(elsewhere)}{'+' if len(elsewhere) >= limit else ''}"
+                notice = f"No matches legal in {rules.name} ({more} more in other formats)"
             self.app.call_from_thread(
-                self._apply_search_results, query, results, generation
+                self._apply_search_results, query, results, generation, notice
             )
 
     def _search_is_current(self, query: str) -> bool:
@@ -1968,10 +2037,11 @@ class MainScreen(Screen[None]):
         return self._latest_search is None or self._latest_search == query
 
     def _apply_search_results(
-        self, query: str, results: list[Card], generation: int | None = None
+        self, query: str, results: list[Card], generation: int | None = None,
+        notice: str = "",
     ) -> None:
         if self._search_is_current(query) and self._search_is_live(generation):
-            self._update_search_results(results)
+            self._update_search_results(results, notice or NO_MATCHES)
 
     def _search_is_live(self, generation: int | None) -> bool:
         """False for a worker started before the search prompt was last
@@ -1989,14 +2059,15 @@ class MainScreen(Screen[None]):
         sr.error = message
         sr.display = True
 
-    def _update_search_results(self, results: list[Card]) -> None:
+    def _update_search_results(self, results: list[Card], notice: str = "") -> None:
         sr = self.query_one("#search-results", SearchResults)
         sr.error = ""
         sr.notice = ""
         sr.results = results
         sr.selected = 0
-        # An empty result says so instead of silently hiding the overlay
-        sr.notice = "" if results else "No matches"
+        # An empty result says so (and why, when the format filtered it)
+        # instead of silently hiding the overlay
+        sr.notice = "" if results else notice or NO_MATCHES
         sr.display = True
         # Show top match as ghost completion in command line
         cl = self.query_one("#command-line", CommandLine)
@@ -2199,9 +2270,14 @@ class MainScreen(Screen[None]):
         self._update_tips(sl.card_count)
 
     def _update_tips(self, card_count: int) -> None:
-        """Show the first-run tips under an empty deck (normal mode,
-        room to spare) unless turned off or closed with Esc."""
-        wanted = self._tips_forced or (card_count == 0 and not self._tips_dismissed)
+        """Show the first-run tips under an empty deck, and on through its
+        first cards until the first :w (normal mode, room to spare),
+        unless turned off or closed with Esc."""
+        if card_count == 0:
+            self._tips_until_write = True
+        wanted = self._tips_forced or (
+            self._tips_until_write and not self._tips_dismissed
+        )
         self.query_one("#tips-panel", TipsPanel).display = (
             wanted
             and not self._tips_closed

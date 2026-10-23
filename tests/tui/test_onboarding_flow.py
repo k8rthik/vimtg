@@ -59,7 +59,8 @@ async def test_greeter_new_prompts_then_w_names_file_after_deck(
         text = screen._state.buffer.to_text()
         assert "// Deck: Mono Red" in text
         assert "// Format: modern" in text
-        assert screen._state.modified is True
+        # The answers only fill in the scaffold: nothing is unsaved yet
+        assert screen._state.modified is False
 
         await _type(pilot, ":w")
         await pilot.press("enter")
@@ -70,6 +71,49 @@ async def test_greeter_new_prompts_then_w_names_file_after_deck(
         assert written.startswith("// Deck: Mono Red\n// Format: modern\n")
         # The empty // Tags: scaffold is display-only
         assert "// Tags:" not in written
+
+
+@pytest.mark.asyncio
+async def test_q_after_the_wizard_quits_without_unsaved_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A deck made from the greeter and never edited holds only its
+    scaffold (name, format, empty zone blocks): :q quits, as vim's :q
+    on an untouched :enew buffer does."""
+    monkeypatch.chdir(tmp_path)
+    app = VimTGApp()
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        await _type(pilot, "Mono Red")
+        await pilot.press("enter")
+        await _type(pilot, "modern")
+        await pilot.press("enter")
+        await pilot.pause()
+        screen = _main(app)
+        await _type(pilot, ":q")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert "Unsaved" not in _cl(screen).message
+        assert app._exit
+    assert list(tmp_path.glob("*.deck")) == []
+
+
+@pytest.mark.asyncio
+async def test_undoing_the_wizard_answers_is_a_change(tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=tmp_path / "new.deck")
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        await _type(pilot, "burn")
+        await pilot.press("enter")
+        await pilot.press("enter")
+        await pilot.pause()
+        screen = _main(app)
+        assert screen._state.modified is False
+        await pilot.press("u")
+        await pilot.pause()
+        assert screen._state.modified is True
 
 
 @pytest.mark.asyncio
@@ -288,6 +332,28 @@ async def test_tips_show_for_empty_deck_and_esc_hides(tmp_path: Path) -> None:
         screen._execute_ex("tips")  # brings them back
         screen._sync_widgets()
         assert _tips(screen).display is True
+
+
+@pytest.mark.asyncio
+async def test_tips_stay_after_the_first_card_until_the_first_write(tmp_path: Path) -> None:
+    """+/- and :w matter most right after the first card goes in, so
+    the tips stay up until the deck is first written."""
+    deck = tmp_path / "empty.deck"
+    deck.write_text("// Deck: E\n// Format: modern\n\nDCK:\n", encoding="utf-8")
+    app = VimTGApp(deck_path=deck)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        screen = _main(app)
+        from textual.events import Paste
+
+        screen.post_message(Paste("4 Lightning Bolt\n"))
+        await pilot.pause()
+        assert "Lightning Bolt" in screen._state.buffer.to_text()
+        assert _tips(screen).display is True
+        screen._execute_ex("w")
+        screen._sync_widgets()
+        await pilot.pause()
+        assert _tips(screen).display is False
 
 
 @pytest.mark.asyncio

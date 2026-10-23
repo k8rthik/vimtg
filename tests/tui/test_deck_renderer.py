@@ -243,3 +243,28 @@ def test_unresolved_long_name_is_shown_whole() -> None:
     name = "Eidolon of the Great Revvel Typo"
     buf = Buffer.from_text(f"4 {name}\n")
     assert name in render_line(0, buf, cursor_row=0, resolved={})[0].plain
+
+
+def test_long_type_line_ends_in_an_ellipsis() -> None:
+    """The type column cuts like the name column: with a "…", not mid-word."""
+    name = "Thassa, Deep-Dwelling"
+    buf = Buffer.from_text(f"1 {name}\n")
+    card = _make_card(
+        name=name, mana_cost="{3}{U}", type_line="Legendary Enchantment Creature — God",
+    )
+    line = render_line(0, buf, cursor_row=1, resolved={name: card})[0].plain
+    assert "Legendary Enchantme…" in line
+    assert "Legendary Enchantmen " not in line + " "
+
+
+def test_a_card_line_never_wraps_past_the_width() -> None:
+    """In a narrow split the card line is cut at the pane's edge with a
+    "…" instead of wrapping its tail to column 0."""
+    name = "Thassa, Deep-Dwelling"
+    buf = Buffer.from_text(f"1 {name}  #ramp #value\n")
+    card = _make_card(
+        name=name, mana_cost="{3}{U}", type_line="Legendary Enchantment Creature — God",
+    )
+    line = render_line(0, buf, cursor_row=1, resolved={name: card}, width=40)[0]
+    assert len(line.plain) <= 40
+    assert line.plain.endswith("…")

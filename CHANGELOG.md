@@ -36,11 +36,29 @@ from 1.0.0 onward.
   deck with no file yet still takes the name, and `:saveas file` still
   switches. `:wq file` with unsaved changes writes the copy and stays
   (E37) unless given `!`.
+- `g?` shows a short cheat sheet, the rows the which-key popup shows,
+  instead of the whole help overview (`F1` has that, and `F1` from the
+  cheat sheet opens it). In the help window `F1` switches a topic (or
+  `:messages`) to the overview. The greeter's `?` and `F1` open the same
+  help window as the editor instead of a third copy of the help text.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
+- Help, `:messages`, `:config`, `:hand` and the merge resolver open as
+  the same floating window as the history overlay (a bordered box over
+  the dimmed editor, titled, with its close keys on the bottom border)
+  instead of taking over the screen. `?` inside the history overlay
+  opens its help above it.
 
 ### Added
 
+- The greeter has a `:` command line that runs the editor's own `:e
+  {file}`, `:enew`, `:q`/`:q!`, `:sync[!]` and `:help [topic]`, with the
+  editor's messages and `Tab` completion. Typing `:e x.deck` there used to
+  press the menu's `e`, then `x`. `[s] Sync cards` is not offered while a
+  sync runs.
+- `:enew` (`:ene`) edits a new, unnamed deck in place of the open one and
+  opens the new-deck wizard, as the greeter's `n` does; unsaved changes
+  refuse with E37 and `:enew!` discards them.
 - `K` shows the cursor card's details inline when the `auto_expand`
   setting is off, and hides them when it is on, until the cursor moves
   (vim's keyword lookup).
@@ -70,6 +88,66 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Card search that the deck's format filters to nothing says so: `No
+  matches legal in modern (3 more in other formats)` instead of a bare
+  "No matches", and `Enter` on an empty search closes it with that
+  message instead of silently.
+- Card search before the first sync finishes shows how far the automatic
+  download is (`Card database downloading 40%: search works when it
+  finishes`, following the progress) instead of suggesting the user has
+  to run `:sync`.
+- The empty-deck tips panel stays up after the first card goes in, when
+  `+`/`-` and `:w` matter, until the first `:w` (or `Esc`, or `:tips off`),
+  instead of vanishing with the first card.
+- A new deck that holds only what the new-deck wizard filled in (its
+  name, format and empty zone blocks) is not modified: `:q` on a deck made
+  from the greeter and never edited quits instead of saying "Unsaved
+  changes", as vim's `:q` on an untouched `:enew` buffer does.
+- `i` on a bare zone header says `E21: Cannot edit the DCK: zone header`
+  instead of opening a raw edit, and `.` after an `i` edit keeps the
+  block indentation of the line it repeats on, so the card stays in its
+  block.
+- The deck view's type column ends a long type line in "…"
+  (`Legendary Enchantme…`) instead of cutting it mid-word, and a card
+  line in a narrow split pane is cut at the pane's edge with "…" instead
+  of wrapping its tail to column 0.
+- `zc` on a card that cannot be the commander says why in the move
+  message (`— warning: Goblin King is not legendary and can't be your
+  commander`) instead of leaving only a ✗ in the gutter.
+- `tl` and `:tags` on a deck whose only tags are its own `// Tags:` line
+  say `No card tags (deck tags: goblins, tokens; see :dtag)` instead of
+  "No tags in deck".
+- `:import <file|url>` opens the imported deck as a new unnamed buffer,
+  like the greeter's import, instead of replacing the buffer of the deck
+  that was open, whose next `:w` then overwrote the original file.
+  Unsaved changes refuse with E37; `:import!` discards them. A URL
+  import that arrives after the deck was edited leaves the edits alone.
+- Vim-coded errors read as vim's: `E37: No write since last change`,
+  `E32: No file name`, `E16: Invalid range` and the rest no longer show
+  as `E: E37: ...`.
+- Listing commands no longer cut their output off at the terminal edge:
+  `:registers`, `:marks`, `:tags`, `:categories`, `:plans`, `:validate`,
+  `:branch`, `:g/pat/p` and `tl` print on the command line when the
+  output fits on one line, and otherwise open it in the floating pager
+  `:messages` uses, one entry per line, as vim's more-prompt does.
+  `:messages` keeps the output.
+- A command that says nothing clears the command line, as in vim: after
+  `:3`, `:$`, or closing the view `:help`, `:history`, `:hand`, `:config`
+  or `:messages` opened, the hint bar is back instead of the stale
+  `:help` text.
+- Errors in the history overlay and the merge resolver are `E:` errors
+  drawn in red, like the editor's (a database error used to show in the
+  green of a status message). The editor and the overlay word the same
+  refusal the same way: `E: Uncommitted changes — commit them first`
+  (`(:commit)` in the editor, `(c)` in the overlay) and `E: Branch
+  exists: name`. Without a database the history commands say `E: VCS
+  unavailable (no database)` as an error.
+- `q` in the merge resolver no longer throws away resolved conflicts at
+  once: with any card resolved it warns first ("press q again to
+  discard"), the guard `:config` has for unsaved settings.
+- The sample hand takes the shared list keys: `gg`/`G`, `Ctrl-D`/`Ctrl-U`
+  and `Home`/`End` select a card as `j`/`k` do, `?` opens the `hand` help
+  topic and `F1` the full help, and its hint bar names them.
 - Visual `p` / `P` replace the selection with the register and leave
   visual mode, as in vim (`p` keeps the replaced lines in the unnamed
   register, `P` keeps the registers as they were), instead of pasting

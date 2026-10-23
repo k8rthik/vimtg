@@ -9,9 +9,9 @@ from vimtg.domain.tags import (
     TAG_NAME_RE as _TAG_NAME_RE,
 )
 from vimtg.domain.tags import (
-    format_tag_summary,
     matches_filter,
     parse_tag_filter,
+    tag_lines,
 )
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.commands import (
@@ -25,6 +25,7 @@ from vimtg.editor.tag_ops import (
     add_tags_in_range,
     clear_tags_in_range,
     remove_tags_in_range,
+    tag_summary,
 )
 
 
@@ -113,13 +114,16 @@ def cmd_tags(
                 if name:
                     matches.append(name)
         if matches:
-            ctx.message = f"#{tag}: {', '.join(matches)}"
+            ctx.show_listing(f"#{tag}", matches, f"#{tag}: {', '.join(matches)}")
         else:
             ctx.message = f"No cards with tag #{tag}"
         return buf, cursor
 
-    # List all tags with counts
-    ctx.message = format_tag_summary(buf.tag_counts())
+    counts = buf.tag_counts()
+    if counts:
+        ctx.show_listing("Tags", tag_lines(counts), tag_summary(buf))
+    else:
+        ctx.message = tag_summary(buf)
     return buf, cursor
 
 

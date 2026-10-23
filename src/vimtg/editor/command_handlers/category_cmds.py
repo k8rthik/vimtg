@@ -103,12 +103,17 @@ def cmd_categories(
                 if name:
                     matches.append(name)
         if matches:
-            ctx.message = f"@{category}: {', '.join(matches)}"
+            ctx.show_listing(f"@{category}", matches, f"@{category}: {', '.join(matches)}")
         else:
             ctx.message = f"No cards in category @{category}"
         return buf, cursor
 
-    ctx.message = format_category_summary(buf.category_counts())
+    counts = buf.category_counts()
+    if counts:
+        lines = [f"@{name:<20} {n}" for name, n in sorted(counts.items())]
+        ctx.show_listing("Categories", lines, format_category_summary(counts))
+    else:
+        ctx.message = format_category_summary(counts)
     return buf, cursor
 
 
