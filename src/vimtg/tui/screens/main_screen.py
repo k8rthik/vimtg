@@ -139,6 +139,7 @@ _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
 OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
+NO_MATCHES = "No matches"
 # Ctrl-C with nothing to cancel, as vim says it
 EXIT_HINT = "Type :q and press Enter to exit vimtg"
 # While the (automatic) first sync runs; {progress} as the status line has it
@@ -1216,6 +1217,9 @@ class MainScreen(Screen[None]):
             cl.hide()
             if not self._card_data_available() and not self._in_plan_zone():
                 cl.set_message(f"Nothing added: {self._offline_notice()}", error=True)
+            elif sr.display and sr.notice:
+                # Say why Enter added nothing, as the overlay did
+                cl.set_message(f"Nothing added: {sr.notice[:1].lower()}{sr.notice[1:]}")
         sr.display = False
         self._state.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
@@ -1996,19 +2000,26 @@ class MainScreen(Screen[None]):
             deck = parse_deck_text(self._state.buffer.to_text())
             fmt = effective_format(deck, settings.default_format)
             rules = get_format_rules(fmt) if fmt else None
+            limit = settings.search_limit
             try:
                 results = self.search_service.search(
-                    query,
-                    limit=settings.search_limit,
-                    legal_in=rules.name if rules is not None else None,
+                    query, limit=limit, legal_in=rules.name if rules is not None else None,
+                )
+                elsewhere = (
+                    self.search_service.search(query, limit=limit)
+                    if not results and rules is not None else []
                 )
             except SearchSyntaxError as exc:
                 self.app.call_from_thread(
                     self._show_search_error, query, str(exc), generation
                 )
                 return
+            notice = NO_MATCHES
+            if elsewhere and rules is not None:
+                more = f"{len(elsewhere)}{'+' if len(elsewhere) >= limit else ''}"
+                notice = f"No matches legal in {rules.name} ({more} more in other formats)"
             self.app.call_from_thread(
-                self._apply_search_results, query, results, generation
+                self._apply_search_results, query, results, generation, notice
             )
 
     def _search_is_current(self, query: str) -> bool:
@@ -2017,10 +2028,11 @@ class MainScreen(Screen[None]):
         return self._latest_search is None or self._latest_search == query
 
     def _apply_search_results(
-        self, query: str, results: list[Card], generation: int | None = None
+        self, query: str, results: list[Card], generation: int | None = None,
+        notice: str = "",
     ) -> None:
         if self._search_is_current(query) and self._search_is_live(generation):
-            self._update_search_results(results)
+            self._update_search_results(results, notice or NO_MATCHES)
 
     def _search_is_live(self, generation: int | None) -> bool:
         """False for a worker started before the search prompt was last
@@ -2038,14 +2050,15 @@ class MainScreen(Screen[None]):
         sr.error = message
         sr.display = True
 
-    def _update_search_results(self, results: list[Card]) -> None:
+    def _update_search_results(self, results: list[Card], notice: str = "") -> None:
         sr = self.query_one("#search-results", SearchResults)
         sr.error = ""
         sr.notice = ""
         sr.results = results
         sr.selected = 0
-        # An empty result says so instead of silently hiding the overlay
-        sr.notice = "" if results else "No matches"
+        # An empty result says so (and why, when the format filtered it)
+        # instead of silently hiding the overlay
+        sr.notice = "" if results else notice or NO_MATCHES
         sr.display = True
         # Show top match as ghost completion in command line
         cl = self.query_one("#command-line", CommandLine)

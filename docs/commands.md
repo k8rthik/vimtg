@@ -76,7 +76,7 @@ deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, and `:r[ead]`.
 |---------|-------------|
 | `:noh` | Accepted for the vim habit (also `:nohlsearch`); vimtg draws no search highlight to clear |
 | `:find pattern` | Jump to the next card matching `pattern` (also `/`; `?` searches backward; `n` / `N` repeat in the same / opposite direction) |
-| `:search [query]` | Open the card database search overlay, like `o`, with `query` typed in ([syntax](search.md)); an empty search says "No matches" |
+| `:search [query]` | Open the card database search overlay, like `o`, with `query` typed in ([syntax](search.md)); an empty search says "No matches", or `No matches legal in modern (3 more in other formats)` when the deck's format filtered the matches out; `Enter` on it closes the search with that message |
 
 ## Categories & layout
 
