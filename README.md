@@ -320,7 +320,7 @@ Two layers, both stored in the local SQLite database and keyed by deck path.
 
 ### Greeter
 
-`vimtg` with no arguments opens a greeter with the logo, version, and recent decks: the ones you opened or saved lately from any directory (remembered in `~/.local/state/vimtg/state.json`), then the newest `.deck` files in the current directory. On short terminals the logo and recents give way so the menu always fits. Keys: `n` new deck (asks for its name and format), `e` file browser, `i` import from a file path or deck URL (bracketed paste supported), `s` sync cards with inline progress, `r` recent files, `1`–`5` open a recent deck, `R` unsaved buffers left by an earlier session (shown only when there are any; `Enter` opens one, `d` discards it), `?` help, `q` quit. `:home` returns here from the editor.
+`vimtg` with no arguments opens a greeter with the logo, version, and recent decks: the ones you opened or saved lately from any directory (remembered in `~/.local/state/vimtg/state.json`), then the newest `.deck` files in the current directory. On short terminals the logo and recents give way so the menu always fits. Keys: `n` new deck (asks for its name and format), `e` file browser, `i` import from a file path or deck URL (bracketed paste supported), `s` sync cards with inline progress (hidden while a sync runs), `r` recent files, `1`–`5` open a recent deck, `R` unsaved buffers left by an earlier session (shown only when there are any; `Enter` opens one, `d` discards it), `?` help, `q` quit, and `:` for a small command line running the editor's `:e {file}`, `:enew`, `:q`, `:sync` and `:help [topic]` (`Tab` completes). `:home` returns here from the editor.
 
 ### Configuration
 

@@ -51,6 +51,11 @@ from 1.0.0 onward.
 
 ### Added
 
+- The greeter has a `:` command line that runs the editor's own `:e
+  {file}`, `:enew`, `:q`/`:q!`, `:sync[!]` and `:help [topic]`, with the
+  editor's messages and `Tab` completion. Typing `:e x.deck` there used to
+  press the menu's `e`, then `x`. `[s] Sync cards` is not offered while a
+  sync runs.
 - `:enew` (`:ene`) edits a new, unnamed deck in place of the open one and
   opens the new-deck wizard, as the greeter's `n` does; unsaved changes
   refuse with E37 and `:enew!` discards them.
