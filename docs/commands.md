@@ -282,4 +282,5 @@ missing or older than a week (`:set noautosync` turns this off; the
 | `:help cmd` | Open help for a specific command |
 | `:messages` | Show the last 100 command-line messages and errors (alias `:mes`; `:messages clear` empties it). Messages vanish at the next key; errors stay up while you move the cursor |
 | `:tips` | Show the getting-started tips panel (`Esc` hides it) |
+| `:Tutor[!]` | Leave this deck for the tutor, a fresh lesson deck in an offline sandbox, like vimtutor (alias `:tutor`; the same as `vimtg tutor`). Unsaved changes need `!` |
 | `:tips off` / `:tips on` | Stop / resume showing the tips under empty decks, which keep them through the first cards until the first `:w` (remembered across sessions) |

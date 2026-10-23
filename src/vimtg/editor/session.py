@@ -1261,8 +1261,13 @@ def handle_tag_input_special(state: EditorState, action: ParsedAction) -> Handle
         )
 
     if key == "enter":
+        # An empty filter clears it (as :filter does); other prompts cancel
+        clears_filter = state.tag_input_action == "f"
         state.tag_input_action = ""
         state.insert_submode = InsertSubmode.CARD_SEARCH
+        if clears_filter:
+            state.tag_filter = None
+            return HandlerResult(exit_to_normal=True, command_message="Filter cleared")
         return HandlerResult(exit_to_normal=True)
 
     return HandlerResult()
@@ -1341,9 +1346,6 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
             filter_status_message,
         )
 
-        if not text.strip():
-            state.tag_filter = None
-            return "Filter cleared"
         state.tag_filter = parse_tag_filter(text)
         visible, total = count_filter_matches(state.buffer, state.tag_filter)
         return filter_status_message(visible, total)

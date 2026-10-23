@@ -20,7 +20,7 @@ from vimtg.editor.cursor import Cursor
 from vimtg.tui.theme import COLORS
 
 # The editor commands the greeter's `:` line runs (with their aliases)
-GREETER_COMMANDS = ("edit", "enew", "q", "qa", "sync", "help")
+GREETER_COMMANDS = ("edit", "enew", "q", "qa", "sync", "help", "tutor")
 
 
 def greeter_registry() -> CommandRegistry:
