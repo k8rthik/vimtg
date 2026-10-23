@@ -69,9 +69,9 @@
 // zs   move the card to the sideboard    zd   back to the deck
 // zm   move it to the maybeboard
 // A count splits copies off: 2zs moves just two.
-// *    jump to the next line with the same card
-// Try it: on Skewer the Critics press 2zs. Press * to find the
-// SB: copy it made at the bottom, then zd to bring it home.
+// Try it: on Skewer the Critics press 2zs. The cursor follows the
+// two copies to the sideboard at the bottom. Press zd there to
+// bring them home: they rejoin the other two.
 4 Skewer the Critics
 
 // ------------------------------------------------------------
@@ -91,6 +91,7 @@
 // ------------------------------------------------------------
 // /bolt Enter   jump to the next card whose name has "bolt"
 // n / N         next / previous match     ? searches upward
+// * / #         next / previous line with the card under the cursor
 // Try it: type /mesa and press Enter, then n to wrap around.
 8 Mountain
 4 Arid Mesa
@@ -139,8 +140,8 @@
 // Space a     live analytics: curve, colors, draw odds
 // Space h     sample hand: draw seven, mulligan, goldfish
 // Ctrl-W v    open a second deck side by side
-// Ctrl-W w    switch windows        q or Esc closes a pane
-// Try it: press Space a, look around, then q.
+// Ctrl-W w    move into the pane and back; in it, q closes it
+// Try it: press Space a, look around, then Space a to close it.
 
 // ------------------------------------------------------------
 // Lesson 13: VERSION HISTORY
@@ -152,8 +153,8 @@
 // ------------------------------------------------------------
 // Lesson 14: GETTING HELP, AND LEAVING
 // ------------------------------------------------------------
-// ?        help for the screen you are on
 // F1       the full manual        :help sort   one topic
+// ?        on any other screen (history, hand...), its own help
 // g?       a quick-reference card
 // Pause after a prefix key (g, z, t, ...) to list what follows.
 // ZZ       save and quit           :q!   quit without saving
