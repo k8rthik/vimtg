@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from rich.text import Text
-from textual import events, work
+from textual import events
 from textual.app import ComposeResult
 from textual.events import Key, Paste
 from textual.screen import Screen
@@ -685,7 +686,11 @@ class GreeterScreen(Screen[None]):
         if is_deck_url(source):
             gv._status = "Fetching deck..."
             gv.refresh()
-            self._import_worker(source)
+            # An app worker, not this screen's: opening the deck replaces the
+            # greeter, which would cancel a screen worker while it is returning
+            self.app.run_worker(
+                partial(self._import_worker, source), name="url-import", thread=True,
+            )
             return
         self._import_file(source, gv)
 
@@ -708,7 +713,6 @@ class GreeterScreen(Screen[None]):
         result = self._importer().to_vimtg(text, name=path.stem)
         self._open_editor(None, result.text, result.summary(path.name))
 
-    @work(thread=True)
     def _import_worker(self, url: str) -> None:
         """URL fetches run off the event loop, like the card sync."""
         try:

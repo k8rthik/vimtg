@@ -13,6 +13,7 @@ import traceback
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -1357,9 +1358,13 @@ class MainScreen(Screen[None]):
             f"Fetching deck from {host}..."
         )
         self._import_generation += 1
-        self._run_url_import(url, self._import_generation, force)
+        # An app worker, not this screen's: the import replaces this screen,
+        # which would cancel a screen worker while it is still returning
+        self.app.run_worker(
+            partial(self._run_url_import, url, self._import_generation, force),
+            name="url-import", thread=True,
+        )
 
-    @work(thread=True)
     def _run_url_import(self, url: str, generation: int, force: bool) -> None:
         try:
             remote = fetch_deck(url)
