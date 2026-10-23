@@ -2,8 +2,10 @@
 
 Draws an opening seven from the main deck and lets the user goldfish:
 n/Space draw, m London mulligan (b bottoms the selected card), r
-reshuffles a fresh hand, j/k select, q/Esc close. The game logic lives
-in domain.sample_hand; this screen only renders it and maps keys.
+reshuffles a fresh hand; the shared navigation keys (j/k, gg/G,
+Ctrl-D/U, Home/End) select a card, ? opens the hand help topic, F1 the
+full help, q/Esc close. The game logic lives in domain.sample_hand;
+this screen only renders it and maps keys.
 """
 
 from __future__ import annotations
@@ -30,18 +32,26 @@ from vimtg.domain.sample_hand import (
 )
 from vimtg.editor.command_handlers.hand_cmds import HandOpen
 from vimtg.tui.key_translator import translate
-from vimtg.tui.keys import CLOSE_KEYS, NAV_DOWN, NAV_UP, render_hints
+from vimtg.tui.keys import (
+    CLOSE_KEYS,
+    FULL_HELP_KEY,
+    HELP_KEY,
+    PENDING,
+    VimNav,
+    render_hints,
+)
 from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 
-DRAW_KEYS = frozenset({"n", " "})
-MULLIGAN_KEY = "m"
-BOTTOM_KEY = "b"
-RESHUFFLE_KEY = "r"
+# Game keys → HandScreen method names; the hint bar names every one
+ACTIONS: dict[str, str] = {
+    "n": "_draw", " ": "_draw", "m": "_mulligan", "b": "_bottom", "r": "_reshuffle",
+}
 
 HINTS = (
     ("n/Space", "draw"), ("m", "mulligan"), ("b", "bottom"),
-    ("r", "reshuffle"), ("j/k", "select"), ("q/Esc", "close"),
+    ("r", "reshuffle"), ("j/k", "select"), ("gg/G", "first/last"),
+    ("?", "help"), ("q/Esc", "close"),
 )
 
 _HEADER = "═══ Sample hand ═══════════════════════════════════════"
@@ -135,6 +145,7 @@ class HandScreen(FloatingScreen[None]):
         self.state = self._new_game()
         self.selected = 0
         self.message = ""
+        self._nav = VimNav()
 
     def _new_game(self) -> Goldfish:
         source = self.request.source
@@ -167,25 +178,46 @@ class HandScreen(FloatingScreen[None]):
         if key in CLOSE_KEYS:
             self.app.pop_screen()
             return
+        if key in (HELP_KEY, FULL_HELP_KEY):
+            from vimtg.tui.screens.help_screen import HelpScreen
+
+            self.app.push_screen(HelpScreen(topic="hand" if key == HELP_KEY else None))
+            return
+        step = self._nav.feed(key, len(self.state.hand))
+        if step == PENDING:
+            return
         self.message = ""
-        try:
-            if key in DRAW_KEYS:
-                self.state = draw(self.state)
-                self.selected = len(self.state.hand) - 1
-            elif key == MULLIGAN_KEY:
-                self.state = mulligan(self.state, self._rng)
-                self.selected = 0
-            elif key == BOTTOM_KEY:
-                self.state = put_on_bottom(self.state, self.selected)
-            elif key == RESHUFFLE_KEY:
-                self.state = self._new_game()
-                self.selected = 0
-            elif key in NAV_DOWN:
-                self.selected += 1
-            elif key in NAV_UP:
-                self.selected -= 1
-            else:
-                return
-        except GoldfishError as exc:
-            self.message = str(exc)
+        if step is not None:
+            self._select(step)
+        elif (method := ACTIONS.get(key)) is not None:
+            try:
+                getattr(self, method)()
+            except GoldfishError as exc:
+                self.message = str(exc)
+        else:
+            return
         self._refresh()
+
+    def _select(self, step: int | str) -> None:
+        last = len(self.state.hand) - 1
+        if step == "home":
+            self.selected = 0
+        elif step == "end":
+            self.selected = last
+        else:
+            self.selected += int(step)
+
+    def _draw(self) -> None:
+        self.state = draw(self.state)
+        self.selected = len(self.state.hand) - 1
+
+    def _mulligan(self) -> None:
+        self.state = mulligan(self.state, self._rng)
+        self.selected = 0
+
+    def _bottom(self) -> None:
+        self.state = put_on_bottom(self.state, self.selected)
+
+    def _reshuffle(self) -> None:
+        self.state = self._new_game()
+        self.selected = 0

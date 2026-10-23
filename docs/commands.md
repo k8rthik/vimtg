@@ -209,9 +209,10 @@ sideboard plan active (`:plan`), the post-board deck is used.
 |-----|--------|
 | `n` / `Space` | Draw the next card |
 | `m` | London mulligan: shuffle, draw seven, then owe one card to the bottom per mulligan (the first is free in Commander, Brawl, Oathbreaker and Pauper Commander) |
-| `j` / `k` | Select a card in hand |
+| `j` / `k` | Select a card in hand (`gg` / `G`, `Ctrl-D` / `Ctrl-U`, `Home` / `End` too) |
 | `b` | Put the selected card on the bottom (after a mulligan) |
 | `r` | Reshuffle and deal a fresh hand |
+| `?` / `F1` | This topic / the full help |
 | `q` / `Esc` | Close |
 
 Drawing waits until the mulligan's cards are on the bottom, and a hand

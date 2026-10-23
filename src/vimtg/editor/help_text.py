@@ -503,10 +503,11 @@ COMMAND_HELP: dict[str, str] = {
         "makes the shuffles repeatable.\n"
         "\n"
         "Keys: n/Space draw, m mulligan (London: draw 7, then b puts\n"
-        "the selected card on the bottom), j/k select, r reshuffle,\n"
-        "q/Esc close. The first mulligan is free in Commander and\n"
-        "Brawl. Shows the land count in hand and the odds of 1+ / 2+\n"
-        "lands in seven and of hitting every land drop by turn N."
+        "the selected card on the bottom), j/k (gg/G, Ctrl-D/U) select,\n"
+        "r reshuffle, ? this help, q/Esc close. The first mulligan is\n"
+        "free in Commander and Brawl. Shows the land count in hand and\n"
+        "the odds of 1+ / 2+ lands in seven and of hitting every land\n"
+        "drop by turn N."
     ),
 }
 

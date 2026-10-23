@@ -201,9 +201,10 @@ so do `g` sequences other than `gg` (`gh`, `g?`, `gc`); any other key
 refocuses the editor and runs there.
 
 `Space h` opens the sample-hand overlay rather than a pane. In it, `n`
-or `Space` draws, `m` takes a London mulligan, `j`/`k` select a card
-and `b` puts it on the bottom, `r` reshuffles a fresh hand, and
-`q`/`Esc` close it.
+or `Space` draws, `m` takes a London mulligan, `j`/`k` (and `gg`/`G`,
+`Ctrl-D`/`Ctrl-U`, `Home`/`End`) select a card and `b` puts it on the
+bottom, `r` reshuffles a fresh hand, `?` opens the hand help topic, `F1`
+the full help, and `q`/`Esc` close it.
 
 ### Version control
 

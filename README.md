@@ -282,7 +282,7 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 ### Sample hand
 
 - `:hand` (alias `:goldfish`, key `Space h`) opens a goldfish overlay: it shuffles the main deck and draws an opening seven. Sideboard, maybeboard, commander and companion cards stay out of the library; for Commander the commander is shown in the command zone and the hand comes from the 99. With a sideboard plan active, the post-board deck is used.
-- `n`/`Space` draws the next card, `m` takes a London mulligan (draw seven, then select cards with `j`/`k` and press `b` to put one on the bottom per mulligan; the first mulligan is free in Commander and Brawl), `r` reshuffles a fresh hand, `q`/`Esc` closes.
+- `n`/`Space` draws the next card, `m` takes a London mulligan (draw seven, then select cards with `j`/`k` and press `b` to put one on the bottom per mulligan; the first mulligan is free in Commander and Brawl), `r` reshuffles a fresh hand, `gg`/`G` and `Ctrl-D`/`Ctrl-U` move the selection as in every list, `?` opens the hand help topic, `q`/`Esc` closes.
 - The overlay shows the land count in hand and hypergeometric odds: at least one / two lands in the opening seven, and the chance of hitting every land drop through turns 1 to 5, on the play and on the draw. Lands come from the card database; without one, only basic lands are counted.
 - `:hand seed=42` seeds the shuffle so the same hands come up every time (useful for tests and comparisons).
 - `vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]` prints a sample hand, any extra draws and the odds from the shell.
