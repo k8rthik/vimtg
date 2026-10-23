@@ -83,6 +83,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Card search that the deck's format filters to nothing says so: `No
+  matches legal in modern (3 more in other formats)` instead of a bare
+  "No matches", and `Enter` on an empty search closes it with that
+  message instead of silently.
 - Card search before the first sync finishes shows how far the automatic
   download is (`Card database downloading 40%: search works when it
   finishes`, following the progress) instead of suggesting the user has

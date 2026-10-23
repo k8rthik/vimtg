@@ -82,3 +82,45 @@ async def test_known_format_still_filters_illegal_cards(
     async with app.run_test() as pilot:
         sr = await _search(pilot, app, "light")
         assert not any(c.name == "Lightning Bolt" for c in sr.results)
+
+
+@pytest.mark.asyncio
+async def test_no_legal_match_says_the_format_filtered_it(
+    seeded_db, tmp_path: Path,
+) -> None:
+    """Search keeps to the deck's format; when that leaves nothing but
+    the query matches elsewhere, the notice says so instead of a bare
+    'No matches'."""
+    app = VimTGApp(deck_path=_deck(tmp_path, "// Format: standard"))
+    async with app.run_test() as pilot:
+        sr = await _search(pilot, app, "lightning")
+        assert sr.results == []
+        assert sr.notice == "No matches legal in standard (1 more in other formats)"
+
+
+@pytest.mark.asyncio
+async def test_no_match_anywhere_is_plain_no_matches(seeded_db, tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck(tmp_path, "// Format: standard"))
+    async with app.run_test() as pilot:
+        sr = await _search(pilot, app, "zzqx")
+        assert sr.notice == "No matches"
+
+
+@pytest.mark.asyncio
+async def test_enter_on_no_matches_closes_with_the_reason(
+    seeded_db, tmp_path: Path,
+) -> None:
+    from vimtg.tui.widgets.command_line import CommandLine
+
+    app = VimTGApp(deck_path=_deck(tmp_path, "// Format: standard"))
+    async with app.run_test() as pilot:
+        await _search(pilot, app, "lightning")
+        await pilot.press("enter")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, MainScreen)
+        assert screen._state.mode_mgr.is_normal()
+        cl = screen.query_one("#command-line", CommandLine)
+        assert cl.message == (
+            "Nothing added: no matches legal in standard (1 more in other formats)"
+        )
