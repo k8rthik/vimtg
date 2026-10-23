@@ -344,7 +344,7 @@ Branches, Snapshots, Diff, Stats.
 | `c` | Custom quantity (`0` omits the card) |
 | `u` | Unresolve |
 | `Enter` | Confirm; every conflict must be resolved |
-| `q` / `Esc` | Abort: nothing is committed |
+| `q` / `Esc` | Abort: nothing is committed (with a card resolved, the first press warns and a second discards) |
 | `?` | This screen's help topic |
 
 ## Remapping

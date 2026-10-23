@@ -75,6 +75,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `q` in the merge resolver no longer throws away resolved conflicts at
+  once: with any card resolved it warns first ("press q again to
+  discard"), the guard `:config` has for unsaved settings.
 - The sample hand takes the shared list keys: `gg`/`G`, `Ctrl-D`/`Ctrl-U`
   and `Home`/`End` select a card as `j`/`k` do, `?` opens the `hand` help
   topic and `F1` the full help, and its hint bar names them.
