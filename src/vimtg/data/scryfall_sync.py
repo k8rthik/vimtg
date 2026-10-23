@@ -16,12 +16,12 @@ from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 
 from vimtg import __version__
 from vimtg.data.card_repository import CardRepository
+from vimtg.data.network_errors import describe_network_error
 from vimtg.domain.card import Card
 
 BULK_DATA_URL = "https://api.scryfall.com/bulk-data"
@@ -61,22 +61,6 @@ def _retry_delay(resp: httpx.Response) -> float:
     return min(max(delay, 0.0), MAX_RETRY_AFTER)
 
 
-_PROXY_ENV = ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy")
-
-
-def _proxy_hint() -> str:
-    """' (via proxy <url>)' when a proxy is configured, else ''."""
-    for var in _PROXY_ENV:
-        raw = os.environ.get(var)
-        if raw:
-            # host[:port] only — the URL may carry credentials
-            parsed = urlsplit(raw if "//" in raw else f"//{raw}")
-            host = parsed.hostname or "?"
-            port = f":{parsed.port}" if parsed.port else ""
-            return f" (via proxy {host}{port})"
-    return ""
-
-
 def describe_sync_error(
     exc: BaseException, retry: str = "run `vimtg sync` to retry"
 ) -> str:
@@ -85,42 +69,11 @@ def describe_sync_error(
     `retry` is the retry advice for where the message shows (the CLI
     says `vimtg sync`, the editor says :sync).
     """
-    if isinstance(exc, httpx.HTTPStatusError):
-        status = exc.response.status_code
-        if status == 429:
-            return f"Scryfall is rate-limiting requests — wait a minute, then {retry}"
-        if status == 407:
-            return (
-                f"The proxy{_proxy_hint()} wants authentication — put the "
-                f"credentials in HTTPS_PROXY, then {retry}"
-            )
-        if status >= 500:
-            return f"Scryfall is unavailable (HTTP {status}) — {retry} later"
-        return f"Scryfall returned HTTP {status} — {retry}"
-    if isinstance(exc, httpx.ProxyError):
-        return (
-            f"The proxy{_proxy_hint()} refused the connection ({exc}) — "
-            f"check HTTPS_PROXY, then {retry}"
-        )
-    if isinstance(exc, httpx.TimeoutException):
-        return f"Timed out talking to Scryfall — check your connection and {retry}"
-    if isinstance(exc, httpx.ConnectError):
-        text = str(exc)
-        if "CERTIFICATE_VERIFY_FAILED" in text or "certificate" in text.lower():
-            return (
-                "Could not verify Scryfall's TLS certificate — a proxy or "
-                "firewall may be intercepting HTTPS (point SSL_CERT_FILE at "
-                f"its CA bundle), then {retry}"
-            )
-        return (
-            f"Could not reach api.scryfall.com{_proxy_hint()} — you seem to "
-            f"be offline; {retry} once connected"
-        )
-    if isinstance(exc, httpx.HTTPError):
-        return f"Could not reach Scryfall ({exc}) — check your connection and {retry}"
     if isinstance(exc, sqlite3.Error):
         return f"Card database error ({exc}) — {retry}"
-    return f"{exc} — {retry}"
+    return describe_network_error(
+        exc, service="Scryfall", host="api.scryfall.com", retry=retry
+    )
 
 
 def _parse_sync_time(last_sync: str | None) -> datetime | None:

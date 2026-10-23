@@ -15,12 +15,13 @@ import re
 import time
 import unicodedata
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import httpx
 
 from vimtg import __version__
+from vimtg.data.network_errors import describe_network_error
 
 EDHREC_COMMANDER_URL = "https://json.edhrec.com/pages/commanders/{slug}.json"
 EDHREC_CARD_URL = "https://edhrec.com/commanders/{slug}"
@@ -46,6 +47,10 @@ TAB_SPECS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 class EdhrecError(Exception):
     """EDHREC page could not be fetched or understood."""
+
+
+class _UnreachableError(EdhrecError):
+    """The request never got an answer: offline, timed out, refused."""
 
 
 @dataclass(frozen=True)
@@ -82,6 +87,7 @@ class EdhrecPage:
 
     commander: str
     tabs: tuple[EdhrecTab, ...]
+    note: str = ""  # e.g. "cached 9 days ago (offline)"; '' for a fresh page
 
 
 def commander_slug(names: Sequence[str]) -> str:
@@ -227,19 +233,28 @@ class EdhrecClient:
         """Return the parsed page for the given commander(s).
 
         Raises EdhrecError on network failure, a missing page, or an
-        unusable payload. Cache I/O errors degrade silently to a fetch.
+        unusable payload. Offline, an expired cached page is returned
+        instead, with a note saying how old it is. Cache I/O errors
+        degrade silently to a fetch.
         """
         slug = commander_slug(commanders)
         fallback = " + ".join(n for n in commanders if n.strip())
-        data = self._read_cache(slug)
-        if data is None:
+        cached = self._read_cache(slug)
+        if cached is not None and cached[1] <= self._max_age_seconds:
+            return parse_page(cached[0], commander_fallback=fallback)
+        try:
             data = self._fetch_remote(slug, fallback)
-            page = parse_page(data, commander_fallback=fallback)
-            # Cache only a payload that parsed — a 200 with an unusable
-            # body must not poison the cache and replay the failure
-            self._write_cache(slug, data)
-            return page
-        return parse_page(data, commander_fallback=fallback)
+        except _UnreachableError:
+            if cached is None:
+                raise
+            page = parse_page(cached[0], commander_fallback=fallback)
+            days = int(cached[1] // 86400)
+            return replace(page, note=f"cached {days} days ago (offline)")
+        page = parse_page(data, commander_fallback=fallback)
+        # Cache only a payload that parsed — a 200 with an unusable
+        # body must not poison the cache and replay the failure
+        self._write_cache(slug, data)
+        return page
 
     def _fetch_remote(self, slug: str, display_name: str) -> object:
         url = EDHREC_COMMANDER_URL.format(slug=slug)
@@ -251,7 +266,11 @@ class EdhrecClient:
                 follow_redirects=True,
             )
         except httpx.HTTPError as exc:
-            raise EdhrecError(f"EDHREC request failed: {exc}") from exc
+            raise _UnreachableError(
+                describe_network_error(
+                    exc, service="EDHREC", host="json.edhrec.com", retry="try again"
+                )
+            ) from exc
         if response.status_code != 200:
             raise EdhrecError(
                 f"No EDHREC page for {display_name or slug} "
@@ -267,17 +286,17 @@ class EdhrecClient:
             return None
         return self._cache_dir / "edhrec" / f"{slug}.json"
 
-    def _read_cache(self, slug: str) -> object | None:
+    def _read_cache(self, slug: str) -> tuple[object, float] | None:
+        """The cached payload and its age in seconds, however old."""
         path = self._cache_path(slug)
         if path is None:
             return None
         try:
-            if time.time() - path.stat().st_mtime > self._max_age_seconds:
-                return None
+            age = time.time() - path.stat().st_mtime
             data: object = json.loads(path.read_text(encoding="utf-8"))
-            return data
         except (OSError, ValueError):
             return None
+        return data, age
 
     def _write_cache(self, slug: str, data: object) -> None:
         path = self._cache_path(slug)

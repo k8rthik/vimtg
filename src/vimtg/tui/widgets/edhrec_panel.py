@@ -135,7 +135,10 @@ class EdhrecPanel(Static):
         title = " EDHREC"
         if self.page is not None and self.page.commander:
             title += f" — {self.page.commander}"
-        t.append(title + "\n", style=f"bold {accent}")
+        t.append(title, style=f"bold {accent}")
+        if self.page is not None and self.page.note:
+            t.append(f"  {self.page.note}", style=_DIM)
+        t.append("\n")
         width = max(20, self.size.width or 60)
         t.append("─" * min(width, 80) + "\n", style=f"dim {accent}")
 

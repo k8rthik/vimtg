@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 import httpx
 
 from vimtg import __version__
+from vimtg.data.network_errors import describe_network_error
 from vimtg.domain.card import Card
 from vimtg.domain.categories import CATEGORY_NAME_RE
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
@@ -53,6 +54,9 @@ _DECKSTATS_API = (
 _DECKSTATS_ID_RE = re.compile(r"/decks/(\d+)/(\d+)")
 _TAPPEDOUT_SLUG_RE = re.compile(r"/mtg-decks/([A-Za-z0-9_-]+)")
 _GOLDFISH_ID_RE = re.compile(r"/deck/(?:download/)?(\d+)")
+
+# Retry advice in network errors: the same words fit the editor and CLI
+NETWORK_RETRY = "try again"
 
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
@@ -162,7 +166,10 @@ def _get(url: str, api_url: str, accept: str) -> httpx.Response:
             follow_redirects=True,
         )
     except httpx.HTTPError as exc:
-        raise DeckSourceError(f"Deck request failed: {exc}") from exc
+        host = urlparse(api_url).hostname or url
+        raise DeckSourceError(
+            describe_network_error(exc, service=host, host=host, retry=NETWORK_RETRY)
+        ) from exc
     if response.status_code != 200:
         raise DeckSourceError(
             f"Could not fetch deck from {url} (HTTP {response.status_code})"
