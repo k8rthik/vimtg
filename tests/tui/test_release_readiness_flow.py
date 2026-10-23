@@ -65,7 +65,7 @@ async def _messages_body(pilot, app: VimTGApp) -> str:  # type: ignore[no-untype
 @pytest.mark.asyncio
 async def test_search_command_opens_overlay_with_query(seeded_db, tmp_path: Path) -> None:
     """Documented in README, docs/commands.md and docs/search.md, but
-    used to fail with 'Unknown command: search'."""
+    used to fail as an unknown command."""
     app = VimTGApp(deck_path=_deck(tmp_path))
     async with app.run_test() as pilot:
         await _ex(pilot, app, "search t:creature -c:w")

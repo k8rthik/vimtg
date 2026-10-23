@@ -1,4 +1,5 @@
-"""Ex command fidelity: relative addresses, :d / :y counts, :noh."""
+"""Ex command fidelity: relative addresses, :d / :y counts, :noh, and
+vim's E492 for an unknown command."""
 
 from __future__ import annotations
 
@@ -80,3 +81,10 @@ class TestNoh:
     def test_noh_is_accepted(self, name: str) -> None:
         state = _state()
         assert _ex(state, name) == ""
+
+
+class TestUnknownCommand:
+    def test_it_is_e492_with_the_text(self) -> None:
+        state = _state()
+        assert _ex(state, "frobnicate now") == "E492: Not an editor command: frobnicate now"
+        assert _ex(state, "nope!") == "E492: Not an editor command: nope!"

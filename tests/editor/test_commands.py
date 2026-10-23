@@ -179,7 +179,7 @@ class TestCommandRegistry:
         cmd = ParsedCommand(name="nonexistent")
         ctx = EditorContext()
         buf, cur = registry.execute(cmd, sample_buffer, Cursor(), ctx)
-        assert "Unknown command" in ctx.message
+        assert ctx.message == "E492: Not an editor command: nonexistent"
         assert ctx.error is True
 
     def test_completions_include_aliases(
