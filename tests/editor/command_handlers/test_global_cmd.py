@@ -286,3 +286,25 @@ class TestGlobalRange:
 
     def test_a_range_past_the_end_is_clamped(self) -> None:
         assert self._run({"start": 3, "end": 40})[0] == ["4 Bolt", "4 Opt", "4 Bolt", "4 Opt"]
+
+
+class TestInverseGlobalRange:
+    """:v and :g! honour a typed range the same way :g does."""
+
+    TEXT = "4 Lightning Bolt\n2 Counterspell\n1 Lightning Bolt\n3 Lightning Bolt\n"
+
+    def _run(self, command: str) -> list[str]:
+        from vimtg.editor.commands import parse_command
+
+        buffer = Buffer.from_text(self.TEXT)
+        cmd = parse_command(command, 0, buffer.line_count())
+        new_buf, _ = cmd_global(buffer, Cursor(row=0), cmd, EditorContext())
+        return _line_texts(new_buf)
+
+    def test_v_acts_only_inside_its_range(self) -> None:
+        assert self._run(":1,2v/Counter/d") == [
+            "2 Counterspell", "1 Lightning Bolt", "3 Lightning Bolt",
+        ]
+
+    def test_g_bang_acts_only_inside_its_range(self) -> None:
+        assert self._run(":3,4g!/Counter/d") == ["4 Lightning Bolt", "2 Counterspell"]
