@@ -40,6 +40,33 @@ class TestLeavingVisualEndsSelection:
             assert len(tagged) == 2
 
 
+class TestCountedX:
+    @pytest.mark.asyncio
+    async def test_3x_is_one_change_with_every_card_in_the_register(
+        self, tmp_path: Path
+    ) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            before = _cards(scr)
+            _feed(scr, "11G 3x")
+            assert "4 Lightning Bolt" not in _cards(scr)
+            assert "4 Skullcrack" not in _cards(scr)
+            assert scr._state.registers.unnamed.content == (
+                "4 Lightning Bolt", "4 Searing Blaze", "4 Skullcrack",
+            )
+            _feed(scr, "u")
+            assert _cards(scr) == before
+            _feed(scr, "11G 2x .")
+            assert "20 Mountain" in _cards(scr)
+            assert "4 Lightning Bolt" not in _cards(scr)
+            assert "4 Skullcrack" not in _cards(scr)
+            _feed(scr, "u")
+            assert "4 Skullcrack" in _cards(scr)
+            assert "4 Lightning Bolt" not in _cards(scr)
+
+
 class TestMappingsMatchAtCommandStart:
     """Vim matches a mapping only where a command starts, never as the
     second key of a sequence."""
