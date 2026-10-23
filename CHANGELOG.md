@@ -148,6 +148,8 @@ from 1.0.0 onward.
 - The sample hand takes the shared list keys: `gg`/`G`, `Ctrl-D`/`Ctrl-U`
   and `Home`/`End` select a card as `j`/`k` do, `?` opens the `hand` help
   topic and `F1` the full help, and its hint bar names them.
+- `tf` with an empty filter clears the tag filter, as its help says;
+  it used to close the prompt and leave the filter on.
 - `:commit message` right after `:w` names the snapshot the save just
   took instead of reporting it as "auto: save" and dropping the message;
   a `:commit` with nothing new says "Nothing to commit" and names the
