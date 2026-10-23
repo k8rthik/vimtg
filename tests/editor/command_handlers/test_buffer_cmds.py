@@ -404,10 +404,28 @@ class TestDataSafetyCommands:
         cmd_xit(_sample_buffer(), Cursor(), _make_cmd("x", args=str(tmp_path / "n")), ctx)
         assert saved == [tmp_path / "n.deck"]
 
-    def test_write_to_a_new_name_says_now_editing(self, tmp_path: Path) -> None:
-        ctx = EditorContext(file_path=tmp_path / "old.deck", save_fn=self._real_save)
+    def test_write_to_a_new_name_writes_a_copy(self, tmp_path: Path) -> None:
+        """vim's :w {file}: the copy is written, the buffer keeps its file
+        and its modified flag."""
+        old = tmp_path / "old.deck"
+        ctx = EditorContext(file_path=old, modified=True, save_fn=self._real_save)
         cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", args=str(tmp_path / "new")), ctx)
+        assert (tmp_path / "new.deck").read_text(encoding="utf-8") == _sample_buffer().to_text()
+        assert ctx.file_path == old and not old.exists()
+        assert ctx.modified and not ctx.file_saved
+        assert ctx.message == '"new.deck" written'
+
+    def test_an_unnamed_buffer_takes_the_name(self, tmp_path: Path) -> None:
+        ctx = EditorContext(modified=True, save_fn=self._real_save)
+        cmd_write(_sample_buffer(), Cursor(), _make_cmd("w", args=str(tmp_path / "new")), ctx)
+        assert ctx.file_path == tmp_path / "new.deck"
+        assert ctx.file_saved and not ctx.modified
+
+    def test_saveas_switches_to_the_new_name(self, tmp_path: Path) -> None:
+        ctx = EditorContext(file_path=tmp_path / "old.deck", save_fn=self._real_save)
+        cmd_saveas(_sample_buffer(), Cursor(), _make_cmd("saveas", args=str(tmp_path / "new")), ctx)
         assert "now editing new.deck" in ctx.message and "old.deck" in ctx.message
+        assert ctx.file_path == tmp_path / "new.deck"
 
     def test_write_to_own_file_is_not_a_switch(self, tmp_path: Path) -> None:
         mine = tmp_path / "mine.deck"
@@ -443,3 +461,23 @@ class TestDataSafetyCommands:
             plain = EditorContext(modified=False)
             handler(_sample_buffer(), Cursor(), _make_cmd(name), plain)
             assert not plain.discard_requested
+
+
+class TestWriteQuitToACopy:
+    def test_wq_name_writes_the_copy_but_keeps_the_unsaved_deck(self, tmp_path: Path) -> None:
+        ctx = EditorContext(
+            file_path=tmp_path / "mine.deck", modified=True,
+            save_fn=lambda p, t: p.write_text(t, encoding="utf-8"),
+        )
+        cmd_write_quit(_sample_buffer(), Cursor(), _make_cmd("wq", args=str(tmp_path / "c")), ctx)
+        assert (tmp_path / "c.deck").exists()
+        assert ctx.error and "E37" in ctx.message
+        assert not ctx.quit_requested
+
+    def test_a_clean_deck_quits_after_the_copy(self, tmp_path: Path) -> None:
+        ctx = EditorContext(
+            file_path=tmp_path / "mine.deck",
+            save_fn=lambda p, t: p.write_text(t, encoding="utf-8"),
+        )
+        cmd_write_quit(_sample_buffer(), Cursor(), _make_cmd("wq", args=str(tmp_path / "c")), ctx)
+        assert ctx.quit_requested

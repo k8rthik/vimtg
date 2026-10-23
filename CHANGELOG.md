@@ -31,6 +31,11 @@ from 1.0.0 onward.
   same goes for every auxiliary screen; on the greeter menu it says to
   press `q`. `Ctrl-Q` still quits at once, keeping unsaved work for
   `:recover`.
+- `:w file` writes a copy and goes on editing the deck's own file, its
+  unsaved changes still unsaved, as in vim (`"copy.deck" written`). A
+  deck with no file yet still takes the name, and `:saveas file` still
+  switches. `:wq file` with unsaved changes writes the copy and stays
+  (E37) unless given `!`.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
 

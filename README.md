@@ -430,7 +430,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e[!] [file]`, `:{n}`, `:home`, `:recover` | File and navigation (`:w file` binds the deck to `file`, like `:saveas`; a deck with no file yet is named after its `// Deck:` line; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
+| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e[!] [file]`, `:{n}`, `:home`, `:recover` | File and navigation (`:w file` writes a copy and keeps editing this deck, as in vim, and `:saveas file` switches to it; a deck with no file yet is named after its `// Deck:` line, or takes the `:w file` name; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
 | `:[range]d [x]`, `:[range]y [x]`, `:[range]m {n}`, `:[range]t {n}` (`:co`), `:undo`, `:redo`, `:reg`, `:marks` | Line commands, as in vim |
 | `:sort [field]`, `:sort!` | Sort section or range |
 | `:s/pat/rep/[gI]` | Substitute (regex like `/`, case-insensitive unless `I`; `&` and `\1` in the replacement) |

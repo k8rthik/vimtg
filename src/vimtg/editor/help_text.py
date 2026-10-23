@@ -111,8 +111,9 @@ COMMAND_HELP: dict[str, str] = {
     "w": (
         ":w [file]  Save deck to file\n"
         "\n"
-        ":w file  writes to file and makes it the deck's file (like :saveas);\n"
-        "         the status line says 'now editing file'\n"
+        ":w file  writes a copy to file and goes on editing this deck, its\n"
+        "         changes still unsaved (as vim); a deck with no file yet\n"
+        "         takes the name. :saveas file switches to it\n"
         ":w!      overwrite another existing file, or a file changed on disk\n"
         "\n"
         "A deck with no file yet is written to the current directory,\n"
