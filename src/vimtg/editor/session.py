@@ -28,6 +28,7 @@ from vimtg.domain.categories import (
 from vimtg.domain.deck_lines import split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
 from vimtg.domain.tags import TagFilter, tag_lines
+from vimtg.domain.validation import commander_refusal
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.card_insert import (
     PendingInsert,
@@ -1361,6 +1362,21 @@ def _placement_policy(state: EditorState) -> PlacementPolicy:
     )
 
 
+def _commander_warning(state: EditorState, row: int) -> str:
+    """Why the card zc just put at `row` can't be the deck's commander
+    ('' when it can, or its card or format is unknown)."""
+    name = state.buffer.card_name_at(row)
+    card = state.resolved_cards.get(name) if name else None
+    if name is None or card is None:
+        return ""
+    deck = parse_deck_text(state.buffer.to_text())
+    fmt = (deck.metadata.format or state.settings.default_format).strip().lower()
+    rules = get_format_rules(fmt) if fmt else None
+    if rules is None:
+        return ""
+    return commander_refusal(name, card, rules.name) or ""
+
+
 def _zone_refusal(state: EditorState, target: LineType) -> tuple[str, bool]:
     """(message, refuse) when the deck's format lacks the target zone:
     a command zone outside commander formats is refused; a sideboard in
@@ -1458,6 +1474,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
         first_message if selection is None
         else f"Moved {moved} card(s) to {ZONE_LABELS[target]}"
     )
+    if target == LineType.COMMANDER_ENTRY and selection is None:
+        warning = _commander_warning(state, state.cursor.row)
     if warning:
         message = f"{message} — warning: {warning}"
     return HandlerResult(command_message=message, exit_to_normal=selection is not None)

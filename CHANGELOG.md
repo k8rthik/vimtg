@@ -83,6 +83,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `zc` on a card that cannot be the commander says why in the move
+  message (`— warning: Goblin King is not legendary and can't be your
+  commander`) instead of leaving only a ✗ in the gutter.
 - `tl` and `:tags` on a deck whose only tags are its own `// Tags:` line
   say `No card tags (deck tags: goblins, tokens; see :dtag)` instead of
   "No tags in deck".

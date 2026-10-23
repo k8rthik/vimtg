@@ -517,6 +517,36 @@ class TestZoneFormat:
         assert not hr.error
         assert "CMD:" in st.buffer.to_text()
 
+    def test_zc_names_why_the_card_cannot_be_the_commander(self) -> None:
+        """The move goes ahead (the gutter then marks it), and the message
+        says why, as the lint would, instead of only a ✗ to puzzle over."""
+        from vimtg.domain.card import Card
+
+        st = _state("// Format: commander\n\n// Creature\n1 Goblin King\n", row=3)
+        st.resolved_cards = {
+            "Goblin King": Card.from_scryfall({
+                "id": "x", "name": "Goblin King", "type_line": "Creature — Goblin",
+            }),
+        }
+        hr = handle_normal_special(st, ParsedAction("special", "zc"))
+        assert "CMD:" in st.buffer.to_text()
+        assert hr.command_message.endswith(
+            "warning: Goblin King is not legendary and can't be your commander"
+        )
+
+    def test_zc_of_a_legal_commander_adds_no_warning(self) -> None:
+        from vimtg.domain.card import Card
+
+        st = _state("// Format: commander\n\n// Creature\n1 Krenko, Mob Boss\n", row=3)
+        st.resolved_cards = {
+            "Krenko, Mob Boss": Card.from_scryfall({
+                "id": "x", "name": "Krenko, Mob Boss",
+                "type_line": "Legendary Creature — Goblin Warrior",
+            }),
+        }
+        hr = handle_normal_special(st, ParsedAction("special", "zc"))
+        assert "warning" not in hr.command_message
+
     def test_unknown_format_checks_nothing(self) -> None:
         st = _state("// Format: homebrew\n\n// Creature\n1 Goblin Guide\n", row=3)
         assert not handle_normal_special(st, ParsedAction("special", "zc")).error

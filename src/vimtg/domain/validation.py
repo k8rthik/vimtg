@@ -623,6 +623,17 @@ def _commander_eligibility(card: Card, fmt: str) -> str | None:
     return None
 
 
+def commander_refusal(name: str, card: Card, fmt: str) -> str | None:
+    """Why `card` can't be the commander of a `fmt` deck, as a sentence
+    ("Goblin King is not legendary and can't be your commander"), or
+    None when it can. Oathbreaker's command zone holds a planeswalker
+    and its signature spell, which the deck-wide check judges."""
+    if fmt == "oathbreaker":
+        return None
+    reason = _commander_eligibility(card, fmt)
+    return None if reason is None else f"{name} {reason} and can't be your commander"
+
+
 # Brawl commanders may be legendary planeswalkers
 # (https://magic.wizards.com/en/formats/brawl).
 _PLANESWALKER_COMMANDER_FORMATS = frozenset({"brawl", "standardbrawl"})
@@ -685,15 +696,10 @@ def _check_commander(
     else:
         leaders = resolved_commanders
         for entry, card in resolved_commanders:
-            reason = _commander_eligibility(card, rules.name)
-            if reason is not None:
+            refusal = commander_refusal(entry.card_name, card, rules.name)
+            if refusal is not None:
                 errors.append(
-                    ValidationError(
-                        "error",
-                        f"{entry.card_name} {reason} "
-                        "and can't be your commander",
-                        line_number=entry.line_number,
-                    )
+                    ValidationError("error", refusal, line_number=entry.line_number)
                 )
         errors.extend(_check_background_pairing(resolved_commanders))
 
