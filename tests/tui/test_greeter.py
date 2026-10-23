@@ -394,52 +394,45 @@ def _offline() -> int:
     )
 
 
+def _vimtg_greeter(app: object) -> GreeterScreen:
+    from vimtg.tui.app import VimTGApp
+
+    assert isinstance(app, VimTGApp)
+    screen = app.screen
+    assert isinstance(screen, GreeterScreen)
+    return screen
+
+
 @pytest.mark.asyncio
-async def test_run_sync_shows_status(
+async def test_s_runs_the_app_card_sync(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.chdir(tmp_path)
     from vimtg.data import scryfall_sync
+    from vimtg.tui.app import VimTGApp
 
     monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(lambda: 123))
-    screen = GreeterScreen()
-    app = _HostApp(screen)
+    app = VimTGApp()
     async with app.run_test() as pilot:
         await pilot.pause()
-        gv = screen.query_one(GreeterView)
+        gv = _vimtg_greeter(app).query_one(GreeterView)
         await pilot.press("s")
-        assert gv._status == "Syncing card data..."
-        await _wait_until(pilot, lambda: not screen._sync_running)
-        assert gv._status == "Synced 123 cards"
+        assert gv._status.startswith("Syncing card data in the background")
+        assert app.card_sync_running
+        assert gv._card_note.startswith("syncing card data")
+        await _wait_until(pilot, lambda: not app.card_sync_running)
+        assert not gv._card_note.startswith("syncing card data")
 
 
 @pytest.mark.asyncio
-async def test_run_sync_handles_failure(
+async def test_s_never_starts_a_second_sync(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """The app's auto-sync and a greeter sync used to run at once,
+    writing the same download file and database."""
     monkeypatch.chdir(tmp_path)
     from vimtg.data import scryfall_sync
-
-    for var in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
-        monkeypatch.delenv(var, raising=False)
-    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(_offline))
-    screen = GreeterScreen()
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("s")
-        gv = screen.query_one(GreeterView)
-        await _wait_until(pilot, lambda: not screen._sync_running)
-        assert gv._status.startswith("Sync failed: Could not reach api.scryfall.com")
-        assert "press s to retry" in gv._status
-
-
-@pytest.mark.asyncio
-async def test_run_sync_ignores_repeat_while_running(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    from vimtg.data import scryfall_sync
+    from vimtg.tui.app import VimTGApp
 
     calls: list[int] = []
 
@@ -448,13 +441,20 @@ async def test_run_sync_ignores_repeat_while_running(
         return 7
 
     monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(counted))
-    screen = GreeterScreen()
-    app = _HostApp(screen)
+    app = VimTGApp()
     async with app.run_test() as pilot:
         await pilot.pause()
+        gv = _vimtg_greeter(app).query_one(GreeterView)
+        app._sync_running = True  # the auto-sync is in flight
+        await pilot.press("s")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert calls == []
+        assert gv._status.startswith("Card sync already running")
+        app._sync_running = False
         await pilot.press("s")
         await pilot.press("s")
-        await _wait_until(pilot, lambda: not screen._sync_running)
+        await _wait_until(pilot, lambda: not app.card_sync_running)
         assert calls == [1]
 
 
@@ -487,25 +487,6 @@ async def test_greeter_shows_missing_card_data(
         assert "no card data - press s to download" in gv.render().plain
         screen.set_card_data_status("card data as of 2026-10-09", False)
         assert "card data as of 2026-10-09" in gv.render().plain
-
-
-@pytest.mark.asyncio
-async def test_greeter_sync_hands_cards_to_the_app(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Regression: a greeter sync left the app without a card repo, so
-    the editor opened next had no search."""
-    monkeypatch.chdir(tmp_path)
-    from vimtg.data import scryfall_sync
-
-    monkeypatch.setattr(scryfall_sync.ScryfallSync, "sync", _slow(lambda: 5))
-    screen = GreeterScreen()
-    app = _CardDataHost(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("s")
-        await _wait_until(pilot, lambda: not screen._sync_running)
-        assert app.adopted == 1
 
 
 # ---------------------------------------------------------------------------

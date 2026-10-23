@@ -296,16 +296,36 @@ class TestSearch:
 
     def test_star_messages_show_the_card_name_not_its_regex(self) -> None:
         st = _state(row=5)  # 4 Lightning Bolt, the only one
-        hr = handle_normal_special(st, ParsedAction("special", "*"))
-        assert "\\" not in hr.command_message
-        assert hr.command_message == "Pattern not found: Lightning Bolt"
+        handle_normal_special(st, ParsedAction("special", "*"))
+        st.cursor = Cursor(row=1)
         hr = handle_normal_special(st, ParsedAction("special", "n"))
-        assert hr.command_message == "Pattern not found: Lightning Bolt"
+        assert hr.command_message == "/Lightning Bolt"
         # an empty / reuses the * pattern, label and all
-        assert self._search(st, "/", "") == "Pattern not found: Lightning Bolt"
+        st.cursor = Cursor(row=1)
+        assert self._search(st, "/", "") == "/Lightning Bolt"
         # a typed pattern is shown as typed again
         st.cursor = Cursor(row=1)
         assert self._search(st, "/", "bolt") == "/bolt"
+
+    def test_only_match_on_the_cursor_line_wraps_back_to_it(self) -> None:
+        """Vim wraps all the way round and lands on the cursor's own line."""
+        st = _state(row=5)  # 4 Lightning Bolt, the only one
+        assert self._search(st, "/", "bolt") == "search hit BOTTOM, continuing at TOP"
+        assert st.cursor.row == 5
+        assert self._search(st, "?", "bolt") == "search hit TOP, continuing at BOTTOM"
+        assert st.cursor.row == 5
+        for key in ("n", "N", "*", "#"):
+            hr = handle_normal_special(st, ParsedAction("special", key))
+            assert not hr.error, key
+            assert "continuing at" in hr.command_message, key
+            assert st.cursor.row == 5, key
+
+    def test_wrapping_to_an_earlier_match_says_so(self) -> None:
+        st = _state(row=6)  # 4 Searing Blaze; Goblin Guide is above
+        assert self._search(st, "/", "goblin") == "search hit BOTTOM, continuing at TOP"
+        assert st.cursor.row == 1
+        assert self._search(st, "/", "searing") == "/searing"
+        assert st.cursor.row == 6
 
 
 # ── Ex commands ───────────────────────────────────────────────────

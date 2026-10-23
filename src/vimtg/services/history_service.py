@@ -17,8 +17,8 @@ import time
 from vimtg.domain.snapshot import Snapshot, SnapshotTree
 from vimtg.editor.buffer import Buffer
 
-# Only quantity bursts (+ + + / - - -) fold into one undo step, like
-# vim's insert-mode run. Operators, x, put and dot-repeat are always one
+# Only quantity bursts (+ + + / - - -) on the same lines fold into one
+# undo step, like vim's insert-mode run. Operators, x, put and dot-repeat are always one
 # change per u, so repeating one never swallows the step before it.
 MERGEABLE_DESCRIPTIONS = frozenset({"increment", "decrement"})
 MERGE_WINDOW_SECONDS = 2.0
@@ -36,18 +36,22 @@ class HistoryService:
         # or ctrl_r the current node is an older state that must never
         # be rewritten.
         self._last_recorded_id: str | None = None
+        self._last_rows: tuple[int, int] | None = None
 
     def initialize(self, buffer: Buffer) -> None:
         """Create a new tree from the given buffer."""
         self._tree = SnapshotTree.new(buffer.to_text())
         self._last_recorded_id = None
 
-    def record(self, buffer: Buffer, description: str) -> None:
+    def record(
+        self, buffer: Buffer, description: str, rows: tuple[int, int] | None = None
+    ) -> None:
         """Record a snapshot.
 
         A quantity change (see MERGEABLE_DESCRIPTIONS) within 2s of the
-        same kind of change folds into it — but only while that change
-        is still the current node, never after an undo or redo.
+        same kind of change on the same `rows` folds into it — but only
+        while that change is still the current node, never after an
+        undo or redo. `+ j +` stays two changes.
         """
         if self._tree is None:
             self.initialize(buffer)
@@ -57,6 +61,7 @@ class HistoryService:
         if (
             description in MERGEABLE_DESCRIPTIONS
             and description == self._last_description
+            and rows == self._last_rows
             and now - self._last_record_time < MERGE_WINDOW_SECONDS
             and self._last_recorded_id == self._tree.current_id
         ):
@@ -66,22 +71,32 @@ class HistoryService:
 
         self._last_record_time = now
         self._last_description = description
+        self._last_rows = rows
         self._last_recorded_id = self._tree.current_id
 
     def amend(self, buffer: Buffer) -> None:
         """Replace the current snapshot's state without adding a new one.
 
         Used to fold follow-up normalization (e.g. section cleanup) into
-        the edit that caused it, so it stays a single undo step.
+        the edit that caused it, so it stays a single undo step. When
+        that brings the text back to the parent's, the edit changed
+        nothing: its step is dropped, so u never undoes a no-op.
         """
         if self._tree is None:
             self.initialize(buffer)
             return
         current = self._tree.current
+        parent = self._tree.parent()
+        text = buffer.to_text()
+        if parent is not None and parent.deck_state == text and not self._tree.children():
+            nodes = {k: v for k, v in self._tree.nodes.items() if k != current.id}
+            self._tree = SnapshotTree(nodes=nodes, current_id=parent.id)
+            self._last_recorded_id = None
+            return
         updated = Snapshot(
             id=current.id,
             parent_id=current.parent_id,
-            deck_state=buffer.to_text(),
+            deck_state=text,
             timestamp=current.timestamp,
             description=current.description,
         )

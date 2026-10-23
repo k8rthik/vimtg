@@ -195,3 +195,16 @@ class TestMapWiring:
         ctx = self._ctx_with_remapper()
         cmd_unmap(_BUF, Cursor(), ParsedCommand(name="unmap", args="z"), ctx)
         assert ctx.error
+
+
+class TestCmdMapSingleKey:
+    def test_key_sequence_is_rejected(self) -> None:
+        ctx = _ctx_with_remapper()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="gb :w"), ctx)
+        assert ctx.message.startswith("E")
+        assert ctx.remapper.get_mappings() == []
+
+    def test_named_key_is_one_key(self) -> None:
+        ctx = _ctx_with_remapper()
+        cmd_map(_BUF, Cursor(), ParsedCommand(name="map", args="ctrl_s :w"), ctx)
+        assert [m.from_key for m in ctx.remapper.get_mappings()] == ["ctrl_s"]
