@@ -192,6 +192,16 @@ def test_search_shows_full_split_cost(
     assert "{1}{R} // {1}{U}" in result.output
 
 
+def test_search_without_card_data_says_to_sync(
+    runner: CliRunner, db_factory: Callable[..., Database], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    empty = CardRepository(db_factory())
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: empty)
+    result = runner.invoke(main, ["search", "bolt"])
+    assert result.exit_code == 1
+    assert "no card database (run 'vimtg sync' first)" in result.output
+
+
 def test_search_no_results(
     runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
 ) -> None:

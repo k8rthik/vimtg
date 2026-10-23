@@ -202,6 +202,8 @@ from 1.0.0 onward.
   used to keep names as typed, and the URL imports did not report
   skipped lines; the greeter now shows the import summary when the
   editor opens.
+- `vimtg search` without card data says `no card database (run 'vimtg
+  sync' first)` instead of borrowing vim's unrelated E100 code.
 
 ### Security
 
