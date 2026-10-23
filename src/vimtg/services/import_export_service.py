@@ -7,6 +7,7 @@ import csv
 import io
 import re
 import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from types import MappingProxyType
@@ -37,8 +38,6 @@ from vimtg.services.deck_sources import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from vimtg.data.card_repository import CardRepository
 
 
@@ -50,6 +49,31 @@ class DeckFormat(Enum):
     MOXFIELD = "moxfield"
     ARCHIDEKT = "archidekt"
     GUIDE = "guide"  # sideboard guide as Markdown — export only
+
+
+# Every format name :export, :clipboard and `vimtg convert --to` accept
+# ('mtga' is Arena under its client's name), in the order help lists them
+FORMAT_NAMES: Mapping[str, DeckFormat] = MappingProxyType({
+    "arena": DeckFormat.ARENA,
+    "mtga": DeckFormat.ARENA,
+    "mtgo": DeckFormat.MTGO,
+    "dek": DeckFormat.MTGO_DEK,
+    "moxfield": DeckFormat.MOXFIELD,
+    "archidekt": DeckFormat.ARCHIDEKT,
+    "vimtg": DeckFormat.VIMTG,
+    "guide": DeckFormat.GUIDE,
+})
+# The names a deck can be read from (`vimtg convert --from`)
+IMPORT_FORMAT_NAMES: tuple[str, ...] = tuple(
+    name for name, fmt in FORMAT_NAMES.items() if fmt is not DeckFormat.GUIDE
+)
+# One name per format, for messages ("Use arena, mtgo, ... or guide")
+PRIMARY_FORMAT_NAMES: tuple[str, ...] = tuple(n for n in FORMAT_NAMES if n != "mtga")
+
+
+def format_list() -> str:
+    """'arena, mtgo, dek, moxfield, archidekt, vimtg, or guide'."""
+    return ", ".join(PRIMARY_FORMAT_NAMES[:-1]) + f", or {PRIMARY_FORMAT_NAMES[-1]}"
 
 
 def _row_quantity(row: Mapping[str, str | None]) -> int:
