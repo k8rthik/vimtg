@@ -93,6 +93,8 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `:q` and `:home` refuse unsaved changes with vim's `E37: No write since
+  last change (add ! to override)`, like `:e`, `:enew` and `:import`.
 - Card search that the deck's format filters to nothing says so: `No
   matches legal in modern (3 more in other formats)` instead of a bare
   "No matches", and `Enter` on an empty search closes it with that

@@ -8,6 +8,7 @@ from vimtg.data.file_io import DELETED, disk_change, file_stamp
 from vimtg.domain.deck_lines import match_metadata
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
+    E37,
     CommandRegistry,
     EditorContext,
     ParsedCommand,
@@ -170,7 +171,7 @@ def cmd_quit(
         ctx.split_close = True
         return buffer, cursor
     if ctx.modified and not cmd.bang and _confirm_quit_enabled(ctx):
-        ctx.fail("Unsaved changes (use :q! to force)")
+        ctx.fail(E37)
         return buffer, cursor
     ctx.quit_requested = True
     ctx.discard_requested = cmd.bang
@@ -256,7 +257,7 @@ def cmd_home(
 ) -> tuple[Buffer, Cursor]:
     """Return to greeter screen. Fails if buffer modified without bang."""
     if ctx.modified and not cmd.bang and _confirm_quit_enabled(ctx):
-        ctx.fail("Unsaved changes (use :home! to force)")
+        ctx.fail(E37)
         return buffer, cursor
     ctx.greeter_requested = True
     ctx.discard_requested = cmd.bang

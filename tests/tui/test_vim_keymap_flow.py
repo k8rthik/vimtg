@@ -129,7 +129,7 @@ class TestCtrlWWindows:
             assert _message(scr) == "Already only one window"
             _feed(scr, "6Gdd<C-w>q")  # Ctrl-W q is :quit, which guards changes
             assert app.is_running
-            assert "Unsaved changes" in _message(scr)
+            assert _message(scr).startswith("E37: No write since last change")
 
     @pytest.mark.asyncio
     async def test_which_key_titles_the_window_menu(self, tmp_path: Path) -> None:
