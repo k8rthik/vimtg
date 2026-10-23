@@ -1,4 +1,4 @@
-"""Ex command fidelity: relative addresses, :d / :y counts."""
+"""Ex command fidelity: relative addresses, :d / :y counts, :noh."""
 
 from __future__ import annotations
 
@@ -73,3 +73,10 @@ class TestDeleteYankCounts:
     def test_trailing_garbage_is_still_refused(self) -> None:
         state = _state(row=1)
         assert "E488" in _ex(state, "d a b")
+
+
+class TestNoh:
+    @pytest.mark.parametrize("name", ["noh", "nohlsearch"])
+    def test_noh_is_accepted(self, name: str) -> None:
+        state = _state()
+        assert _ex(state, name) == ""

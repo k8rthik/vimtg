@@ -57,6 +57,8 @@ from 1.0.0 onward.
   vimtg quits when the editor is the last window.
 - Relative ex addresses: `.+1`, `+3`, `-2`, `$-1`, `'a+2`, so `.,+3d`,
   `:m+1`, `:m-2` and `:t-1` work as in vim.
+- `:noh` / `:nohlsearch` are accepted (vimtg draws no search highlight,
+  so they do nothing) instead of being unknown commands.
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
 
