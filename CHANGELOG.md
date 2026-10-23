@@ -10,6 +10,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- The which-key popup after an operator shows that operator's motions:
+  `dg` (on the way to `dgg`) no longer shows the `g` menu. The `q` menu
+  no longer offers "stop recording" when nothing is recording.
 - The editor and the deck parser now read every card line through one
   grammar, so the card under the cursor is always the card validation,
   analytics and export see: a pasted `(ZEN) 126 *F*` printing suffix is

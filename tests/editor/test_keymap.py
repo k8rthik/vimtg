@@ -803,3 +803,31 @@ class TestCountBeforeRegister:
             km.feed(key)
         assert km.awaiting_more_keys
         assert km.pending_display == '"a3'
+
+
+class TestPendingMenu:
+    """The which-key menu belongs to the sequence in progress, not to the
+    last key typed: after an operator it is the operator's motions."""
+
+    def _menu(self, *keys: str) -> str:
+        km = KeyMap(mode=Mode.NORMAL)
+        for key in keys:
+            result, _ = km.feed(key)
+            assert result == KeyResult.PENDING, keys
+        return km.pending_menu
+
+    def test_operator_then_g_keeps_the_operator_menu(self) -> None:
+        assert self._menu("d", "g") == "d"
+
+    def test_operator_count_keeps_the_operator_menu(self) -> None:
+        assert self._menu("y", "3") == "y"
+        assert self._menu("2", "c") == "c"
+
+    def test_prefix_and_register_menus(self) -> None:
+        assert self._menu("g") == "g"
+        assert self._menu('"') == '"'
+        assert self._menu("3", "z") == "z"
+
+    def test_a_bare_count_has_no_menu(self) -> None:
+        assert self._menu("3") == ""
+        assert self._menu('"', "a") == ""
