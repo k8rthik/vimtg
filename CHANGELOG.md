@@ -64,6 +64,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- An unknown ex command says vim's `E492: Not an editor command: {cmd}`
+  (in red) instead of `E: Unknown command`. The registration tests
+  checked for a message that never started that way; they check E492.
 - `:d 3` and `:y 3` take the number as a count, as in vim, instead of
   as register `3`; `:d a 3` is register `a`, three lines.
 - Opening a deck with a recovery copy says "Found unsaved changes from

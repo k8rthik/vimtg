@@ -421,7 +421,8 @@ class TestHandleCommand:
         hr = handle_command(
             st, _act("enter", text="boguscmd", action_type="command_submit"), _registry(), None
         )
-        assert "Unknown command" in hr.command_message
+        assert hr.command_message == "E492: Not an editor command: boguscmd"
+        assert hr.error
 
     def test_search_mode_converts_to_find(self) -> None:
         st = _state()

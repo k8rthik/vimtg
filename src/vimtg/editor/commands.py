@@ -363,7 +363,10 @@ class CommandRegistry:
         resolved = self._aliases.get(cmd.name, cmd.name)
         handler = self._commands.get(resolved)
         if handler is None:
-            ctx.fail(f"Unknown command: {cmd.name}")
+            # vim's wording, with the command as typed (fail would add "E: ")
+            typed = cmd.name + ("!" if cmd.bang else "") + (f" {cmd.args}" if cmd.args else "")
+            ctx.message = f"E492: Not an editor command: {typed}"
+            ctx.error = True
             return buffer, cursor
         return handler(buffer, cursor, cmd, ctx)
 
