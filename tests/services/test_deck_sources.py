@@ -294,8 +294,12 @@ class TestFetchNetwork:
             raise httpx.ConnectError("boom")
 
         monkeypatch.setattr(ds.httpx, "get", fake_get)
-        with pytest.raises(DeckSourceError, match="request failed"):
+        with pytest.raises(DeckSourceError) as info:
             fetch_deck("https://moxfield.com/decks/abc123")
+        assert str(info.value) == (
+            "Could not reach api2.moxfield.com — you seem to be offline; "
+            "try again once connected"
+        )
 
     def test_http_status_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import vimtg.services.deck_sources as ds

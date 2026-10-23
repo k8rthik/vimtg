@@ -61,6 +61,8 @@ from 1.0.0 onward.
   so they do nothing) instead of being unknown commands.
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
+- Offline, the EDHREC pane opens a cached page older than seven days
+  instead of failing, its header saying `cached N days ago (offline)`.
 
 ### Fixed
 
@@ -189,6 +191,9 @@ from 1.0.0 onward.
 - `:export vimtg` and `:clipboard vimtg` write the text `:w` writes: the
   empty `// Format:` and `// Tags:` lines the editor shows for a file
   that never had them are left out.
+- Deck URL import and the EDHREC pane explain a failed request the way
+  `:sync` does (offline, timed out, proxy, TLS) instead of showing raw
+  httpx text.
 
 ### Security
 
