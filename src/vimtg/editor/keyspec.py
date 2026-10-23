@@ -259,7 +259,8 @@ def _menu_label(key: str) -> str:
 
 def which_key_menus() -> dict[str, list[tuple[str, str]]]:
     """Pending-key menus: every two-key normal binding grouped by prefix,
-    plus the operator menus. Bare `q` (stop recording) is listed under q."""
+    plus the operator menus. The q menu only shows while nothing records
+    (a bare q stops a recording at once), so it lists q{a-z} alone."""
     menus: dict[str, list[tuple[str, str]]] = {}
     for b in bindings("normal"):
         for i, key in enumerate(b.keys):
@@ -267,8 +268,6 @@ def which_key_menus() -> dict[str, list[tuple[str, str]]]:
                 prefix = key[0]
                 if prefix in PREFIX_TITLES:
                     menus.setdefault(prefix, []).append((_menu_label(key), _short(b, i)))
-            elif key == "q" and b.shorts:
-                menus.setdefault("q", []).append(("q", b.shorts[i]))
     for op in ("d", "y", "c"):
         menus[op] = [
             (pattern.replace("{op}", op), desc) for pattern, desc in OPERATOR_MENU

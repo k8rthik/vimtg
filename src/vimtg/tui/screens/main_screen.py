@@ -707,7 +707,7 @@ class MainScreen(Screen[None]):
         sl.pending_keys = self.keymap.pending_display
         if result == KeyResult.PENDING:
             self._last_action_type = "pending"
-            wk.pending_key = key
+            wk.pending_key = self.keymap.pending_menu
             wk.display = self._state.settings.show_which_key
             return
         wk.pending_key = ""

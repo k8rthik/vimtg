@@ -143,6 +143,19 @@ class KeyMap:
         return self._state != _State.IDLE
 
     @property
+    def pending_menu(self) -> str:
+        """The which-key menu for the sequence in progress: the operator's
+        while one waits for its motion (dg is still d's), else the prefix's,
+        '"' while a register name is awaited, '' when only a count is."""
+        if self._operator:
+            return self._operator
+        if self._multi_key_prefix:
+            return self._multi_key_prefix
+        if self._state == _State.REGISTER:
+            return '"'
+        return ""
+
+    @property
     def pending_display(self) -> str:
         """The in-progress key sequence for status display (e.g. "10", "2d")."""
         register = f'"{self._register}' if self._register else ""

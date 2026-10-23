@@ -140,3 +140,11 @@ class TestDocsMatchTheSpec:
         assert "`zs`" in readme and "`zo`" in readme
         for old in ("`ms`", "`mo`", "`mi`"):
             assert old not in readme, old
+
+
+class TestWhichKeyMenus:
+    def test_q_menu_only_offers_recording(self) -> None:
+        """The q menu only shows while nothing is recording (a recording
+        stops on the bare q), so it never offers 'stop recording'."""
+        entries = which_key_menus()["q"]
+        assert entries == [("qa-z", "record macro")]
