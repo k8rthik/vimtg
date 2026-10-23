@@ -641,6 +641,15 @@ def _optional_card_db() -> Database | None:
 
 
 @main.command()
+def tutor() -> None:
+    """Learn vimtg in a throwaway lesson deck, like vimtutor."""
+    from vimtg.tutor import tutor_sandbox
+
+    with tutor_sandbox() as deck:
+        _launch_editor(str(deck))
+
+
+@main.command()
 @click.argument("path", type=click.Path(), required=False)
 def edit(path: str | None = None) -> None:
     """Open deck in TUI editor."""
