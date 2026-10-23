@@ -526,7 +526,7 @@ class TestVisualMode:
 class TestNoMatch:
     def test_unknown_key(self) -> None:
         km = KeyMap(mode=Mode.NORMAL)
-        result, action = km.feed("Y")
+        result, action = km.feed("Q")
         assert result == KeyResult.NO_MATCH
         assert action is None
 
@@ -831,3 +831,25 @@ class TestPendingMenu:
     def test_a_bare_count_has_no_menu(self) -> None:
         assert self._menu("3") == ""
         assert self._menu('"', "a") == ""
+
+
+class TestLinewiseCapitals:
+    """Decks are linewise, so S and C are cc, D is dd and Y is yy, with
+    counts and registers."""
+
+    def _action(self, *keys: str) -> ParsedAction:
+        km = KeyMap(mode=Mode.NORMAL)
+        result, action = KeyResult.NO_MATCH, None
+        for key in keys:
+            result, action = km.feed(key)
+        assert result == KeyResult.COMPLETE and action is not None
+        return action
+
+    def test_capitals_are_the_doubled_operators(self) -> None:
+        for key, op in (("S", "cc"), ("C", "cc"), ("D", "dd"), ("Y", "yy")):
+            action = self._action(key)
+            assert (action.action_type, action.action, action.count) == ("operator", op, 1)
+
+    def test_count_and_register(self) -> None:
+        action = self._action('"', "a", "3", "Y")
+        assert (action.action, action.count, action.register) == ("yy", 3, "a")

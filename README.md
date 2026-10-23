@@ -387,6 +387,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | Key | Action |
 |-----|--------|
 | `dd` / `yy` / `cc` | Delete / yank / change line |
+| `D` / `Y` / `S` / `C` | Same as `dd` / `yy` / `cc` / `cc` (decks are linewise) |
 | `d` `y` `c` + motion | Operators (`dw`, `d}`, `y5G`, ...) |
 | `x` | Delete card at cursor |
 | `p` / `P` | Paste below / above |

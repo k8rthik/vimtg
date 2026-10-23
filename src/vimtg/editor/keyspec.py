@@ -162,6 +162,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b("dd", "Delete the card line", EDITING, quick="Editing", brief="delete card"),
     _b("yy", "Yank (copy) the card line", EDITING, quick="Editing", brief="yank card"),
     _b("cc", "Change the line (delete, then card search)", EDITING),
+    _b(("S", "C", "D", "Y"), "Linewise capitals: S and C are cc, D is dd, Y is yy", EDITING,
+       label="S C D Y", note="Counts, registers and . work as with the doubled operator"),
     _b(("d", "y", "c"), "Operators: compose with a motion (dw, d}, y5G)", EDITING,
        completes=False,
        note="w b { } [[ ]] are exclusive: dw deletes this card, d} stops at "
@@ -206,6 +208,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     # ── Visual mode ───────────────────────────────────────
     _b(("d", "y", "c"), "Delete / yank / change the selection", VISUAL, mode="visual"),
     _b("x", "Delete the selection (same as d)", VISUAL, mode="visual"),
+    _b(("S", "C", "D", "Y"), "Change / change / delete / yank the selected lines", VISUAL,
+       mode="visual", label="S C D Y"),
     _b(("+", "-"), "Increment / decrement every card in the selection", VISUAL, mode="visual"),
     _b(("zs", "zm", "zd", "zc", "zp"), "Move every selected card to a zone", VISUAL,
        mode="visual"),
