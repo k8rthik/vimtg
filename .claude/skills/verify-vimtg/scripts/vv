@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# vv: drive the real vimtg binary in an isolated, offline sandbox.
+#
+#   vv sandbox [RUN_ID]        create .verify/runs/RUN_ID (default: timestamp), load cards, seed decks
+#   vv doctor                  read-only health check of the current run
+#   vv tui start [ARGS...]     start `vimtg ARGS` in this run's tmux server (cwd = the run's decks dir)
+#   vv wait TEXT [SECONDS]     wait until TEXT is on screen (default 10s); exit 1 on timeout
+#   vv find CARD               /CARD Enter, wait for the jump; exit 1 on "Pattern not found"
+#   vv keys KEY...             tmux key names: Escape Enter C-a Space Tab BSpace F1 ...
+#   vv type TEXT               type TEXT literally
+#   vv shot LABEL              save the screen to evidence/NN-LABEL.txt and print it
+#   vv status                  running | exited N
+#   vv tui stop                kill this run's tmux server
+#   vv cli ARGS...             run `vimtg ARGS` in the sandbox; saves stdout/stderr/exit to evidence
+#   vv env                     print the sandbox environment as `export` lines
+#   vv cleanup                 stop the tmux server, delete the sandbox, keep the evidence
+#
+# The current run is .verify/current (a symlink); VV_RUN=<dir> overrides it.
+set -euo pipefail
+
+ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+SKILL="$ROOT/.claude/skills/verify-vimtg"
+RUNS="$ROOT/.verify/runs"
+COLS=120 ROWS=40
+
+die() { echo "vv: $*" >&2; exit 1; }
+
+run_dir() {
+  local dir="${VV_RUN:-$ROOT/.verify/current}"
+  [ -e "$dir" ] || die "no run: start one with 'vv sandbox'"
+  (cd "$dir" && pwd -P)
+}
+
+sandbox_env() {
+  local sb; sb="$(run_dir)/sandbox"
+  cat <<EOF
+export XDG_DATA_HOME="$sb/data" XDG_CONFIG_HOME="$sb/config"
+export XDG_CACHE_HOME="$sb/cache" XDG_STATE_HOME="$sb/state"
+export VIMTG_NO_AUTOSYNC=1 VIMTG_NO_EDHREC=1
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+EOF
+}
+
+with_env() { (eval "$(sandbox_env)"; cd "$(run_dir)/sandbox/decks"; "$@"); }
+vimtg_cmd() { echo "uv run --project '$ROOT' --frozen vimtg"; }
+socket() { echo "vimtg-verify-$(basename "$(run_dir)")"; }
+tm() { tmux -L "$(socket)" "$@"; }
+
+next_shot() {
+  local counter n; counter="$(run_dir)/evidence/.count"
+  n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 ))
+  echo "$n" > "$counter"
+  printf '%02d' "$n"
+}
+
+cmd_sandbox() {
+  local id="${1:-$(date +%Y%m%d-%H%M%S)}" dir
+  dir="$RUNS/$id"
+  [ -e "$dir" ] && die "$dir exists"
+  mkdir -p "$dir/sandbox"/{data,config,cache/vimtg,state,decks} "$dir/evidence"
+  ln -sfn "$dir" "$ROOT/.verify/current"
+  # Offline card data: the README demo set (Commander goblins) plus the
+  # tutor bundle (modern burn, real legalities). A fresh oracle_cards.jsonl
+  # in the cache is what `vimtg sync` loads instead of downloading.
+  uv run --project "$ROOT" --frozen python - "$ROOT" "$dir/sandbox/cache/vimtg/oracle_cards.jsonl" <<'PY'
+import gzip, json, sys
+from pathlib import Path
+root, out = Path(sys.argv[1]), Path(sys.argv[2])
+cards = {c["name"]: c for c in json.loads((root / "docs/demo/cards.json").read_text())}
+bundle = root / "src/vimtg/tutor/cards.jsonl.gz"
+if bundle.exists():
+    with gzip.open(bundle, "rt", encoding="utf-8") as f:
+        cards.update((c["name"], c) for c in map(json.loads, filter(str.strip, f)))
+out.write_text("".join(json.dumps(c) + "\n" for c in cards.values()))
+print(f"cards: {len(cards)}")
+PY
+  cp "$ROOT/docs/demo/krenko.deck" "$SKILL/fixtures/burn.deck" "$dir/sandbox/decks/"
+  with_env sh -c "$(vimtg_cmd) sync" > "$dir/evidence/00-sync.txt" 2>&1 \
+    || { cat "$dir/evidence/00-sync.txt"; die "card load failed"; }
+  echo "run: $dir"
+}
+
+cmd_doctor() {
+  local dir ok=1; dir="$(run_dir)"
+  echo "run:      $dir"
+  echo "version:  $(with_env sh -c "$(vimtg_cmd) --version" 2>&1)"
+  echo "source:   $(git -C "$ROOT" log -1 --format='%h %s')"
+  local cards
+  cards="$(with_env sh -c "uv run --project '$ROOT' --frozen python -c '
+from vimtg.config.paths import db_path
+from vimtg.data.card_repository import CardRepository
+from vimtg.data.database import Database
+db = Database(db_path()); db.initialize(); print(CardRepository(db).count()); db.close()'" 2>/dev/null || echo 0)"
+  echo "cards:    $cards"
+  [ "$cards" -gt 0 ] || { echo "FAIL: sandbox card database is empty"; ok=0; }
+  case "$(with_env sh -c 'echo $XDG_DATA_HOME')" in
+    "$dir"/*) echo "isolated: yes (XDG dirs inside the run)";;
+    *) echo "FAIL: XDG dirs escape the run"; ok=0;;
+  esac
+  if tm has-session -t vimtg 2>/dev/null; then echo "tui:      $(cmd_status)"; else echo "tui:      not started"; fi
+  [ "$ok" = 1 ] && echo "doctor: OK" || { echo "doctor: FAIL"; exit 1; }
+}
+
+cmd_tui() {
+  case "${1:-}" in
+    start)
+      shift
+      tm has-session -t vimtg 2>/dev/null && die "tui already running in this run"
+      local args; args="$(printf '%q ' "$@")"
+      tm new-session -d -s vimtg -x "$COLS" -y "$ROWS" \
+        "$(sandbox_env | tr '\n' ';') cd '$(run_dir)/sandbox/decks' && TERM=xterm-256color $(vimtg_cmd) $args"
+      tm set-option -t vimtg remain-on-exit on >/dev/null;;
+    stop) tm kill-server 2>/dev/null || true;;
+    *) die "usage: vv tui start [ARGS...] | vv tui stop";;
+  esac
+}
+
+cmd_wait() {
+  local text="$1" secs="${2:-10}" i
+  for ((i = 0; i < secs * 10; i++)); do
+    tm capture-pane -p -t vimtg 2>/dev/null | grep -qF -- "$text" && return 0
+    sleep 0.1
+  done
+  echo "vv: timed out after ${secs}s waiting for: $text" >&2
+  tm capture-pane -p -t vimtg >&2 || true
+  return 1
+}
+
+cmd_find() {
+  local card="$*" i screen
+  tm send-keys -t vimtg -l -- "/$card"; tm send-keys -t vimtg Enter
+  for ((i = 0; i < 100; i++)); do
+    screen="$(tm capture-pane -p -t vimtg)"
+    case "$screen" in
+      *"Pattern not found"*) echo "vv: not found: $card" >&2; return 1;;
+      *"/$card"* | *"search hit "*) return 0;;
+    esac
+    sleep 0.1
+  done
+  echo "vv: timed out searching for: $card" >&2; return 1
+}
+
+cmd_status() {
+  if [ "$(tm display -p -t vimtg '#{pane_dead}')" = 1 ]; then
+    echo "exited $(tm display -p -t vimtg '#{pane_dead_status}')"
+  else
+    echo running
+  fi
+}
+
+cmd_shot() {
+  local label="${1:?label}" file
+  file="$(run_dir)/evidence/$(next_shot)-$label.txt"
+  { echo "# $label  ($(cmd_status), $(date +%T))"; tm capture-pane -p -t vimtg; } > "$file"
+  cat "$file"
+}
+
+cmd_cli() {
+  local ev n code=0; ev="$(run_dir)/evidence"; n="$(next_shot)"
+  echo "\$ vimtg $*" > "$ev/$n-cli.cmd"
+  with_env sh -c "$(vimtg_cmd) $(printf '%q ' "$@")" >"$ev/$n-cli.out" 2>"$ev/$n-cli.err" || code=$?
+  echo "$code" > "$ev/$n-cli.exit"
+  cat "$ev/$n-cli.out"; cat "$ev/$n-cli.err" >&2
+  echo "[exit $code]  evidence: $ev/$n-cli.*"
+  return 0
+}
+
+cmd_cleanup() {
+  local dir; dir="$(run_dir)"
+  tm kill-server 2>/dev/null || true
+  rm -rf "$dir/sandbox"
+  [ "$(readlink "$ROOT/.verify/current" 2>/dev/null)" = "$dir" ] && rm -f "$ROOT/.verify/current"
+  echo "cleaned: $dir/sandbox (evidence kept in $dir/evidence)"
+}
+
+sub="${1:-}"; shift || true
+case "$sub" in
+  sandbox) cmd_sandbox "$@";;
+  doctor) cmd_doctor;;
+  tui) cmd_tui "$@";;
+  wait) cmd_wait "$@";;
+  find) cmd_find "$@";;
+  keys) tm send-keys -t vimtg "$@";;
+  type) tm send-keys -t vimtg -l -- "$*";;
+  shot) cmd_shot "$@";;
+  status) cmd_status;;
+  cli) cmd_cli "$@";;
+  env) sandbox_env;;
+  cleanup) cmd_cleanup;;
+  *) sed -n '2,18p' "$0"; exit 2;;
+esac

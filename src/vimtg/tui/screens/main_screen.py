@@ -676,7 +676,7 @@ class MainScreen(Screen[None]):
         s.mode_mgr.force_normal()
         self.keymap.set_mode(Mode.NORMAL)
         self.keymap.reset_text()
-        s.visual_anchor = None
+        s.end_selection()
         s.pending_insert = None
         s.line_edit_original = None
         s.line_edit_row = None
@@ -788,7 +788,7 @@ class MainScreen(Screen[None]):
             if s.settings is not prev_settings:
                 self._on_settings_saved(s.settings)
             s.mode_mgr.force_normal()
-            s.visual_anchor = None  # :'<,'> consumed the selection
+            s.end_selection()  # :'<,'> consumed the selection
             self.keymap.set_mode(Mode.NORMAL)
             # The typed line goes, as in vim: a command that says nothing
             # leaves the hint bar, not its own text
@@ -889,7 +889,7 @@ class MainScreen(Screen[None]):
         s.mode_mgr.force_normal()
         # Leaving visual mode by any route ends the selection — a stale
         # anchor would make the next dd delete every line up to it
-        s.visual_anchor = None
+        s.end_selection()
         self._latest_search = None
         self._search_generation += 1
         self.keymap.set_mode(Mode.NORMAL)
@@ -939,7 +939,7 @@ class MainScreen(Screen[None]):
     def _apply_enter_card_search(self) -> None:
         s = self._state
         # Entering insert from visual (the c operator) ends the selection
-        s.visual_anchor = None
+        s.end_selection()
         s.insert_submode = InsertSubmode.CARD_SEARCH
         s.mode_mgr.transition(Mode.INSERT)
         self.keymap.set_mode(Mode.INSERT)

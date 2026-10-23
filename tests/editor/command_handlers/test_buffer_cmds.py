@@ -17,7 +17,13 @@ from vimtg.editor.command_handlers.buffer_cmds import (
     cmd_xit,
     register_buffer_commands,
 )
-from vimtg.editor.commands import CommandRegistry, EditorContext, ParsedCommand, parse_command
+from vimtg.editor.commands import (
+    E37,
+    CommandRegistry,
+    EditorContext,
+    ParsedCommand,
+    parse_command,
+)
 from vimtg.editor.cursor import Cursor
 
 
@@ -209,7 +215,7 @@ class TestCmdQuit:
         ctx = EditorContext(modified=True)
         cmd_quit(buf, Cursor(), _make_cmd("q", bang=False), ctx)
         assert ctx.quit_requested is False
-        assert "Unsaved changes" in ctx.message
+        assert ctx.message == E37
         assert ctx.error is True
 
     def test_quit_modified_bang(self) -> None:
@@ -262,7 +268,7 @@ class TestCmdHome:
         ctx = EditorContext(modified=True)
         cmd_home(buf, Cursor(), _make_cmd("home", bang=False), ctx)
         assert ctx.greeter_requested is False
-        assert "Unsaved changes" in ctx.message
+        assert ctx.message == E37
         assert ctx.error is True
 
     def test_home_modified_bang(self) -> None:
