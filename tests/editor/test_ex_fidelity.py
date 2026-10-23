@@ -1,4 +1,4 @@
-"""Ex command fidelity: relative addresses."""
+"""Ex command fidelity: relative addresses, :d / :y counts."""
 
 from __future__ import annotations
 
@@ -48,3 +48,28 @@ class TestRelativeAddresses:
         assert _texts(state.buffer)[5:8] == [
             "4 Lightning Bolt", "4 Searing Blaze", "4 Searing Blaze",
         ]
+
+
+class TestDeleteYankCounts:
+    def test_a_bare_number_is_a_count(self) -> None:
+        state = _state(row=1)
+        _ex(state, "d 2")
+        assert "4 Goblin Guide" not in _texts(state.buffer)
+        assert "4 Monastery Swiftspear" not in _texts(state.buffer)
+        assert state.registers.get('"').content == (
+            "4 Goblin Guide", "4 Monastery Swiftspear",
+        )
+
+    def test_register_and_count(self) -> None:
+        state = _state(row=5)
+        _ex(state, "y a 2")
+        assert state.registers.get("a").content == ("4 Lightning Bolt", "4 Searing Blaze")
+
+    def test_the_count_starts_at_the_end_of_the_range(self) -> None:
+        state = _state(row=0)
+        _ex(state, "2,5y 2")  # vim: lines 5-6 (1-based)
+        assert state.registers.get('"').content == ("// Instant", "4 Lightning Bolt")
+
+    def test_trailing_garbage_is_still_refused(self) -> None:
+        state = _state(row=1)
+        assert "E488" in _ex(state, "d a b")

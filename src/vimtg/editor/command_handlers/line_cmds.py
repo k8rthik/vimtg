@@ -2,8 +2,9 @@
 
 The vim ex commands that fit a deck's line model:
 
-    :[range]d [x]       delete lines (into register x)
-    :[range]y [x]       yank lines (into register x)
+    :[range]d [x] [n]   delete lines (into register x); n lines from the
+                        range's last line, as vim's count
+    :[range]y [x] [n]   yank lines (into register x)
     :[range]m {addr}    move lines below line {addr} (0 = to the top)
     :[range]t {addr}    copy lines below line {addr} (also :co, :copy)
     :undo  :redo        one undo / redo step (also :u, :red)
@@ -59,15 +60,38 @@ def _registers(ctx: EditorContext) -> RegisterStore:
     return ctx.registers if ctx.registers is not None else RegisterStore()
 
 
-def _register_arg(cmd: ParsedCommand, ctx: EditorContext) -> tuple[str | None, bool]:
-    """(register, ok) from :d / :y's argument."""
-    arg = cmd.args.strip()
-    if not arg:
-        return None, True
-    if len(arg) == 1 and (arg.isalnum() or arg in '"_+*'):
-        return arg, True
-    ctx.fail(f"E488: Trailing characters: {arg}")
-    return None, False
+def _register_and_count(
+    cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[str | None, int | None, bool]:
+    """(register, count, ok) from :d / :y's `[x] [count]` argument. As in
+    vim, a number is the count, never a register name."""
+    words = cmd.args.split()
+    register = None
+    if words and len(words[0]) == 1 and not words[0].isdigit() and (
+        words[0].isalpha() or words[0] in '"_+*'
+    ):
+        register = words.pop(0)
+    count = None
+    if words and words[0].isdigit():
+        count = int(words.pop(0))
+        if count == 0:
+            ctx.fail("E939: Positive count required")
+            return None, None, False
+    if words:
+        ctx.fail(f"E488: Trailing characters: {' '.join(words)}")
+        return None, None, False
+    return register, count, True
+
+
+def _counted_range(
+    cmd: ParsedCommand, cursor: Cursor, buffer: Buffer, count: int | None,
+) -> tuple[int, int]:
+    """The lines :d / :y act on: the range, or with a count that many
+    lines from the range's last line (the cursor line by default)."""
+    start, end = _line_range(cmd, cursor, buffer)
+    if count is None:
+        return start, end
+    return end, min(end + count - 1, buffer.line_count() - 1)
 
 
 def _mirror(ctx: EditorContext, register: str | None, lines: tuple[str, ...]) -> None:
@@ -81,11 +105,12 @@ def _mirror(ctx: EditorContext, register: str | None, lines: tuple[str, ...]) ->
 def cmd_delete(
     buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:[range]d [x] — delete lines into register x (default unnamed)."""
-    register, ok = _register_arg(cmd, ctx)
+    """:[range]d [x] [count] — delete lines into register x (default
+    unnamed)."""
+    register, count, ok = _register_and_count(cmd, ctx)
     if not ok:
         return buffer, cursor
-    start, end = _line_range(cmd, cursor, buffer)
+    start, end = _counted_range(cmd, cursor, buffer, count)
     new_buf, deleted = buffer.delete_lines(start, end)
     ctx.registers = store_lines(_registers(ctx), register, deleted, is_delete=True)
     _mirror(ctx, register, deleted)
@@ -101,11 +126,12 @@ def cmd_delete(
 def cmd_yank(
     buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:[range]y [x] — yank lines into register x (default unnamed)."""
-    register, ok = _register_arg(cmd, ctx)
+    """:[range]y [x] [count] — yank lines into register x (default
+    unnamed)."""
+    register, count, ok = _register_and_count(cmd, ctx)
     if not ok:
         return buffer, cursor
-    start, end = _line_range(cmd, cursor, buffer)
+    start, end = _counted_range(cmd, cursor, buffer, count)
     lines = tuple(buffer.get_line(i).text for i in range(start, end + 1))
     ctx.registers = store_lines(_registers(ctx), register, lines, is_delete=False)
     _mirror(ctx, register, lines)

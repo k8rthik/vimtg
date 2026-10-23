@@ -62,6 +62,8 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `:d 3` and `:y 3` take the number as a count, as in vim, instead of
+  as register `3`; `:d a 3` is register `a`, three lines.
 - Opening a deck with a recovery copy says "Found unsaved changes from
   an earlier session" instead of calling every unsaved exit a crash.
 - In a focused pane `q` closes the pane instead of starting a macro

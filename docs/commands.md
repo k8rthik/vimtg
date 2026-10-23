@@ -36,8 +36,8 @@ an offset alone counts from the cursor line: `.,+3d` deletes four lines,
 | `:%s/Bolt/Helix/g` | Substitute across the deck |
 | `:[range]g/pattern/cmd` | Run `cmd` on every card line in the range (the whole deck by default; `'<,'>` from visual mode) matching `pattern`, in any zone (mainboard, sideboard, maybeboard, command zone, companion). Headers, comments, metadata, and plan entries never match. `cmd` is one of `d` (delete), `p` (list the matches), `y [x]` (yank into register `x`; `"A` appends), `s/pat/rep/[flags]` (substitute; an empty `pat` is the `:g` pattern) |
 | `:v/pattern/cmd`, `:g!/pattern/cmd` | Inverse: run on every card line **not** matching |
-| `:[range]d [x]` | Delete lines (default: the cursor line) into register `x` |
-| `:[range]y [x]` | Yank lines into register `x` |
+| `:[range]d [x] [n]` | Delete lines (default: the cursor line) into register `x`. A number is a count, as in vim: `:d 3` deletes three lines from the cursor, `:5d a 2` lines 5-6 into `a`; with a range the count starts at its last line |
+| `:[range]y [x] [n]` | Yank lines into register `x`, with the same count |
 | `:[range]m {n}` | Move lines below line `n` (`0` = to the top, `$` = to the end, `.` = the cursor line, `+1` / `-2` relative to it, `'a` a mark) |
 | `:[range]t {n}` | Copy lines below line `n` (also `:co`, `:copy`) |
 | `:undo` / `:redo` | One undo / redo step (also `:u`, `:red`) |
