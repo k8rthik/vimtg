@@ -59,7 +59,7 @@ LINEWISE_KEYS: dict[str, str] = {"S": "cc", "C": "cc", "D": "dd", "Y": "yy"}
 # vim's Ctrl-A / Ctrl-X add to / subtract from the number: the quantity
 KEY_ALIASES: dict[str, str] = {"ctrl_a": "+", "ctrl_x": "-"}
 SPECIAL_KEYS = frozenset(
-    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#"}
+    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#", "K"}
 )
 MULTI_KEY_STARTERS = frozenset(
     {"g", "[", "]", "m", "'", "t", "q", "@", "z", "Z", "ctrl_w", "space"}

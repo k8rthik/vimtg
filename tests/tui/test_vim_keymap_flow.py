@@ -4,16 +4,30 @@ jumplist and the other vim-fidelity keys."""
 
 from __future__ import annotations
 
+import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from tests.tui.test_vim_fidelity_flow import _cards, _deck, _feed, _message, _screen
+from tests.tui.test_vim_fidelity_flow import FIXTURES, _cards, _deck, _feed, _message, _screen
+from vimtg.data.card_repository import CardRepository
+from vimtg.domain.card import Card
 from vimtg.tui.app import VimTGApp
+from vimtg.tui.screens.main_screen import MainScreen
 from vimtg.tui.widgets.command_line import CommandLine
+from vimtg.tui.widgets.deck_view import DeckView
 from vimtg.tui.widgets.which_key import WhichKey
 
 SIZE = (100, 30)
+
+
+@pytest.fixture
+def card_repo(db_factory):  # type: ignore[no-untyped-def]
+    repo = CardRepository(db_factory())
+    data = json.loads((FIXTURES / "scryfall_sample.json").read_text())
+    repo.bulk_insert([Card.from_scryfall(d) for d in data])
+    return repo
 
 
 class TestWhichKeyFollowsTheSequence:
@@ -404,3 +418,51 @@ class TestCtrlACtrlX:
             assert _cards(scr)[0] == "9 Goblin Guide"
             _feed(scr, "Vj<C-x>")
             assert _cards(scr)[:2] == ["8 Goblin Guide", "3 Monastery Swiftspear"]
+
+
+def _deck_view_text(scr: MainScreen) -> str:
+    return scr.query_one("#deck-view", DeckView).render().plain
+
+
+class TestKShowsCardDetails:
+    @pytest.mark.asyncio
+    async def test_k_expands_the_cursor_card_when_autoexpand_is_off(
+        self, tmp_path: Path, card_repo: CardRepository
+    ) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            scr.attach_card_repo(card_repo, scr.search_service)  # type: ignore[arg-type]
+            scr._state.settings = replace(scr._state.settings, auto_expand=False)
+            _feed(scr, "6G")
+            assert "Goblin Scout" not in _deck_view_text(scr)
+            _feed(scr, "K")
+            assert "Goblin Scout" in _deck_view_text(scr)
+            _feed(scr, "K")
+            assert "Goblin Scout" not in _deck_view_text(scr)
+            _feed(scr, "K j k")  # moving away ends it, as vim's K popup
+            assert "Goblin Scout" not in _deck_view_text(scr)
+
+    @pytest.mark.asyncio
+    async def test_k_collapses_it_when_autoexpand_is_on(
+        self, tmp_path: Path, card_repo: CardRepository
+    ) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            scr.attach_card_repo(card_repo, scr.search_service)  # type: ignore[arg-type]
+            _feed(scr, "6G")
+            assert "Goblin Scout" in _deck_view_text(scr)
+            _feed(scr, "K")
+            assert "Goblin Scout" not in _deck_view_text(scr)
+
+    @pytest.mark.asyncio
+    async def test_k_off_a_card_says_so(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "5G K")
+            assert "E348" in _message(scr)

@@ -41,6 +41,9 @@ from 1.0.0 onward.
 
 ### Added
 
+- `K` shows the cursor card's details inline when the `auto_expand`
+  setting is off, and hides them when it is on, until the cursor moves
+  (vim's keyword lookup).
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
 

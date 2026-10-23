@@ -214,7 +214,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - `Tab`/`Ctrl-J`/`Ctrl-N`/`Down` next, `Shift-Tab`/`Ctrl-K`/`Ctrl-P`/`Up` previous, `Enter` confirms, `Escape` discards the scratch line and restores the cursor.
 - Confirming a card already in the same zone bumps its quantity instead of adding a line.
 - The new card follows the cursor's zone. Inside a `SB:`/`CMD:` block it lands there in matching style. In the mainboard it is filed by the placement policy (see below). Inside a `VS:` block the search runs against the deck's own cards and writes a signed plan line.
-- **Inline expansion**: with `auto_expand` on, the cursor's card renders a detail block under it: type line and P/T, word-wrapped oracle text, set, rarity, and price. The deck view windows by rendered rows so the expansion never clips.
+- **Inline expansion**: with `auto_expand` on, the cursor's card renders a detail block under it: type line and P/T, word-wrapped oracle text, set, rarity, and price. `K` shows it for the cursor card when `auto_expand` is off, and hides it when on. The deck view windows by rendered rows so the expansion never clips.
 
 ### Zones
 
