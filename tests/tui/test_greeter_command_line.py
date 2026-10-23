@@ -13,6 +13,7 @@ import pytest
 from tests.tui.test_greeter import _HostApp
 from vimtg.tui.screens.greeter import GreeterMode, GreeterScreen, GreeterView
 from vimtg.tui.screens.help_screen import HelpScreen
+from vimtg.tui.theme import COLORS
 
 
 class _SyncHost(_HostApp):
@@ -131,7 +132,14 @@ async def test_errors_read_as_in_the_editor(
     async with app.run_test() as pilot:
         await pilot.pause()
         await _command(pilot, command)
-        assert screen.query_one(GreeterView)._status == message
+        gv = screen.query_one(GreeterView)
+        assert gv._status == message
+        rendered = gv.render()
+        start = rendered.plain.index(message)
+        assert any(
+            COLORS["error"] in str(span.style) and span.start <= start < span.end
+            for span in rendered.spans
+        )
         assert app.launched == [] and not app._exit
 
 

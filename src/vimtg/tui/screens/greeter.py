@@ -23,6 +23,7 @@ from textual.widgets import Static
 
 from vimtg import __version__
 from vimtg.editor.command_completer import CommandCompleter
+from vimtg.editor.commands import is_error_message
 from vimtg.services.deck_sources import (
     DeckSourceError,
     RemoteDeck,
@@ -216,7 +217,7 @@ class GreeterView(Static):
                 style=f"bold {COLORS['warning']}",
             )
         if self._status:
-            colour = COLORS["error"] if self._status.startswith("E") else COLORS["mana_green"]
+            colour = COLORS["error"] if is_error_message(self._status) else COLORS["mana_green"]
             t.append(f"  {self._status}\n", style=f"bold {colour}")
 
         if self.command is not None:
