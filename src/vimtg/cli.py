@@ -25,7 +25,9 @@ from vimtg.services.import_export_service import FORMAT_NAMES, IMPORT_FORMAT_NAM
 from vimtg.services.search_service import SearchService, SearchSyntaxError
 
 if TYPE_CHECKING:
-    from vimtg.domain.deck import DeckEntry
+    from vimtg.domain.card import Card
+    from vimtg.domain.deck import Deck, DeckEntry
+    from vimtg.domain.deck_lines import MissingQuantityLine
 
 
 def _make_service() -> DeckService:
@@ -247,6 +249,7 @@ def _no_card_db_note() -> str:
 def validate(path: str, strict: bool) -> None:
     """Validate a deck file (format-aware when a card database exists)."""
     from vimtg.config.settings import load_settings
+    from vimtg.data.deck_repository import missing_quantity_lines
     from vimtg.domain.validation import legality_skipped_note, validation_report
     from vimtg.editor.lint import effective_format
 
@@ -262,8 +265,8 @@ def validate(path: str, strict: bool) -> None:
         )
         sys.exit(1)
     fmt = effective_format(deck, load_settings().default_format)
-    resolved = service.resolve_cards(deck)[0] if card_repo is not None else None
-    report = validation_report(deck, resolved, fmt)
+    missing = missing_quantity_lines(text)
+    report = validation_report(deck, _resolve(card_repo, deck, missing), fmt, missing)
 
     if fmt and not report.legality_checked:
         skipped = legality_skipped_note(_no_card_db_note(), "'vimtg sync'")
@@ -309,13 +312,18 @@ def info(path: str) -> None:
     """Show deck summary: name, format, every zone's card count, and
     (with card data) the :stats line."""
     from vimtg.config.settings import load_settings
+    from vimtg.data.deck_repository import missing_quantity_lines
     from vimtg.domain.analytics import stats_summary
+    from vimtg.domain.validation import missing_quantity_warnings
     from vimtg.editor.config_options import currency_symbol_for
 
     card_repo = _try_card_repo()
     service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
-    _text, deck = service.open_deck(Path(path))
+    file_path = Path(path)
+    text, deck = service.open_deck(file_path)
     settings = load_settings()
+    missing = missing_quantity_lines(text)
+    resolved = _resolve(card_repo, deck, missing)
 
     fmt = deck.metadata.format.strip() or "(none)"
     if not deck.metadata.format.strip() and settings.default_format:
@@ -330,14 +338,29 @@ def info(path: str) -> None:
     ):
         if entries or always:
             rows.append((label, _zone_count(entries)))
-    if card_repo is not None:
-        resolved = service.resolve_cards(deck)[0]
+    if resolved is not None:
         source = settings.price_source
         rows.append(
             ("Stats", stats_summary(deck, resolved, source, currency_symbol_for(source)))
         )
     for label, value in rows:
         click.echo(f"{label + ':':<12}{value}")
+    for warning in missing_quantity_warnings(missing, resolved):
+        click.echo(
+            f"{file_path.name}:{warning.line_number}: warning: {warning.message}", err=True
+        )
+
+
+def _resolve(
+    card_repo: CardRepository | None, deck: Deck, missing: tuple[MissingQuantityLine, ...]
+) -> dict[str, Card] | None:
+    """The deck's cards (and the cards its quantity-less lines name) by name, or
+    None without a card database."""
+    if card_repo is None:
+        return None
+    return card_repo.get_by_names(
+        [*deck.unique_card_names(), *(m.card_name for m in missing)]
+    )
 
 
 def _zone_count(entries: tuple[DeckEntry, ...]) -> str:

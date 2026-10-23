@@ -55,6 +55,7 @@ PLAN_ENTRY_PATTERN = re.compile(r"^\s*([+-]?)\s*(\d+)\s+(.+)$")
 _MTGO_SIDEBOARD_HEADER_PATTERN = re.compile(r"^sideboard\s*:?$", re.IGNORECASE)
 
 
+
 def parse_zone_header(text: str) -> str | None:
     """Canonical zone tag ('DCK', 'CMD', …) for a bare header line, else None."""
     m = ZONE_HEADER_PATTERN.match(text.strip())
@@ -503,3 +504,45 @@ def parse_plan_line(text: str) -> PlanLine | None:
         sign=m.group(1), quantity=clamp_quantity(int(m.group(2))), name=name,
         comment=comment,
     )
+
+
+# A card written without a usable quantity: 'Lightning Bolt', '4x Shock',
+# 'SB: Duress'. Not a card line (the quantity is required); found so the
+# editor and the CLI can say so instead of dropping it silently.
+_MISSING_QUANTITY_PATTERN = re.compile(
+    r"^(?:(?P<zone>"
+    + "|".join(tag for tag, _ in ZONE_LINE_PATTERNS if tag != MAIN_ZONE_TAG)
+    + r"):\s*)?(?:(?P<count>\d+)[xX]\s+)?(?P<rest>\S.*)$"
+)
+
+
+@dataclass(frozen=True)
+class MissingQuantityLine:
+    """A line that names a card but has no usable quantity. `count` is
+    the '4' of '4x' ('' when there is none), `rest` the line after it as
+    written, and `card_name` the card parse_card_line reads there."""
+
+    line_number: int
+    prefix: str
+    count: str
+    rest: str
+    card_name: str
+
+    @property
+    def fixed(self) -> str:
+        """The card line it means: '1 Lightning Bolt', '4 Shock'."""
+        return f"{self.prefix}{self.count or 1} {self.rest}"
+
+
+def parse_missing_quantity_line(line_number: int, text: str) -> MissingQuantityLine | None:
+    """The card a skipped (unparseable) deck line names once given the
+    quantity it lacks, read by the card-line grammar; else None."""
+    m = _MISSING_QUANTITY_PATTERN.match(text.strip())
+    if m is None:
+        return None
+    prefix = f"{m.group('zone')}: " if m.group("zone") else ""
+    count, rest = m.group("count") or "", m.group("rest").strip()
+    card = parse_card_line(f"{prefix}{count or 1} {rest}")
+    if card is None:
+        return None
+    return MissingQuantityLine(line_number, prefix, count, rest, card.name)
