@@ -105,6 +105,9 @@ from 1.0.0 onward.
 - The new-deck prompt accepts `Ctrl-U` and `Ctrl-W` like the other
   prompts, so a name prefilled from the file name can be cleared before
   typing.
+- A deck that has never been written no longer shares one history with
+  every other new deck: `:commit`, `:checkpoint`, `gh` and the other
+  history commands say `E32: No file name` until the first `:w`.
 
 ## [1.0.0rc1] - 2026-10-10
 
