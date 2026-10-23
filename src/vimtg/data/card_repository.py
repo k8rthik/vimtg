@@ -205,25 +205,6 @@ class CardRepository:
             rows = conn.execute(sql, args).fetchall()
         return [row_to_card(row) for row in rows]
 
-    def autocomplete(self, prefix: str, limit: int = 20) -> list[str]:
-        """Return distinct card names matching prefix via FTS5."""
-        fts_query = _prepare_fts_query(prefix)
-        if not fts_query:
-            return []
-
-        with self._db.reader() as conn:
-            rows = conn.execute(
-                """
-                SELECT DISTINCT c.name FROM cards c
-                JOIN cards_fts f ON c.rowid = f.rowid
-                WHERE cards_fts MATCH ?
-                ORDER BY rank
-                LIMIT ?
-                """,
-                (fts_query, limit),
-            ).fetchall()
-        return [row["name"] for row in rows]
-
     def count(self) -> int:
         conn = self._db.connect()
         row = conn.execute("SELECT COUNT(*) as cnt FROM cards").fetchone()
