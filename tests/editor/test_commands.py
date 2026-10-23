@@ -248,3 +248,30 @@ class TestMarkAndOutOfRangeAddresses:
         ctx = EditorContext()
         _, cur = registry.execute(parse_command("999", 0, buf.line_count()), buf, Cursor(), ctx)
         assert not ctx.error and cur.row == buf.line_count() - 1
+
+
+class TestFailPrefix:
+    """A vim-coded error keeps its own code: 'E37: ...', never 'E: E37: ...'."""
+
+    def test_vim_code_is_not_prefixed_again(self) -> None:
+        ctx = EditorContext()
+        ctx.fail("E37: No write since last change (add ! to override)")
+        assert ctx.message == "E37: No write since last change (add ! to override)"
+        assert ctx.error
+
+    def test_plain_message_gets_the_generic_prefix(self) -> None:
+        ctx = EditorContext()
+        ctx.fail("Write failed: disk full")
+        assert ctx.message == "E: Write failed: disk full"
+
+    def test_generic_prefix_is_kept_once(self) -> None:
+        ctx = EditorContext()
+        ctx.fail("E: Unknown format")
+        assert ctx.message == "E: Unknown format"
+
+    def test_registry_range_error_reads_as_vim(self) -> None:
+        registry = CommandRegistry()
+        ctx = EditorContext()
+        cmd = parse_command(":999d", 0, 3)
+        registry.execute(cmd, Buffer.from_text("a\nb\nc\n"), Cursor(), ctx)
+        assert ctx.message == "E16: Invalid range"
