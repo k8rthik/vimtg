@@ -56,6 +56,8 @@ MODE_SWITCHES: dict[str, str] = {
 # Decks are linewise, so the capitals that act to the end of the line
 # (or on it, S) are the doubled operators
 LINEWISE_KEYS: dict[str, str] = {"S": "cc", "C": "cc", "D": "dd", "Y": "yy"}
+# vim's Ctrl-A / Ctrl-X add to / subtract from the number: the quantity
+KEY_ALIASES: dict[str, str] = {"ctrl_a": "+", "ctrl_x": "-"}
 SPECIAL_KEYS = frozenset(
     {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#"}
 )
@@ -273,6 +275,9 @@ class KeyMap:
         if key == "q" and self._macro_recording and self._state in (_State.IDLE, _State.COUNT):
             self.reset()
             return KeyResult.COMPLETE, ParsedAction("special", "q_stop")
+
+        if key in KEY_ALIASES and self._state in (_State.IDLE, _State.COUNT):
+            key = KEY_ALIASES[key]
 
         if key in LINEWISE_KEYS and self._state in (_State.IDLE, _State.COUNT):
             action = ParsedAction("operator", LINEWISE_KEYS[key], count, self._register)

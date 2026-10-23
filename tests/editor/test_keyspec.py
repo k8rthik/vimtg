@@ -16,6 +16,7 @@ from vimtg.editor.keymap import (
     _TAG_SUB_KEYS,
     _WINDOW_SUB_KEYS,
     _ZONE_SUB_KEYS,
+    KEY_ALIASES,
     LINEWISE_KEYS,
     MODE_SWITCHES,
     MOTIONS,
@@ -73,7 +74,10 @@ class TestSpecMatchesKeymap:
 
     def test_every_keymap_single_key_is_in_the_spec(self) -> None:
         declared = {key for _, key in _atoms("normal")}
-        singles = MOTIONS | OPERATORS | set(MODE_SWITCHES) | SPECIAL_KEYS | set(LINEWISE_KEYS)
+        singles = (
+            MOTIONS | OPERATORS | set(MODE_SWITCHES) | SPECIAL_KEYS
+            | set(LINEWISE_KEYS) | set(KEY_ALIASES)
+        )
         for key in singles | {"G"}:
             assert key in declared, key
 

@@ -174,6 +174,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b(("p", "P"), "Paste below / above", EDITING, quick="Editing", brief="paste below/above"),
     _b(("+", "-"), "Increment / decrement quantity (- at 0 deletes)", EDITING,
        quick="Editing", brief="inc/dec quantity"),
+    _b(("ctrl_a", "ctrl_x"), "Increment / decrement quantity (vim's names for + / -)",
+       EDITING, label="Ctrl-A/X"),
     _b(".", "Repeat the last change", EDITING, quick="Editing", brief="repeat last",
        note="Every edit repeats: operators (c with the card it added), o/O with "
             "their card, p, +/-, x, zone and plan moves, tags, categories, "
@@ -213,6 +215,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b(("S", "C", "D", "Y"), "Change / change / delete / yank the selected lines", VISUAL,
        mode="visual", label="S C D Y"),
     _b(("+", "-"), "Increment / decrement every card in the selection", VISUAL, mode="visual"),
+    _b(("ctrl_a", "ctrl_x"), "Same as + / - on the selection", VISUAL, mode="visual",
+       label="Ctrl-A/X"),
     _b(("zs", "zm", "zd", "zc", "zp"), "Move every selected card to a zone", VISUAL,
        mode="visual"),
     _b(("zi", "zo"), "Board every selected card in / out of the active plan", VISUAL,
