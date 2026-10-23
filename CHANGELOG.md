@@ -148,6 +148,10 @@ from 1.0.0 onward.
 - The sample hand takes the shared list keys: `gg`/`G`, `Ctrl-D`/`Ctrl-U`
   and `Home`/`End` select a card as `j`/`k` do, `?` opens the `hand` help
   topic and `F1` the full help, and its hint bar names them.
+- `:commit message` right after `:w` names the snapshot the save just
+  took instead of reporting it as "auto: save" and dropping the message;
+  a `:commit` with nothing new says "Nothing to commit" and names the
+  snapshot the deck matches.
 - Visual `p` / `P` replace the selection with the register and leave
   visual mode, as in vim (`p` keeps the replaced lines in the unnamed
   register, `P` keeps the registers as they were), instead of pasting

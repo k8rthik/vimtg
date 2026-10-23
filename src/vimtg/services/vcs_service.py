@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import Enum
 
@@ -171,6 +171,11 @@ class VersionControlService:
         if parent_id:
             parent = self._repo.get_snapshot(parent_id)
             if parent and parent.deck_hash == _deck_hash(deck_state):
+                if _is_auto(parent.description) and not _is_auto(description):
+                    # :w snapshots on save; a :commit of that same deck
+                    # names the snapshot instead of losing its message
+                    self._repo.update_snapshot_description(parent.id, description)
+                    return replace(parent, description=description)
                 return parent
 
         snap = VCSSnapshot(
@@ -717,3 +722,17 @@ class VersionControlService:
             has_uncommitted_changes=has_changes,
             last_snapshot_description=last_desc,
         )
+
+
+AUTO_PREFIX = "auto:"
+
+
+def _is_auto(description: str) -> bool:
+    return description.startswith(AUTO_PREFIX)
+
+
+def commit_message(snap: VCSSnapshot, requested: str) -> str:
+    """What a commit reports: the snapshot it made, or that nothing changed."""
+    if snap.description == requested:
+        return f"Snapshot: {snap.description}"
+    return f"Nothing to commit: the deck matches snapshot '{snap.description}'"
