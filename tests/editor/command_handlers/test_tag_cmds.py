@@ -145,6 +145,12 @@ class TestCmdUntag:
 
 
 class TestCmdTags:
+    def test_deck_tags_named_when_no_card_has_a_tag(self):
+        buf = _buf("// Tags: tokens, goblins\n\n4 Goblin Guide\n")
+        ctx = _ctx()
+        cmd_tags(buf, Cursor(0, 0), _cmd("tags"), ctx)
+        assert ctx.message == "No card tags (deck tags: goblins, tokens; see :dtag)"
+
     def test_list_all_tags(self):
         buf = _buf("4 Goblin Guide  #core\n4 Lightning Bolt  #core #burn\n")
         ctx = _ctx()

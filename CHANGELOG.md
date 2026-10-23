@@ -83,6 +83,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `tl` and `:tags` on a deck whose only tags are its own `// Tags:` line
+  say `No card tags (deck tags: goblins, tokens; see :dtag)` instead of
+  "No tags in deck".
 - `:import <file|url>` opens the imported deck as a new unnamed buffer,
   like the greeter's import, instead of replacing the buffer of the deck
   that was open, whose next `:w` then overwrote the original file.

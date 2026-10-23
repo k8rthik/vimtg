@@ -340,6 +340,13 @@ class TestTagActions:
         hr = handle_normal_special(st, _act("tl"))
         assert "No tags" in hr.command_message
 
+    def test_tag_list_names_deck_tags_when_no_card_has_one(self) -> None:
+        """tl lists card tags; `// Tags:` tags the deck. With only deck
+        tags, say which they are and where they are set."""
+        st = _state("// Deck: Goblins\n// Tags: goblins, tokens\n\n4 Goblin Guide\n")
+        hr = handle_normal_special(st, _act("tl"))
+        assert hr.command_message == "No card tags (deck tags: goblins, tokens; see :dtag)"
+
     def test_tag_clear_no_tags(self) -> None:
         st = _state(row=1)
         hr = handle_normal_special(st, _act("tc"))

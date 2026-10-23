@@ -9,6 +9,7 @@ TUI-agnostic: no Textual imports.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 # One grammar for tag names — the inline token and standalone
@@ -132,13 +133,16 @@ def tag_lines(counts: dict[str, int]) -> list[str]:
     return [f"#{t:<20} {c}" for t, c in sorted(counts.items())]
 
 
-def format_tag_summary(counts: dict[str, int]) -> str:
+def format_tag_summary(counts: dict[str, int], deck_tags: Iterable[str] = ()) -> str:
     """Render a tag-count map as a status message, sorted by tag name.
 
-    Returns ``"No tags in deck"`` when the map is empty, otherwise
-    ``"Tags: #tag1(2) #tag2(1)"``.
+    Returns ``"Tags: #tag1(2) #tag2(1)"``; with no card tags, names the
+    deck's own ``// Tags:`` (``deck_tags``) when it has any, since
+    those are a different kind of tag, else ``"No tags in deck"``.
     """
     if not counts:
+        if deck_tags:
+            return f"No card tags (deck tags: {', '.join(sorted(deck_tags))}; see :dtag)"
         return "No tags in deck"
     parts = [f"#{t}({c})" for t, c in sorted(counts.items())]
     return f"Tags: {' '.join(parts)}"

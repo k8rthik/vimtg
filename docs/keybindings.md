@@ -165,7 +165,7 @@ the selection; other keys act on the cursor line.
 |-----|--------|
 | `ta` / `tr` / `tt` | Add / remove / toggle a tag (prompts) |
 | `tf` | Filter the view by a tag expression (`core+flex`, `core|flex`, `-flex`) |
-| `tl` | List tags with counts |
+| `tl` | List card tags with counts (with none, names the deck's own `// Tags:`) |
 | `tc` | Clear the card's tags |
 | `tn` / `tp` | Next / previous card sharing a tag with the cursor |
 
