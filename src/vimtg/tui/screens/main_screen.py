@@ -44,7 +44,7 @@ from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import VIEW_MOTIONS, KeyMap, KeyResult, ParsedAction
-from vimtg.editor.keymaps import load_remapper
+from vimtg.editor.keymaps import is_named_key, load_remapper
 from vimtg.editor.layout import follow_line
 from vimtg.editor.lint import (
     EMPTY_LINT,
@@ -137,17 +137,6 @@ _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
 OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
 SYNCING_SEARCH_NOTICE = "Card database is still downloading — search works once :sync finishes"
-
-_NAMED_KEYS = frozenset({
-    "escape", "enter", "tab", "backspace", "delete",
-    "space", "up", "down", "left", "right", "home", "end",
-})
-
-
-def _is_named_key(key: str) -> bool:
-    """A single named key ("escape", "ctrl_r") vs a multi-char sequence."""
-    return key in _NAMED_KEYS or "_" in key
-
 
 def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     """Return the appropriate command-line hint for the current cursor position."""
@@ -697,9 +686,11 @@ class MainScreen(Screen[None]):
             and not is_stop_q
         ):
             self._state.macros.record_key(key)
-        if resolve:
+        # Vim matches mappings only where a command starts: never on the
+        # second key of zs, a register name, or an operator's motion
+        if resolve and not self.keymap.awaiting_more_keys:
             resolved = self.remapper.resolve(key, self._state.mode_mgr.current)
-            if resolved != key and len(resolved) > 1 and not _is_named_key(resolved):
+            if resolved != key and len(resolved) > 1 and not is_named_key(resolved):
                 # Multi-char mapping target (":w", "dd"): feed char by char.
                 # An ex-command target is submitted with a trailing enter.
                 for expanded in resolved:

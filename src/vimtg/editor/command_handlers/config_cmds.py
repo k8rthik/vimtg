@@ -10,6 +10,7 @@ from vimtg.editor.config_options import (
     get_setting_display,
 )
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.keymaps import is_single_key
 from vimtg.editor.modes import Mode
 
 # Map vim-style shorthand names to Settings field names
@@ -118,6 +119,9 @@ def cmd_map(
         return buffer, cursor
 
     from_key, to_key = parts
+    if not is_single_key(from_key):
+        ctx.fail(f"E474: Invalid argument: {from_key} (:map takes a single key)")
+        return buffer, cursor
     ctx.remapper.remap(from_key, to_key.strip(), Mode.NORMAL)
     ctx.message = f"Mapped: {from_key} → {to_key} (config.toml to persist)"
     return buffer, cursor

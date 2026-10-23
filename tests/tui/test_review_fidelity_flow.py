@@ -38,3 +38,30 @@ class TestLeavingVisualEndsSelection:
             _feed(scr, "6G Vj ta burn<CR>")
             tagged = [c for c in _cards(scr) if "#burn" in c]
             assert len(tagged) == 2
+
+
+class TestMappingsMatchAtCommandStart:
+    """Vim matches a mapping only where a command starts, never as the
+    second key of a sequence."""
+
+    @pytest.mark.asyncio
+    async def test_mapped_s_leaves_zs_alone(self, tmp_path: Path) -> None:
+        deck = _deck(tmp_path)
+        app = VimTGApp(deck_path=deck)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, ":map<Space>s<Space>:w<CR> 6G zs")
+            assert _cards(scr)[-1] == "    4 Goblin Guide"
+            assert "SB:" not in deck.read_text()
+            _feed(scr, "s")
+            assert "SB:\n    4 Goblin Guide" in deck.read_text()
+
+    @pytest.mark.asyncio
+    async def test_mapped_key_is_not_a_register_name(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, ':map<Space>a<Space>dd<CR> 6G "ayy')
+            assert scr._state.registers.get("a").content == ("4 Goblin Guide",)
