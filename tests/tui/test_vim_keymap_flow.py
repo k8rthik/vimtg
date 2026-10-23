@@ -129,7 +129,7 @@ class TestCtrlWWindows:
             assert _message(scr) == "Already only one window"
             _feed(scr, "6Gdd<C-w>q")  # Ctrl-W q is :quit, which guards changes
             assert app.is_running
-            assert "Unsaved changes" in _message(scr)
+            assert _message(scr).startswith("E37: No write since last change")
 
     @pytest.mark.asyncio
     async def test_which_key_titles_the_window_menu(self, tmp_path: Path) -> None:
@@ -495,6 +495,28 @@ class TestReselectAndRepeatEx:
             assert scr._state.cursor.row == 6
             _feed(scr, "d")
             assert _cards(scr)[0] == "2 Eidolon of the Great Revel"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("way_out", "end_row"), [
+        ("ta core<CR>", 6), (":<Esc>", 6), ("i<Esc>", 6),
+        # a search is a motion: as in vim it extends the selection to the match
+        ("/Mountain<CR>", 15),
+    ])
+    async def test_gv_after_any_way_out_of_visual(
+        self, tmp_path: Path, way_out: str, end_row: int,
+    ) -> None:
+        """However the selection ended, gv brings the same one back."""
+        from vimtg.editor.modes import Mode
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, f"6G Vj {way_out}")
+            assert scr._state.mode_mgr.current == Mode.NORMAL
+            _feed(scr, "12G gv")
+            assert scr._state.mode_mgr.current == Mode.VISUAL_LINE
+            assert (scr._state.visual_anchor, scr._state.cursor.row) == (5, end_row)
 
     @pytest.mark.asyncio
     async def test_gv_after_an_operator(self, tmp_path: Path) -> None:

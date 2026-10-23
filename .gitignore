@@ -17,3 +17,6 @@ PROGRESS.md
 *.egg
 build/
 .eggs/
+
+# verify-vimtg runs (sandbox + evidence)
+.verify/

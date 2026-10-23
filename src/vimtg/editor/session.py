@@ -145,6 +145,9 @@ class EditorState:
     marks: MarkStore = field(default_factory=MarkStore)
     jumps: JumpList = field(default_factory=JumpList)  # Ctrl-O / Ctrl-I
     visual_anchor: int | None = None
+    # The kind of the selection visual_anchor belongs to; None for a '.'
+    # replay's line span, which is not a selection gv can bring back
+    visual_kind: Mode | None = None
     # Copies the next confirmed card insert writes ('4o' -> 4); every
     # entry into card search sets it, so it can never go stale
     insert_quantity: int = 1
@@ -211,11 +214,12 @@ class EditorState:
         self.last_visual = (mode, row >= anchor)
 
     def end_selection(self) -> None:
-        """End the visual selection, keeping it for gv when visual mode
-        is what it ends (a '.' replay's line span is not a selection)."""
-        if self.visual_anchor is not None and self.mode_mgr.is_visual():
-            self.remember_selection(self.visual_anchor, self.cursor.row, self.mode_mgr.current)
+        """End the visual selection, keeping it for gv, whichever route
+        left visual mode (Esc, an operator, i, /, :, a tag prompt)."""
+        if self.visual_anchor is not None and self.visual_kind is not None:
+            self.remember_selection(self.visual_anchor, self.cursor.row, self.visual_kind)
         self.visual_anchor = None
+        self.visual_kind = None
 
 
 @dataclass(frozen=True)
@@ -523,6 +527,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
             return HandlerResult(exit_to_normal=True)
         if not state.mode_mgr.is_visual() or state.visual_anchor is None:
             state.visual_anchor = state.cursor.row
+        state.visual_kind = target
         return HandlerResult(enter_visual=target)
     return HandlerResult()
 
@@ -843,6 +848,7 @@ def _reselect(state: EditorState) -> HandlerResult:
     if state.mode_mgr.is_visual() and state.visual_anchor is not None:
         state.remember_selection(state.visual_anchor, state.cursor.row, current)
     state.visual_anchor = start if cursor_at_end else end
+    state.visual_kind = mode
     state.cursor = state.cursor.move_to(end if cursor_at_end else start, 0)
     return HandlerResult(enter_visual=None if mode == current else mode)
 
@@ -1103,7 +1109,7 @@ def _handle_category_action(state: EditorState, sub_key: str) -> HandlerResult:
         if state.visual_anchor is not None:
             start = min(state.visual_anchor, row)
             end = max(state.visual_anchor, row)
-            state.visual_anchor = None
+            state.end_selection()
         else:
             start = end = row
         state.buffer, count = clear_category_in_range(state.buffer, start, end)
@@ -1287,7 +1293,7 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
     if state.visual_anchor is not None:
         start = min(state.visual_anchor, row)
         end = max(state.visual_anchor, row)
-        state.visual_anchor = None
+        state.end_selection()
     else:
         start = end = row
     if action in ("a", "r", "t", "category"):
