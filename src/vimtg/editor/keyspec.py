@@ -234,6 +234,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        mode="visual"),
     _b(("zi", "zo"), "Board every selected card in / out of the active plan", VISUAL,
        mode="visual"),
+    _b(("p", "P"), "Replace the selection with the register (P keeps the register)",
+       VISUAL, mode="visual", note="p leaves the replaced lines in the unnamed register"),
     _b("o", "Jump to the other end of the selection", VISUAL, mode="visual"),
     _b("escape", "Exit visual mode", VISUAL, mode="visual", label="Esc"),
     # ── Categories ────────────────────────────────────────

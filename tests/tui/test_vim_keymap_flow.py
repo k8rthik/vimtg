@@ -625,3 +625,36 @@ class TestQuitClosesWindows:
             _feed(_screen(app), f":vsplit {_other(tmp_path)}<CR>:qa<CR>")
             await pilot.pause()
             assert not app.is_running
+
+
+class TestVisualPut:
+    @pytest.mark.asyncio
+    async def test_p_replaces_the_selection_and_keeps_what_it_replaced(
+        self, tmp_path: Path
+    ) -> None:
+        from vimtg.editor.modes import Mode
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G yy 12G Vj p")
+            assert scr._state.mode_mgr.current == Mode.NORMAL
+            assert _cards(scr)[3:] == ["4 Lightning Bolt", "4 Goblin Guide", "20 Mountain"]
+            assert scr._state.registers.get('"').content == (
+                "4 Searing Blaze", "4 Skullcrack",
+            )
+            _feed(scr, "u")
+            assert "4 Searing Blaze" in _cards(scr)  # one undo step
+
+    @pytest.mark.asyncio
+    async def test_capital_p_leaves_the_register_alone(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, '6G "ayy 11G V "aP')
+            assert _cards(scr)[3] == "4 Goblin Guide"
+            assert "4 Lightning Bolt" not in _cards(scr)
+            _feed(scr, "12G V P")  # unnamed still holds Goblin Guide
+            assert _cards(scr)[4] == "4 Goblin Guide"
