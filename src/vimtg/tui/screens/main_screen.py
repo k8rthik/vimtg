@@ -141,7 +141,8 @@ _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card b
 OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
 # Ctrl-C with nothing to cancel, as vim says it
 EXIT_HINT = "Type :q and press Enter to exit vimtg"
-SYNCING_SEARCH_NOTICE = "Card database is still downloading — search works once :sync finishes"
+# While the (automatic) first sync runs; {progress} as the status line has it
+SYNCING_SEARCH_NOTICE = "Card database {progress}: search works when it finishes"
 
 def _hint_for_cursor(buffer: Buffer, row: int) -> str:
     """Return the appropriate command-line hint for the current cursor position."""
@@ -401,6 +402,10 @@ class MainScreen(Screen[None]):
         lines = self.query("#status-line").results(StatusLine)
         for sl in lines:  # none before compose; on_mount pulls the status
             sl.card_data, sl.card_data_attention = self._card_status
+        # A search waiting on the sync follows its progress
+        for sr in self.query("#search-results").results(SearchResults):
+            if sr.display and sr.notice and not self._card_data_available():
+                sr.notice = self._offline_notice()
 
     def _card_data_available(self) -> bool:
         """True when card search has a populated database behind it."""
@@ -411,7 +416,8 @@ class MainScreen(Screen[None]):
 
     def _offline_notice(self) -> str:
         if getattr(self.app, "card_sync_running", False):
-            return SYNCING_SEARCH_NOTICE
+            progress = getattr(self.app, "card_sync_progress", "") or "downloading"
+            return SYNCING_SEARCH_NOTICE.format(progress=progress)
         return OFFLINE_SEARCH_NOTICE
 
     def show_message(self, text: str, *, error: bool = False) -> None:

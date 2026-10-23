@@ -83,6 +83,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Card search before the first sync finishes shows how far the automatic
+  download is (`Card database downloading 40%: search works when it
+  finishes`, following the progress) instead of suggesting the user has
+  to run `:sync`.
 - The empty-deck tips panel stays up after the first card goes in, when
   `+`/`-` and `:w` matter, until the first `:w` (or `Esc`, or `:tips off`),
   instead of vanishing with the first card.
