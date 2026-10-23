@@ -66,9 +66,6 @@ from 1.0.0 onward.
   is found for a deck path with undecodable bytes; an unreadable
   category history or a config directory that is a file fall back to
   defaults with a warning.
-
-### Fixed
-
 - Opening an unreadable deck from the greeter shows an error there
   instead of quitting vimtg.
 - `:w dir/` (or `:w` of an existing directory) is refused with E502
