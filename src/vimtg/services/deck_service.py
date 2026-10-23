@@ -27,6 +27,7 @@ __all__ = [
     "scaffold_metadata",
     "editor_line_numbers",
     "editor_view_text",
+    "saved_text",
     "strip_unused_scaffold",
 ]
 
@@ -110,6 +111,13 @@ def strip_unused_scaffold(text: str, added: Scaffold) -> str:
     if added.blank and not scaffold_left and rest and not rest[0].strip():
         rest = rest[1:]
     return "\n".join(kept + rest)
+
+
+def saved_text(text: str, on_disk: str | None) -> str:
+    """The text `:w` writes for an editor buffer opened from `on_disk`
+    (None for a new deck): the scaffold lines the file lacked go again
+    while still empty, as in the editor's own save."""
+    return strip_unused_scaffold(text, scaffold_metadata(on_disk or "")[1])
 
 
 def scaffold_deck_body(text: str) -> str:
