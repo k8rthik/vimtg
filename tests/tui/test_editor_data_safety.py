@@ -31,7 +31,6 @@ from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.greeter import GreeterMode, GreeterScreen, GreeterView
 from vimtg.tui.screens.main_screen import MainScreen
 from vimtg.tui.widgets.command_line import CommandLine
-from vimtg.tui.widgets.search_results import SearchResults
 
 SIZE = (100, 30)
 
@@ -424,7 +423,7 @@ class TestChangeIsOneUndoStep:
             scr = _screen(app)
             _feed(scr, _keys("10G cc"))
             assert scr._state.mode_mgr.current == Mode.INSERT
-            scr.query_one("#search-results", SearchResults).results = [_card("Shock")]
+            scr._update_search_results([_card("Shock")])  # as a finished search does
             _feed(scr, ["enter"])
             assert "Shock" in _text(scr) and "Lightning Bolt" not in _text(scr)
             _feed(scr, ["u"])
@@ -444,7 +443,7 @@ class TestChangeIsOneUndoStep:
             _feed(scr, _keys("10G cc") + ["escape"])
             after_delete = _text(scr)
             _feed(scr, ["o"])
-            scr.query_one("#search-results", SearchResults).results = [_card("Shock")]
+            scr._update_search_results([_card("Shock")])  # as a finished search does
             _feed(scr, ["enter"])
             _feed(scr, ["u"])
             assert _text(scr) == after_delete  # only the o card went

@@ -133,6 +133,22 @@ class TestCardSearchResults:
             assert scr._find_card_line("Lightning Bolt") is None
 
     @pytest.mark.asyncio
+    async def test_a_new_search_opens_hidden_and_empty(self, wired_repo) -> None:  # type: ignore[no-untyped-def]
+        scr = _wired_screen(wired_repo)
+        app = _Host(scr)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            bolt = wired_repo.get_by_name("Lightning Bolt")
+            _open_below(scr, 1)
+            scr._update_search_results([bolt])
+            scr._apply_exit_to_normal()  # Escape
+            _open_below(scr, 1)
+            scr._apply_enter_card_search()
+            sr = scr.query_one("#search-results", SearchResults)
+            assert sr.display is False  # no "No matches" box before a query
+            assert sr.results == []
+
+    @pytest.mark.asyncio
     async def test_a_late_result_does_not_reopen_the_overlay(self, wired_repo) -> None:  # type: ignore[no-untyped-def]
         scr = _wired_screen(wired_repo)
         app = _Host(scr)
