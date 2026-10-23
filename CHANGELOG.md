@@ -46,6 +46,11 @@ from 1.0.0 onward.
   (vim's keyword lookup).
 - `gv` selects the last visual selection again; `@:` repeats the last
   ex command line, and `@@` after it repeats it again.
+- A jumplist: `Ctrl-O` / `Ctrl-I` (or `Tab`) walk back and forth through
+  the places jumps left, and `''` returns to where the latest jump left.
+  The jumps are vim's (`G`, `gg`, `:{n}`, searches, `{` `}` `[[` `]]`,
+  marks, `H` `M` `L`), plus an insert or zone move that files the card
+  far from the cursor.
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
 

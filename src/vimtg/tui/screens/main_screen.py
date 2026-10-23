@@ -79,6 +79,7 @@ from vimtg.editor.session import (
     handle_normal_special,
     handle_operator,
     handle_tag_input_special,
+    note_jump,
     resolve_cards,
 )
 from vimtg.editor.splits import (
@@ -486,8 +487,10 @@ class MainScreen(Screen[None]):
             card_key=self._paste_card_key(),
         )
         s.buffer = result.buffer
+        origin = s.cursor.row
         if result.first_row is not None:
             s.cursor = s.cursor.move_to(result.first_row, 0)
+            note_jump(s, origin, far_only=True)
         s.modified = True
         s.history.record(s.buffer, f"paste {result.cards} cards")
         if self.card_repo:
@@ -1566,7 +1569,9 @@ class MainScreen(Screen[None]):
             row = self._place_new_card(card, rec.name, 1, None)
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
+        origin = s.cursor.row
         s.cursor = s.cursor.move_to(min(row, s.buffer.line_count() - 1), 0)
+        note_jump(s, origin, far_only=True)
         s.modified = True
         s.history.record(s.buffer, f"added {rec.name} (EDHREC)")
         cl.set_message(f"Added {rec.name}")

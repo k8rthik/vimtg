@@ -156,6 +156,12 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        quick="Navigation", brief="half page"),
     _b(("H", "M", "L"), "Top / middle / bottom of the visible deck view", NAVIGATION,
        note="A count offsets H and L: 3H is the third visible line"),
+    _b(("ctrl_o", "tab"), "Back / forward through the jumplist", NAVIGATION,
+       label="Ctrl-O / Ctrl-I",
+       note="Ctrl-I arrives as Tab. Jumps: G gg {n}G :{n} / ? n N * # { } [[ ]] "
+            "'a H M L '', and an insert or zone move that files the card far away"),
+    _b("''", "Back to where the latest jump left (again: forth)", NAVIGATION,
+       shorts=("before last jump",)),
     _b(("n", "N"), "Repeat the last search in the same / opposite direction", NAVIGATION,
        quick="Navigation", brief="next/prev match"),
     _b(("*", "#"), "Search forward / backward for the card under the cursor", NAVIGATION,
