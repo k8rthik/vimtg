@@ -108,6 +108,8 @@ from 1.0.0 onward.
 - A deck that has never been written no longer shares one history with
   every other new deck: `:commit`, `:checkpoint`, `gh` and the other
   history commands say `E32: No file name` until the first `:w`.
+- `:clipboard vimtg` copies the deck exactly as written, layout and
+  comments included, the same text as `:export vimtg`.
 
 ## [1.0.0rc1] - 2026-10-10
 
