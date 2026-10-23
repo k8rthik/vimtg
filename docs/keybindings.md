@@ -113,7 +113,7 @@ moves the card but warns. An unknown or missing format checks nothing.
 |-----|--------|
 | `m{a-z}` | Set a mark (all 26 letters are available) |
 | `'{a-z}` | Jump to a mark. Marks shift through inserts, deletes, puts, and zone moves |
-| `q{a-z}` / `q` | Start recording a macro / stop recording |
+| `q{a-z}` / `q` | Start recording a macro / stop recording; `qA` appends to macro `a` |
 | `@{a-z}` / `@@` | Play a macro / replay the last one; `3@a` plays three times |
 | `"{a-z}` | Use a named register for the next yank, delete, or put. `"A`-`"Z` append, `"0` is the yank register, `"1`-`"9` the delete history |
 | `"_` | The black hole register: `"_dd` deletes without touching any register, so the next `p` still puts what was there |

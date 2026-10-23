@@ -67,6 +67,22 @@ class TestCountedX:
             assert "4 Lightning Bolt" not in _cards(scr)
 
 
+class TestUppercaseMacroRegister:
+    @pytest.mark.asyncio
+    async def test_uppercase_q_appends_to_macro_a(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G qa + q qA j q")
+            assert scr._state.macros.get("a").keys == ("+", "j")
+            _feed(scr, "6G @a")
+            assert _cards(scr)[:2] == ["6 Goblin Guide", "4 Monastery Swiftspear"]
+            assert scr._state.cursor.row == 6
+            _feed(scr, "@A")
+            assert _cards(scr)[1] == "5 Monastery Swiftspear"
+
+
 class TestMappingsMatchAtCommandStart:
     """Vim matches a mapping only where a command starts, never as the
     second key of a sequence."""
