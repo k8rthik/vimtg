@@ -28,10 +28,12 @@ from vimtg.domain.section_keys import SectionKey, SectionKind
 from vimtg.domain.tags import format_inline_tags
 from vimtg.services.deck_sources import (
     CardLookup,
+    RemoteDeck,
     SkippedLine,
     archidekt_placement,
     parse_decklist_text,
     primary_archidekt_category,
+    stamped_deck,
 )
 
 if TYPE_CHECKING:
@@ -277,6 +279,42 @@ class CardResolution:
     suggestions: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
 
+@dataclass(frozen=True)
+class VimtgImport:
+    """A deck brought into vimtg: the editor text, the parsed deck, and
+    what the import could not use (skipped lines, unknown card names).
+    `title` is the deck site's name for a fetched deck."""
+
+    text: str
+    deck: Deck
+    skipped: tuple[SkippedLine, ...] = ()
+    resolution: CardResolution = field(default_factory=CardResolution)
+    title: str = ""
+
+    def summary(self, source: str) -> str:
+        """The status line an import shows, `source` naming where the
+        deck came from (a file name, 'clipboard', a host)."""
+        parts = [f"Imported {self.deck.total_cards()} cards from {source}"]
+        if self.title:
+            parts[0] += f" — {self.title}"
+        if self.skipped:
+            first = self.skipped[0]
+            parts.append(
+                f"{len(self.skipped)} line(s) skipped"
+                f" (line {first.line_number}: {first.text[:40]})"
+            )
+        unresolved = self.resolution.unresolved
+        if unresolved:
+            note = f"W100: {len(unresolved)} cards not found in database"
+            hinted = next((n for n in unresolved if n in self.resolution.suggestions), None)
+            if hinted is not None:
+                note += f" (did you mean '{self.resolution.suggestions[hinted]}' for '{hinted}'?)"
+            parts.append(note)
+        if self.deck.entries and not self.deck.metadata.format.strip():
+            parts.append(NO_FORMAT_NOTE)
+        return " | ".join(parts)
+
+
 class ImportExportService:
     """Convert decks between vimtg's native format and popular external formats."""
 
@@ -360,7 +398,41 @@ class ImportExportService:
                 report = self._import_archidekt(text)
             case DeckFormat.GUIDE:
                 raise ValueError("The sideboard guide is an export-only format")
-        deck = report.deck
+        return replace(report, deck=self._normalized(report.deck))
+
+    def to_vimtg(
+        self,
+        source: str | RemoteDeck,
+        *,
+        fmt: DeckFormat | None = None,
+        name: str = "",
+        url: str = "",
+    ) -> VimtgImport:
+        """Bring decklist text (any format, auto-detected unless `fmt`
+        says) or a fetched deck (`source` a RemoteDeck from `url`) into
+        vimtg: names normalised to each card's official name, duplicates
+        merged, and laid out like a new deck (see structured_deck_text).
+        A vimtg deck's text comes in verbatim, its layout being the
+        user's. `name` names a deck whose text does not.
+        """
+        if isinstance(source, RemoteDeck):
+            deck = self._normalized(stamped_deck(source, url))
+            skipped, verbatim, title = source.skipped, None, source.name
+        else:
+            text = normalize_text(source)
+            fmt = fmt or self.detect_format(text)
+            report = self.import_deck_report(text, fmt)
+            deck, skipped, title = report.deck, report.skipped, ""
+            verbatim = text if fmt is DeckFormat.VIMTG else None
+        if name and not deck.metadata.name:
+            deck = replace(deck, metadata=replace(deck.metadata, name=name))
+        resolution = self.resolve_cards(deck)
+        out = verbatim if verbatim is not None else structured_deck_text(deck, resolution.resolved)
+        return VimtgImport(out, deck, skipped, resolution, title)
+
+    def _normalized(self, deck: Deck) -> Deck:
+        """`deck` with official card names (when the database knows
+        them) and duplicate entries merged."""
         if self._card_repo is not None and deck.entries:
             # Copies are counted (and merged) by card, not by spelling
             names = sorted(
@@ -370,7 +442,7 @@ class ImportExportService:
             # name normalisation is best-effort
             with contextlib.suppress(sqlite3.Error):
                 deck = canonicalize_names(deck, self._card_repo.get_by_names(names))
-        return replace(report, deck=merge_duplicate_entries(deck))
+        return merge_duplicate_entries(deck)
 
     def _lookup(self) -> CardLookup | None:
         """The card database as a name resolver, or None without one."""

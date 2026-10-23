@@ -5,13 +5,11 @@ Wires to ImportExportService for deck format conversion.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.file_io import atomic_write_text
 from vimtg.domain.card_names import CardMap
-from vimtg.domain.errors import CardsNotFoundWarning
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -22,11 +20,8 @@ from vimtg.editor.cursor import Cursor
 from vimtg.services.clipboard import read_clipboard
 from vimtg.services.deck_service import saved_text
 from vimtg.services.import_export_service import (
-    NO_FORMAT_NOTE,
     DeckFormat,
     ImportExportService,
-    normalize_text,
-    structured_deck_text,
 )
 
 _FORMAT_MAP: dict[str, DeckFormat] = {
@@ -190,50 +185,18 @@ def _import_text(
     require_cards: bool = False,
     deck_name: str = "",
 ) -> tuple[Buffer, Cursor]:
-    """Replace the buffer with the deck parsed from `text`.
-
-    A vimtg deck comes in verbatim (its layout is the user's). Any other
-    format is laid out like a new deck — '// Deck:' / '// Format:' lines
-    and CMD:/DCK:/SB: blocks, grouped by type when cards resolve — with
-    names normalised to each card's official name. `deck_name` (the
-    file's stem) names a deck whose text does not.
-    """
-    service = ImportExportService(card_repo=ctx.card_repo)
-    report = service.import_deck_report(text)
-    deck = report.deck
-    if require_cards and not deck.entries:
+    """Replace the buffer with the deck parsed from `text` (see
+    ImportExportService.to_vimtg); `deck_name` (the file's stem) names
+    a deck whose text does not."""
+    result = ImportExportService(card_repo=ctx.card_repo).to_vimtg(text, name=deck_name)
+    if require_cards and not result.deck.entries:
         ctx.fail(f"No cards found in {source}")
         return buffer, cursor
-    if deck_name and not deck.metadata.name:
-        deck = replace(deck, metadata=replace(deck.metadata, name=deck_name))
-    resolution = service.resolve_cards(deck)
-    if service.detect_format(text) is DeckFormat.VIMTG:
-        vimtg_text = normalize_text(text)
-    else:
-        vimtg_text = structured_deck_text(deck, resolution.resolved)
-    new_buffer = Buffer.from_text(vimtg_text)
+    new_buffer = Buffer.from_text(result.text)
     ctx.modified = True
-    ctx.message = f"Imported {deck.total_cards()} cards from {source}"
-    if report.skipped:
-        first = report.skipped[0]
-        ctx.message += (
-            f" | {len(report.skipped)} line(s) skipped"
-            f" (line {first.line_number}: {first.text[:40]})"
-        )
-
-    if resolution.resolved:
-        ctx.resolved_cards = CardMap(resolution.resolved)
-    if resolution.unresolved:
-        warning = str(CardsNotFoundWarning(len(resolution.unresolved)))
-        first_missing = next(
-            (n for n in resolution.unresolved if n in resolution.suggestions), None,
-        )
-        if first_missing is not None:
-            suggestion = resolution.suggestions[first_missing]
-            warning += f" (did you mean '{suggestion}' for '{first_missing}'?)"
-        ctx.message += f" | {warning}"
-    if deck.entries and not deck.metadata.format.strip():
-        ctx.message += f" | {NO_FORMAT_NOTE}"
+    ctx.message = result.summary(source)
+    if result.resolution.resolved:
+        ctx.resolved_cards = CardMap(result.resolution.resolved)
     return new_buffer, cursor.clamp(new_buffer.line_count() - 1)
 
 
