@@ -77,11 +77,11 @@ def cmd_validate(
 
     errors = report.problems
     n_err = sum(1 for e in errors if e.level == "error")
+    found: list[str] = []
     if not errors:
         parts = [f"Deck OK ({fmt})" if fmt else "Deck OK"]
     else:
         # Dedupe repeated messages (a 4-row copy-limit violation reads once)
-        found: list[str] = []
         seen: set[tuple[str, str]] = set()
         for e in errors:
             if (e.level, e.message) in seen:
@@ -95,10 +95,13 @@ def cmd_validate(
         parts.append(legality_skipped_note("no card database", ":sync"))
     if report.bracket:
         parts.append(report.bracket)
-    if n_err:
-        ctx.fail(" | ".join(parts))
-    else:
-        ctx.message = " | ".join(parts)
+    header = parts[0].partition(": ")[0] if found else parts[0]
+    lines = [header, *found, *parts[1:]]
+    summary = " | ".join(parts)
+    ctx.show_listing(
+        f"Validation ({fmt})" if fmt else "Validation", lines,
+        f"E: {summary}" if n_err else summary, error=bool(n_err),
+    )
     return buffer, cursor
 
 

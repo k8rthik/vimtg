@@ -41,7 +41,7 @@ from vimtg.editor.card_insert import (
 )
 from vimtg.editor.cmdline_history import CommandHistory
 from vimtg.editor.command_completer import CommandCompleter
-from vimtg.editor.commands import CommandRegistry
+from vimtg.editor.commands import CommandRegistry, Listing
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import VIEW_MOTIONS, KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import is_named_key, load_remapper
@@ -972,7 +972,9 @@ class MainScreen(Screen[None]):
         if hr.enter_visual:
             s.mode_mgr.transition(hr.enter_visual)
             self.keymap.set_mode(hr.enter_visual)
-        if hr.command_message:
+        if hr.command_message and hr.listing is not None:
+            self._show_listing(hr.listing, hr.command_message, error=hr.error)
+        elif hr.command_message:
             self.query_one("#command-line", CommandLine).set_message(
                 hr.command_message, error=hr.error
             )
@@ -1080,6 +1082,21 @@ class MainScreen(Screen[None]):
         new_screen = app.screen
         if isinstance(new_screen, MainScreen):
             new_screen._state.registers = registers
+
+    def _show_listing(self, listing: Listing, summary: str, *, error: bool = False) -> None:
+        """A listing's one-line form on the command line when it fits,
+        else its lines in the floating pager (vim's more-prompt). Either
+        way :messages keeps it."""
+        cl = self.query_one("#command-line", CommandLine)
+        width = cl.size.width
+        if len(listing.lines) <= 1 or not width or len(summary) + 2 <= width:
+            cl.set_message(summary, error=error)
+            return
+        text = "\n".join(listing.lines)
+        cl.history.append((error, text))
+        from vimtg.tui.screens.help_screen import HelpScreen
+
+        self.app.push_screen(HelpScreen(body=text, title=listing.title))
 
     def _open_card_search(self, query: str) -> None:
         """:search — open the card search exactly as `o` does (ignoring any
@@ -1739,7 +1756,7 @@ class MainScreen(Screen[None]):
             f"*{b.name}" if b.name == vcs.current_branch else b.name
             for b in branches
         ]
-        cl.set_message("Branches: " + ", ".join(names))
+        self._show_listing(Listing("Branches", tuple(names)), "Branches: " + ", ".join(names))
 
     def _vcs_create_branch(self, name: str) -> None:
         """Create a branch at the current branch tip."""

@@ -80,10 +80,11 @@ def cmd_plans(
         ctx.message = "No sideboard plans"
         return buf, cursor
     active = (ctx.active_plan or "").lower()
-    ctx.message = " · ".join(
+    labels = [
         ("*" if b.name.lower() == active else "") + plan_label(buf, b, sep=" ")
         for b in blocks
-    )
+    ]
+    ctx.show_listing("Sideboard plans", labels, " · ".join(labels))
     return buf, cursor
 
 
