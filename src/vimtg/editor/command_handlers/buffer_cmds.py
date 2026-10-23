@@ -88,10 +88,23 @@ def cmd_write(
 ) -> tuple[Buffer, Cursor]:
     """Save deck to file via ctx.save_fn.
 
-    `:w name` writes to `name` and makes it the deck's file from then
-    on (vim's :saveas). Overwriting another existing file, or a file
+    `:w name` writes a copy to `name` and goes on editing the deck's own
+    file, its modified flag untouched, as in vim; a deck with no file
+    yet takes the name. Overwriting another existing file, or a file
     that changed on disk since it was read, needs `:w!`.
     """
+    return _write(buffer, cursor, cmd, ctx, rename=False)
+
+
+def _write(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+    *,
+    rename: bool,
+) -> tuple[Buffer, Cursor]:
+    """Write the deck; `rename` makes the target the deck's file (:saveas)."""
     if ctx.save_fn is None:
         ctx.fail("Save not available")
         return buffer, cursor
@@ -115,6 +128,9 @@ def cmd_write(
         return buffer, cursor
 
     previous = ctx.file_path
+    if previous is not None and not rename and not _same_file(target, previous):
+        ctx.message = f'"{target.name}" written'
+        return buffer, cursor
     ctx.file_path = target
     ctx.disk_stamp = file_stamp(target)
     ctx.file_saved = True
@@ -134,11 +150,11 @@ def cmd_saveas(
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
     """:sav[eas][!] name — write the deck to `name` and edit that file
-    from now on (what `:w name` also does)."""
+    from now on (`:w name` only writes a copy)."""
     if not cmd.args.strip():
         ctx.fail("E471: Argument required")
         return buffer, cursor
-    return cmd_write(buffer, cursor, cmd, ctx)
+    return _write(buffer, cursor, cmd, ctx, rename=True)
 
 
 def cmd_quit(
@@ -168,10 +184,15 @@ def cmd_write_quit(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """Write then quit. Delegates to cmd_write first."""
+    """Write then quit. Delegates to cmd_write first; `:wq copy` of a
+    deck with unsaved changes writes the copy and stays (E37), as vim."""
     buffer, cursor = cmd_write(buffer, cursor, cmd, ctx)
-    if not ctx.error:
-        ctx.quit_requested = True
+    if ctx.error:
+        return buffer, cursor
+    if ctx.modified and not cmd.bang and _confirm_quit_enabled(ctx):
+        ctx.fail("E37: No write since last change (add ! to override)")
+        return buffer, cursor
+    ctx.quit_requested = True
     return buffer, cursor
 
 
