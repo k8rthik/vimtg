@@ -194,6 +194,14 @@ class SnapshotRepository:
                 by_id[snap.id] = snap
         return [by_id[sid] for sid in ids if sid in by_id]
 
+    def update_snapshot_description(self, snapshot_id: str, description: str) -> None:
+        conn = self._db.connect()
+        conn.execute(
+            "UPDATE snapshots SET description = ? WHERE id = ?",
+            (description, snapshot_id),
+        )
+        conn.commit()
+
     def update_snapshot_tag(
         self, snapshot_id: str, tag: str | None
     ) -> None:

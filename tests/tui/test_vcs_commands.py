@@ -294,3 +294,20 @@ async def test_unsaved_deck_refuses_history_until_written(
         await pilot.pause()
         assert app.screen is scr
         assert _message(scr).startswith("E32: No file name")
+
+
+@pytest.mark.asyncio
+async def test_commit_right_after_save_keeps_its_message(tmp_path: Path) -> None:
+    """:w snapshots the deck as "auto: save"; the :commit that follows
+    names that snapshot instead of reporting the auto one."""
+    app = VimTGApp(deck_path=_deck_file(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        scr = _main_screen(app)
+        _set_buffer(scr, BASE_DECK + "4 Lava Spike\n")
+        await _type_command(pilot, "w")
+        await _type_command(pilot, "commit first try")
+        assert _message(scr) == "Snapshot: first try"
+        await _type_command(pilot, "commit second")
+        assert _message(scr) == "Nothing to commit: the deck matches snapshot 'first try'"
+        assert [s.description for s in _vcs(scr).get_log()][:1] == ["first try"]

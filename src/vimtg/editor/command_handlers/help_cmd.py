@@ -6,6 +6,7 @@ from functools import partial
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
+    E37,
     CommandRegistry,
     EditorContext,
     ParsedCommand,
@@ -67,8 +68,25 @@ def cmd_tips(
     return buffer, cursor
 
 
+def cmd_tutor(
+    buffer: Buffer,
+    cursor: Cursor,
+    cmd: ParsedCommand,
+    ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:Tutor leaves this deck for a fresh tutor lesson deck (as `vimtg
+    tutor`); unsaved changes need :Tutor! to drop."""
+    if ctx.modified and not cmd.bang:
+        ctx.fail(E37)
+        return buffer, cursor
+    ctx.ui_request = "tutor"
+    ctx.discard_requested = cmd.bang and ctx.modified
+    return buffer, cursor
+
+
 def register_help_commands(registry: CommandRegistry) -> None:
     """Register :help/:h, :messages/:mes and :tips."""
     registry.register("help", partial(cmd_help, registry=registry), aliases=["h"])
     registry.register("messages", cmd_messages, aliases=["mes"])
     registry.register("tips", cmd_tips)
+    registry.register("tutor", cmd_tutor, aliases=["Tutor"])

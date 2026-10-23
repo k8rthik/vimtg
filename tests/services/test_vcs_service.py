@@ -7,7 +7,7 @@ import pytest
 from vimtg.data.database import Database
 from vimtg.data.snapshot_repository import SnapshotRepository
 from vimtg.domain.deck import DeckSection
-from vimtg.services.vcs_service import MergeKind, VersionControlService
+from vimtg.services.vcs_service import MergeKind, VersionControlService, commit_message
 
 DECK_PATH = "/tmp/test.deck"
 STATE_V1 = "4 Lightning Bolt\n4 Goblin Guide\n"
@@ -45,6 +45,25 @@ class TestCommit:
         snap1 = vcs.commit(STATE_V1, "initial")
         snap2 = vcs.commit(STATE_V1, "duplicate")
         assert snap1.id == snap2.id  # Same snapshot returned
+
+    def test_commit_names_an_auto_snapshot_of_the_same_deck(
+        self, vcs: VersionControlService, snapshot_repo: SnapshotRepository,
+    ) -> None:
+        """:w snapshots as "auto: save"; a :commit right after it must keep
+        the user's message rather than report the auto snapshot."""
+        auto = vcs.commit(STATE_V1, "auto: save")
+        named = vcs.commit(STATE_V1, "first try")
+        assert (named.id, named.description) == (auto.id, "first try")
+        stored = snapshot_repo.get_snapshot(auto.id)
+        assert stored is not None and stored.description == "first try"
+
+    def test_commit_message_says_nothing_changed(self, vcs: VersionControlService) -> None:
+        first = vcs.commit(STATE_V1, "first try")
+        again = vcs.commit(STATE_V1, "second")
+        assert commit_message(first, "first try") == "Snapshot: first try"
+        assert commit_message(again, "second") == (
+            "Nothing to commit: the deck matches snapshot 'first try'"
+        )
 
     def test_dedup_allows_different_state(self, vcs: VersionControlService) -> None:
         snap1 = vcs.commit(STATE_V1, "initial")

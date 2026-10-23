@@ -1142,9 +1142,14 @@ class MainScreen(Screen[None]):
             self._process_key(key, resolve=False)
 
     def _handle_ui_request(self, request: str) -> None:
-        """:messages and :tips — screen-level views with no buffer change."""
+        """:messages, :tips and :Tutor — screen-level requests with no
+        buffer change."""
         cl = self.query_one("#command-line", CommandLine)
-        if request == "messages":
+        if request == "tutor":
+            from vimtg.tutor import LAUNCH_TUTOR
+
+            self.app.exit(LAUNCH_TUTOR)
+        elif request == "messages":
             body = "\n".join(text for _error, text in cl.history) or "(no messages)"
             from vimtg.tui.screens.help_screen import HelpScreen
 
@@ -1758,6 +1763,8 @@ class MainScreen(Screen[None]):
 
     def _vcs_commit(self, description: str) -> None:
         """Create a VCS snapshot with the given description."""
+        from vimtg.services.vcs_service import commit_message
+
         vcs = self._vcs_or_report()
         if vcs is None:
             return
@@ -1767,7 +1774,7 @@ class MainScreen(Screen[None]):
         except sqlite3.Error as exc:
             cl.set_message(f"E: Snapshot failed: {exc}", error=True)
             return
-        cl.set_message(f"Snapshot: {snap.description}")
+        cl.set_message(commit_message(snap, description))
         self._sync_widgets()
 
     def _vcs_checkpoint(self, name: str) -> None:

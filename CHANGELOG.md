@@ -51,6 +51,11 @@ from 1.0.0 onward.
 
 ### Added
 
+- `vimtg tutor`, a vimtutor-style tutorial: fourteen short lessons in a
+  deck you edit as you read, from moving around to sideboard plans and
+  version history. It runs in a throwaway sandbox with a bundled card set
+  and default settings, so it works offline, before the first sync, and
+  never touches your decks. `:Tutor` and the greeter's `t` open it too.
 - The greeter has a `:` command line that runs the editor's own `:e
   {file}`, `:enew`, `:q`/`:q!`, `:sync[!]` and `:help [topic]`, with the
   editor's messages and `Tab` completion. Typing `:e x.deck` there used to
@@ -148,6 +153,12 @@ from 1.0.0 onward.
 - The sample hand takes the shared list keys: `gg`/`G`, `Ctrl-D`/`Ctrl-U`
   and `Home`/`End` select a card as `j`/`k` do, `?` opens the `hand` help
   topic and `F1` the full help, and its hint bar names them.
+- `tf` with an empty filter clears the tag filter, as its help says;
+  it used to close the prompt and leave the filter on.
+- `:commit message` right after `:w` names the snapshot the save just
+  took instead of reporting it as "auto: save" and dropping the message;
+  a `:commit` with nothing new says "Nothing to commit" and names the
+  snapshot the deck matches.
 - Visual `p` / `P` replace the selection with the register and leave
   visual mode, as in vim (`p` keeps the replaced lines in the unnamed
   register, `P` keeps the registers as they were), instead of pasting
