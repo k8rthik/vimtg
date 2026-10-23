@@ -473,6 +473,9 @@ def search(query: tuple[str, ...], limit: int) -> None:
     """Search for cards with Scryfall-style syntax, for example
     'vimtg search t:creature c:r mv<=2'. Put '--' before a query that
     starts with '-': 'vimtg search -- -t:land c:boros'."""
+    from vimtg.config.settings import load_settings
+    from vimtg.editor.config_options import price_text
+
     text = " ".join(query)
     # Quoted phrases and /regexes/ are values, not terms
     empty = _EMPTY_TERM.search(re.sub(r'"[^"]*"|/[^/]*/', "_", text))
@@ -493,15 +496,15 @@ def search(query: tuple[str, ...], limit: int) -> None:
         click.echo("No cards found.")
         return
 
+    settings = load_settings()
     for card in results:
-        price = f"${card.price_usd:.2f}" if card.price_usd is not None else "-"
         name = card.name[:30] if len(card.name) > 30 else card.name
         mana = card.mana_cost  # in full: a split card's is "{1}{R} // {1}{U}"
         type_line = card.type_line[:26] if len(card.type_line) > 26 else card.type_line
-        click.echo(
-            f"{name:<32}{mana:<16}{type_line:<28}"
-            f"{card.set_code.upper():<8}{price:>8}"
-        )
+        row = f"{name:<32}{mana:<16}{type_line:<28}{card.set_code.upper():<8}"
+        if settings.show_prices:
+            row += f"{price_text(card, settings.price_source) or '-':>8}"
+        click.echo(row.rstrip())
 
 
 @main.command()

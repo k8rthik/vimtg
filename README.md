@@ -461,7 +461,7 @@ vimtg burn.deck                        # open a deck (vim-style); a new path is 
 vimtg edit [file]                      # same, explicit
 vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats; --force overwrites)
 vimtg sync [--force]                   # download or refresh the card database
-vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md)
+vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices follow price_source/show_prices
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
 vimtg info deck.deck                   # counts summary
 vimtg guide deck.deck [--markdown]     # sideboard plans

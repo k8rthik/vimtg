@@ -208,6 +208,9 @@ from 1.0.0 onward.
   editor opens.
 - `vimtg search` without card data says `no card database (run 'vimtg
   sync' first)` instead of borrowing vim's unrelated E100 code.
+- `vimtg search` prices follow the `price_source` and `show_prices`
+  settings, like the editor's search list, instead of always printing
+  the USD price.
 
 ### Security
 
