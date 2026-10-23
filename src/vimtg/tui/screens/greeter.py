@@ -60,6 +60,7 @@ ACTIONS = [
     ("i", "Import deck"),
     ("s", "Sync cards"),
     ("r", "Recent files"),
+    ("t", "Tutorial"),
     ("?", "Help"),
     ("q", "Quit"),
 ]
@@ -500,6 +501,8 @@ class GreeterScreen(Screen[None]):
             gv.set_mode(GreeterMode.RECOVER)
             gv._status = ""
             gv.refresh()
+        elif key == "t":
+            self._open_tutor()
         elif key == "q":
             self.app.exit()
         elif key in ("?", "f1"):
@@ -523,6 +526,11 @@ class GreeterScreen(Screen[None]):
             gv._input += key
             gv.refresh()
 
+    def _open_tutor(self) -> None:
+        from vimtg.tutor import LAUNCH_TUTOR
+
+        self.app.exit(LAUNCH_TUTOR)
+
     def _run_command(self, text: str, gv: GreeterView) -> None:
         """Run `text` with the editor's own handlers, then do what they
         asked for: open a deck, a new one, the help, a sync, or quit."""
@@ -541,6 +549,8 @@ class GreeterScreen(Screen[None]):
             self.app.push_screen(HelpScreen(topic=ctx.help_topic))
         elif ctx.card_sync:
             self._run_sync(force=ctx.card_sync == "force")
+        elif ctx.ui_request == "tutor":
+            self._open_tutor()
 
     def on_paste(self, event: Paste) -> None:
         """Terminals deliver a paste as one Paste event, not keys.

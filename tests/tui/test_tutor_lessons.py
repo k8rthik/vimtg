@@ -16,6 +16,7 @@ from textual.pilot import Pilot
 
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.key_translator import _TEXTUAL_TO_SYMBOL
+from vimtg.tui.screens.help_screen import HelpScreen
 from vimtg.tui.screens.history_screen import HistoryScreen
 from vimtg.tui.screens.main_screen import MainScreen
 from vimtg.tui.widgets.command_line import CommandLine
@@ -43,6 +44,13 @@ class View:
     @property
     def message(self) -> str:
         return self.main.query_one("#command-line", CommandLine).message
+
+    @property
+    def shown(self) -> str:
+        """The command line, plus the pager when a listing opened one."""
+        pager = self.app.screen
+        body = pager._body if isinstance(pager, HelpScreen) else None
+        return f"{self.message}\n{body or ''}"
 
 
 Check = Callable[[View], bool]
@@ -102,7 +110,7 @@ LESSONS: dict[int, tuple[Step, ...]] = {
         Step("u", _on("4 Shock")),
     ),
     9: (
-        Step(":validate<CR>", lambda v: "Ponder" in v.message and "Rift Bolt" in v.message),
+        Step(":validate<CR>", lambda v: "Ponder" in v.shown and "Rift Bolt" in v.shown),
     ),
     10: (
         Step("/Searing<CR>taburn<CR>", _on("4 Searing Blaze  #burn")),

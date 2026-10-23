@@ -115,6 +115,7 @@
 // and the reason shows in the status bar when you are on it.
 // Ponder is banned in modern; Rift Bolt started at 5 copies.
 // Try it: type :validate and press Enter to list every problem.
+// The list opens in a window over the deck: q closes it.
 
 // ------------------------------------------------------------
 // Lesson 10: TAGS AND CATEGORIES

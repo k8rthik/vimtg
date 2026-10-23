@@ -116,10 +116,7 @@ class _DeckFileGroup(click.Group):
 def main(ctx: click.Context) -> None:
     """vimtg — Vim-powered MTG deck builder."""
     if ctx.invoked_subcommand is None:
-        from vimtg.tui.app import VimTGApp
-
-        app = VimTGApp()
-        app.run()
+        _launch_editor(None)
 
 
 def _complete_format(
@@ -643,10 +640,9 @@ def _optional_card_db() -> Database | None:
 @main.command()
 def tutor() -> None:
     """Learn vimtg in a throwaway lesson deck, like vimtutor."""
-    from vimtg.tutor import tutor_sandbox
+    from vimtg.tutor import LAUNCH_TUTOR
 
-    with tutor_sandbox() as deck:
-        _launch_editor(str(deck))
+    _follow_into_tutor(LAUNCH_TUTOR)
 
 
 @main.command()
@@ -658,8 +654,20 @@ def edit(path: str | None = None) -> None:
 
 def _launch_editor(path: str | None) -> None:
     """Launch the TUI editor for the given deck file path."""
+    _follow_into_tutor(_run_editor(Path(path) if path else None))
+
+
+def _run_editor(deck_path: Path | None) -> object:
     from vimtg.tui.app import VimTGApp
 
-    deck_path = Path(path) if path else None
-    app = VimTGApp(deck_path=deck_path)
-    app.run()
+    return VimTGApp(deck_path=deck_path).run()
+
+
+def _follow_into_tutor(result: object) -> None:
+    """While the app exits asking for the tutor (:Tutor, the greeter's t),
+    run it again on a fresh lesson deck in the tutor's sandbox."""
+    from vimtg.tutor import LAUNCH_TUTOR, tutor_sandbox
+
+    while result == LAUNCH_TUTOR:
+        with tutor_sandbox() as deck:
+            result = _run_editor(deck)

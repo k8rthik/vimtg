@@ -51,6 +51,11 @@ from 1.0.0 onward.
 
 ### Added
 
+- `vimtg tutor`, a vimtutor-style tutorial: fourteen short lessons in a
+  deck you edit as you read, from moving around to sideboard plans and
+  version history. It runs in a throwaway sandbox with a bundled card set
+  and default settings, so it works offline, before the first sync, and
+  never touches your decks. `:Tutor` and the greeter's `t` open it too.
 - The greeter has a `:` command line that runs the editor's own `:e
   {file}`, `:enew`, `:q`/`:q!`, `:sync[!]` and `:help [topic]`, with the
   editor's messages and `Tab` completion. Typing `:e x.deck` there used to
