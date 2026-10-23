@@ -277,7 +277,7 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 - `:stats` prints a one-line summary on the command line: card count, average CMC, cards per type, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it). For the curve, colour pips, and mana base, use `:analytics`.
 - `:analytics` (or `Space a`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
-- `vimtg info deck.deck` prints counts from the shell.
+- `vimtg info deck.deck` prints the deck's name, its format (the `default_format` setting when the deck names none), the card count of every zone in use (commander, companion, mainboard, sideboard, maybeboard) and, with card data, the same summary line as `:stats`.
 
 ### Sample hand
 
@@ -463,7 +463,7 @@ vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shel
 vimtg sync [--force]                   # download or refresh the card database
 vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices follow price_source/show_prices
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
-vimtg info deck.deck                   # counts summary
+vimtg info deck.deck                   # zones, format, and the :stats line
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing out.txt

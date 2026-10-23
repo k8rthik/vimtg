@@ -216,6 +216,9 @@ from 1.0.0 onward.
   looked at legality. It also shows the Commander bracket estimate
   `vimtg validate` prints; both now build one report
   (`domain.validation.validation_report`).
+- `vimtg info` counts the commander, companion and maybeboard too, shows
+  the `default_format` setting when the deck names no format, and with
+  card data prints the same summary line as `:stats`.
 
 ### Security
 

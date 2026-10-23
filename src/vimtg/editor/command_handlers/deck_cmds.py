@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from vimtg.data.deck_repository import parse_deck_text
-from vimtg.domain.analytics import compute_stats
-from vimtg.domain.card_types import PRIMARY_TYPES
+from vimtg.domain.analytics import stats_summary
 from vimtg.domain.validation import legality_skipped_note, validation_report
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.commands import (
@@ -28,22 +27,9 @@ def cmd_stats(
     if resolved:
         deck = parse_deck_text(buffer.to_text())
         price_source = getattr(ctx.settings, "price_source", "usd") or "usd"
-        stats = compute_stats(deck, resolved, price_source)
-        parts = [f"{stats.total_cards} cards"]
-        parts.append(f"Avg CMC {stats.average_cmc:.2f}")
-        type_parts = []
-        for tname in PRIMARY_TYPES:
-            count = stats.type_breakdown.counts.get(tname, 0)
-            if count > 0:
-                type_parts.append(f"{count} {tname}")
-        if type_parts:
-            parts.append(", ".join(type_parts))
-        if stats.total_price_usd is not None:
-            symbol = currency_symbol_for(price_source)
-            parts.append(
-                f"{symbol}{stats.total_price_usd:.2f} ({price_source})"
-            )
-        ctx.message = " | ".join(parts)
+        ctx.message = stats_summary(
+            deck, resolved, price_source, currency_symbol_for(price_source)
+        )
     else:
         lines = buffer.get_lines()
         card_count = sum(
