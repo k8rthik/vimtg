@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
@@ -17,11 +19,17 @@ def cmd_help(
     cursor: Cursor,
     cmd: ParsedCommand,
     ctx: EditorContext,
+    *,
+    registry: CommandRegistry,
 ) -> tuple[Buffer, Cursor]:
-    """Open the full-screen help overlay, optionally focused on one command."""
-    topic = cmd.args.strip() if cmd.args else None
+    """Open the full-screen help overlay, optionally focused on one command.
+
+    Topics are keyed by canonical command name, so an alias (:help exp)
+    opens its command's topic."""
+    typed = cmd.args.strip()
+    topic = registry.resolve(typed) if typed else None
     if topic is not None and not has_help(topic):
-        ctx.fail(f"No help for: {topic}")
+        ctx.fail(f"No help for: {typed}")
         return buffer, cursor
     ctx.open_help_screen = True
     ctx.help_topic = topic
@@ -61,6 +69,6 @@ def cmd_tips(
 
 def register_help_commands(registry: CommandRegistry) -> None:
     """Register :help/:h, :messages/:mes and :tips."""
-    registry.register("help", cmd_help, aliases=["h"])
+    registry.register("help", partial(cmd_help, registry=registry), aliases=["h"])
     registry.register("messages", cmd_messages, aliases=["mes"])
     registry.register("tips", cmd_tips)

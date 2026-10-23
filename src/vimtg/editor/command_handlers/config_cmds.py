@@ -91,7 +91,7 @@ def cmd_map(
 ) -> tuple[Buffer, Cursor]:
     """:map from to — Create a NORMAL-mode key remapping for this session.
 
-    :map s :w           Map 's' to ':w' (save)
+    :map ; :w           Map ';' to ':w' (save)
     :map Q :q!          Map 'Q' to ':q!' (force quit)
     :map (no args)      Show all current mappings
 

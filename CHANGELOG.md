@@ -107,6 +107,12 @@ from 1.0.0 onward.
   history commands say `E32: No file name` until the first `:w`.
 - `:clipboard vimtg` copies the deck exactly as written, layout and
   comments included, the same text as `:export vimtg`.
+- `:help` opens a command's topic under any alias (`:help exp`,
+  `:help goldfish`), and `:dtag` / `:duntag` have topics. The README,
+  `docs/commands.md`, and `docs/keybindings.md` now match the code on
+  `:stats` (a one-line summary), `:dtag` / `:duntag` (deck-level
+  `// Tags:`), `ZZ` (`:x`), mark ranges, `:g` sub-commands, the keys
+  that are safe to `:map`, and the greeter's `R`.
 
 ## [1.0.0rc1] - 2026-10-10
 
