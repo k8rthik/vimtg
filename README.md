@@ -187,7 +187,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Line editing**: `i` edits the current line in place. On a `// Key:` metadata line the prefix is locked and only the value is editable. On `// Format:` the value ghost-completes from the known formats and warns when you confirm an unknown one. `A` adds or edits the card's inline comment.
 - **Visual mode**: `v`/`V` select, `d`/`y`/`c`/`x` act on the range, `+`/`-` and the `z` zone and plan keys act on every card in it (one undo step), `o` swaps the selection ends. Category and tag prompts honour the visual range.
 - **Registers**: `"a`–`"z` named, `"A`–`"Z` append, unnamed, yank register `0`, delete history shifted through `1`–`9`, black hole `"_`, and the clipboard register `"+`/`"*` (yanks and deletes also copy to the system clipboard via OSC52).
-- **Marks**: `m{a-z}` set, `'{a-z}` jump, all 26 letters. Marks shift correctly through inserts, deletes, puts, and zone moves.
+- **Marks**: `m{a-z}` set, `'{a-z}` jump, all 26 letters. Marks shift correctly through inserts, deletes, puts, and zone moves. `Ctrl-O` / `Ctrl-I` walk vim's jumplist and `''` returns to before the latest jump.
 - **Macros**: `q{a-z}` record, `q` stop, `@{a-z}` play, `@@` replay last, `3@a` plays three times, `@:` repeats the last ex command. Playback re-feeds keys through the full pipeline.
 - **Dot repeat**: `.` replays the last change: operators (`c` together with the card it added), `o`/`O` with their card and copies, puts, quantity, `x`, zone and plan moves, tags, categories, comments, `i` line edits, and `:s`. A visual change repeats on as many lines; a count on `.` overrides the recorded one.
 - **Command line**: `Up`/`Down` recall history (prefix-matched, separate for `:` and searches, kept across sessions in `~/.local/state/vimtg/`), `Ctrl-W`/`Ctrl-U` delete a word / to the start, `Ctrl-B`/`Ctrl-E` and `Left`/`Right` move, `Backspace` on an empty line leaves the prompt. The card-search prompt has the same line editing.
@@ -378,6 +378,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `*` / `#` | Search forward / backward for the card under the cursor |
 | `zz` / `zt` / `zb` | Scroll the cursor line to center / top / bottom |
 | `m{a-z}` / `'{a-z}` | Set / jump to mark (all 26 letters) |
+| `Ctrl-O` / `Ctrl-I` (`Tab`) / `''` | Back / forward through the jumplist / back to before the latest jump |
 
 </details>
 

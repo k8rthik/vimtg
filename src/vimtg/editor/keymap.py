@@ -59,7 +59,8 @@ LINEWISE_KEYS: dict[str, str] = {"S": "cc", "C": "cc", "D": "dd", "Y": "yy"}
 # vim's Ctrl-A / Ctrl-X add to / subtract from the number: the quantity
 KEY_ALIASES: dict[str, str] = {"ctrl_a": "+", "ctrl_x": "-"}
 SPECIAL_KEYS = frozenset(
-    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#", "K"}
+    {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#", "K",
+     "ctrl_o", "tab"}
 )
 MULTI_KEY_STARTERS = frozenset(
     {"g", "[", "]", "m", "'", "t", "q", "@", "z", "Z", "ctrl_w", "space"}
@@ -315,8 +316,11 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # m{a-z} — set mark, '{a-z} — jump to mark
-            if self._multi_key_prefix in ("m", "'") and key.isalpha() and len(key) == 1:
+            # m{a-z} — set mark, '{a-z} — jump to mark, '' — back to
+            # where the latest jump left
+            if (self._multi_key_prefix in ("m", "'") and key.isalpha() and len(key) == 1) or (
+                full_key == "''"
+            ):
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action

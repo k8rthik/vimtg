@@ -61,6 +61,8 @@ Everything below is normal mode unless flagged otherwise.
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up |
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
+| `Ctrl-O` / `Ctrl-I` | Back / forward through the jumplist (`Ctrl-I` arrives as `Tab`; a count moves that many). Jumps, as in vim: `G`, `gg`, `{n}G`, `:{n}`, `/`, `?`, `n`, `N`, `*`, `#`, `{`, `}`, `[[`, `]]`, `'a`, `H`, `M`, `L`, `''`, and an insert or zone move that files the card more than a line away (`o` auto-filing it into another section, `zs`). The list holds 100 places; rows do not follow later edits |
+| `''` | Back to where the latest jump left; again to come back |
 | `n` / `N` | Repeat the last search in the same / opposite direction (`n` after `?` goes backward), wrapping around the deck (back to the cursor line when it is the only match) with "search hit BOTTOM, continuing at TOP" |
 | `*` / `#` | Search forward / backward for the card under the cursor (the whole name: `*` on Shock never stops on Shock Troops) |
 | `K` | Show the cursor card's details (type, cost, rules text, price) inline, or hide them when the `auto_expand` setting already shows them: vim's keyword lookup. It lasts until the cursor moves |

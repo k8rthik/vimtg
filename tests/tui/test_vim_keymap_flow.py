@@ -10,7 +10,15 @@ from pathlib import Path
 
 import pytest
 
-from tests.tui.test_vim_fidelity_flow import FIXTURES, _cards, _deck, _feed, _message, _screen
+from tests.tui.test_vim_fidelity_flow import (
+    DECK,
+    FIXTURES,
+    _cards,
+    _deck,
+    _feed,
+    _message,
+    _screen,
+)
 from vimtg.data.card_repository import CardRepository
 from vimtg.domain.card import Card
 from vimtg.tui.app import VimTGApp
@@ -512,3 +520,83 @@ class TestReselectAndRepeatEx:
             assert "4 Searing Blaze" not in _cards(scr)
             _feed(scr, "9G 2@:")
             assert _cards(scr) == ["2 Eidolon of the Great Revel", "20 Mountain"]
+
+
+def _row(scr: MainScreen) -> int:
+    return scr._state.cursor.row + 1  # 1-based, as G counts
+
+
+class TestJumplist:
+    @pytest.mark.asyncio
+    async def test_ctrl_o_and_ctrl_i_walk_the_jumps(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G G 11G j")  # j is not a jump
+            assert _row(scr) == 12
+            _feed(scr, "<C-o>")
+            assert _row(scr) == 16
+            _feed(scr, "<C-o>")
+            assert _row(scr) == 6
+            _feed(scr, "<Tab>")  # terminals send Tab for Ctrl-I
+            assert _row(scr) == 16
+            _feed(scr, "<Tab>")
+            assert _row(scr) == 12
+            _feed(scr, "2<C-o>")
+            assert _row(scr) == 6
+
+    @pytest.mark.asyncio
+    async def test_quote_quote_goes_back_and_forth(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G j G")
+            _feed(scr, "''")
+            assert _row(scr) == 7
+            _feed(scr, "''")
+            assert _row(scr) == 16
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("jump", [
+        "gg", ":16<CR>", "/Bolt<CR>", "?Bolt<CR>", "*", "#", "}", "{", "]]", "[[",
+        "16G ma 7G 'a", "L", "H", "M",
+    ])
+    async def test_vim_jumps_are_recorded(self, tmp_path: Path, jump: str) -> None:
+        # A second Swiftspear gives * and # somewhere to go
+        app = VimTGApp(deck_path=_deck(tmp_path, DECK + "\nSB: 2 Monastery Swiftspear\n"))
+        async with app.run_test(size=(100, 40)) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "7G")
+            _feed(scr, jump)
+            assert _row(scr) != 7, jump
+            _feed(scr, "<C-o>")
+            assert _row(scr) in (7, 16), jump  # 'a: G was the jump before it
+
+    @pytest.mark.asyncio
+    async def test_motions_and_edits_nearby_are_not_jumps(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G j j w b + -")
+            assert scr._state.jumps.rows == (0,)  # only 6G left line 1
+
+    @pytest.mark.asyncio
+    async def test_a_card_filed_far_away_is_a_jump(
+        self, tmp_path: Path, card_repo: CardRepository
+    ) -> None:
+        from tests.tui.test_vim_fidelity_flow import _pick
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            scr.attach_card_repo(card_repo, scr.search_service)  # type: ignore[arg-type]
+            _feed(scr, "16G o")
+            _pick(scr, card_repo, "Goblin Guide")  # joins the line under // Creature
+            assert _row(scr) == 6
+            _feed(scr, "<C-o>")
+            assert _row(scr) == 16

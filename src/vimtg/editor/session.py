@@ -58,6 +58,7 @@ from vimtg.editor.commands import (
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.dot_repeat import DotRepeat, RepeatableAction
+from vimtg.editor.jumplist import JumpList
 from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.layout import (
     LAYOUT_CATEGORY,
@@ -138,6 +139,7 @@ class EditorState:
     macros: MacroRecorder = field(default_factory=MacroRecorder)
     dot_repeat: DotRepeat = field(default_factory=DotRepeat)
     marks: MarkStore = field(default_factory=MarkStore)
+    jumps: JumpList = field(default_factory=JumpList)  # Ctrl-O / Ctrl-I
     visual_anchor: int | None = None
     # Copies the next confirmed card insert writes ('4o' -> 4); every
     # entry into card search sets it, so it can never go stale
@@ -279,7 +281,32 @@ class HandlerResult:
     search_open: str | None = None  # :search — open the card search overlay
 
 
+# Motions vim counts as jumps: Ctrl-O comes back from them
+JUMP_MOTIONS = frozenset({"G", "gg", "{", "}", "[[", "]]", "H", "M", "L"})
+
+
+def note_jump(state: EditorState, origin: int, *, far_only: bool = False) -> None:
+    """The cursor jumped from row `origin`: Ctrl-O and '' come back to
+    it. `far_only` (an insert or zone move filing a card elsewhere)
+    counts only a move past the neighbouring lines."""
+    row = state.cursor.row
+    if row == origin or (far_only and abs(row - origin) <= 1):
+        return
+    state.jumps = state.jumps.jump(origin)
+    state.marks = state.marks.set("'", origin)
+
+
 def handle_motion(state: EditorState, action: ParsedAction) -> HandlerResult:
+    """Process motion actions (j, k, G, gg, etc.); the jump motions are
+    recorded in the jumplist."""
+    origin = state.cursor.row
+    result = _motion(state, action)
+    if action.action in JUMP_MOTIONS:
+        note_jump(state, origin)
+    return result
+
+
+def _motion(state: EditorState, action: ParsedAction) -> HandlerResult:
     """Process motion actions (j, k, G, gg, etc.).
 
     A counted ``G`` (e.g. ``5G``) jumps to that line number; bare ``G`` falls
@@ -504,8 +531,10 @@ def _submit_search(state: EditorState, text: str) -> HandlerResult:
     state.last_find_backward = backward
     if row is None:
         return HandlerResult(command_message=f"Pattern not found: {shown}")
-    wrap = wrapped(state.cursor.row, row, backward=backward)
+    origin = state.cursor.row
+    wrap = wrapped(origin, row, backward=backward)
     state.cursor = state.cursor.move_to(row, 0)
+    note_jump(state, origin)
     return HandlerResult(
         command_message=search_message(prefix + shown, wrap=wrap, backward=backward),
     )
@@ -559,7 +588,10 @@ def handle_command(
         )
         before = state.buffer
         before_text = before.to_text()
+        origin = state.cursor.row
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
+        if not cmd.name and cmd.cmd_range is not None:
+            note_jump(state, origin)  # :{n}
         if cmd.name in ("find", "f") and cmd.args and not ctx.error:
             state.last_find = cmd.args
             state.last_find_label = ""
@@ -721,12 +753,18 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
         return HandlerResult(
             command_message=f"Mark '{mark_name}' set",
         )
+    elif key in ("ctrl_o", "tab"):
+        return _walk_jumps(state, back=key == "ctrl_o", count=count)
     elif key.startswith("'") and len(key) == 2:
         mark_name = key[1]
         mark = state.marks.get(mark_name)
         if mark is not None:
+            origin = state.cursor.row
             row = min(mark.row, state.buffer.line_count() - 1)
             state.cursor = state.cursor.move_to(row, 0)
+            note_jump(state, origin)
+        elif key == "''":
+            return HandlerResult(command_message="E20: Mark not set", error=True)
         else:
             return HandlerResult(
                 command_message=f"Mark '{mark_name}' not set",
@@ -752,6 +790,17 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
         return _handle_comment_action(state)
     elif key == "K":
         return _toggle_details(state)
+    return HandlerResult()
+
+
+def _walk_jumps(state: EditorState, *, back: bool, count: int) -> HandlerResult:
+    """Ctrl-O / Ctrl-I (Tab): `count` places back / forward in the jumplist."""
+    if back:
+        state.jumps, row = state.jumps.back(state.cursor.row, count)
+    else:
+        state.jumps, row = state.jumps.forward(count)
+    if row is not None:
+        state.cursor = state.cursor.move_to(min(row, max(0, state.buffer.line_count() - 1)), 0)
     return HandlerResult()
 
 
@@ -911,7 +960,9 @@ def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerRe
             )
         wrap = wrap or wrapped(row, found, backward=backward)
         row = found
+    origin = state.cursor.row
     state.cursor = state.cursor.move_to(row, 0)
+    note_jump(state, origin)
     echo = ("?" if backward else "/") + shown
     return HandlerResult(
         command_message=search_message(echo, wrap=wrap, backward=backward),
@@ -1336,6 +1387,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
     if selection is not None:
         last = max(0, state.buffer.line_count() - 1)
         state.cursor = origin.move_to(min(selection[0], last), 0)
+    else:
+        note_jump(state, origin.row, far_only=True)  # the cursor went with the card
     if moved == 0:
         if selection is not None and not rows:
             first_message = "No card lines selected"
@@ -1600,10 +1653,12 @@ def confirm_card_search(state: EditorState, card: Card) -> str:
     changes the next line to it too."""
     copies = state.insert_quantity
     state.insert_quantity = 1
+    origin = state.pending_insert.origin if state.pending_insert else state.cursor.row
     pending = state.pending_change
     fold_into = state.change_node if pending is not None else None
     state.change_node = None
     message = insert_card(state, card.name, card, copies, fold_into=fold_into)
+    note_jump(state, origin, far_only=True)  # auto-filed into another section
     state.pending_change = None
     if pending is not None:
         state.dot_repeat.record(
