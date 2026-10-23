@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from vimtg.config.settings import Settings
+from vimtg.domain.card import Card
 
 _CURRENCY_SYMBOLS: dict[str, str] = {
     "usd": "$",
@@ -22,6 +23,15 @@ _CURRENCY_SYMBOLS: dict[str, str] = {
 def currency_symbol_for(price_source: str) -> str:
     """Return the currency symbol for a given price source."""
     return _CURRENCY_SYMBOLS.get(price_source, "$")
+
+
+def price_text(card: Card, price_source: str, symbol: str | None = None) -> str:
+    """The card's `price_source` price as shown in card lists ('€1.20'),
+    or '' when it has none. `symbol` defaults to the source's own."""
+    price = card.prices.get(price_source)
+    if price is None:
+        return ""
+    return f"{currency_symbol_for(price_source) if symbol is None else symbol}{price:.2f}"
 
 
 def _replace_field(settings: Settings, key: str, value: object) -> Settings:

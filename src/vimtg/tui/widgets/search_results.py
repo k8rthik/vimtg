@@ -7,6 +7,7 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from vimtg.domain.card import Card
+from vimtg.editor.config_options import price_text
 from vimtg.tui.deck_renderer import fit_name, format_mana
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.scrolling import (
@@ -91,10 +92,9 @@ class SearchResults(Static):
             line.append(f"  {type_short:<18}", style="dim")
 
             # Price
-            if self.show_prices:
-                price = card.prices.get(self.price_source)
-                if price is not None:
-                    line.append(f"  {self.currency_symbol}{price:.2f}", style="dim")
+            price = price_text(card, self.price_source, self.currency_symbol)
+            if self.show_prices and price:
+                line.append(f"  {price}", style="dim")
 
             if is_sel:
                 line.stylize(_SELECTED_STYLE)
