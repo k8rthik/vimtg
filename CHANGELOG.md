@@ -102,6 +102,9 @@ from 1.0.0 onward.
   in vim.
 - The greeter's `s` runs the same card sync as `:sync` and the automatic
   one, so it can no longer start a second download while one is running.
+- The new-deck prompt accepts `Ctrl-U` and `Ctrl-W` like the other
+  prompts, so a name prefilled from the file name can be cleared before
+  typing.
 
 ## [1.0.0rc1] - 2026-10-10
 

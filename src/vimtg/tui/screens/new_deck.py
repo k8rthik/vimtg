@@ -10,6 +10,7 @@ skips it; both lines stay editable in the buffer as before.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from rich.text import Text
@@ -20,6 +21,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from vimtg.domain.formats import known_formats, normalize_format
+from vimtg.editor.line_buffer import LineBuffer
 from vimtg.tui.key_translator import translate
 from vimtg.tui.theme import COLORS
 
@@ -30,6 +32,11 @@ COMMON_FORMATS: tuple[str, ...] = (
 )
 
 _DIM = f"dim {COLORS['comment']}"
+_EDITS: dict[str, Callable[[LineBuffer], LineBuffer]] = {
+    "backspace": LineBuffer.delete_backward,
+    "ctrl_w": LineBuffer.delete_word_backward,
+    "ctrl_u": LineBuffer.delete_to_start,
+}
 
 
 @dataclass(frozen=True)
@@ -154,13 +161,20 @@ class NewDeckScreen(ModalScreen[NewDeckInfo | None]):
             self.field = "name"
         elif key == "down":
             self.field = "format"
-        elif key == "backspace":
-            if self.field == "name":
-                self.name_text = self.name_text[:-1]
-            else:
-                self.fmt_text = self.fmt_text[:-1]
+        elif key in _EDITS:
+            self._edit(_EDITS[key])
         elif len(key) == 1 and key.isprintable():
             self._type(key)
+
+    def _edit(self, edit: Callable[[LineBuffer], LineBuffer]) -> None:
+        """Backspace / Ctrl-W / Ctrl-U at the end of the active field,
+        with the same semantics as every other prompt."""
+        text = self.name_text if self.field == "name" else self.fmt_text
+        edited = edit(LineBuffer(text=text, cursor=len(text))).text
+        if self.field == "name":
+            self.name_text = edited
+        else:
+            self.fmt_text = edited
 
     def _type(self, chars: str) -> None:
         self.error = ""
