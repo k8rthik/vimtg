@@ -14,7 +14,6 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.events import Key
-from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg.domain.sample_hand import (
@@ -32,6 +31,7 @@ from vimtg.domain.sample_hand import (
 from vimtg.editor.command_handlers.hand_cmds import HandOpen
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import CLOSE_KEYS, NAV_DOWN, NAV_UP, render_hints
+from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 
 DRAW_KEYS = frozenset({"n", " "})
@@ -110,26 +110,26 @@ def render_hand(
     return text
 
 
-class HandScreen(Screen[None]):
+class HandScreen(FloatingScreen[None]):
     """Sample-hand overlay; the game state is replaced on every action."""
 
+    WINDOW_ID = "hand-window"
     CSS = f"""
     #hand-scroll {{
         height: 1fr;
         scrollbar-size: 1 1;
     }}
     #hand-body {{
-        padding: 0 2;
+        padding: 0 1;
     }}
     #hand-footer {{
         height: 1;
-        dock: bottom;
         background: {COLORS['bg']};
     }}
     """
 
     def __init__(self, request: HandOpen) -> None:
-        super().__init__()
+        super().__init__("Sample hand")
         self.request = request
         self._rng = random.Random(request.seed)
         self.state = self._new_game()
@@ -140,7 +140,7 @@ class HandScreen(Screen[None]):
         source = self.request.source
         return deal(source.library, self._rng, free_mulligan=source.free_mulligan)
 
-    def compose(self) -> ComposeResult:
+    def compose_window(self) -> ComposeResult:
         yield VerticalScroll(Static(id="hand-body"), id="hand-scroll")
         yield Static(id="hand-footer")
 

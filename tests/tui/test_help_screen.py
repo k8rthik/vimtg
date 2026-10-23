@@ -41,7 +41,7 @@ async def test_help_screen_shows_overview(sample_deck_path: Path) -> None:
         body = app.screen.query_one("#help-body")
         text = body.render()
         assert "NAVIGATION" in text.plain
-        assert "vimtg Help" in text.plain
+        assert "vimtg Help" in str(app.screen.window.border_title)
 
 
 @pytest.mark.asyncio

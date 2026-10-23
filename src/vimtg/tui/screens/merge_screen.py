@@ -14,13 +14,13 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.reactive import reactive
-from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg.domain.deck_merge import CardKey
 from vimtg.services.vcs_service import PendingMerge
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
+from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.conflicts_panel import ConflictsPanel
 
@@ -95,13 +95,13 @@ class MergeHeader(Static):
         return t
 
 
-class MergeScreen(Screen[None]):
+class MergeScreen(FloatingScreen[None]):
     """Interactive conflict resolution: pick ours/theirs/custom per card."""
 
+    WINDOW_ID = "merge-window"
     CSS = f"""
     #merge-header {{
         height: 1;
-        dock: top;
         background: {COLORS['bg']};
     }}
     #conflicts-panel {{
@@ -109,7 +109,6 @@ class MergeScreen(Screen[None]):
     }}
     #merge-command {{
         height: 1;
-        dock: bottom;
         background: {COLORS['bg']};
     }}
     """
@@ -121,7 +120,7 @@ class MergeScreen(Screen[None]):
         on_complete: Callable[[dict[CardKey, int | None]], None],
         on_abort: Callable[[], None] | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(f"Merge — {deck_name}", "q / Esc abort  Enter confirm")
         self._pending = pending
         self._deck_name = deck_name
         self._on_complete = on_complete
@@ -131,7 +130,7 @@ class MergeScreen(Screen[None]):
         self._input_mode = MergeInputMode.NORMAL
         self._input_text = ""
 
-    def compose(self) -> ComposeResult:
+    def compose_window(self) -> ComposeResult:
         yield MergeHeader(id="merge-header")
         yield ConflictsPanel(id="conflicts-panel")
         yield MergeCommandLine(id="merge-command")

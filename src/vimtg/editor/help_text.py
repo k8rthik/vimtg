@@ -332,7 +332,7 @@ COMMAND_HELP: dict[str, str] = {
         "\n"
         "The emptied // Tags: line stays, so i can refill it."
     ),
-    "help": ":help [command]  Open full-screen help (also F1; q closes)",
+    "help": ":help [command]  Open the help window (also F1; q closes)",
     "messages": (
         ":messages  Show recent messages and errors (alias :mes)\n"
         "\n"

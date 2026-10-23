@@ -45,7 +45,7 @@ Everything below is normal mode unless flagged otherwise.
 | `:` | Ex command line |
 | `/` / `?` | Search forward / backward for a card (a regex, case-insensitive, like `:g` and `:s`). An empty pattern repeats the last one |
 | `Esc` | Back to normal mode; cancels a pending key sequence (in normal mode it also hides the getting-started tips) |
-| `F1` | Full-screen help (also `:help`) |
+| `F1` | Help window (also `:help`) |
 | `g?` | Toggle the quick-reference panel (`q`, `Esc`, or `?` closes it) |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 

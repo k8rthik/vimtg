@@ -38,6 +38,11 @@ from 1.0.0 onward.
   (E37) unless given `!`.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
+- Help, `:messages`, `:config`, `:hand` and the merge resolver open as
+  the same floating window as the history overlay (a bordered box over
+  the dimmed editor, titled, with its close keys on the bottom border)
+  instead of taking over the screen. `?` inside the history overlay
+  opens its help above it.
 
 ### Added
 
