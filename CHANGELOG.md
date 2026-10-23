@@ -93,6 +93,9 @@ from 1.0.0 onward.
   as in vim.
 - An edit that section cleanup undoes again (`:t$` on the trailing blank
   line) no longer leaves an empty undo step or marks the deck modified.
+- Rapid `+`/`-` fold into one undo step only on the same card: `+ j +`
+  then `u` reverts just the second card. `u` and `Ctrl-R` move the
+  cursor to the line they changed, as in vim.
 
 ## [1.0.0rc1] - 2026-10-10
 

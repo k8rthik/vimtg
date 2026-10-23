@@ -83,6 +83,37 @@ class TestUppercaseMacroRegister:
             assert _cards(scr)[1] == "5 Monastery Swiftspear"
 
 
+class TestQuantityUndo:
+    @pytest.mark.asyncio
+    async def test_bursts_on_different_cards_are_separate_changes(
+        self, tmp_path: Path
+    ) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G ++ j +")
+            assert _cards(scr)[:2] == ["6 Goblin Guide", "5 Monastery Swiftspear"]
+            _feed(scr, "u")
+            assert _cards(scr)[:2] == ["6 Goblin Guide", "4 Monastery Swiftspear"]
+            _feed(scr, "u")
+            assert _cards(scr)[:2] == ["4 Goblin Guide", "4 Monastery Swiftspear"]
+
+    @pytest.mark.asyncio
+    async def test_undo_and_redo_move_to_the_changed_line(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "13G + G u")
+            assert scr._state.cursor.row == 12
+            _feed(scr, "gg")
+            scr._process_key("ctrl_r")
+            assert scr._state.cursor.row == 12
+            _feed(scr, "6G dd G u")
+            assert scr._state.cursor.row == 5
+
+
 class TestMappingsMatchAtCommandStart:
     """Vim matches a mapping only where a command starts, never as the
     second key of a sequence."""

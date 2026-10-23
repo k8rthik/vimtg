@@ -208,3 +208,18 @@ def test_current_id_follows_records_and_undo() -> None:
     assert history.current_id not in (None, root)
     history.undo()
     assert history.current_id == root
+
+
+def test_quantity_burst_on_other_rows_is_separate() -> None:
+    """+ j + : the second card's change is its own undo step."""
+    svc = HistoryService()
+    svc.initialize(_buf("v0\n"))
+    with patch("vimtg.services.history_service.time") as mock_time:
+        mock_time.monotonic.return_value = 100.0
+        svc.record(_buf("v1\n"), "increment", rows=(3, 3))
+        mock_time.monotonic.return_value = 100.2
+        svc.record(_buf("v1b\n"), "increment", rows=(3, 3))
+        mock_time.monotonic.return_value = 100.4
+        svc.record(_buf("v2\n"), "increment", rows=(4, 4))
+    assert _undo_text(svc) == "v1b\n"
+    assert _undo_text(svc) == "v0\n"
