@@ -83,6 +83,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- A new deck that holds only what the new-deck wizard filled in (its
+  name, format and empty zone blocks) is not modified: `:q` on a deck made
+  from the greeter and never edited quits instead of saying "Unsaved
+  changes", as vim's `:q` on an untouched `:enew` buffer does.
 - `i` on a bare zone header says `E21: Cannot edit the DCK: zone header`
   instead of opening a raw edit, and `.` after an `i` edit keeps the
   block indentation of the line it repeats on, so the card stays in its

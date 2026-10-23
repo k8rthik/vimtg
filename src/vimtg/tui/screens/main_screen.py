@@ -354,7 +354,9 @@ class MainScreen(Screen[None]):
 
     def apply_new_deck_info(self, info: NewDeckInfo | None) -> None:
         """Write the wizard's answers into the metadata lines as one
-        undoable change (nothing changes when it was skipped)."""
+        undoable change (nothing changes when it was skipped). The
+        answers fill in the scaffold of a deck with no cards yet, so
+        they leave it unmodified: :q on an untouched new deck quits."""
         if info is None:
             return
         s = self._state
@@ -364,7 +366,8 @@ class MainScreen(Screen[None]):
             return
         s.buffer = Buffer.from_text(new)
         s.cursor = s.cursor.clamp(s.buffer.line_count() - 1)
-        s.modified = True
+        if not s.modified:
+            s.clean_text = new
         s.history.record(s.buffer, "new deck")
         message = f"New deck: {info.name or '(unnamed)'}"
         if info.fmt:
