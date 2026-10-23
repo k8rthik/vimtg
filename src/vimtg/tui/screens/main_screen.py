@@ -944,7 +944,11 @@ class MainScreen(Screen[None]):
         self.keymap.set_mode(Mode.INSERT)
         self.keymap.reset_text()
         self._latest_search = None
-        self._update_search_results([])  # never confirm a stale result
+        # Never confirm a stale result, and show no "No matches" box
+        # before a query has run
+        sr = self.query_one("#search-results", SearchResults)
+        sr.results = []
+        sr.display = False
         cl = self.query_one("#command-line", CommandLine)
         cl.show("")
         cl.message = (
