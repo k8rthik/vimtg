@@ -1,7 +1,9 @@
-"""HelpScreen — full-screen help overlay.
+"""HelpScreen — the floating help window.
 
-Opened by `:help` (overview) or `:help <command>` (single topic) and F1.
-Navigable with j/k, Ctrl-D/U, gg/G, Home/End; dismissed with q, Esc, or ?.
+Opened by `:help` (overview) or `:help <command>` (single topic), F1,
+and `?` on every auxiliary screen; `:messages` shows its text in the
+same window. Navigable with j/k, Ctrl-D/U, gg/G, Home/End; dismissed
+with q, Esc, or ?.
 """
 
 from __future__ import annotations
@@ -10,7 +12,6 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.events import Key
-from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg.editor.help_text import get_help
@@ -23,27 +24,28 @@ from vimtg.tui.keys import (
     VimNav,
     render_hints,
 )
+from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 
 HINTS = (*NAV_HINTS, ("q/Esc/?", "close"))
 
-_HEADER = "═══ vimtg Help ═══════════════════════════════════════"
+HELP_TITLE = "vimtg Help"
 
 
-class HelpScreen(Screen[None]):
-    """Full-screen help overlay, navigable with j/k, dismissible with q."""
+class HelpScreen(FloatingScreen[None]):
+    """Floating help window, navigable with j/k, dismissible with q."""
 
+    WINDOW_ID = "help-window"
     CSS = f"""
     #help-scroll {{
         height: 1fr;
         scrollbar-size: 1 1;
     }}
     #help-body {{
-        padding: 0 2;
+        padding: 0 1;
     }}
     #help-footer {{
         height: 1;
-        dock: bottom;
         background: {COLORS['bg']};
     }}
     """
@@ -53,29 +55,27 @@ class HelpScreen(Screen[None]):
         topic: str | None = None,
         *,
         body: str | None = None,
-        title: str = "vimtg Help",
+        title: str = HELP_TITLE,
     ) -> None:
         """`body` replaces the help text (e.g. :messages), under `title`."""
-        super().__init__()
+        super().__init__(title if body is not None or topic is None else f"{title}: {topic}")
         self._topic = topic
         self._body = body
-        self._title = title
         self._nav = VimNav()
 
-    def compose(self) -> ComposeResult:
+    def compose_window(self) -> ComposeResult:
         yield VerticalScroll(Static(id="help-body"), id="help-scroll")
         yield Static(id="help-footer")
 
     def on_mount(self) -> None:
-        body = self.query_one("#help-body", Static)
+        self._show_body()
+        self.query_one("#help-footer", Static).update(render_hints(HINTS))
+
+    def _show_body(self) -> None:
         text = Text()
-        header = f"═══ {self._title} ".ljust(len(_HEADER), "═")
-        text.append(f"\n{header}\n\n", style=f"bold {COLORS['mode_command']}")
         text.append(self._body if self._body is not None else get_help(self._topic))
         text.append("\n")
-        body.update(text)
-
-        self.query_one("#help-footer", Static).update(render_hints(HINTS))
+        self.query_one("#help-body", Static).update(text)
 
     def on_key(self, event: Key) -> None:
         event.prevent_default()

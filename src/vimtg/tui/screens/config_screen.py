@@ -1,4 +1,4 @@
-"""Config screen — modal settings editor with vim-like navigation.
+"""Config screen — floating settings editor with vim-like navigation.
 
 Pushed via :config command. Displays grouped settings with the shared
 navigation keys (j/k, gg/G, Ctrl-D/U, wheel), h/l/Space/Enter cycling,
@@ -14,7 +14,6 @@ from textual import events
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.reactive import reactive
-from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg.config.settings import Settings
@@ -28,6 +27,7 @@ from vimtg.editor.config_options import (
 )
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
+from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 
 HINTS = (
@@ -47,12 +47,6 @@ class ConfigView(Static):
     def render(self) -> Text:
         t = Text()
 
-        # Title
-        t.append("\n")
-        title = Text("  vimtg settings\n")
-        title.stylize(f"bold {COLORS['mana_blue']}")
-        t.append_text(title)
-        t.append(f"  {'─' * 40}\n", style=f"dim {COLORS['comment']}")
         t.append("\n")
 
         # Render grouped options
@@ -114,13 +108,13 @@ class ConfigView(Static):
         self.selected_index = max(self.selected_index - 1, 0)
 
 
-class ConfigScreen(Screen[None]):
-    """Modal config screen, pushed via :config command."""
+class ConfigScreen(FloatingScreen[None]):
+    """Floating config window, pushed via :config command."""
 
+    WINDOW_ID = "config-window"
     CSS = f"""
     ConfigView {{
         height: 1fr;
-        content-align: center middle;
         background: {COLORS['bg']};
     }}
     """
@@ -130,14 +124,14 @@ class ConfigScreen(Screen[None]):
         settings: Settings,
         on_save: Callable[[Settings], None],
     ) -> None:
-        super().__init__()
+        super().__init__("Settings")
         self._original = settings
         self._settings = settings
         self._on_save = on_save
         self._discard_armed = False  # first q with unsaved changes warns
         self._nav = VimNav()
 
-    def compose(self) -> ComposeResult:
+    def compose_window(self) -> ComposeResult:
         yield ConfigView(id="config-view")
 
     def on_mount(self) -> None:

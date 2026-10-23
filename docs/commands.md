@@ -270,7 +270,7 @@ missing or older than a week (`:set noautosync` turns this off; the
 
 | Command | Description |
 |---------|-------------|
-| `:help` | Open full-screen help overview (also `F1`; `g?` toggles the quick-reference panel) |
+| `:help` | Open the help window on the overview (also `F1`; `g?` toggles the quick-reference panel) |
 | `:help cmd` | Open help for a specific command |
 | `:messages` | Show the last 100 command-line messages and errors (alias `:mes`; `:messages clear` empties it). Messages vanish at the next key; errors stay up while you move the cursor |
 | `:tips` | Show the getting-started tips panel (`Esc` hides it) |
