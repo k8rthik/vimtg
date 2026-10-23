@@ -356,7 +356,10 @@ COMMAND_HELP: dict[str, str] = {
         "\n"
         ":tips      show the tips now (Esc hides them)\n"
         ":tips off  stop showing them under empty decks (remembered)\n"
-        ":tips on   show them again under empty decks"
+        ":tips on   show them again under empty decks\n"
+        "\n"
+        "Under an empty deck they stay up through its first cards until\n"
+        "the first :w."
     ),
     "history": (
         ":history  Open the lazygit-style history overlay (also gh)\n"

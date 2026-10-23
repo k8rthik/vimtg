@@ -346,7 +346,7 @@ Where things live (XDG-aware): card database plus snapshots, branches, and HEAD 
 
 ### Help
 
-Empty decks show a short "Getting started" tips panel under the deck (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Listing commands (`:registers`, `:marks`, `:tags`, `:categories`, `:plans`, `:validate`, `:branch`, `:g/pat/p`, `tl`) print on the command line when the output fits on one line, and otherwise open it in a floating pager, one entry per line (vim's more-prompt). Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100, together with pop-up notices (card sync results, database recovery, config warnings).
+Empty decks show a short "Getting started" tips panel under the deck, kept through the first cards until the first `:w` (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Listing commands (`:registers`, `:marks`, `:tags`, `:categories`, `:plans`, `:validate`, `:branch`, `:g/pat/p`, `tl`) print on the command line when the output fits on one line, and otherwise open it in a floating pager, one entry per line (vim's more-prompt). Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100, together with pop-up notices (card sync results, database recovery, config warnings).
 
 Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and a split pane steps aside while the terminal is too narrow for it.
 

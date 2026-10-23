@@ -335,6 +335,28 @@ async def test_tips_show_for_empty_deck_and_esc_hides(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_tips_stay_after_the_first_card_until_the_first_write(tmp_path: Path) -> None:
+    """+/- and :w matter most right after the first card goes in, so
+    the tips stay up until the deck is first written."""
+    deck = tmp_path / "empty.deck"
+    deck.write_text("// Deck: E\n// Format: modern\n\nDCK:\n", encoding="utf-8")
+    app = VimTGApp(deck_path=deck)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        screen = _main(app)
+        from textual.events import Paste
+
+        screen.post_message(Paste("4 Lightning Bolt\n"))
+        await pilot.pause()
+        assert "Lightning Bolt" in screen._state.buffer.to_text()
+        assert _tips(screen).display is True
+        screen._execute_ex("w")
+        screen._sync_widgets()
+        await pilot.pause()
+        assert _tips(screen).display is False
+
+
+@pytest.mark.asyncio
 async def test_tips_hidden_once_deck_has_cards(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
     deck.write_text("4 Lightning Bolt\n", encoding="utf-8")

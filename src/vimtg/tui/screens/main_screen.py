@@ -286,6 +286,9 @@ class MainScreen(Screen[None]):
         # even for a deck with cards (:tips)
         self._tips_dismissed = app_state.tips_dismissed()
         self._tips_forced = False
+        # The deck was empty this session and has not been written since:
+        # the tips stay up through its first cards, when +/- and :w matter
+        self._tips_until_write = False
 
     def compose(self) -> ComposeResult:
         yield Container(
@@ -993,6 +996,7 @@ class MainScreen(Screen[None]):
         if hr.file_saved:
             # The deck is safely on disk: its crash copy is obsolete
             self._drop_recovery()
+            self._tips_until_write = False
             # Only an actual save auto-snapshots — every ex command carries
             # file_path, and committing on each one would defeat the
             # uncommitted-changes guard on merge/rebase/switch.
@@ -2238,9 +2242,14 @@ class MainScreen(Screen[None]):
         self._update_tips(sl.card_count)
 
     def _update_tips(self, card_count: int) -> None:
-        """Show the first-run tips under an empty deck (normal mode,
-        room to spare) unless turned off or closed with Esc."""
-        wanted = self._tips_forced or (card_count == 0 and not self._tips_dismissed)
+        """Show the first-run tips under an empty deck, and on through its
+        first cards until the first :w (normal mode, room to spare),
+        unless turned off or closed with Esc."""
+        if card_count == 0:
+            self._tips_until_write = True
+        wanted = self._tips_forced or (
+            self._tips_until_write and not self._tips_dismissed
+        )
         self.query_one("#tips-panel", TipsPanel).display = (
             wanted
             and not self._tips_closed
