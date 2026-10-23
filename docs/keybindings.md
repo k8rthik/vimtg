@@ -16,7 +16,8 @@ which screen is open:
 3. **One help vocabulary.** `F1` opens the full help on every screen.
    Outside the editor `?` opens help for the current screen; in the
    editor `?` is vim's backward search, so help there is `F1` or `:help`
-   and the quick-reference panel is `g?`.
+   and the cheat sheet is `g?`. In the help window `F1` switches a topic
+   to the overview.
 4. **Separated editor prefixes.** Each prefix has one job: `g` go, `t`
    tags, `Ctrl-W` windows, `Space` the leader (panes), `z` zones, `m`
    marks, `'` jump to mark, `q`/`@` macros, `"` registers, `[`/`]` jumps.
@@ -46,7 +47,7 @@ Everything below is normal mode unless flagged otherwise.
 | `/` / `?` | Search forward / backward for a card (a regex, case-insensitive, like `:g` and `:s`). An empty pattern repeats the last one |
 | `Esc` | Back to normal mode; cancels a pending key sequence (in normal mode it also hides the getting-started tips) |
 | `F1` | Help window (also `:help`) |
-| `g?` | Toggle the quick-reference panel (`q`, `Esc`, or `?` closes it) |
+| `g?` | Toggle the cheat sheet, the which-key rows (`q`, `Esc`, or `?` closes it; `F1` trades it for the full help) |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 
 ### Navigation
@@ -156,7 +157,7 @@ the selection; other keys act on the cursor line.
 | `gC` | Clear the category; in a category-grouped deck the card moves to `// Uncategorized` |
 | `gl` | Toggle layout: group by card type / by category |
 
-`gg` (top), `gv` (reselect), `gh` (history overlay), and `g?` (quick reference) share the prefix.
+`gg` (top), `gv` (reselect), `gh` (history overlay), and `g?` (cheat sheet) share the prefix.
 
 ### Tags (`t` prefix)
 

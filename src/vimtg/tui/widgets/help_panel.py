@@ -1,9 +1,9 @@
-"""Help panel — toggleable inline overlay showing the keybinding reference.
+"""Help panel — the g? cheat sheet docked under the deck.
 
-A scrolling container: the panel is docked at the bottom with a capped
-height, and the overview runs to well over a hundred lines, so j/k,
-Ctrl-D/U, gg/G, and Home/End page through it exactly as in the full help
-screen.
+A short reference built from the key spec's quick hints (the rows the
+which-key popup shows with nothing pending), one line per group; F1
+opens the full help. It scrolls with j/k, Ctrl-D/U, gg/G and Home/End
+when the terminal is too short for it.
 """
 
 from __future__ import annotations
@@ -13,30 +13,29 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
-from vimtg.editor.help_text import HELP_OVERVIEW, is_section_header
+from vimtg.editor.keyspec import quick_hints
 from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.theme import COLORS
 
 
-def render_help_overview() -> Text:
-    """The panel's full content: title, hint line, and HELP_OVERVIEW."""
+def render_cheat_sheet() -> Text:
+    """The panel's content: a title line, then each quick-hint group."""
     t = Text()
-    t.append(" Help ", style=f"bold {COLORS['mana_blue']}")
-    t.append(
-        "  ? or Esc close · j/k scroll · Ctrl-D/U half page · gg/G top/bottom\n",
-        style="dim",
-    )
-    t.append(f" {'─' * 50}\n", style=f"dim {COLORS['comment']}")
-    for line in HELP_OVERVIEW.split("\n"):
-        if is_section_header(line):
-            t.append(f" {line}\n", style=f"bold {COLORS['fg']}")
-        else:
-            t.append(f" {line}\n", style="dim")
+    t.append(" Cheat sheet ", style=f"bold {COLORS['mana_blue']}")
+    t.append("  F1 full help · ? or Esc close\n", style="dim")
+    for section, rows in quick_hints().items():
+        t.append(f" {section}: ", style=f"bold {COLORS['fg']}")
+        for i, (key, desc) in enumerate(rows):
+            t.append(key, style=f"bold {COLORS['quantity']}")
+            t.append(f" {desc}", style="dim")
+            if i < len(rows) - 1:
+                t.append("  ")
+        t.append("\n")
     return t
 
 
 class HelpPanel(VerticalScroll):
-    """Full help overlay rendered from HELP_OVERVIEW, scrollable."""
+    """The g? cheat sheet, scrollable."""
 
     can_focus = False
 
@@ -45,7 +44,7 @@ class HelpPanel(VerticalScroll):
         self._nav = VimNav()
 
     def compose(self) -> ComposeResult:
-        yield Static(render_help_overview(), id="help-panel-body")
+        yield Static(render_cheat_sheet(), id="help-panel-body")
 
     def scroll_by_key(self, key: str) -> bool:
         """Apply a vim scroll key; False when `key` is not a scroll key."""

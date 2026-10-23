@@ -543,13 +543,16 @@ class MainScreen(Screen[None]):
         event.prevent_default()
         event.stop()
 
-        # ── Help panel modal: ? / Escape close, scroll keys scroll,
-        # everything else is swallowed so it never reaches the editor ──
+        # ── Help panel modal: ? / Escape close, F1 trades it for the full
+        # help, scroll keys scroll, everything else is swallowed so it
+        # never reaches the editor ──
         hp = self.query_one("#help-panel", HelpPanel)
         if hp.display:
             key = translate(event.key)
-            if key in ("?", "escape", "q"):
+            if key in ("?", "escape", "q", "f1"):
                 hp.display = False
+                if key == "f1":
+                    self._open_help(None)
             else:
                 hp.scroll_by_key(key)
             return

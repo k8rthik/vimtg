@@ -36,6 +36,11 @@ from 1.0.0 onward.
   deck with no file yet still takes the name, and `:saveas file` still
   switches. `:wq file` with unsaved changes writes the copy and stays
   (E37) unless given `!`.
+- `g?` shows a short cheat sheet, the rows the which-key popup shows,
+  instead of the whole help overview (`F1` has that, and `F1` from the
+  cheat sheet opens it). In the help window `F1` switches a topic (or
+  `:messages`) to the overview. The greeter's `?` and `F1` open the same
+  help window as the editor instead of a third copy of the help text.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
 - Help, `:messages`, `:config`, `:hand` and the merge resolver open as

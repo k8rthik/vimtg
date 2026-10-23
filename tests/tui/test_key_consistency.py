@@ -127,7 +127,7 @@ class TestHelpKeys:
     @pytest.mark.asyncio
     async def test_help_panel_home_end(self, tmp_path: Path) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
-        async with app.run_test(size=(100, 24)) as pilot:
+        async with app.run_test(size=(40, 10)) as pilot:
             await pilot.pause()
             await pilot.press("g", "question_mark")
             await pilot.pause()
@@ -178,15 +178,14 @@ class TestGreeterKeys:
         app = _GreeterHost(files)
         async with app.run_test(size=(80, 30)) as pilot:
             await pilot.pause()
-            gv = app.screen.query_one(GreeterView)
+            greeter = app.screen
+            gv = greeter.query_one(GreeterView)
             await pilot.press("f1")
-            assert gv._mode is GreeterMode.HELP
-            await pilot.press("ctrl+d")
-            assert gv._help_offset > 0
-            await pilot.press("g", "g")
-            assert gv._help_offset == 0
+            await pilot.pause()
+            assert isinstance(app.screen, HelpScreen)
             await pilot.press("escape")
-            assert gv._mode is GreeterMode.MENU
+            await pilot.pause()
+            assert app.screen is greeter
             await pilot.press("r")
             assert gv._mode is GreeterMode.RECENT
             await pilot.press("G")
