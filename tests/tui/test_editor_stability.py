@@ -539,3 +539,23 @@ async def test_ex_commands_that_change_text_are_dirty_and_undoable(
             else:
                 assert s.modified == before_modified, label
                 assert s.history.current_id == before_node, label
+
+
+@pytest.mark.asyncio
+async def test_edit_that_normalizing_reverts_leaves_no_undo_step(
+    tmp_path: Path,
+) -> None:
+    """:t$ on the trailing blank adds a blank that section cleanup drops
+    again: the text is unchanged, so no undo step and no modified flag."""
+    path = tmp_path / "burn.deck"
+    path.write_text("// Deck: Burn\n\n// Creature\n4 Goblin Guide\n\n")
+    app = VimTGApp(deck_path=path)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        scr = _strict(_screen(app))
+        s = scr._state
+        before_text, before_node = s.buffer.to_text(), s.history.current_id
+        _feed(scr, ["G", ":", "t", "$", "enter"])
+        assert s.buffer.to_text() == before_text
+        assert s.history.current_id == before_node
+        assert not s.modified

@@ -91,6 +91,8 @@ from 1.0.0 onward.
   sequence such as `gb` (E474), which could never fire.
 - `qA` appends to macro `a` instead of replacing it, and `@A` plays it,
   as in vim.
+- An edit that section cleanup undoes again (`:t$` on the trailing blank
+  line) no longer leaves an empty undo step or marks the deck modified.
 
 ## [1.0.0rc1] - 2026-10-10
 

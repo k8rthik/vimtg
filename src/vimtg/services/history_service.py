@@ -72,16 +72,25 @@ class HistoryService:
         """Replace the current snapshot's state without adding a new one.
 
         Used to fold follow-up normalization (e.g. section cleanup) into
-        the edit that caused it, so it stays a single undo step.
+        the edit that caused it, so it stays a single undo step. When
+        that brings the text back to the parent's, the edit changed
+        nothing: its step is dropped, so u never undoes a no-op.
         """
         if self._tree is None:
             self.initialize(buffer)
             return
         current = self._tree.current
+        parent = self._tree.parent()
+        text = buffer.to_text()
+        if parent is not None and parent.deck_state == text and not self._tree.children():
+            nodes = {k: v for k, v in self._tree.nodes.items() if k != current.id}
+            self._tree = SnapshotTree(nodes=nodes, current_id=parent.id)
+            self._last_recorded_id = None
+            return
         updated = Snapshot(
             id=current.id,
             parent_id=current.parent_id,
-            deck_state=buffer.to_text(),
+            deck_state=text,
             timestamp=current.timestamp,
             description=current.description,
         )
