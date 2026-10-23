@@ -21,6 +21,10 @@ from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.scryfall_sync import ScryfallSync
 
+# What the app exits with when :Tutor or the greeter's t asks for the
+# tutor; the CLI then opens the lesson deck in its sandbox
+LAUNCH_TUTOR = "vimtg:tutor"
+
 _HERE = Path(__file__).resolve().parent
 LESSON_PATH = _HERE / "tutor.deck"
 CARDS_PATH = _HERE / "cards.jsonl.gz"

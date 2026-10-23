@@ -18,6 +18,7 @@ GETTING STARTED
                 says "recording @a"); press q again to stop
   :messages     Show recent messages and errors again
   :tips         Show the getting-started tips (:tips off hides them)
+  :Tutor        A 15-minute hands-on lesson deck, like vimtutor
 """.strip()
 
 _COUNTS = """
@@ -76,6 +77,7 @@ COMMANDS
   :help         This help
   :messages     Recent messages and errors (:messages clear)
   :tips         Getting-started tips (:tips off / :tips on)
+  :Tutor        The vimtg tutor (also `vimtg tutor`)
 """.strip()
 
 _VCS_COMMANDS = """
@@ -350,6 +352,14 @@ COMMAND_HELP: dict[str, str] = {
         "Status messages vanish at the next key (errors stay up while\n"
         "you move the cursor); :messages lists the last 100 again.\n"
         ":messages clear  empties the list"
+    ),
+    "tutor": (
+        ":Tutor[!]  The vimtg tutor, a lesson deck to practice in\n"
+        "\n"
+        "Opens a fresh copy of the lesson deck in a throwaway sandbox with\n"
+        "its own small card database and default settings, so it works\n"
+        "offline and never touches your decks. The same as `vimtg tutor`\n"
+        "or t on the greeter. Unsaved changes need :Tutor! to drop."
     ),
     "tips": (
         ":tips [on|off]  The getting-started tips panel\n"

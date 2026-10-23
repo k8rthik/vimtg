@@ -1142,9 +1142,14 @@ class MainScreen(Screen[None]):
             self._process_key(key, resolve=False)
 
     def _handle_ui_request(self, request: str) -> None:
-        """:messages and :tips — screen-level views with no buffer change."""
+        """:messages, :tips and :Tutor — screen-level requests with no
+        buffer change."""
         cl = self.query_one("#command-line", CommandLine)
-        if request == "messages":
+        if request == "tutor":
+            from vimtg.tutor import LAUNCH_TUTOR
+
+            self.app.exit(LAUNCH_TUTOR)
+        elif request == "messages":
             body = "\n".join(text for _error, text in cl.history) or "(no messages)"
             from vimtg.tui.screens.help_screen import HelpScreen
 
