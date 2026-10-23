@@ -194,6 +194,14 @@ from 1.0.0 onward.
 - Deck URL import and the EDHREC pane explain a failed request the way
   `:sync` does (offline, timed out, proxy, TLS) instead of showing raw
   httpx text.
+- Every import works the same way: `:import file`, `:import <url>`, the
+  greeter's file, URL and pasted-list imports, and `vimtg convert` all
+  go through one pipeline, so each one writes official card names,
+  groups the deck by card type when card data exists, merges duplicates,
+  and reports skipped lines and unknown cards. The greeter's imports
+  used to keep names as typed, and the URL imports did not report
+  skipped lines; the greeter now shows the import summary when the
+  editor opens.
 
 ### Security
 

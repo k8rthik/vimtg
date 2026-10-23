@@ -6,7 +6,6 @@ import errno
 import re
 import sqlite3
 import sys
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -563,42 +562,27 @@ def _convert_text(
     in_path: Path, from_fmt: str | None, to_fmt: str, card_db: Database | None
 ) -> str:
     """The converted deck text (see convert)."""
-    from vimtg.services.import_export_service import (
-        DeckFormat,
-        ImportExportService,
-        normalize_text,
-        structured_deck_text,
-    )
+    from vimtg.services.import_export_service import DeckFormat, ImportExportService
 
     repo = CardRepository(card_db) if card_db is not None else None
     service = ImportExportService(card_repo=repo)
-    text = normalize_text(in_path.read_text(encoding="utf-8"))
-    src_fmt = DeckFormat(from_fmt) if from_fmt else service.detect_format(text)
-    dst_fmt = DeckFormat(to_fmt)
-    report = service.import_deck_report(text, src_fmt)
-    if report.skipped:
+    text = in_path.read_text(encoding="utf-8")
+    imported = service.to_vimtg(
+        text, fmt=DeckFormat(from_fmt) if from_fmt else None, name=in_path.stem
+    )
+    if imported.skipped:
         # stderr, so `vimtg convert ... > out.txt` stays a clean deck
         click.echo(
-            f"Skipped {len(report.skipped)} unreadable line(s) in {in_path}:",
+            f"Skipped {len(imported.skipped)} unreadable line(s) in {in_path}:",
             err=True,
         )
-        for skipped in report.skipped:
+        for skipped in imported.skipped:
             click.echo(f"  line {skipped.line_number}: {skipped.text}", err=True)
-    deck = report.deck
-    if dst_fmt is DeckFormat.VIMTG and src_fmt is DeckFormat.VIMTG:
-        # Lossless: the deck file's own layout, comments and blocks
-        result = text
-    else:
-        resolved = dict(service.resolve_cards(deck).resolved)
-        if dst_fmt is DeckFormat.VIMTG:
-            if not deck.metadata.name:
-                deck = replace(
-                    deck, metadata=replace(deck.metadata, name=in_path.stem)
-                )
-            result = structured_deck_text(deck, resolved)
-        else:
-            result = service.export_deck(deck, dst_fmt, resolved=resolved)
-    return result
+    dst_fmt = DeckFormat(to_fmt)
+    if dst_fmt is DeckFormat.VIMTG:
+        return imported.text
+    resolved = dict(imported.resolution.resolved)
+    return service.export_deck(imported.deck, dst_fmt, resolved=resolved)
 
 
 def _optional_card_db() -> Database | None:

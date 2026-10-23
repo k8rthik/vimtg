@@ -421,6 +421,12 @@ class VimTGApp(App[None]):
             severity="warning", timeout=10,
         )
 
+    @property
+    def card_repo(self) -> CardRepository | None:
+        """The card database, or None before one exists (the greeter's
+        imports resolve names against it)."""
+        return self._card_repo
+
     def adopt_card_data(self) -> None:
         """Use freshly synced card data everywhere (the UI thread's own
         connection sees the worker's committed rows)."""
@@ -455,6 +461,7 @@ class VimTGApp(App[None]):
         file_path: Path | None = None,
         initial_text: str | None = None,
         recovery: RecoveryCopy | None = None,
+        message: str = "",
     ) -> None:
         """Public navigation: open a deck (or an empty buffer) in the editor.
 
@@ -462,7 +469,9 @@ class VimTGApp(App[None]):
         yet (the greeter's import flow) — the buffer opens modified so
         quitting warns about the unsaved deck. With `recovery`, the text
         is that recovery copy's: the editor takes the copy over (a save
-        or :q! removes it) instead of offering it again.
+        or :q! removes it) instead of offering it again. `message` is
+        shown on the editor's command line once it opens (an import's
+        summary).
         """
         from vimtg.tui.screens.main_screen import MainScreen
 
@@ -513,6 +522,8 @@ class VimTGApp(App[None]):
             screen._state.modified = True
             screen._state.clean_text = None  # never saved: undo stays dirty
         self.push_screen(screen)
+        if message:
+            self.call_after_refresh(screen.show_message, message)
 
     def _make_save_fn(self, added: Scaffold) -> Callable[[Path, str], None] | None:
         """The editor's writer: drops scaffold lines still empty (the
