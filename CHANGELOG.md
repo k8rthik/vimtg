@@ -80,6 +80,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Vim-coded errors read as vim's: `E37: No write since last change`,
+  `E32: No file name`, `E16: Invalid range` and the rest no longer show
+  as `E: E37: ...`.
 - Listing commands no longer cut their output off at the terminal edge:
   `:registers`, `:marks`, `:tags`, `:categories`, `:plans`, `:validate`,
   `:branch`, `:g/pat/p` and `tl` print on the command line when the

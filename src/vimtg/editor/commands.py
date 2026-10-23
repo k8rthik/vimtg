@@ -32,6 +32,10 @@ _RANGE_PATTERN = re.compile(
 )
 
 
+# An error message that already carries its code: 'E: ...' or vim's 'E37: ...'
+_ERROR_CODE = re.compile(r"^E\d*: ")
+
+
 class RangeError(ValueError):
     """An ex range that names no line (vim's E20 for an unset mark)."""
 
@@ -333,8 +337,9 @@ class EditorContext:
         self.error = error
 
     def fail(self, message: str) -> None:
-        """Set an error message with the standard 'E: ' prefix."""
-        self.message = message if message.startswith("E: ") else f"E: {message}"
+        """Set an error message: a vim-coded one ('E37: ...') as it is,
+        any other with the generic 'E: ' prefix."""
+        self.message = message if _ERROR_CODE.match(message) else f"E: {message}"
         self.error = True
 
 
