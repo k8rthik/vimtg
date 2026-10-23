@@ -78,8 +78,6 @@ class HelpScreen(Screen[None]):
         self.query_one("#help-footer", Static).update(render_hints(HINTS))
 
     def on_key(self, event: Key) -> None:
-        if event.key == "ctrl+c":
-            return
         event.prevent_default()
         event.stop()
 

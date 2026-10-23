@@ -63,6 +63,8 @@ ACTIONS = [
 
 LOGO_WIDTH = max(len(line) for line in LOGO_LINES)
 MENU_RECENT = 5  # recent decks listed on the menu (all of them under `r`)
+# Ctrl-C on the menu: the greeter quits with q (it has no : line)
+EXIT_HINT = "Press q to exit vimtg"
 
 _DIM = f"dim {COLORS['comment']}"
 
@@ -473,14 +475,16 @@ class GreeterScreen(Screen[None]):
         gv.refresh()
 
     def on_key(self, event: Key) -> None:
-        if event.key == "ctrl+c":
-            self.app.exit()
-            return
         event.prevent_default()
         event.stop()
 
         key = translate(event.key)
         gv = self.query_one(GreeterView)
+        if event.key == "ctrl+c" and gv._mode == GreeterMode.MENU:
+            # Ctrl-C is Esc and never quits; say what does
+            gv._status = EXIT_HINT
+            gv.refresh()
+            return
 
         if gv._mode == GreeterMode.MENU:
             self._handle_menu_key(key, gv)

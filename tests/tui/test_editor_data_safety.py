@@ -194,7 +194,7 @@ class TestRecoveryIsPerDeck:
 
 class TestExitKeepsUnsavedWork:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("key", ["ctrl+c", "ctrl+q"])
+    @pytest.mark.parametrize("key", ["ctrl+q"])
     async def test_quit_keys_leave_a_copy_the_next_open_offers(
         self, tmp_path: Path, key: str
     ) -> None:
@@ -224,7 +224,7 @@ class TestExitKeepsUnsavedWork:
         app = VimTGApp(deck_path=path)
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
-            await pilot.press("ctrl+c")
+            await pilot.press("ctrl+q")
             await pilot.pause()
         assert list_recoveries() == []
 

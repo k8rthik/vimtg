@@ -128,7 +128,7 @@ COMMAND_HELP: dict[str, str] = {
         ":recover  Load the crash-recovery copy of this deck\n"
         "\n"
         "If vimtg hits an internal error, or the session ends with unsaved\n"
-        "changes (terminal closed, SSH dropped, Ctrl-C, Ctrl-Q, a kill),\n"
+        "changes (terminal closed, SSH dropped, Ctrl-Q, a kill),\n"
         "the buffer is saved under ~/.local/state/vimtg/recovery/.\n"
         "Opening that deck again offers the copy; copies of unnamed\n"
         "buffers or deleted files are listed on the greeter (R).\n"

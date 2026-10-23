@@ -1,8 +1,8 @@
 """TooSmallScreen — shown instead of a garbled layout on tiny terminals.
 
 VimTGApp pushes it while the terminal is below MIN_WIDTH x MIN_HEIGHT
-and pops it as soon as there is room again. It swallows every key but
-Ctrl+C, so nothing is edited blind.
+and pops it as soon as there is room again. It swallows every key
+(Ctrl-Q still quits), so nothing is edited blind.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def notice(width: int, height: int) -> Text:
     t = Text(justify="center")
     t.append("Terminal too small\n", style=f"bold {COLORS['warning']}")
     t.append(f"{width}x{height}, need {MIN_WIDTH}x{MIN_HEIGHT}\n")
-    t.append("Resize, or Ctrl+C", style="dim")
+    t.append("Resize, or Ctrl-Q to quit", style="dim")
     return t
 
 
@@ -67,7 +67,5 @@ class TooSmallScreen(Screen[None]):
         self._pushed = True
 
     def on_key(self, event: Key) -> None:
-        if event.key == "ctrl+c":
-            return
         event.prevent_default()
         event.stop()

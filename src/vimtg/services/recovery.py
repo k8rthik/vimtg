@@ -1,7 +1,7 @@
 """Crash recovery files — TUI-agnostic, zero Textual imports.
 
 When the editor hits an unexpected error, or the session ends with
-unsaved changes (terminal closed, SIGHUP/SIGTERM, Ctrl-C/Ctrl-Q), it
+unsaved changes (terminal closed, SIGHUP/SIGTERM, Ctrl-Q), it
 writes the buffer to $XDG_STATE_HOME/vimtg/recovery/ (plus a traceback
 log next to it for a crash). The next time that deck is opened the
 editor offers :recover.

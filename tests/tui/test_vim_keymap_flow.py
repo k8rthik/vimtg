@@ -305,3 +305,87 @@ class TestLinewiseCapitals:
             scr = _screen(app)
             _feed(scr, "6G Vj D")
             assert _cards(scr)[0] == "2 Eidolon of the Great Revel"
+
+
+EXIT_HINT = "Type :q and press Enter to exit vimtg"
+
+
+class TestCtrlCIsEsc:
+    @pytest.mark.asyncio
+    async def test_idle_ctrl_c_hints_at_q_and_keeps_running(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            await pilot.press("ctrl+c")
+            await pilot.pause()
+            assert app.is_running
+            assert _message(scr) == EXIT_HINT
+
+    @pytest.mark.asyncio
+    async def test_ctrl_c_cancels_what_esc_cancels(self, tmp_path: Path) -> None:
+        from vimtg.editor.modes import Mode
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            await pilot.press("2", "d", "ctrl+c")
+            assert not scr.keymap.awaiting_more_keys
+            assert _message(scr) != EXIT_HINT
+            lines = len(_cards(scr))
+            for opener in (["colon", "w"], ["V", "j"], ["o", "b"], ["slash", "x"]):
+                await pilot.press("6", "G", *opener, "ctrl+c")
+                assert scr._state.mode_mgr.current == Mode.NORMAL, opener
+            assert len(_cards(scr)) == lines  # o's scratch line went too
+            assert app.is_running
+
+    @pytest.mark.asyncio
+    async def test_ctrl_c_returns_from_a_focused_pane(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w")
+            await pilot.press("ctrl+c")
+            assert scr._split_pane is not None and not scr._split_pane.focused
+
+    @pytest.mark.asyncio
+    async def test_ctrl_c_closes_auxiliary_screens(self, tmp_path: Path) -> None:
+        from vimtg.tui.screens.help_screen import HelpScreen
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("f1")
+            await pilot.pause()
+            assert isinstance(app.screen, HelpScreen)
+            await pilot.press("ctrl+c")
+            await pilot.pause()
+            _screen(app)
+            assert app.is_running
+
+    @pytest.mark.asyncio
+    async def test_greeter_ctrl_c_hints_instead_of_quitting(self) -> None:
+        from vimtg.tui.screens.greeter import GreeterView
+
+        app = VimTGApp()
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+c")
+            await pilot.pause()
+            assert app.is_running
+            assert "Press q to exit vimtg" in str(app.screen.query_one(GreeterView).render())
+
+    @pytest.mark.asyncio
+    async def test_a_recovery_copy_is_not_called_a_crash(self, tmp_path: Path) -> None:
+        from vimtg.services.recovery import write_recovery
+
+        deck = _deck(tmp_path)
+        write_recovery(deck, deck.read_text() + "4 Shock\n")
+        app = VimTGApp(deck_path=deck)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            message = _message(_screen(app))
+            assert ":recover" in message
+            assert "crash" not in message

@@ -137,6 +137,8 @@ _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
 OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
+# Ctrl-C with nothing to cancel, as vim says it
+EXIT_HINT = "Type :q and press Enter to exit vimtg"
 SYNCING_SEARCH_NOTICE = "Card database is still downloading — search works once :sync finishes"
 
 def _hint_for_cursor(buffer: Buffer, row: int) -> str:
@@ -324,8 +326,8 @@ class MainScreen(Screen[None]):
             and pending_recovery(self.file_path, self._state.buffer.to_text())
         ):
             self.query_one("#command-line", CommandLine).set_message(
-                "Found unsaved changes from a crash: :recover to load them, "
-                ":recover! to discard"
+                "Found unsaved changes from an earlier session: :recover to "
+                "load them, :recover! to discard"
             )
         elif self._prompt_new_deck and needs_new_deck_prompt(
             self._state.buffer.to_text()
@@ -534,9 +536,6 @@ class MainScreen(Screen[None]):
     # ── Key dispatch ─────────────────────────────────────────────
 
     def on_key(self, event: Key) -> None:
-        # Let Ctrl+C through for emergency quit
-        if event.key == "ctrl+c":
-            return
         event.prevent_default()
         event.stop()
 
@@ -567,6 +566,9 @@ class MainScreen(Screen[None]):
         if cl.message and not cl.error:
             cl.message = ""
         sticky = cl.message_serial if cl.message else None
+        # Ctrl-C arrives as Esc; with nothing for it to cancel, say how
+        # to quit instead
+        exit_hint = event.key == "ctrl+c" and self._nothing_to_cancel()
         self._last_action_type = ""
         self._process_key(key)
         if (
@@ -575,6 +577,17 @@ class MainScreen(Screen[None]):
             and self._last_action_type not in ("motion", "pending")
         ):
             cl.message = ""
+        if exit_hint:
+            cl.set_message(EXIT_HINT)
+
+    def _nothing_to_cancel(self) -> bool:
+        """Normal mode with no sequence pending and no pane focused."""
+        pane = self._split_pane
+        return (
+            self._state.mode_mgr.is_normal()
+            and not self.keymap.awaiting_more_keys
+            and not (pane is not None and pane.focused)
+        )
 
     def _process_key(self, key: str, resolve: bool = True) -> None:
         """Run one canonical key through remap, keymap, and dispatch.
@@ -612,7 +625,7 @@ class MainScreen(Screen[None]):
         return saved
 
     def preserve_unsaved(self) -> Path | None:
-        """The editor is going away (quit, Ctrl-C/Ctrl-Q, :home, a closed
+        """The editor is going away (quit, Ctrl-Q, :home, a closed
         terminal, SIGHUP/SIGTERM): keep unsaved changes as a recovery
         copy the next open offers. Nothing is written for a clean buffer
         or after a deliberate discard (:q!, ZQ)."""

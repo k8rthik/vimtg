@@ -47,9 +47,11 @@ _TEXTUAL_TO_SYMBOL: dict[str, str] = {
     "space": " ",
 }
 
-# Textual modifier key normalization (ctrl+x → ctrl_x for our keymap)
+# Textual modifier key normalization (ctrl+x → ctrl_x for our keymap).
+# Ctrl-C is Esc, as in vim: it cancels a prompt, a pending sequence,
+# visual mode or a pane, and never quits (Ctrl-Q still does).
 _MODIFIER_NORMALIZE: dict[str, str] = {
-    "ctrl+c": "ctrl_c",
+    "ctrl+c": "escape",
     "ctrl+r": "ctrl_r",
     "ctrl+d": "ctrl_d",
     "ctrl+u": "ctrl_u",

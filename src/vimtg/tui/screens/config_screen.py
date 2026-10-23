@@ -152,10 +152,6 @@ class ConfigScreen(Screen[None]):
         view = self.query_one("#config-view", ConfigView)
         all_options = navigable_options()
         max_idx = len(all_options) - 1
-        # Ctrl-C closes like q, so unsaved changes still get their warning
-        if key == "ctrl_c":
-            key = "q"
-
         if key not in CLOSE_KEYS and self._discard_armed:
             self._discard_armed = False
             view.warning = ""

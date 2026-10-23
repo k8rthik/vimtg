@@ -130,7 +130,9 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b(("/", "?"), "Search forward / backward for a card (regex)", MODES,
        label="/ ?", quick="Commands", brief="search",
        note="An empty pattern repeats the last one; Up/Down recall earlier searches"),
-    _b("escape", "Back to normal mode; cancels a pending sequence", MODES, label="Esc"),
+    _b("escape", "Back to normal mode; cancels a pending sequence", MODES, label="Esc",
+       note="Ctrl-C does the same and never quits; with nothing to cancel "
+            "it says to type :q"),
     _b("f1", "Full-screen help (also :help)", MODES, label="F1", quick="Commands",
        brief="help"),
     _b("g?", "Toggle the quick-reference panel", MODES, shorts=("quick reference",)),
