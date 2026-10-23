@@ -96,6 +96,10 @@ from 1.0.0 onward.
 - Rapid `+`/`-` fold into one undo step only on the same card: `+ j +`
   then `u` reverts just the second card. `u` and `Ctrl-R` move the
   cursor to the line they changed, as in vim.
+- `/`, `?`, `n`, `N`, `*` and `#` wrap all the way round to the cursor
+  line when it is the only match, instead of saying "Pattern not found",
+  and a search that wraps says "search hit BOTTOM, continuing at TOP" as
+  in vim.
 
 ## [1.0.0rc1] - 2026-10-10
 

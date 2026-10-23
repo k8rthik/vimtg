@@ -44,7 +44,11 @@ from vimtg.editor.category_ops import (
 )
 from vimtg.editor.cmdline_history import COMMAND, SEARCH, CommandHistory
 from vimtg.editor.command_completer import CommandCompleter, CompletionState
-from vimtg.editor.command_handlers.search_cmds import find_card_row
+from vimtg.editor.command_handlers.search_cmds import (
+    find_card_row,
+    search_message,
+    wrapped,
+)
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
@@ -475,8 +479,11 @@ def _submit_search(state: EditorState, text: str) -> HandlerResult:
     state.last_find_backward = backward
     if row is None:
         return HandlerResult(command_message=f"Pattern not found: {shown}")
+    wrap = wrapped(state.cursor.row, row, backward=backward)
     state.cursor = state.cursor.move_to(row, 0)
-    return HandlerResult(command_message=prefix + shown)
+    return HandlerResult(
+        command_message=search_message(prefix + shown, wrap=wrap, backward=backward),
+    )
 
 
 def handle_command(
@@ -828,17 +835,20 @@ def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerRe
         return HandlerResult(command_message="No previous search pattern", error=True)
     shown = state.last_find_label or pattern
     row = state.cursor.row
-    for i in range(count):
+    wrap = False
+    for _ in range(count):
         found = find_card_row(state.buffer, row, pattern, backward=backward)
         if found is None:
-            if i == 0:
-                return HandlerResult(
-                    command_message=f"Pattern not found: {shown}", error=True,
-                )
-            break
+            return HandlerResult(
+                command_message=f"Pattern not found: {shown}", error=True,
+            )
+        wrap = wrap or wrapped(row, found, backward=backward)
         row = found
     state.cursor = state.cursor.move_to(row, 0)
-    return HandlerResult(command_message=("?" if backward else "/") + shown)
+    echo = ("?" if backward else "/") + shown
+    return HandlerResult(
+        command_message=search_message(echo, wrap=wrap, backward=backward),
+    )
 
 
 def _handle_split_key(key: str) -> HandlerResult:
