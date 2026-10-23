@@ -87,6 +87,25 @@ class VimNav:
         self.pending_g = False
 
 
+class DiscardGuard:
+    """q / Esc on a view holding work that closing would lose (unsaved
+    settings, merge resolutions): the first press warns, a second one
+    closes. Any other key disarms it."""
+
+    def __init__(self) -> None:
+        self.armed = False
+
+    def allow_close(self, has_work: bool) -> bool:
+        """True when the view may close now; False after arming the guard."""
+        if has_work and not self.armed:
+            self.armed = True
+            return False
+        return True
+
+    def disarm(self) -> None:
+        self.armed = False
+
+
 NAV_HINTS: tuple[Hint, ...] = (
     ("j/k", "move"), ("gg/G", "top/bottom"), ("Ctrl-D/U", "half page"),
 )

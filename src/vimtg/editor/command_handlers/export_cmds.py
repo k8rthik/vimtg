@@ -9,11 +9,12 @@ from pathlib import Path
 
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.file_io import atomic_write_text
-from vimtg.domain.card_names import CardMap
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
+    E37,
     CommandRegistry,
     EditorContext,
+    NewBuffer,
     ParsedCommand,
 )
 from vimtg.editor.cursor import Cursor
@@ -122,8 +123,11 @@ def cmd_import(
     cmd: ParsedCommand,
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:import [file|url] — Import a deck from a file, a deck-site URL,
-    or (with no argument) the system clipboard.
+    """:import[!] [file|url] — Import a deck from a file, a deck-site URL,
+    or (with no argument) the system clipboard, into a new unnamed
+    buffer in place of the deck (as the greeter's import does), so a
+    following :w never overwrites the deck that was open. Unsaved
+    changes refuse with E37; ! discards them.
 
     Files and clipboard text parse synchronously (format auto-detected).
     A deck URL from any site in services.deck_sources, typed or on the
@@ -132,6 +136,10 @@ def cmd_import(
     """
     from vimtg.services.deck_sources import is_deck_url
 
+    if ctx.modified and not cmd.bang:
+        ctx.fail(E37)
+        return buffer, cursor
+    ctx.import_force = cmd.bang
     file_arg = cmd.args.strip()
     if not file_arg:
         clip = read_clipboard()
@@ -174,19 +182,16 @@ def _import_text(
     require_cards: bool = False,
     deck_name: str = "",
 ) -> tuple[Buffer, Cursor]:
-    """Replace the buffer with the deck parsed from `text` (see
-    ImportExportService.to_vimtg); `deck_name` (the file's stem) names
-    a deck whose text does not."""
+    """Open the deck parsed from `text` (see ImportExportService.to_vimtg)
+    as a new buffer; `deck_name` (the file's stem) names a deck whose
+    text does not."""
     result = ImportExportService(card_repo=ctx.card_repo).to_vimtg(text, name=deck_name)
     if require_cards and not result.deck.entries:
         ctx.fail(f"No cards found in {source}")
         return buffer, cursor
-    new_buffer = Buffer.from_text(result.text)
-    ctx.modified = True
-    ctx.message = result.summary(source)
-    if result.resolution.resolved:
-        ctx.resolved_cards = CardMap(result.resolution.resolved)
-    return new_buffer, cursor.clamp(new_buffer.line_count() - 1)
+    ctx.new_buffer = NewBuffer(text=result.text, message=result.summary(source))
+    ctx.discard_requested = ctx.import_force and ctx.modified
+    return buffer, cursor
 
 
 def cmd_clipboard(

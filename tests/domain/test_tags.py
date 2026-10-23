@@ -15,6 +15,12 @@ class TestFormatTagSummary:
     def test_empty_map(self):
         assert format_tag_summary({}) == "No tags in deck"
 
+    def test_empty_map_with_deck_tags_names_them(self):
+        assert (
+            format_tag_summary({}, deck_tags=("tokens", "goblins"))
+            == "No card tags (deck tags: goblins, tokens; see :dtag)"
+        )
+
     def test_single_tag(self):
         assert format_tag_summary({"core": 3}) == "Tags: #core(3)"
 

@@ -22,7 +22,7 @@ def cmd_help(
     *,
     registry: CommandRegistry,
 ) -> tuple[Buffer, Cursor]:
-    """Open the full-screen help overlay, optionally focused on one command.
+    """Open the floating help window, optionally focused on one command.
 
     Topics are keyed by canonical command name, so an alias (:help exp)
     opens its command's topic."""

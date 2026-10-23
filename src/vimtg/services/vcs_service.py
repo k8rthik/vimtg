@@ -29,6 +29,11 @@ from vimtg.domain.deck_merge import (
 from vimtg.domain.sideboard_plan import SideboardPlan
 from vimtg.domain.vcs import VCSBranch, VCSSnapshot, VCSStatus
 
+# Refusals the editor's ex commands and the history overlay share; `key`
+# is how the view commits (":commit" in the editor, "c" in history)
+UNCOMMITTED_CHANGES = "E: Uncommitted changes — commit them first ({key})"
+BRANCH_EXISTS = "E: Branch exists: {name}"
+
 
 def _deck_hash(deck_state: str) -> str:
     """SHA-256 hash of deck state for dedup."""

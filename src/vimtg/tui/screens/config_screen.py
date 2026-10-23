@@ -1,4 +1,4 @@
-"""Config screen — modal settings editor with vim-like navigation.
+"""Config screen — floating settings editor with vim-like navigation.
 
 Pushed via :config command. Displays grouped settings with the shared
 navigation keys (j/k, gg/G, Ctrl-D/U, wheel), h/l/Space/Enter cycling,
@@ -14,7 +14,6 @@ from textual import events
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.reactive import reactive
-from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg.config.settings import Settings
@@ -27,7 +26,16 @@ from vimtg.editor.config_options import (
     options_for_group,
 )
 from vimtg.tui.key_translator import translate
-from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
+from vimtg.tui.keys import (
+    CLOSE_KEYS,
+    FULL_HELP_KEY,
+    HELP_KEY,
+    PENDING,
+    DiscardGuard,
+    VimNav,
+    render_hints,
+)
+from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 
 HINTS = (
@@ -47,12 +55,6 @@ class ConfigView(Static):
     def render(self) -> Text:
         t = Text()
 
-        # Title
-        t.append("\n")
-        title = Text("  vimtg settings\n")
-        title.stylize(f"bold {COLORS['mana_blue']}")
-        t.append_text(title)
-        t.append(f"  {'─' * 40}\n", style=f"dim {COLORS['comment']}")
         t.append("\n")
 
         # Render grouped options
@@ -114,13 +116,13 @@ class ConfigView(Static):
         self.selected_index = max(self.selected_index - 1, 0)
 
 
-class ConfigScreen(Screen[None]):
-    """Modal config screen, pushed via :config command."""
+class ConfigScreen(FloatingScreen[None]):
+    """Floating config window, pushed via :config command."""
 
+    WINDOW_ID = "config-window"
     CSS = f"""
     ConfigView {{
         height: 1fr;
-        content-align: center middle;
         background: {COLORS['bg']};
     }}
     """
@@ -130,14 +132,14 @@ class ConfigScreen(Screen[None]):
         settings: Settings,
         on_save: Callable[[Settings], None],
     ) -> None:
-        super().__init__()
+        super().__init__("Settings")
         self._original = settings
         self._settings = settings
         self._on_save = on_save
-        self._discard_armed = False  # first q with unsaved changes warns
+        self._discard = DiscardGuard()
         self._nav = VimNav()
 
-    def compose(self) -> ComposeResult:
+    def compose_window(self) -> ComposeResult:
         yield ConfigView(id="config-view")
 
     def on_mount(self) -> None:
@@ -152,8 +154,8 @@ class ConfigScreen(Screen[None]):
         view = self.query_one("#config-view", ConfigView)
         all_options = navigable_options()
         max_idx = len(all_options) - 1
-        if key not in CLOSE_KEYS and self._discard_armed:
-            self._discard_armed = False
+        if key not in CLOSE_KEYS and self._discard.armed:
+            self._discard.disarm()
             view.warning = ""
 
         step = self._nav.feed(key, max(1, max_idx + 1))
@@ -194,8 +196,7 @@ class ConfigScreen(Screen[None]):
 
     def _close(self, view: ConfigView) -> None:
         """Close, but warn once before discarding unsaved changes."""
-        if view.unsaved and not self._discard_armed:
-            self._discard_armed = True
+        if not self._discard.allow_close(view.unsaved):
             view.warning = "Unsaved changes — press q again to discard, s to save"
             return
         self.app.pop_screen()

@@ -1,8 +1,9 @@
-"""Tests for the inline help panel: content rendering and scrolling.
+"""Tests for the g? cheat sheet: content and scrolling.
 
-The panel is docked at the bottom with a capped height, so its ~100
-lines of reference must scroll — with the same keys the full-screen
-help uses — or everything past the first page is unreachable.
+The panel is a short cheat sheet built from the key spec's quick hints
+(the rows which-key shows), not the whole help overview; F1 has that.
+Docked at the bottom with a capped height, it still scrolls with the
+shared keys on a terminal too short for it.
 """
 
 from __future__ import annotations
@@ -11,23 +12,28 @@ from pathlib import Path
 
 import pytest
 
+from vimtg.editor.keyspec import quick_hints
 from vimtg.tui.app import VimTGApp
-from vimtg.tui.widgets.help_panel import HelpPanel, render_help_overview
+from vimtg.tui.widgets.help_panel import HelpPanel, render_cheat_sheet
 from vimtg.tui.widgets.scrolling import scroll_step_for_key
 
 
-class TestRenderHelpOverview:
-    def test_header_present(self) -> None:
-        plain = render_help_overview().plain
-        assert "Help" in plain
-        assert "? or Esc" in plain
+class TestRenderCheatSheet:
+    def test_lists_every_quick_hint(self) -> None:
+        plain = render_cheat_sheet().plain
+        for section, rows in quick_hints().items():
+            assert section in plain
+            for key, desc in rows:
+                assert key in plain and desc in plain
 
-    def test_help_content_not_empty(self) -> None:
-        plain = render_help_overview().plain
-        assert len(plain.split("\n")) > 5
+    def test_is_short_not_the_whole_overview(self) -> None:
+        plain = render_cheat_sheet().plain
+        assert "GETTING STARTED" not in plain
+        assert len(plain.splitlines()) <= 8
 
-    def test_scroll_hint_present(self) -> None:
-        assert "j/k" in render_help_overview().plain
+    def test_names_close_keys_and_full_help(self) -> None:
+        plain = render_cheat_sheet().plain
+        assert "Esc" in plain and "F1" in plain
 
 
 class TestScrollStepForKey:
@@ -66,7 +72,7 @@ def _deck_file(tmp_path: Path) -> Path:
 @pytest.mark.asyncio
 async def test_j_k_scroll_help_panel(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck_file(tmp_path))
-    async with app.run_test(size=(80, 30)) as pilot:
+    async with app.run_test(size=(40, 10)) as pilot:
         await pilot.pause()
         await pilot.press("g", "question_mark")  # g? opens the panel
         await pilot.pause()
@@ -86,7 +92,7 @@ async def test_j_k_scroll_help_panel(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_top_bottom_and_half_page_scroll_help_panel(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck_file(tmp_path))
-    async with app.run_test(size=(80, 30)) as pilot:
+    async with app.run_test(size=(40, 10)) as pilot:
         await pilot.pause()
         await pilot.press("g", "question_mark")  # g? opens the panel
         await pilot.pause()
@@ -110,7 +116,7 @@ async def test_top_bottom_and_half_page_scroll_help_panel(tmp_path: Path) -> Non
 async def test_scroll_keys_do_not_leak_to_editor(tmp_path: Path) -> None:
     """While the panel is open, j/k scroll it — the deck cursor stays put."""
     app = VimTGApp(deck_path=_deck_file(tmp_path))
-    async with app.run_test(size=(80, 30)) as pilot:
+    async with app.run_test(size=(40, 10)) as pilot:
         await pilot.pause()
         scr = app.screen
         before = scr._state.cursor.row  # type: ignore[attr-defined]
@@ -123,7 +129,7 @@ async def test_scroll_keys_do_not_leak_to_editor(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_reopen_starts_at_top(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck_file(tmp_path))
-    async with app.run_test(size=(80, 30)) as pilot:
+    async with app.run_test(size=(40, 10)) as pilot:
         await pilot.pause()
         hp = app.screen.query_one("#help-panel", HelpPanel)
         await pilot.press("g", "question_mark")  # g? opens the panel

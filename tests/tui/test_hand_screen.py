@@ -235,3 +235,55 @@ async def test_unbound_key_changes_nothing(tmp_path: Path) -> None:
         await pilot.pause()
         assert screen.state is before
         assert app.screen is screen
+
+
+@pytest.mark.asyncio
+async def test_shared_navigation_keys_move_the_selection(tmp_path: Path) -> None:
+    """gg/G, Ctrl-D/U and Home/End select in the hand, as in every list."""
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        await _type_command(pilot, "hand seed=42")
+        screen = _hand_screen(app)
+        last = len(screen.state.hand) - 1
+        await pilot.press("G")
+        assert screen.selected == last
+        await pilot.press("g", "g")
+        assert screen.selected == 0
+        await pilot.press("ctrl+d")
+        assert 0 < screen.selected <= last
+        await pilot.press("ctrl+u")
+        assert screen.selected == 0
+        await pilot.press("end")
+        assert screen.selected == last
+        await pilot.press("home")
+        assert screen.selected == 0
+
+
+@pytest.mark.asyncio
+async def test_question_mark_opens_hand_help_and_f1_full_help(tmp_path: Path) -> None:
+    from vimtg.tui.screens.help_screen import HelpScreen
+
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        await _type_command(pilot, "hand seed=42")
+        hand = _hand_screen(app)
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpScreen)
+        assert app.screen._topic == "hand"
+        await pilot.press("q")
+        await pilot.pause()
+        assert app.screen is hand
+        await pilot.press("f1")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpScreen)
+        assert app.screen._topic is None
+
+
+def test_hint_bar_names_help_and_navigation() -> None:
+    from vimtg.tui.screens.hand_screen import HINTS
+
+    keys = {key for key, _ in HINTS}
+    assert {"?", "gg/G", "q/Esc"} <= keys

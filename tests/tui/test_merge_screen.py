@@ -190,17 +190,52 @@ async def test_unresolve_clears_choice() -> None:
 
 
 @pytest.mark.asyncio
-async def test_abort_calls_on_abort() -> None:
+async def test_abort_with_nothing_resolved_is_immediate() -> None:
+    recorder = _Recorder()
+    screen = _make_screen(recorder)
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("q")
+        await pilot.pause()
+    assert recorder.aborted is True
+    assert recorder.completed is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("close", ["q", "escape"])
+async def test_abort_after_resolving_asks_for_a_second_press(close: str) -> None:
+    """Resolutions are work: the first q warns, as :config's unsaved
+    guard does, and only a second q throws them away."""
     recorder = _Recorder()
     screen = _make_screen(recorder)
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("o")
-        await pilot.press("q")
+        await pilot.press(close)
+        await pilot.pause()
+        assert recorder.aborted is False
+        assert app.screen is screen
+        cl = screen.query_one("#merge-command", MergeCommandLine)
+        assert "press q again to discard" in cl.message
+        await pilot.press(close)
         await pilot.pause()
     assert recorder.aborted is True
     assert recorder.completed is None
+
+
+@pytest.mark.asyncio
+async def test_other_key_disarms_the_abort_warning() -> None:
+    recorder = _Recorder()
+    screen = _make_screen(recorder)
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("o", "q", "k", "q")
+        await pilot.pause()
+        assert recorder.aborted is False
+        assert app.screen is screen
 
 
 @pytest.mark.asyncio

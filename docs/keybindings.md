@@ -16,7 +16,8 @@ which screen is open:
 3. **One help vocabulary.** `F1` opens the full help on every screen.
    Outside the editor `?` opens help for the current screen; in the
    editor `?` is vim's backward search, so help there is `F1` or `:help`
-   and the quick-reference panel is `g?`.
+   and the cheat sheet is `g?`. In the help window `F1` switches a topic
+   to the overview.
 4. **Separated editor prefixes.** Each prefix has one job: `g` go, `t`
    tags, `Ctrl-W` windows, `Space` the leader (panes), `z` zones, `m`
    marks, `'` jump to mark, `q`/`@` macros, `"` registers, `[`/`]` jumps.
@@ -37,7 +38,7 @@ Everything below is normal mode unless flagged otherwise.
 
 | Key | Action |
 |-----|--------|
-| `i` | Edit the current line in place. On `// Key:` metadata lines only the value is editable; the `// Format:` value Tab-completes known formats |
+| `i` | Edit the current line in place. On `// Key:` metadata lines only the value is editable; the `// Format:` value Tab-completes known formats. A line inside a zone block (`DCK:`, `CMD:`, `SB:` …) or a `VS:` plan keeps its indentation locked (Backspace and `Ctrl-U` stop at it, and `.` keeps it), so the card stays in the block; a bare zone header (`DCK:`) cannot be edited (E21) |
 | `A` | Add or edit the card's inline comment (`// …`); confirming empty text removes it |
 | `o` / `O` | Add a card below / above: opens card search. The card joins the zone under the cursor (inside a `CMD:`/`SB:` block it lands there; in the mainboard it auto-files by type). A count sets copies: `4o` adds four. Inside a `VS:` plan block it writes a signed plan line |
 | `v` / `V` | Visual / visual-line selection |
@@ -45,8 +46,8 @@ Everything below is normal mode unless flagged otherwise.
 | `:` | Ex command line |
 | `/` / `?` | Search forward / backward for a card (a regex, case-insensitive, like `:g` and `:s`). An empty pattern repeats the last one |
 | `Esc` | Back to normal mode; cancels a pending key sequence (in normal mode it also hides the getting-started tips) |
-| `F1` | Full-screen help (also `:help`) |
-| `g?` | Toggle the quick-reference panel (`q`, `Esc`, or `?` closes it) |
+| `F1` | Help window (also `:help`) |
+| `g?` | Toggle the cheat sheet, the which-key rows (`q`, `Esc`, or `?` closes it; `F1` trades it for the full help) |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 
 ### Navigation
@@ -113,7 +114,10 @@ in the target zone, and match the zone's block or prefix style.
 The deck's format (`// Format:`, else the `default_format` setting)
 is checked: `zc` is refused outside commander formats, which have no
 command zone, and `zs` in a format without a sideboard (commander)
-moves the card but warns. An unknown or missing format checks nothing.
+moves the card but warns. `zc` of a card that cannot lead the deck
+moves it and says why ("Goblin King is not legendary and can't be your
+commander"), as the gutter's ✗ then does. An unknown or missing format
+checks nothing.
 `zz`/`zt`/`zb` scroll the view, as in vim.
 
 ### Marks, macros, registers
@@ -156,7 +160,7 @@ the selection; other keys act on the cursor line.
 | `gC` | Clear the category; in a category-grouped deck the card moves to `// Uncategorized` |
 | `gl` | Toggle layout: group by card type / by category |
 
-`gg` (top), `gv` (reselect), `gh` (history overlay), and `g?` (quick reference) share the prefix.
+`gg` (top), `gv` (reselect), `gh` (history overlay), and `g?` (cheat sheet) share the prefix.
 
 ### Tags (`t` prefix)
 
@@ -164,7 +168,7 @@ the selection; other keys act on the cursor line.
 |-----|--------|
 | `ta` / `tr` / `tt` | Add / remove / toggle a tag (prompts) |
 | `tf` | Filter the view by a tag expression (`core+flex`, `core|flex`, `-flex`) |
-| `tl` | List tags with counts |
+| `tl` | List card tags with counts (with none, names the deck's own `// Tags:`) |
 | `tc` | Clear the card's tags |
 | `tn` / `tp` | Next / previous card sharing a tag with the cursor |
 
@@ -201,9 +205,10 @@ so do `g` sequences other than `gg` (`gh`, `g?`, `gc`); any other key
 refocuses the editor and runs there.
 
 `Space h` opens the sample-hand overlay rather than a pane. In it, `n`
-or `Space` draws, `m` takes a London mulligan, `j`/`k` select a card
-and `b` puts it on the bottom, `r` reshuffles a fresh hand, and
-`q`/`Esc` close it.
+or `Space` draws, `m` takes a London mulligan, `j`/`k` (and `gg`/`G`,
+`Ctrl-D`/`Ctrl-U`, `Home`/`End`) select a card and `b` puts it on the
+bottom, `r` reshuffles a fresh hand, `?` opens the hand help topic, `F1`
+the full help, and `q`/`Esc` close it.
 
 ### Version control
 
@@ -279,11 +284,12 @@ Every screen accepts the shared vocabulary:
 
 | Key | Action |
 |-----|--------|
-| `n` / `e` / `i` / `s` / `r` | New deck (asks for name and format) / open a file / import a file or URL / sync cards / recent decks (from any directory) |
+| `n` / `e` / `i` / `s` / `r` | New deck (asks for name and format) / open a file / import a file or URL / sync cards (not offered while a sync runs) / recent decks (from any directory) |
+| `:` | A command line running the editor's own `:e {file}`, `:enew`, `:q` / `:q!`, `:sync[!]` and `:help [topic]` (`Tab` completes, `Esc` cancels) |
 | `1`-`5` | Open the nth recent deck listed |
 | `R` | Unsaved buffers left by an earlier session (listed only when there are any). `Enter` opens one, `d` discards it |
-| `?` / `F1` | Help overview (scrolls with the shared keys) |
-| `q` | Quit vimtg. `Esc` does nothing on the menu (`Ctrl-C` says to press `q`); in a sub-mode it goes back |
+| `?` / `F1` | The help window on the overview, as in the editor |
+| `q` | Quit vimtg (or `:q`). `Esc` does nothing on the menu (`Ctrl-C` says to press `q`); in a sub-mode it goes back |
 | lists | Shared navigation, `Enter` open, `n` new deck, `q`/`Esc` back |
 | import | Type or paste a path or URL, `Enter` import, `Esc` back |
 
@@ -343,7 +349,7 @@ Branches, Snapshots, Diff, Stats.
 | `c` | Custom quantity (`0` omits the card) |
 | `u` | Unresolve |
 | `Enter` | Confirm; every conflict must be resolved |
-| `q` / `Esc` | Abort: nothing is committed |
+| `q` / `Esc` | Abort: nothing is committed (with a card resolved, the first press warns and a second discards) |
 | `?` | This screen's help topic |
 
 ## Remapping

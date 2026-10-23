@@ -32,6 +32,15 @@ _RANGE_PATTERN = re.compile(
 )
 
 
+# An error message that already carries its code: 'E: ...' or vim's 'E37: ...'
+_ERROR_CODE = re.compile(r"^E\d*: ")
+
+
+def is_error_message(text: str) -> bool:
+    """True for an error message: 'E: ...' or a vim-coded 'E37: ...'."""
+    return _ERROR_CODE.match(text) is not None
+
+
 class RangeError(ValueError):
     """An ex range that names no line (vim's E20 for an unset mark)."""
 
@@ -235,6 +244,31 @@ def _goto_range(cmd: ParsedCommand, buffer: Buffer, cursor: Cursor) -> Cursor:
     return cursor.move_to(max(0, min(row, buffer.line_count() - 1)), 0)
 
 
+@dataclass(frozen=True)
+class Listing:
+    """Output of a listing command (:reg, :marks, :tags, :validate ...),
+    one entry per line. Its one-line form is the message; the TUI shows
+    that when it fits on the command line, else `lines` in a pager
+    titled `title`, as vim's more-prompt does."""
+
+    title: str
+    lines: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class NewBuffer:
+    """:enew / :import: open an unnamed buffer in place of the deck.
+    With no `text` it is empty and the new-deck wizard asks for a name
+    and format; an import's `text` opens unsaved, `message` (its
+    summary) shown once it is up."""
+
+    text: str | None = None
+    message: str = ""
+
+
+E37 = "E37: No write since last change (add ! to override)"
+
+
 @dataclass
 class EditorContext:
     """Mutable context passed to command handlers for side effects."""
@@ -309,10 +343,26 @@ class EditorContext:
     ui_request: str = ""
     # :search — open the card search overlay with this query (None = no)
     search_open: str | None = None
+    # A listing's lines; `message` holds its one-line form
+    listing: Listing | None = None
+    # :enew / :import — the unnamed buffer to open in place of this one
+    new_buffer: NewBuffer | None = None
+    # :import! <url> — the fetched deck may replace unsaved changes
+    import_force: bool = False
+
+    def show_listing(
+        self, title: str, lines: list[str] | tuple[str, ...], summary: str,
+        *, error: bool = False,
+    ) -> None:
+        """Output `lines` under `title`; `summary` is the one-line form."""
+        self.listing = Listing(title, tuple(lines))
+        self.message = summary
+        self.error = error
 
     def fail(self, message: str) -> None:
-        """Set an error message with the standard 'E: ' prefix."""
-        self.message = message if message.startswith("E: ") else f"E: {message}"
+        """Set an error message: a vim-coded one ('E37: ...') as it is,
+        any other with the generic 'E: ' prefix."""
+        self.message = message if is_error_message(message) else f"E: {message}"
         self.error = True
 
 
@@ -369,6 +419,16 @@ class CommandRegistry:
             ctx.error = True
             return buffer, cursor
         return handler(buffer, cursor, cmd, ctx)
+
+    def subset(self, names: tuple[str, ...]) -> CommandRegistry:
+        """A registry of just the commands `names`, with their aliases:
+        the same handlers, parsing and messages in a smaller vocabulary
+        (the greeter's command line)."""
+        part = CommandRegistry()
+        for name in names:
+            aliases = [a for a, target in self._aliases.items() if target == name]
+            part.register(name, self._commands[name], aliases=aliases)
+        return part
 
     def resolve(self, name: str) -> str:
         """The canonical command name for `name` (aliases resolved)."""

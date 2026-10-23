@@ -13,7 +13,7 @@ GETTING STARTED
                 Enter adds it (+/- change the quantity after)
   :w            Save (a new deck is named after its // Deck: line)
   :q            Quit (:q! quits without saving, :wq saves and quits)
-  F1, :help     This full help (g? toggles a quick-reference panel)
+  F1, :help     This full help (g? toggles a cheat sheet)
   q             Careful: q starts recording a macro (the status line
                 says "recording @a"); press q again to stop
   :messages     Show recent messages and errors again
@@ -210,6 +210,13 @@ COMMAND_HELP: dict[str, str] = {
         ":e!       reload this deck from disk\n"
         "Registers carry over."
     ),
+    "enew": (
+        ":enew  Edit a new, unnamed deck in place of this one (also :ene)\n"
+        "\n"
+        "The new-deck wizard asks for its name and format, as the\n"
+        "greeter's n does; the first :w names the file after // Deck:.\n"
+        "Refuses with unsaved changes (E37); :enew! discards them."
+    ),
     "delete": (
         ":[range]d [x] [n]  Delete lines into register x (default: unnamed)\n"
         "\n"
@@ -263,8 +270,12 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "plans": ":plans  List every sideboard plan with its -out +in totals",
     "import": (
-        ":import [file|url]  Import a deck (replaces buffer, undoable)\n"
+        ":import [file|url]  Import a deck into a new unnamed buffer\n"
         "\n"
+        "The imported deck opens in place of this one, unsaved, as the\n"
+        "greeter's import does: the deck that was open is left as it is\n"
+        "on disk, and the first :w names the new file after // Deck:.\n"
+        "Unsaved changes refuse with E37; :import! discards them.\n"
         "With no argument the decklist (or deck URL) is read from the\n"
         "system clipboard. To ADD a pasted list to the deck instead,\n"
         "paste it in normal mode (your terminal's paste key).\n"
@@ -332,7 +343,7 @@ COMMAND_HELP: dict[str, str] = {
         "\n"
         "The emptied // Tags: line stays, so i can refill it."
     ),
-    "help": ":help [command]  Open full-screen help (also F1; q closes)",
+    "help": ":help [command]  Open the help window (also F1; q closes)",
     "messages": (
         ":messages  Show recent messages and errors (alias :mes)\n"
         "\n"
@@ -345,7 +356,10 @@ COMMAND_HELP: dict[str, str] = {
         "\n"
         ":tips      show the tips now (Esc hides them)\n"
         ":tips off  stop showing them under empty decks (remembered)\n"
-        ":tips on   show them again under empty decks"
+        ":tips on   show them again under empty decks\n"
+        "\n"
+        "Under an empty deck they stay up through its first cards until\n"
+        "the first :w."
     ),
     "history": (
         ":history  Open the lazygit-style history overlay (also gh)\n"
@@ -503,10 +517,11 @@ COMMAND_HELP: dict[str, str] = {
         "makes the shuffles repeatable.\n"
         "\n"
         "Keys: n/Space draw, m mulligan (London: draw 7, then b puts\n"
-        "the selected card on the bottom), j/k select, r reshuffle,\n"
-        "q/Esc close. The first mulligan is free in Commander and\n"
-        "Brawl. Shows the land count in hand and the odds of 1+ / 2+\n"
-        "lands in seven and of hitting every land drop by turn N."
+        "the selected card on the bottom), j/k (gg/G, Ctrl-D/U) select,\n"
+        "r reshuffle, ? this help, q/Esc close. The first mulligan is\n"
+        "free in Commander and Brawl. Shows the land count in hand and\n"
+        "the odds of 1+ / 2+ lands in seven and of hitting every land\n"
+        "drop by turn N."
     ),
 }
 

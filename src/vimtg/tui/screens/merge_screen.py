@@ -14,13 +14,21 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.events import Key
 from textual.reactive import reactive
-from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg.domain.deck_merge import CardKey
 from vimtg.services.vcs_service import PendingMerge
 from vimtg.tui.key_translator import translate
-from vimtg.tui.keys import CLOSE_KEYS, FULL_HELP_KEY, HELP_KEY, PENDING, VimNav, render_hints
+from vimtg.tui.keys import (
+    CLOSE_KEYS,
+    FULL_HELP_KEY,
+    HELP_KEY,
+    PENDING,
+    DiscardGuard,
+    VimNav,
+    render_hints,
+)
+from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.conflicts_panel import ConflictsPanel
 
@@ -47,11 +55,13 @@ class MergeCommandLine(Static):
     prompt: reactive[str] = reactive("")
     text: reactive[str] = reactive("")
     message: reactive[str] = reactive("")
+    error: reactive[bool] = reactive(False)  # style `message` as an error
 
     def render(self) -> Text:
         t = Text()
         if self.message:
-            t.append(f" {self.message}", style=f"bold {COLORS['mana_green']}")
+            colour = COLORS["error"] if self.error else COLORS["mana_green"]
+            t.append(f" {self.message}", style=f"bold {colour}")
             return t
         if self.prompt:
             t.append(f" {self.prompt}", style=f"bold {COLORS['mode_command']}")
@@ -65,8 +75,9 @@ class MergeCommandLine(Static):
         self.text = ""
         self.message = ""
 
-    def show_message(self, msg: str) -> None:
+    def show_message(self, msg: str, *, error: bool = False) -> None:
         self.message = msg
+        self.error = error
         self.prompt = ""
         self.text = ""
 
@@ -74,6 +85,7 @@ class MergeCommandLine(Static):
         self.prompt = ""
         self.text = ""
         self.message = ""
+        self.error = False
 
 
 class MergeHeader(Static):
@@ -95,13 +107,13 @@ class MergeHeader(Static):
         return t
 
 
-class MergeScreen(Screen[None]):
+class MergeScreen(FloatingScreen[None]):
     """Interactive conflict resolution: pick ours/theirs/custom per card."""
 
+    WINDOW_ID = "merge-window"
     CSS = f"""
     #merge-header {{
         height: 1;
-        dock: top;
         background: {COLORS['bg']};
     }}
     #conflicts-panel {{
@@ -109,7 +121,6 @@ class MergeScreen(Screen[None]):
     }}
     #merge-command {{
         height: 1;
-        dock: bottom;
         background: {COLORS['bg']};
     }}
     """
@@ -121,7 +132,7 @@ class MergeScreen(Screen[None]):
         on_complete: Callable[[dict[CardKey, int | None]], None],
         on_abort: Callable[[], None] | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(f"Merge — {deck_name}", "q / Esc abort  Enter confirm")
         self._pending = pending
         self._deck_name = deck_name
         self._on_complete = on_complete
@@ -130,8 +141,9 @@ class MergeScreen(Screen[None]):
         self._resolutions: dict[CardKey, int | None] = {}
         self._input_mode = MergeInputMode.NORMAL
         self._input_text = ""
+        self._discard = DiscardGuard()
 
-    def compose(self) -> ComposeResult:
+    def compose_window(self) -> ComposeResult:
         yield MergeHeader(id="merge-header")
         yield ConflictsPanel(id="conflicts-panel")
         yield MergeCommandLine(id="merge-command")
@@ -159,6 +171,8 @@ class MergeScreen(Screen[None]):
         cl = self.query_one("#merge-command", MergeCommandLine)
         if cl.message:
             cl.hide()
+        if key not in CLOSE_KEYS:
+            self._discard.disarm()
 
         cp = self.query_one("#conflicts-panel", ConflictsPanel)
         step = self._nav.feed(key, max(1, len(cp.conflicts)))
@@ -261,12 +275,19 @@ class MergeScreen(Screen[None]):
         ]
         if unresolved:
             cl = self.query_one("#merge-command", MergeCommandLine)
-            cl.show_message(f"{len(unresolved)} conflict(s) unresolved")
+            cl.show_message(f"E: {len(unresolved)} conflict(s) unresolved", error=True)
             return
         self.app.pop_screen()
         self._on_complete(dict(self._resolutions))
 
     def _abort(self) -> None:
+        """Close without merging; with resolutions made, only on a second q."""
+        if not self._discard.allow_close(bool(self._resolutions)):
+            self.query_one("#merge-command", MergeCommandLine).show_message(
+                "Resolutions not applied — press q again to discard, Enter to confirm",
+                error=True,
+            )
+            return
         self.app.pop_screen()
         if self._on_abort is not None:
             self._on_abort()
