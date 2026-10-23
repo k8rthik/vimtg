@@ -9,7 +9,10 @@ which screen is open:
    `g` never means "top".
 2. **One dismissal vocabulary.** `q` and `Esc` close every auxiliary
    screen; `Esc` cancels an open prompt first. In the editor `Esc` exits
-   the current mode and `q` is vim's macro key.
+   the current mode and `q` is vim's macro key. `Ctrl-C` is `Esc`
+   everywhere and never quits: with nothing to cancel the editor says
+   "Type :q and press Enter to exit vimtg" (the greeter: press `q`).
+   `Ctrl-Q` quits at once, keeping unsaved changes for `:recover`.
 3. **One help vocabulary.** `F1` opens the full help on every screen.
    Outside the editor `?` opens help for the current screen; in the
    editor `?` is vim's backward search, so help there is `F1` or `:help`

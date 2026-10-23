@@ -25,11 +25,19 @@ from 1.0.0 onward.
 - `S` is vim's substitute-line, the same as `cc`, now that it no longer
   starts a split key. `C` is `cc`, `D` is `dd` and `Y` is `yy` (decks
   are linewise), with counts, registers and `.`.
+- `Ctrl-C` is `Esc`, as in vim, and never quits: it cancels a pending
+  key, a prompt, visual mode, card search or a focused pane, and on its
+  own in normal mode says "Type :q and press Enter to exit vimtg". The
+  same goes for every auxiliary screen; on the greeter menu it says to
+  press `q`. `Ctrl-Q` still quits at once, keeping unsaved work for
+  `:recover`.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
 
 ### Fixed
 
+- Opening a deck with a recovery copy says "Found unsaved changes from
+  an earlier session" instead of calling every unsaved exit a crash.
 - In a focused pane `q` closes the pane instead of starting a macro
   recording in the editor, and `Esc` returns to the editor leaving the
   pane open. `g` sequences (`gh`, `g?`, `gc`) reach the editor instead of

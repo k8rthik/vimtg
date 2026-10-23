@@ -78,8 +78,6 @@ _NOTIFY_TAKES_MARKUP = "markup" in inspect.signature(App.notify).parameters
 class VimTGApp(App[None]):
     """Vim-powered MTG deck editor TUI."""
 
-    BINDINGS = [("ctrl+c", "quit", "Force quit")]
-
     CSS = f"""
     Screen {{ layout: vertical; }}
     #editor-area {{ height: 1fr; layout: horizontal; }}
@@ -214,8 +212,8 @@ class VimTGApp(App[None]):
     def preserve_unsaved(self) -> None:
         """Save every open editor's unsaved changes as a recovery copy.
 
-        Runs on every way out — :q (with confirm_quit off), Ctrl-C,
-        Ctrl-Q, SIGHUP, SIGTERM — and never raises: leaving must not
+        Runs on every way out — :q (with confirm_quit off), Ctrl-Q,
+        SIGHUP, SIGTERM — and never raises: leaving must not
         fail because a copy could not be written.
         """
         from vimtg.tui.screens.main_screen import MainScreen
