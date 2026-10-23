@@ -1046,7 +1046,7 @@ class MainScreen(Screen[None]):
             self._window_command(hr.window)
         if hr.toggle_pane:
             self._toggle_pane(hr.toggle_pane)
-        if hr.run_ex_command:
+        for _ in range(hr.ex_repeat if hr.run_ex_command else 0):
             self._execute_ex(hr.run_ex_command)
         if hr.scroll_view:
             self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)

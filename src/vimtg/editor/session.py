@@ -189,9 +189,27 @@ class EditorState:
     disk_stamp: FileStamp | None = None
     # Id of an unnamed buffer's crash-recovery copy (see services.recovery)
     recovery_id: str | None = None
+    # The last ex command line typed, which @: runs again
+    last_ex: str = ""
+    # How the last visual selection ended — its mode, and whether the
+    # cursor was at its end (the rows are the '< and '> marks); gv
+    last_visual: tuple[Mode, bool] | None = None
     # K flipped the auto_expand setting for the card on this row; it
     # lasts until the cursor leaves the row, like vim's K popup
     details_row: int | None = None
+
+    def remember_selection(self, anchor: int, row: int, mode: Mode) -> None:
+        """Keep an ending selection for gv: its rows as the '< and '>
+        marks (which follow edits), its mode and which end the cursor was."""
+        self.marks = self.marks.set("<", min(anchor, row)).set(">", max(anchor, row))
+        self.last_visual = (mode, row >= anchor)
+
+    def end_selection(self) -> None:
+        """End the visual selection, keeping it for gv when visual mode
+        is what it ends (a '.' replay's line span is not a selection)."""
+        if self.visual_anchor is not None and self.mode_mgr.is_visual():
+            self.remember_selection(self.visual_anchor, self.cursor.row, self.mode_mgr.current)
+        self.visual_anchor = None
 
 
 @dataclass(frozen=True)
@@ -247,6 +265,7 @@ class HandlerResult:
     toggle_pane: str = ""
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
+    ex_repeat: int = 1  # how many times to run it (3@:)
     plan_changed: bool = False  # active plan or its entries changed
     # zz / zt / zb: put the cursor line at the view's "center"/"top"/"bottom"
     scroll_view: str = ""
@@ -291,8 +310,8 @@ def _take_selection(state: EditorState) -> tuple[int, int] | None:
         return None
     last = max(0, state.buffer.line_count() - 1)
     anchor = min(state.visual_anchor, last)
-    state.visual_anchor = None
     row = min(state.cursor.row, last)
+    state.end_selection()
     return min(anchor, row), max(anchor, row)
 
 
@@ -406,7 +425,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
     """Process mode switch actions (i, o, :, v, escape)."""
     key = action.action
     if key == "escape":
-        state.visual_anchor = None
+        state.end_selection()
         return HandlerResult(exit_to_normal=True)
     if key == "i":
         line_text = state.buffer.get_line(state.cursor.row).text
@@ -455,7 +474,7 @@ def handle_mode_switch(state: EditorState, action: ParsedAction) -> HandlerResul
         # Vim: the same visual key again ends the selection; the other
         # one switches kind and keeps the selection's anchor
         if current == target:
-            state.visual_anchor = None
+            state.end_selection()
             return HandlerResult(exit_to_normal=True)
         if not state.mode_mgr.is_visual() or state.visual_anchor is None:
             state.visual_anchor = state.cursor.row
@@ -513,6 +532,7 @@ def handle_command(
         return HandlerResult()
     if record_history:
         state.cmd_history.add(COMMAND, action.text)
+        state.last_ex = action.text
     raw_text = action.text
 
     try:
@@ -671,6 +691,11 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key.startswith("q") and len(key) == 2:
         state.macros.start_recording(key[1])
         return HandlerResult(command_message=f"recording @{key[1]}")
+    elif key == "@:" or (key == "@@" and state.macros.last_played == ":"):
+        if not state.last_ex:
+            return HandlerResult(command_message="E30: No previous command line", error=True)
+        state.macros.played_command_line()
+        return HandlerResult(run_ex_command=state.last_ex, ex_repeat=count)
     elif key.startswith("@") and len(key) == 2:
         keys = state.macros.play(key[1])
         if keys is None:
@@ -716,6 +741,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
         return HandlerResult(open_history_screen=True)
     elif key == "g?":
         return HandlerResult(help_requested=True)
+    elif key == "gv":
+        return _reselect(state)
     elif key in ("ZZ", "ZQ"):
         # Vim's ZZ / ZQ are exactly :x / :q! (ZZ writes only when modified)
         return HandlerResult(run_ex_command="x" if key == "ZZ" else "q!")
@@ -726,6 +753,23 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key == "K":
         return _toggle_details(state)
     return HandlerResult()
+
+
+def _reselect(state: EditorState) -> HandlerResult:
+    """gv — select the last visual selection again, in its mode and with
+    the cursor at the same end; in visual mode the two swap, as in vim."""
+    start_mark, end_mark = state.marks.get("<"), state.marks.get(">")
+    if state.last_visual is None or start_mark is None or end_mark is None:
+        return HandlerResult(command_message="No previous visual selection")
+    mode, cursor_at_end = state.last_visual
+    last = max(0, state.buffer.line_count() - 1)
+    start, end = min(start_mark.row, last), min(end_mark.row, last)
+    current = state.mode_mgr.current
+    if state.mode_mgr.is_visual() and state.visual_anchor is not None:
+        state.remember_selection(state.visual_anchor, state.cursor.row, current)
+    state.visual_anchor = start if cursor_at_end else end
+    state.cursor = state.cursor.move_to(end if cursor_at_end else start, 0)
+    return HandlerResult(enter_visual=None if mode == current else mode)
 
 
 def _toggle_details(state: EditorState) -> HandlerResult:
@@ -902,7 +946,7 @@ def _handle_comment_action(state: EditorState) -> HandlerResult:
     """Enter comment-input mode for the card under the cursor (A key)."""
     if not state.buffer.is_card_line(state.cursor.row):
         return HandlerResult(command_message="Comments attach to card lines")
-    state.visual_anchor = None
+    state.end_selection()
     state.insert_submode = InsertSubmode.COMMENT_INPUT
     return HandlerResult(
         enter_comment_input=True,

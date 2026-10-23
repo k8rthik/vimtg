@@ -44,6 +44,8 @@ from 1.0.0 onward.
 - `K` shows the cursor card's details inline when the `auto_expand`
   setting is off, and hides them when it is on, until the cursor moves
   (vim's keyword lookup).
+- `gv` selects the last visual selection again; `@:` repeats the last
+  ex command line, and `@@` after it repeats it again.
 - `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
   do (counts, visual mode, `.`).
 
