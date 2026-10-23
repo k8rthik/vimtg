@@ -284,11 +284,12 @@ Every screen accepts the shared vocabulary:
 
 | Key | Action |
 |-----|--------|
-| `n` / `e` / `i` / `s` / `r` | New deck (asks for name and format) / open a file / import a file or URL / sync cards / recent decks (from any directory) |
+| `n` / `e` / `i` / `s` / `r` | New deck (asks for name and format) / open a file / import a file or URL / sync cards (not offered while a sync runs) / recent decks (from any directory) |
+| `:` | A command line running the editor's own `:e {file}`, `:enew`, `:q` / `:q!`, `:sync[!]` and `:help [topic]` (`Tab` completes, `Esc` cancels) |
 | `1`-`5` | Open the nth recent deck listed |
 | `R` | Unsaved buffers left by an earlier session (listed only when there are any). `Enter` opens one, `d` discards it |
-| `?` / `F1` | Help overview (scrolls with the shared keys) |
-| `q` | Quit vimtg. `Esc` does nothing on the menu (`Ctrl-C` says to press `q`); in a sub-mode it goes back |
+| `?` / `F1` | The help window on the overview, as in the editor |
+| `q` | Quit vimtg (or `:q`). `Esc` does nothing on the menu (`Ctrl-C` says to press `q`); in a sub-mode it goes back |
 | lists | Shared navigation, `Enter` open, `n` new deck, `q`/`Esc` back |
 | import | Type or paste a path or URL, `Enter` import, `Esc` back |
 

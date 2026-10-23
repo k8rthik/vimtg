@@ -415,6 +415,16 @@ class CommandRegistry:
             return buffer, cursor
         return handler(buffer, cursor, cmd, ctx)
 
+    def subset(self, names: tuple[str, ...]) -> CommandRegistry:
+        """A registry of just the commands `names`, with their aliases:
+        the same handlers, parsing and messages in a smaller vocabulary
+        (the greeter's command line)."""
+        part = CommandRegistry()
+        for name in names:
+            aliases = [a for a, target in self._aliases.items() if target == name]
+            part.register(name, self._commands[name], aliases=aliases)
+        return part
+
     def resolve(self, name: str) -> str:
         """The canonical command name for `name` (aliases resolved)."""
         return self._aliases.get(name, name)
