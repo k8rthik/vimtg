@@ -75,7 +75,7 @@ class TestCtrlWWindows:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit {_other(tmp_path)}<CR>")
+            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR>")
             pane = scr._split_pane
             assert pane is not None and not pane.focused
             _feed(scr, "<C-w>w")
@@ -95,7 +95,7 @@ class TestCtrlWWindows:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":split {_other(tmp_path)}<CR><C-w>j")
+            _feed(scr, f":split<Space>{_other(tmp_path)}<CR><C-w>j")
             pane = scr._split_pane
             assert pane is not None and pane.focused
             _feed(scr, "<C-w>k")
@@ -111,9 +111,9 @@ class TestCtrlWWindows:
             await pilot.pause()
             scr = _screen(app)
             other = _other(tmp_path)
-            _feed(scr, f":vsplit {other}<CR><C-w>{key}")
+            _feed(scr, f":vsplit<Space>{other}<CR><C-w>{key}")
             assert scr._split_pane is None
-            _feed(scr, f":vsplit {other}<CR><C-w>w<C-w>{key}")
+            _feed(scr, f":vsplit<Space>{other}<CR><C-w>w<C-w>{key}")
             assert scr._split_pane is None
             assert app.is_running
 
@@ -222,7 +222,7 @@ class TestFocusedPaneKeys:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w q")
+            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w q")
             assert scr._split_pane is None
             assert not scr._state.macros.is_recording
 
@@ -232,7 +232,7 @@ class TestFocusedPaneKeys:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w<Esc>")
+            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w<Esc>")
             assert scr._split_pane is not None and not scr._split_pane.focused
 
     @pytest.mark.asyncio
@@ -243,7 +243,7 @@ class TestFocusedPaneKeys:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w g?")
+            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w g?")
             assert scr.query_one("#help-panel", HelpPanel).display
             _feed(scr, "<Esc><C-w>w 6G gc")
             assert scr._state.tag_input_action == "category"
@@ -368,7 +368,7 @@ class TestCtrlCIsEsc:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w")
+            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w")
             await pilot.press("ctrl+c")
             assert scr._split_pane is not None and not scr._split_pane.focused
 
@@ -609,9 +609,9 @@ class TestQuitClosesWindows:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit {_other(tmp_path)}<CR>:q<CR>")
+            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR>:q<CR>")
             assert scr._split_pane is None and app.is_running
-            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w:q<CR>")
+            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w:q<CR>")
             assert scr._split_pane is None and app.is_running
             _feed(scr, ":q<CR>")
             await pilot.pause()
@@ -622,7 +622,7 @@ class TestQuitClosesWindows:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
-            _feed(_screen(app), f":vsplit {_other(tmp_path)}<CR>:qa<CR>")
+            _feed(_screen(app), f":vsplit<Space>{_other(tmp_path)}<CR>:qa<CR>")
             await pilot.pause()
             assert not app.is_running
 
