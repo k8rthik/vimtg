@@ -114,24 +114,33 @@ def fetch_deck(url: str) -> RemoteDeck:
     a response that doesn't look like a deck.
     """
     host = (urlparse(url).hostname or "").lower()
-    if "moxfield.com" in host:
-        deck_id = _extract_id(url, _MOXFIELD_ID_RE, "Moxfield")
-        return parse_moxfield(_get_json(url, _MOXFIELD_API + deck_id))
-    if "archidekt.com" in host:
-        deck_id = _extract_id(url, _ARCHIDEKT_ID_RE, "Archidekt")
-        return parse_archidekt(_get_json(url, f"{_ARCHIDEKT_API}{deck_id}/"))
-    if "manabox.app" in host:
-        return parse_manabox_page(url, _get_text(url))
-    if "deckstats.net" in host:
-        return _fetch_deckstats(url)
-    if "tappedout.net" in host:
-        return _fetch_tappedout(url)
-    if "mtggoldfish.com" in host:
-        return _fetch_mtggoldfish(url)
+    for domain, fetch in _SITES:
+        if _on_domain(host, domain):
+            return fetch(url)
     raise DeckSourceError(
         f"Unsupported deck site: {host or '(no host)'} "
         "(moxfield, archidekt, manabox, deckstats, tappedout, mtggoldfish)"
     )
+
+
+def _on_domain(host: str, domain: str) -> bool:
+    """True for the site itself or one of its subdomains, never for a
+    look-alike such as 'moxfield.com.evil.example'."""
+    return host == domain or host.endswith("." + domain)
+
+
+def _fetch_moxfield(url: str) -> RemoteDeck:
+    deck_id = _extract_id(url, _MOXFIELD_ID_RE, "Moxfield")
+    return parse_moxfield(_get_json(url, _MOXFIELD_API + deck_id))
+
+
+def _fetch_archidekt(url: str) -> RemoteDeck:
+    deck_id = _extract_id(url, _ARCHIDEKT_ID_RE, "Archidekt")
+    return parse_archidekt(_get_json(url, f"{_ARCHIDEKT_API}{deck_id}/"))
+
+
+def _fetch_manabox(url: str) -> RemoteDeck:
+    return parse_manabox_page(url, _get_text(url))
 
 
 # ── HTTP plumbing ──────────────────────────────────────────────────
@@ -761,3 +770,14 @@ def _fetch_mtggoldfish(url: str) -> RemoteDeck:
         raise DeckSourceError(f"Could not extract MTGGoldfish deck id from {url}")
     text = _get_text(f"https://www.mtggoldfish.com/deck/download/{m.group(1)}")
     return parse_decklist_text(text, name="", blank_splits=True)
+
+
+# Each supported site's domain and fetcher, matched by _on_domain
+_SITES: tuple[tuple[str, Callable[[str], RemoteDeck]], ...] = (
+    ("moxfield.com", _fetch_moxfield),
+    ("archidekt.com", _fetch_archidekt),
+    ("manabox.app", _fetch_manabox),
+    ("deckstats.net", _fetch_deckstats),
+    ("tappedout.net", _fetch_tappedout),
+    ("mtggoldfish.com", _fetch_mtggoldfish),
+)
