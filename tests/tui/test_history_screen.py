@@ -267,7 +267,7 @@ async def test_branch_duplicate_reports_error(
         await pilot.press("enter")
         await pilot.pause()
         cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "already exists" in cl.message
+        assert cl.message == "E: Branch exists: main"
 
 
 @pytest.mark.asyncio
