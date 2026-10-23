@@ -395,6 +395,15 @@ class TestTagInput:
         assert "Filter: 1/2 cards match" in hr.command_message
         assert st.tag_filter is not None
 
+    def test_empty_filter_clears_it(self) -> None:
+        st = _state("4 Goblin Guide  #core\n4 Lava Spike\n", row=0)
+        st.tag_input_action = "f"
+        handle_tag_input_special(st, _act("enter", text="core"))
+        st.tag_input_action = "f"
+        hr = handle_tag_input_special(st, _act("enter", text=""))
+        assert st.tag_filter is None
+        assert hr.command_message == "Filter cleared"
+
     def test_empty_enter_exits(self) -> None:
         st = _state(row=1)
         st.tag_input_action = "a"
