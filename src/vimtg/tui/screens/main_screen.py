@@ -676,10 +676,17 @@ class MainScreen(Screen[None]):
             and self._state.mode_mgr.is_normal()
             and not self.keymap.awaiting_more_keys
         ):
-            if self._handle_split_pane_key(key):
+            if self._pane_nav.pending_g and key != "g":
+                # gh, g?, gc: the g starts an editor sequence, not gg —
+                # hand both keys to the editor, which takes focus back
+                self._pane_nav.reset()
+                self._split_pane.focused = False
+                self._sync_pane_focus()
+                self._handle_key("g", resolve)
+            elif self._handle_split_pane_key(key):
                 self._sync_widgets()
                 return
-            if key not in _PANE_PASS_KEYS:
+            elif key not in _PANE_PASS_KEYS:
                 self._split_pane.focused = False
                 self._sync_pane_focus()
         # A bare 'q' only stops recording in NORMAL mode with no pending
@@ -1454,10 +1461,16 @@ class MainScreen(Screen[None]):
         """Drive the focused split pane; True when the key was consumed.
 
         Every pane shares the navigation vocabulary (j/k, Ctrl-D/U, gg/G,
-        Home/End); the EDHREC pane adds tab switching and Enter.
+        Home/End) and the auxiliary-view keys: q closes the pane, Esc
+        goes back to the editor and leaves it open. The EDHREC pane adds
+        tab switching and Enter.
         """
         comp = self._split_pane
         assert comp is not None
+        if key == "q":
+            self._pane_nav.reset()
+            self._close_split()
+            return True
         if key == "escape":
             comp.focused = False
             self._pane_nav.reset()

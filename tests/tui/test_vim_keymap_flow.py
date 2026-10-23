@@ -191,3 +191,71 @@ class TestSpaceLeader:
             _feed(scr, "<Space>")
             plain = scr.query_one("#which-key", WhichKey).render().plain
             assert "leader:" in plain and "analytics" in plain
+
+
+class TestFocusedPaneKeys:
+    @pytest.mark.asyncio
+    async def test_q_closes_the_pane_without_recording(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w q")
+            assert scr._split_pane is None
+            assert not scr._state.macros.is_recording
+
+    @pytest.mark.asyncio
+    async def test_esc_returns_to_the_editor_and_keeps_the_pane(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w<Esc>")
+            assert scr._split_pane is not None and not scr._split_pane.focused
+
+    @pytest.mark.asyncio
+    async def test_g_keys_reach_the_editor(self, tmp_path: Path) -> None:
+        from vimtg.tui.widgets.help_panel import HelpPanel
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, f":vsplit {_other(tmp_path)}<CR><C-w>w g?")
+            assert scr.query_one("#help-panel", HelpPanel).display
+            _feed(scr, "<Esc><C-w>w 6G gc")
+            assert scr._state.tag_input_action == "category"
+
+    @pytest.mark.asyncio
+    async def test_gh_in_the_edhrec_pane_is_history_not_a_tab(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from tests.tui.test_edhrec_flow import _PAGE
+        from vimtg.tui.widgets.edhrec_panel import EdhrecPanel
+
+        monkeypatch.setenv("VIMTG_NO_EDHREC", "1")
+        deck = _deck(tmp_path, "// Format: commander\nCMD: 1 Krenko, Mob Boss\n")
+        app = VimTGApp(deck_path=deck)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            opened: list[bool] = []
+            scr._open_history = lambda: opened.append(True)  # type: ignore[method-assign]
+            _feed(scr, "<Space>r")
+            panel = scr.query_one("#edhrec-panel", EdhrecPanel)
+            panel.page = _PAGE
+            _feed(scr, "gh")
+            assert opened == [True]
+            assert panel.active_tab == 0
+
+    @pytest.mark.asyncio
+    async def test_pane_hints_name_q_and_esc(self, tmp_path: Path) -> None:
+        from vimtg.tui.widgets.analytics_panel import AnalyticsPanel
+
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "<Space>a<C-w>w")
+            plain = scr.query_one("#analytics-panel", AnalyticsPanel).render().plain
+            assert "q close" in plain and "Esc editor" in plain

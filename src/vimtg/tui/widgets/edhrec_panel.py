@@ -14,6 +14,7 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from vimtg.services.edhrec import EdhrecCard, EdhrecPage
+from vimtg.tui.keys import render_hints
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.scrolling import (
     WHEEL_LINES,
@@ -27,6 +28,13 @@ _SCROLLOFF = 2
 _CHROME_ROWS = 5
 _SELECTED_STYLE = f"on {COLORS['cursor_bg']}"
 _DIM = f"dim {COLORS['comment']}"
+
+
+# The focused pane's hint bar; q and Esc are the editor's pane keys
+HINTS = (
+    ("j/k", "select"), ("h/l", "tabs"), ("Enter", "add card"),
+    ("q", "close"), ("Esc", "editor"),
+)
 
 
 class EdhrecPanel(Static):
@@ -169,9 +177,8 @@ class EdhrecPanel(Static):
         if end < len(cards):
             t.append(marker_below(len(cards) - end) + "\n", style=_DIM)
         if self.focused_panel:
-            t.append(
-                " j/k select  h/l tabs  Enter add card  Esc back\n", style=_DIM
-            )
+            t.append(render_hints(HINTS))
+            t.append("\n")
 
     def _card_row(self, card: EdhrecCard, index: int) -> Text:
         is_sel = index == self.selected

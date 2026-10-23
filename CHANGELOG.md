@@ -27,6 +27,11 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- In a focused pane `q` closes the pane instead of starting a macro
+  recording in the editor, and `Esc` returns to the editor leaving the
+  pane open. `g` sequences (`gh`, `g?`, `gc`) reach the editor instead of
+  the pane: `gh` in the EDHREC pane no longer switches tab. The pane hint
+  bars name `q` and `Esc`.
 - The which-key popup after an operator shows that operator's motions:
   `dg` (on the way to `dgg`) no longer shows the `g` menu. The `q` menu
   no longer offers "stop recording" when nothing is recording.
