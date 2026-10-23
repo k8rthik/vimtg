@@ -10,10 +10,13 @@ current line, `'a,'b` for marks).
 |---------|-------------|
 | `:w [file]` | Save deck. Without an argument, writes back to the loaded file; a deck with no file yet is written to the current directory as its `// Deck:` name slugified (`Mono-Red Burn` → `mono-red-burn.deck`, `-2`, `-3`… when taken; a random name when the deck is unnamed). Empty `// Deck:` / `// Format:` / `// Tags:` lines the file never had are not written. `:w file` writes a copy to `file` (`~` expands, `.deck` is appended when missing) and goes on editing the deck's own file, its unsaved changes still unsaved, as in vim (`"copy.deck" written`); a deck with no file yet takes the name instead. `:saveas file` switches to the new file. Refuses to overwrite another existing file (E13) or a file that changed on disk since it was read |
 | `:w! [file]` | Save even over an existing file or outside changes |
-| `:q` | Quit. Errors if there are unsaved changes (E37) |
-| `:q!` | Quit, discarding changes |
-| `:wq` | Save and quit. `:wq file` writes the copy, then quits only when the deck itself has no unsaved changes (E37 otherwise; `:wq!` quits anyway) |
-| `:x` | Save if there are unsaved changes, then quit (also `ZZ`, `:xit`, `:exit`). A deck with no changes is not rewritten |
+| `:q` | Quit. Errors if there are unsaved changes (E37). With a split pane open it closes the pane instead (the other window, as in vim), from the editor or the pane |
+| `:q!` | Quit, discarding changes (with a pane open: close the pane) |
+| `:qa[!]` | Quit vimtg even with a pane open (also `:qall`, `:quitall`); `!` discards changes |
+| `:wa` | Write the deck if it has changes (also `:wall`) |
+| `:wqa` / `:xa` | Write the deck if it has changes, then quit vimtg (also `:wqall`, `:xall`) |
+| `:wq` | Save and quit (with a pane open: save and close the pane). `:wq file` writes the copy, then quits only when the deck itself has no unsaved changes (E37 otherwise; `:wq!` quits anyway) |
+| `:x` | Save if there are unsaved changes, then quit (also `ZZ`, `:xit`, `:exit`); with a pane open it closes the pane. A deck with no changes is not rewritten |
 | `:saveas file` | Write the deck to `file` and edit that file from now on (alias `:sav`). `:saveas!` overwrites an existing file |
 | `:home` | Return to the greeter (alias `:greeter`). Refuses with unsaved changes, like `:q`; `:home!` discards them |
 | `:recover` | Load the recovery copy of this deck (`:recover!` deletes it). vimtg writes the copy under `~/.local/state/vimtg/recovery/` when it hits an internal error, and when the editor closes with unsaved changes, for example on `Ctrl-Q`, a closed terminal, or a dropped SSH connection. `:q!`, `ZQ`, `:e!`, and `:home!` discard the changes and the copy. Opening the deck again offers the copy; copies of unnamed buffers and deleted decks are listed on the greeter (`R`). The next successful `:w` removes the copy |
