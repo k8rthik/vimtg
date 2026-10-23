@@ -105,6 +105,7 @@ from vimtg.services.recovery import (
     pending_recovery,
     write_recovery,
 )
+from vimtg.services.vcs_service import BRANCH_EXISTS, UNCOMMITTED_CHANGES
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.screens.new_deck import NewDeckInfo, NewDeckScreen
@@ -1648,7 +1649,7 @@ class MainScreen(Screen[None]):
             if self.file_path is None:
                 cl.set_message("E32: No file name (:w the deck first)", error=True)
             else:
-                cl.set_message("VCS unavailable (no database)")
+                cl.set_message("E: VCS unavailable (no database)", error=True)
         return vcs
 
     def _open_history(self) -> None:
@@ -1746,7 +1747,7 @@ class MainScreen(Screen[None]):
         try:
             existing = {b.name for b in vcs.list_branches()}
             if name in existing:
-                cl.set_message(f"E: Branch exists: {name}", error=True)
+                cl.set_message(BRANCH_EXISTS.format(name=name), error=True)
                 return
             branch = vcs.create_branch(name)
         except sqlite3.Error as exc:
@@ -1765,9 +1766,7 @@ class MainScreen(Screen[None]):
         cl = self.query_one("#command-line", CommandLine)
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
-                cl.set_message(
-                    "E: Uncommitted changes — :commit first", error=True
-                )
+                cl.set_message(UNCOMMITTED_CHANGES.format(key=":commit"), error=True)
                 return
             state = vcs.switch_branch(name)
         except sqlite3.Error as exc:
@@ -1792,9 +1791,7 @@ class MainScreen(Screen[None]):
         cl = self.query_one("#command-line", CommandLine)
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
-                cl.set_message(
-                    "E: Uncommitted changes — :commit first", error=True
-                )
+                cl.set_message(UNCOMMITTED_CHANGES.format(key=":commit"), error=True)
                 return
             branch_names = {b.name for b in vcs.list_branches()}
             result: MergeResult | None
@@ -1893,9 +1890,7 @@ class MainScreen(Screen[None]):
             return
         try:
             if vcs.is_dirty(self._state.buffer.to_text()):
-                cl.set_message(
-                    "E: Uncommitted changes — :commit first", error=True
-                )
+                cl.set_message(UNCOMMITTED_CHANGES.format(key=":commit"), error=True)
                 return
             result = vcs.rebase(target)
         except sqlite3.Error as exc:

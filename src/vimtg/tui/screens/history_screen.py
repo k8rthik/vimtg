@@ -25,8 +25,12 @@ from vimtg.domain.deck_merge import CardKey
 from vimtg.editor.config_options import currency_symbol_for
 from vimtg.services.deck_diff_service import DeckDiffService
 from vimtg.services.vcs_service import (
+    BRANCH_EXISTS,
+    UNCOMMITTED_CHANGES,
     MergeKind,
+    MergeResult,
     PendingMerge,
+    RebaseResult,
     VersionControlService,
 )
 from vimtg.tui.key_translator import translate
@@ -99,6 +103,7 @@ class HistoryCommandLine(Static):
     prompt: reactive[str] = reactive("")
     text: reactive[str] = reactive("")
     message: reactive[str] = reactive("")
+    error: reactive[bool] = reactive(False)  # style `message` as an error
     cursor_pos: reactive[int] = reactive(0)
     pending: reactive[str] = reactive("")  # showcmd: a pending "g"
 
@@ -107,7 +112,8 @@ class HistoryCommandLine(Static):
         if self.pending:
             t.append(f" {self.pending}-", style=f"bold {COLORS['quantity']}")
         if self.message:
-            t.append(f" {self.message}", style=f"bold {COLORS['mana_green']}")
+            colour = COLORS["error"] if self.error else COLORS["mana_green"]
+            t.append(f" {self.message}", style=f"bold {colour}")
             return t
         if self.prompt:
             pos = min(self.cursor_pos, len(self.text))
@@ -129,15 +135,20 @@ class HistoryCommandLine(Static):
         self.cursor_pos = 0
         self.message = ""
 
-    def show_message(self, msg: str) -> None:
+    def show_message(self, msg: str, *, error: bool = False) -> None:
         self.message = msg
+        self.error = error
         self.prompt = ""
         self.text = ""
+
+    def show_error(self, msg: str) -> None:
+        self.show_message(msg, error=True)
 
     def hide(self) -> None:
         self.prompt = ""
         self.text = ""
         self.message = ""
+        self.error = False
         self.cursor_pos = 0
         self.pending = ""
 
@@ -406,7 +417,7 @@ class HistoryScreen(FloatingScreen[None]):
             self._dispatch_key(key, event)
         except sqlite3.Error as exc:
             # A locked/failed database must not take down the screen
-            self._cl.show_message(f"E: Database error: {exc}")
+            self._cl.show_error(f"E: Database error: {exc}")
             self._input_mode = InputMode.NORMAL
             self._input_text = ""
 
@@ -579,7 +590,7 @@ class HistoryScreen(FloatingScreen[None]):
             self._cl.show_message(f"Branch created: {text}")
             self._refresh_data()
         else:
-            self._cl.show_message(f"Branch '{text}' already exists")
+            self._cl.show_error(BRANCH_EXISTS.format(name=text))
 
     def _submit_tag(self, text: str) -> None:
         if not text:
@@ -601,7 +612,7 @@ class HistoryScreen(FloatingScreen[None]):
             self._cl.show_message("No snapshot selected")
             return
         if self._on_restore is None:
-            self._cl.show_message("Restore unavailable in this view")
+            self._cl.show_error("E: Restore unavailable in this view")
             return
         self._on_restore(selected.deck_state)
         self._close()
@@ -613,7 +624,7 @@ class HistoryScreen(FloatingScreen[None]):
             return
         result = self._vcs.rebase(target)
         self._apply_vcs_state(result.new_state, f"rebase onto {target}")
-        self._cl.show_message(result.message)
+        self._show_result(result)
         self._refresh_data()
         self._update_diff()
 
@@ -625,7 +636,7 @@ class HistoryScreen(FloatingScreen[None]):
         if self._vcs.delete_branch(target):
             self._cl.show_message(f"Deleted branch: {target}")
         else:
-            self._cl.show_message(f"Cannot delete branch: {target}")
+            self._cl.show_error(f"E: Cannot delete branch: {target}")
         self._refresh_data()
         self._update_diff()
 
@@ -662,7 +673,7 @@ class HistoryScreen(FloatingScreen[None]):
             self._cl.show_message("Select a branch (2 or Tab to Branches panel)")
             return
         if branch.name == self._vcs.current_branch:
-            self._cl.show_message("Cannot delete the current branch (B to switch first)")
+            self._cl.show_error("E: Cannot delete the current branch (B to switch first)")
             return
         self._delete_target = branch.name
         self._prompt(
@@ -678,11 +689,11 @@ class HistoryScreen(FloatingScreen[None]):
             self._cl.show_message("Already on that branch")
             return
         if self._vcs.is_dirty(self._current_state):
-            self._cl.show_message("Uncommitted changes — commit first (c)")
+            self._cl.show_error(UNCOMMITTED_CHANGES.format(key="c"))
             return
         state = self._vcs.switch_branch(branch.name)
         if state is None:
-            self._cl.show_message(f"Cannot switch to: {branch.name}")
+            self._cl.show_error(f"E: Cannot switch to: {branch.name}")
             return
         self._apply_vcs_state(state, f"switch to {branch.name}")
         self._cl.show_message(f"Switched to: {branch.name}")
@@ -706,7 +717,7 @@ class HistoryScreen(FloatingScreen[None]):
             self._cl.show_message("No snapshot selected")
             return
         if self._vcs.cherry_pick(snap.id) is None:
-            self._cl.show_message("Cherry-pick failed")
+            self._cl.show_error("E: Cherry-pick failed")
             return
         tip = self._vcs.get_log(limit=1)
         if tip:
@@ -736,7 +747,7 @@ class HistoryScreen(FloatingScreen[None]):
             self._cl.show_message("Already on that branch")
             return None
         if self._vcs.is_dirty(self._current_state):
-            self._cl.show_message("Uncommitted changes — commit first (c)")
+            self._cl.show_error(UNCOMMITTED_CHANGES.format(key="c"))
             return None
         return branch.name
 
@@ -757,7 +768,7 @@ class HistoryScreen(FloatingScreen[None]):
             ))
             return
         self._apply_vcs_state(result.new_state, f"merge {name}")
-        self._cl.show_message(result.message)
+        self._show_result(result)
         self._refresh_data()
         self._update_diff()
 
@@ -775,12 +786,19 @@ class HistoryScreen(FloatingScreen[None]):
         try:
             result = self._vcs.complete_merge(pending, resolutions)
         except sqlite3.Error as exc:
-            self._cl.show_message(f"E: Merge failed: {exc}")
+            self._cl.show_error(f"E: Merge failed: {exc}")
             return
         self._apply_vcs_state(result.new_state, f"merge {pending.source_label}")
-        self._cl.show_message(result.message)
+        self._show_result(result)
         self._refresh_data()
         self._update_diff()
+
+    def _show_result(self, result: MergeResult | RebaseResult) -> None:
+        """A merge or rebase outcome, as the editor's ex commands word it."""
+        if result.kind is MergeKind.FAILED:
+            self._cl.show_error(f"E: {result.message}")
+        else:
+            self._cl.show_message(result.message)
 
     def _start_rebase(self) -> None:
         name = self._selected_other_branch()

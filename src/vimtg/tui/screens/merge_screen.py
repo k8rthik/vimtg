@@ -55,11 +55,13 @@ class MergeCommandLine(Static):
     prompt: reactive[str] = reactive("")
     text: reactive[str] = reactive("")
     message: reactive[str] = reactive("")
+    error: reactive[bool] = reactive(False)  # style `message` as an error
 
     def render(self) -> Text:
         t = Text()
         if self.message:
-            t.append(f" {self.message}", style=f"bold {COLORS['mana_green']}")
+            colour = COLORS["error"] if self.error else COLORS["mana_green"]
+            t.append(f" {self.message}", style=f"bold {colour}")
             return t
         if self.prompt:
             t.append(f" {self.prompt}", style=f"bold {COLORS['mode_command']}")
@@ -73,8 +75,9 @@ class MergeCommandLine(Static):
         self.text = ""
         self.message = ""
 
-    def show_message(self, msg: str) -> None:
+    def show_message(self, msg: str, *, error: bool = False) -> None:
         self.message = msg
+        self.error = error
         self.prompt = ""
         self.text = ""
 
@@ -82,6 +85,7 @@ class MergeCommandLine(Static):
         self.prompt = ""
         self.text = ""
         self.message = ""
+        self.error = False
 
 
 class MergeHeader(Static):
@@ -271,7 +275,7 @@ class MergeScreen(FloatingScreen[None]):
         ]
         if unresolved:
             cl = self.query_one("#merge-command", MergeCommandLine)
-            cl.show_message(f"{len(unresolved)} conflict(s) unresolved")
+            cl.show_message(f"E: {len(unresolved)} conflict(s) unresolved", error=True)
             return
         self.app.pop_screen()
         self._on_complete(dict(self._resolutions))
@@ -280,7 +284,8 @@ class MergeScreen(FloatingScreen[None]):
         """Close without merging; with resolutions made, only on a second q."""
         if not self._discard.allow_close(bool(self._resolutions)):
             self.query_one("#merge-command", MergeCommandLine).show_message(
-                "Resolutions not applied — press q again to discard, Enter to confirm"
+                "Resolutions not applied — press q again to discard, Enter to confirm",
+                error=True,
             )
             return
         self.app.pop_screen()

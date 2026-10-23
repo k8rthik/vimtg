@@ -75,6 +75,13 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Errors in the history overlay and the merge resolver are `E:` errors
+  drawn in red, like the editor's (a database error used to show in the
+  green of a status message). The editor and the overlay word the same
+  refusal the same way: `E: Uncommitted changes — commit them first`
+  (`(:commit)` in the editor, `(c)` in the overlay) and `E: Branch
+  exists: name`. Without a database the history commands say `E: VCS
+  unavailable (no database)` as an error.
 - `q` in the merge resolver no longer throws away resolved conflicts at
   once: with any card resolved it warns first ("press q again to
   discard"), the guard `:config` has for unsaved settings.
