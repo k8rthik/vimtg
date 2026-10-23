@@ -194,7 +194,7 @@ COMMAND_HELP: dict[str, str] = {
         ":g/@ramp/s/^4/3/   substitute on each match\n"
         ":v/SB:/d           delete card lines without an SB: prefix"
     ),
-    "e": (
+    "edit": (
         ":e [file]  Edit another deck in place of this one\n"
         "\n"
         ":e file   open file (deck.deck for 'deck'; a new file is a new deck)\n"
@@ -202,10 +202,10 @@ COMMAND_HELP: dict[str, str] = {
         ":e!       reload this deck from disk\n"
         "Registers carry over."
     ),
-    "d": ":[range]d [x]  Delete lines into register x (default: unnamed)",
-    "y": ":[range]y [x]  Yank lines into register x (default: unnamed)",
-    "m": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor)",
-    "t": ":[range]t {n}  Copy lines below line n (also :co, :copy)",
+    "delete": ":[range]d [x]  Delete lines into register x (default: unnamed)",
+    "yank": ":[range]y [x]  Yank lines into register x (default: unnamed)",
+    "move": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor)",
+    "copy": ":[range]t {n}  Copy lines below line n (also :co, :copy)",
     "undo": ":undo / :redo  One undo / redo step (also u / Ctrl-R)",
     "registers": ":reg [x...]  Show register contents (also :registers, :di)",
     "marks": ":marks  Show marks with their line numbers",
