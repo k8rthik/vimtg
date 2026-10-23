@@ -13,7 +13,10 @@ current line, `'a,'b` for marks).
 | `:q` | Quit. Errors if there are unsaved changes (E37) |
 | `:q!` | Quit, discarding changes |
 | `:wq` | Save and quit |
-| `:recover` | Load the crash-recovery copy of this deck (`:recover!` deletes it). Written to `~/.local/state/vimtg/recovery/<name>.deck` when vimtg hits an internal error; removed by the next successful `:w` |
+| `:x` | Save if there are unsaved changes, then quit (also `ZZ`, `:xit`, `:exit`). A deck with no changes is not rewritten |
+| `:saveas file` | Write the deck to `file` and edit that file from now on (alias `:sav`). `:saveas!` overwrites an existing file |
+| `:home` | Return to the greeter (alias `:greeter`). Refuses with unsaved changes, like `:q`; `:home!` discards them |
+| `:recover` | Load the recovery copy of this deck (`:recover!` deletes it). vimtg writes the copy under `~/.local/state/vimtg/recovery/` when it hits an internal error, and when the editor closes with unsaved changes, for example on `Ctrl-Q`, a closed terminal, or a dropped SSH connection. `:q!`, `ZQ`, `:e!`, and `:home!` discard the changes and the copy. Opening the deck again offers the copy; copies of unnamed buffers and deleted decks are listed on the greeter (`R`). The next successful `:w` removes the copy |
 | `:e file` | Edit another deck in place of this one (`.deck` is tried when `file` has no suffix; a missing file opens as a new deck). Refuses with unsaved changes (E37) |
 | `:e! [file]` | The same, discarding unsaved changes; `:e!` alone reloads this deck from disk |
 | `:{n}`, `:$`, `:.` | Go to line `n` / the last line / stay (a range goes to its last line) |
@@ -47,11 +50,12 @@ Examples:
 :%s/^(\d+) (.*)$/\2 x\1/ rewrite "4 Bolt" as "Bolt x4"
 :1,20sort cmc            sort lines 1–20 by mana cost
 :5,8m0                   move lines 5–8 to the top
+:'a,'bd                  delete from mark a through mark b
 ```
 
 Not supported, because the deck is line-oriented or the feature has no
-deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, marks as range
-addresses (`:'a,'bd`), and `+N`/`-N` address offsets.
+deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, and `+N`/`-N`
+address offsets.
 
 ## Search & navigation
 
@@ -112,7 +116,8 @@ Responses are cached for 7 days under the XDG cache directory.
 | `:tags` | List every tag in the deck with counts |
 | `:filter expr` | Filter the view to cards matching the tag expression |
 | `:retag /old/new/` | Rename a tag everywhere it appears |
-| `:dtag name` | Delete every card tagged `#name` |
+| `:dtag name...` | Add deck-level tags to the `// Tags:` metadata line, creating the line when the deck has none |
+| `:duntag name...` | Remove deck-level tags from the `// Tags:` line. The emptied line stays, so `i` can refill it |
 
 Filter expression grammar:
 
@@ -133,7 +138,7 @@ So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
 | `:export! fmt file` | Same, overwriting an existing `file` (`:export` refuses with E13). The open deck's own file is never an export target |
 | `:import file` | Replace the buffer with `file`, auto-detecting format. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
 | `:import` | Same, with the decklist (or deck URL) on the system clipboard |
-| `:clipboard [fmt]` | Copy the deck to the system clipboard (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
+| `:clipboard [fmt]` | Copy the deck to the system clipboard in any `:export` format (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
 
 Pasting (your terminal's paste key) in normal mode adds the pasted
 decklist to the deck as one undo step; in card search or on the `:`
@@ -179,7 +184,7 @@ by id. Note that merge and rebase results are normalized on write
 
 | Command | Description |
 |---------|-------------|
-| `:stats` | Toggle the mana-curve / type / color / price panel; the price names its source, e.g. `$12.34 (usd)` |
+| `:stats` | Print a one-line summary on the command line: card count, average CMC, cards per type, and the total price with its source, e.g. `$12.34 (usd)`. Without card data it counts the card lines in each zone. For the curve, colors, and mana base, use `:analytics` |
 | `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency |
 | `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Sa`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
 | `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Sd`): see below |
@@ -241,6 +246,8 @@ adjust a line's count, and `dd` removes it.
 |---------|-------------|
 | `:config` | Open the settings screen |
 | `:set key=value` | Set an editor option and save it to `config.toml` (edited in place, comments kept); bare `:set` lists all |
+| `:map key action` | Remap a normal-mode key for this session. A multi-key `action` is typed key by key, and one that starts with `:` runs as a command (`:map ; :w`). Bare `:map` lists the mappings. See [keybindings.md](./keybindings.md#remapping) |
+| `:unmap key` | Remove a mapping |
 
 Card data auto-syncs in the background when the local database is
 missing or older than a week (`:set noautosync` turns this off; the

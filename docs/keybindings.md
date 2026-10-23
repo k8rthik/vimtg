@@ -43,7 +43,7 @@ Everything below is normal mode unless flagged otherwise.
 | `Esc` | Back to normal mode; cancels a pending key sequence (in normal mode it also hides the getting-started tips) |
 | `F1` | Full-screen help (also `:help`) |
 | `g?` | Toggle the quick-reference panel (`q`, `Esc`, or `?` closes it) |
-| `ZZ` / `ZQ` | Save and quit (`:wq`) / quit discarding changes (`:q!`) |
+| `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 
 ### Navigation
 
@@ -252,6 +252,7 @@ Every screen accepts the shared vocabulary:
 |-----|--------|
 | `n` / `e` / `i` / `s` / `r` | New deck (asks for name and format) / open a file / import a file or URL / sync cards / recent decks (from any directory) |
 | `1`-`5` | Open the nth recent deck listed |
+| `R` | Unsaved buffers left by an earlier session (listed only when there are any). `Enter` opens one, `d` discards it |
 | `?` / `F1` | Help overview (scrolls with the shared keys) |
 | `q` | Quit vimtg. `Esc` does nothing on the menu; in a sub-mode it goes back |
 | lists | Shared navigation, `Enter` open, `n` new deck, `q`/`Esc` back |
@@ -323,5 +324,10 @@ removes a mapping. The key is a single key (`s`, `ctrl_s`), and, as in
 vim, a mapping applies only where a command starts: mapping `s` leaves
 `zs` and `"s` alone. Persistent maps live under `[keybindings]` in
 `~/.config/vimtg/config.toml`, per mode (`normal`, `insert`, `visual`,
-`command`). Unbound keys such as `;`, `,`, `e`, `f`, `n`, `r`, `s`, or
-`Ctrl-S` are free to map.
+`command`). `;`, `,`, and `Ctrl-S` are unbound and free to map.
+
+A mapping rewrites its key everywhere you type it, including as the
+second key of a sequence. Mapping `s`, for example, also changes `zs`
+and the mark, register, and macro names `ms`, `'s`, `"s`, `qs`, and
+`@s`. Every letter is a mark, register, and macro name, so mapping any
+letter has the same effect.

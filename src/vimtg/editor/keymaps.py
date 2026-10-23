@@ -83,7 +83,7 @@ class KeyRemapper:
         "ctrl_s" = ":w"
 
         [keybindings.normal]
-        "s" = ":w"
+        ";" = ":w"
         "Q" = ":q!"
 
         [keybindings.insert]
