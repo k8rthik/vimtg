@@ -8,7 +8,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 from vimtg.domain.card import Card, Color, color_from_symbol
-from vimtg.domain.card_types import primary_type
+from vimtg.domain.card_types import PRIMARY_TYPES, primary_type
 from vimtg.domain.deck import Deck, DeckSection
 from vimtg.domain.formats import normalize_format
 from vimtg.domain.mana import (
@@ -568,3 +568,22 @@ def compute_stats(
         commander_count=commander_count,
         price_source=price_source,
     )
+
+
+def stats_summary(
+    deck: Deck, resolved: dict[str, Card], price_source: str, symbol: str
+) -> str:
+    """The one-line summary :stats and `vimtg info` print: card count,
+    average CMC, cards per type and the total price ('$12.34 (usd)')."""
+    stats = compute_stats(deck, resolved, price_source)
+    parts = [f"{stats.total_cards} cards", f"Avg CMC {stats.average_cmc:.2f}"]
+    type_parts = [
+        f"{count} {tname}"
+        for tname in PRIMARY_TYPES
+        if (count := stats.type_breakdown.counts.get(tname, 0)) > 0
+    ]
+    if type_parts:
+        parts.append(", ".join(type_parts))
+    if stats.total_price_usd is not None:
+        parts.append(f"{symbol}{stats.total_price_usd:.2f} ({price_source})")
+    return " | ".join(parts)

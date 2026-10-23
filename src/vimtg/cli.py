@@ -7,7 +7,7 @@ import re
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import click
 import httpx
@@ -23,6 +23,9 @@ from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync
 from vimtg.services.deck_service import DeckService, editor_line_numbers
 from vimtg.services.import_export_service import FORMAT_NAMES, IMPORT_FORMAT_NAMES
 from vimtg.services.search_service import SearchService, SearchSyntaxError
+
+if TYPE_CHECKING:
+    from vimtg.domain.deck import DeckEntry
 
 
 def _make_service() -> DeckService:
@@ -303,22 +306,45 @@ def validate(path: str, strict: bool) -> None:
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
 def info(path: str) -> None:
-    """Show deck summary."""
-    service = _make_service()
-    file_path = Path(path)
-    _text, deck = service.open_deck(file_path)
+    """Show deck summary: name, format, every zone's card count, and
+    (with card data) the :stats line."""
+    from vimtg.config.settings import load_settings
+    from vimtg.domain.analytics import stats_summary
+    from vimtg.editor.config_options import currency_symbol_for
 
-    main_entries = deck.mainboard()
-    side_entries = deck.sideboard()
-    main_count = sum(e.quantity for e in main_entries)
-    side_count = sum(e.quantity for e in side_entries)
-    main_unique = len({e.card_name for e in main_entries})
-    side_unique = len({e.card_name for e in side_entries})
+    card_repo = _try_card_repo()
+    service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
+    _text, deck = service.open_deck(Path(path))
+    settings = load_settings()
 
-    click.echo(f"Deck:      {deck.metadata.name or '(unnamed)'}")
-    click.echo(f"Format:    {deck.metadata.format or '(none)'}")
-    click.echo(f"Mainboard: {main_count} cards ({main_unique} unique)")
-    click.echo(f"Sideboard: {side_count} cards ({side_unique} unique)")
+    fmt = deck.metadata.format.strip() or "(none)"
+    if not deck.metadata.format.strip() and settings.default_format:
+        fmt = f"{settings.default_format} (default_format)"
+    rows = [("Deck", deck.metadata.name or "(unnamed)"), ("Format", fmt)]
+    for label, entries, always in (
+        ("Commander", deck.commanders(), False),
+        ("Companion", deck.companions(), False),
+        ("Mainboard", deck.mainboard(), True),
+        ("Sideboard", deck.sideboard(), True),
+        ("Maybeboard", deck.maybeboard(), False),
+    ):
+        if entries or always:
+            rows.append((label, _zone_count(entries)))
+    if card_repo is not None:
+        resolved = service.resolve_cards(deck)[0]
+        source = settings.price_source
+        rows.append(
+            ("Stats", stats_summary(deck, resolved, source, currency_symbol_for(source)))
+        )
+    for label, value in rows:
+        click.echo(f"{label + ':':<12}{value}")
+
+
+def _zone_count(entries: tuple[DeckEntry, ...]) -> str:
+    """'56 cards (2 unique)' for one zone's entries."""
+    total = sum(e.quantity for e in entries)
+    unique = len({e.card_name for e in entries})
+    return f"{total} card{'' if total == 1 else 's'} ({unique} unique)"
 
 
 @main.command()
