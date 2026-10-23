@@ -241,16 +241,16 @@ One `@category` purpose label per card (`@ramp`, `@draw`, `@wincon`); names are 
 Deck-level annotations, any number per card: `#core`, `#flex`, `#budget`.
 
 - `ta` add, `tr` remove, `tt` toggle, `tc` clear, `tl` list with counts, `tf` filter, `tn`/`tp` jump to the next/previous card sharing a tag with the cursor.
-- `:tag`, `:untag`, `:untag!`, `:tags`, `:retag /old/new/` (rename everywhere), `:dtag` / `:duntag` (deck-level `// Tags:` line).
+- `:tag`, `:untag`, `:untag!`, `:tags`, `:retag /old/new/` (rename everywhere), `:dtag` / `:duntag` (add or remove deck-level tags on the `// Tags:` line).
 - **Filter grammar**: `core+flex` is AND, `core|flex` is OR, `-flex` is NOT. `:filter expr` dims non-matching cards and suppresses their expansion; `:filter!` or an empty expression clears.
 
 ### Bulk editing
 
-Most commands take a vim range: `%`, `5,10`, `.`, `$`, or a mark pair.
+Most commands take a vim range: `%`, `5,10`, `.`, `$`, or a mark pair (`'a,'b`).
 
 - `:sort [field]` sorts the current section (or range) by `name`, `qty`, `cmc`, `type`, `color`, `tag`, `category`, `power`, `toughness`, `rarity`, or `price`. Entries are sorted within each zone so a range spanning zones never rezones a line. `:sort!` reverses. Missing card data falls back to name order.
-- `:s/old/new/[gi]` substitutes literally across the range (`:%s/Bolt/Helix/g`).
-- `:g/pattern/d` and `:v/pattern/d` delete matching or non-matching card lines in every zone: mainboard, sideboard, maybeboard, command zone, and companion, block or prefix style. The pattern sees the whole line, so `:g/^SB:/d` or `:v/@ramp/d` work. Headers, comments, metadata, and sideboard-plan entries never match. `d` is the only sub-command.
+- `:s/pat/rep/[gI]` substitutes a regex across the range (`:%s/Bolt/Helix/g`), case-insensitive unless `I`.
+- `:g/pattern/cmd` and `:v/pattern/cmd` run `cmd` on matching or non-matching card lines in every zone: mainboard, sideboard, maybeboard, command zone, and companion, block or prefix style. `cmd` is `d` (delete), `p` (list the matches), `y [x]` (yank into register `x`), or `s/pat/rep/` (substitute). The pattern sees the whole line, so `:g/^SB:/d` or `:v/@ramp/d` work. Headers, comments, metadata, and sideboard-plan entries never match.
 - `:find pattern` (also `/`) jumps to the next matching card, case-insensitive regex, wrapping. `n`/`N` repeat it forward/backward.
 
 ### Format-aware validation and live lint
@@ -274,7 +274,7 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 
 ### Analytics
 
-- `:stats` toggles a summary of the mana curve, type breakdown, colour pips, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it).
+- `:stats` prints a one-line summary on the command line: card count, average CMC, cards per type, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it). For the curve, colour pips, and mana base, use `:analytics`.
 - `:analytics` (or `Sa`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
 - `vimtg info deck.deck` prints counts from the shell.
@@ -291,7 +291,7 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 
 One pane at a time, beside (`Sv`, `:vsplit file`) or below (`Sh`, `:split file`) the editor.
 
-- **Deck pane**: another deck file, read-only, for comparing a netdeck or an old version. `j`/`k`, `Ctrl-D`/`Ctrl-U`, `g`/`G` scroll.
+- **Deck pane**: another deck file, read-only, for comparing a netdeck or an old version. `j`/`k`, `Ctrl-D`/`Ctrl-U`, `gg`/`G` scroll.
 - **EDHREC pane** (`Sr`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory. `VIMTG_NO_EDHREC` disables lookups.
 - **Analytics pane** (`Sa`, `:analytics`): described above; opens unfocused because it is a readout.
 - `Ss` switches focus, `Sc` or `:close` closes. A focused pane has an orange border. Any editing key falls through to the editor and refocuses it.
@@ -320,7 +320,7 @@ Two layers, both stored in the local SQLite database and keyed by deck path.
 
 ### Greeter
 
-`vimtg` with no arguments opens a greeter with the logo, version, and recent decks: the ones you opened or saved lately from any directory (remembered in `~/.local/state/vimtg/state.json`), then the newest `.deck` files in the current directory. On short terminals the logo and recents give way so the menu always fits. Keys: `n` new deck (asks for its name and format), `e` file browser, `i` import from a file path or deck URL (bracketed paste supported), `s` sync cards with inline progress, `r` recent files, `1`–`5` open a recent deck, `?` help, `q` quit. `:home` returns here from the editor.
+`vimtg` with no arguments opens a greeter with the logo, version, and recent decks: the ones you opened or saved lately from any directory (remembered in `~/.local/state/vimtg/state.json`), then the newest `.deck` files in the current directory. On short terminals the logo and recents give way so the menu always fits. Keys: `n` new deck (asks for its name and format), `e` file browser, `i` import from a file path or deck URL (bracketed paste supported), `s` sync cards with inline progress, `r` recent files, `1`–`5` open a recent deck, `R` unsaved buffers left by an earlier session (shown only when there are any; `Enter` opens one, `d` discards it), `?` help, `q` quit. `:home` returns here from the editor.
 
 ### Configuration
 
@@ -350,7 +350,7 @@ Empty decks show a short "Getting started" tips panel under the deck (`Esc` hide
 
 Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and a split pane steps aside while the terminal is too narrow for it.
 
-`F1` or `:help` opens the full-screen help; `g?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `g`/`G`, or the wheel). In the editor `?` is vim's backward search, not help; `:help <command>` opens one of thirty per-command topics. The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
+`F1` or `:help` opens the full-screen help; `g?` toggles an inline quick-reference panel (scrolls with `j`/`k`, `Ctrl-D`/`Ctrl-U`, `gg`/`G`, or the wheel). In the editor `?` is vim's backward search, not help; `:help <command>` opens that command's topic, under its full name or an alias (`:help export`, `:help exp`). The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` tags from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
 
 ## Keybindings
 
@@ -416,7 +416,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `Sd` | Sample hand / goldfish overlay |
 | `Ss` / `Sc` | Switch focus / close pane |
 | `F1` / `g?` | Full help / quick-reference panel |
-| `ZZ` / `ZQ` | Save and quit (`:wq`) / quit discarding changes (`:q!`) |
+| `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 
 </details>
 
@@ -471,7 +471,7 @@ vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing ou
 Known limitations; none block normal use.
 
 - **No text objects and no till-motion** (`t` is the tag prefix): the cursor moves by card line, not by character.
-- **`:g`/`:v` run `d`, `p`, `y`, and `s///` only.** `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, marks as range addresses, and `+N`/`-N` offsets are not supported ([details](https://github.com/k8rthik/vimtg/blob/main/docs/commands.md)).
+- **`:g`/`:v` run `d`, `p`, `y`, and `s///` only.** `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, and `+N`/`-N` offsets are not supported ([details](https://github.com/k8rthik/vimtg/blob/main/docs/commands.md)).
 - **History stats need the card database.** Without a synced database the Stats panel shows no deltas.
 - **`theme`** has a single value and cycling it does nothing.
 - **`:set` persists.** Unlike vim, it saves to `config.toml` at once; there is no session-only setting.

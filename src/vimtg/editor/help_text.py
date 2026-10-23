@@ -48,7 +48,7 @@ COMMANDS
   :reg :marks   Show registers / marks
   :find pattern Jump to matching card
   :search [q]   Open card search (as o) with query q
-  :stats        Deck statistics
+  :stats        One-line deck summary (:analytics has more)
   :validate     Check format legality (uses // Format:)
   :hand [seed]  Sample hand / goldfish (draw, mulligan; Sd)
   :cat name     Set card category (:cat! clears)
@@ -265,7 +265,8 @@ COMMAND_HELP: dict[str, str] = {
     "clipboard": (
         ":clipboard [format]  Copy deck to the system clipboard\n"
         "\n"
-        "Default format is arena. Use mtgo/moxfield/archidekt/vimtg for others.\n"
+        "Default format is arena. mtgo, dek, moxfield, archidekt, vimtg,\n"
+        "and guide also work, as with :export.\n"
         "Uses pbcopy, wl-copy, xclip, xsel or clip.exe when available\n"
         "(confirmed copy); otherwise asks the terminal via OSC 52, which\n"
         "cannot be confirmed (iTerm2, kitty, Alacritty, Wezterm and\n"
@@ -303,6 +304,20 @@ COMMAND_HELP: dict[str, str] = {
         ":filter / :filter!        clear filter"
     ),
     "retag": ":retag /old/new/  Rename a tag across the entire deck",
+    "dtag": (
+        ":dtag name...  Add deck-level tags to the // Tags: metadata line\n"
+        "\n"
+        ":dtag aggro          tag the deck aggro\n"
+        ":dtag burn budget    add two tags at once\n"
+        "\n"
+        "The // Tags: line is created when the deck has none. Card tags\n"
+        "(#name on a card line) are :tag and :untag."
+    ),
+    "duntag": (
+        ":duntag name...  Remove deck-level tags from the // Tags: line\n"
+        "\n"
+        "The emptied // Tags: line stays, so i can refill it."
+    ),
     "help": ":help [command]  Open full-screen help (also F1; q closes)",
     "messages": (
         ":messages  Show recent messages and errors (alias :mes)\n"
@@ -381,7 +396,13 @@ COMMAND_HELP: dict[str, str] = {
         "branch's tip. Overlapping edits resolve in favor of the replayed\n"
         "commit. Original snapshots stay recoverable by id."
     ),
-    "stats": ":stats  Show deck statistics (mana curve, colors, types)",
+    "stats": (
+        ":stats  One-line deck summary on the command line\n"
+        "\n"
+        "Card count, average CMC, cards per type, and the total price\n"
+        "with its source. Without card data it counts the card lines in\n"
+        "each zone. :analytics shows the curve, colors, and mana base."
+    ),
     "validate": (
         ":validate  Check deck legality for its format\n"
         "\n"
@@ -413,7 +434,7 @@ COMMAND_HELP: dict[str, str] = {
     "map": (
         ":map key action  Remap a NORMAL-mode key for this session\n"
         "\n"
-        ":map s :w        's' saves\n"
+        ":map ; :w        ';' saves\n"
         ":map              list mappings\n"
         "Persist mappings in ~/.config/vimtg/config.toml [keybindings]."
     ),
