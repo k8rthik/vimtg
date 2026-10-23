@@ -22,11 +22,7 @@ from textual.screen import Screen
 from textual.widgets import Static
 
 from vimtg import __version__
-from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_completer import CommandCompleter, CompletionState
-from vimtg.editor.command_handlers import register_all_commands
-from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
-from vimtg.editor.cursor import Cursor
+from vimtg.editor.command_completer import CommandCompleter
 from vimtg.services.deck_sources import (
     DeckSourceError,
     RemoteDeck,
@@ -41,6 +37,7 @@ from vimtg.services.recovery import (
 )
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
+from vimtg.tui.screens import greeter_command
 from vimtg.tui.theme import COLORS
 
 if TYPE_CHECKING:
@@ -65,8 +62,6 @@ ACTIONS = [
     ("q", "Quit"),
 ]
 
-# The editor commands the greeter's `:` line runs (with their aliases)
-GREETER_COMMANDS = ("edit", "enew", "q", "qa", "sync", "help")
 SYNC_KEY = "s"
 
 LOGO_WIDTH = max(len(line) for line in LOGO_LINES)
@@ -75,13 +70,6 @@ MENU_RECENT = 5  # recent decks listed on the menu (all of them under `r`)
 EXIT_HINT = "Press q (or type :q) to exit vimtg"
 
 _DIM = f"dim {COLORS['comment']}"
-
-
-def greeter_registry() -> CommandRegistry:
-    """The editor's own handlers for GREETER_COMMANDS."""
-    full = CommandRegistry()
-    register_all_commands(full)
-    return full.subset(GREETER_COMMANDS)
 
 
 def _where(path: Path) -> str:
@@ -129,10 +117,8 @@ class GreeterView(Static):
         self._card_note = ""  # card database readout (no data, age, sync)
         self._card_note_attention = False
         self._input = ""  # import prompt text (path or URL)
-        # The `:` command line's text while it is open, None when closed
-        self.command: str | None = None
-        # Ghost / Tab cycle state of the command line
-        self.completion: CompletionState | None = None
+        # The `:` command line while it is open, None when closed
+        self.command: greeter_command.CommandLineState | None = None
         # A card sync is running: the menu does not offer another
         self.sync_running = False
         self.nav = VimNav()
@@ -234,23 +220,12 @@ class GreeterView(Static):
             t.append(f"  {self._status}\n", style=f"bold {colour}")
 
         if self.command is not None:
-            t.append_text(self._render_command_line())
+            t.append_text(greeter_command.render(self.command))
         else:
             t.append("  Press a highlighted key\n" if compact
                      else "  Press a highlighted key, or : for a command\n", style=_DIM)
         return t
 
-    def _render_command_line(self) -> Text:
-        """`:text`, a block cursor, and the Tab-completion ghost."""
-        text = self.command or ""
-        t = Text("  :", style="bold")
-        t.append(text, style="bold")
-        t.append(" ", style="reverse")
-        ghost = CommandCompleter.current_ghost(self.completion)
-        if ghost.startswith(text) and ghost != text:
-            t.append(ghost[len(text):], style=_DIM)
-        t.append("\n")
-        return t
 
     def _render_import(self) -> Text:
         t = Text()
@@ -438,7 +413,7 @@ class GreeterScreen(Screen[None]):
         super().__init__()
         self._recent = recent_files or []
         self._all_files = _find_all_decks()
-        self._commands = greeter_registry()
+        self._commands = greeter_command.greeter_registry()
         self._completer = CommandCompleter(self._commands)
 
     def compose(self) -> ComposeResult:
@@ -473,7 +448,10 @@ class GreeterScreen(Screen[None]):
         key = translate(event.key)
         gv = self.query_one(GreeterView)
         if gv.command is not None:
-            self._handle_command_key(key, event, gv)
+            outcome = greeter_command.feed(gv.command, key, event.character, self._completer)
+            gv.command = outcome.line
+            if outcome.submitted:
+                self._run_command(outcome.submitted, gv)
             gv.refresh()
             return
         if event.key == "ctrl+c" and gv._mode == GreeterMode.MENU:
@@ -498,8 +476,7 @@ class GreeterScreen(Screen[None]):
 
     def _handle_menu_key(self, key: str, gv: GreeterView) -> None:
         if key == ":":
-            gv.command = ""
-            gv.completion = None
+            gv.command = greeter_command.CommandLineState()
             gv._status = ""
             gv.refresh()
         elif key == "n":
@@ -544,44 +521,10 @@ class GreeterScreen(Screen[None]):
             gv._input += key
             gv.refresh()
 
-    # -- The `:` command line ---------------------------------------------
-
-    def _handle_command_key(self, key: str, event: Key, gv: GreeterView) -> None:
-        """Esc (or Backspace on an empty line) closes it, Enter runs it,
-        Tab / Shift-Tab complete; anything printable is typed."""
-        text = gv.command or ""
-        if key == "escape" or (key == "backspace" and not text):
-            gv.command = None
-        elif key == "enter":
-            gv.command = None
-            self._run_command(text.strip(), gv)
-        elif key in ("tab", "shift_tab"):
-            gv.command = self._complete(text, gv, backward=key == "shift_tab")
-            return
-        elif key == "backspace":
-            gv.command = text[:-1]
-        elif (char := event.character) and len(char) == 1 and char.isprintable():
-            gv.command = text + char
-        gv.completion = None
-
-    def _complete(self, text: str, gv: GreeterView, *, backward: bool) -> str:
-        state = gv.completion
-        if state is None or not state.matches:
-            state = self._completer.complete(text)
-        elif backward:
-            state = CommandCompleter.cycle_prev(state)
-        else:
-            state = CommandCompleter.cycle_next(state)
-        gv.completion = state
-        return CommandCompleter.accept(state) or text
-
     def _run_command(self, text: str, gv: GreeterView) -> None:
         """Run `text` with the editor's own handlers, then do what they
         asked for: open a deck, a new one, the help, a sync, or quit."""
-        if not text:
-            return
-        ctx = EditorContext()
-        self._commands.execute(parse_command(text, 0, 0), Buffer.from_text(""), Cursor(), ctx)
+        ctx = greeter_command.run(text, self._commands)
         if ctx.error:
             gv._status = ctx.message
         elif ctx.quit_requested:
