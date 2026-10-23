@@ -5,6 +5,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.export_cmds import cmd_clipboard, cmd_export, cmd_import
 from vimtg.editor.commands import EditorContext, ParsedCommand
@@ -178,6 +180,20 @@ class TestClipboard:
         assert capsys.readouterr().out == ""
         assert ctx.clipboard_label.startswith("mtgo (")
         assert ctx.clipboard_text is not None
+
+    @pytest.mark.parametrize("fmt", ["vimtg", "arena", "mtgo", "moxfield", "guide"])
+    def test_clipboard_text_is_the_export_text(self, fmt: str) -> None:
+        text = (
+            "// Deck: Burn\n\n// a note to self\n// Creature\n"
+            "4 Goblin Guide  #fast  // keep\n\nSB:\n    2 Smash to Smithereens\n"
+        )
+        buffer = Buffer.from_text(text)
+        exported, clipped = EditorContext(), EditorContext()
+        cmd_export(buffer, Cursor(row=0), ParsedCommand(name="export", args=fmt), exported)
+        cmd_clipboard(buffer, Cursor(row=0), ParsedCommand(name="clipboard", args=fmt), clipped)
+        assert clipped.clipboard_text == exported.clipboard_text
+        if fmt == "vimtg":
+            assert clipped.clipboard_text == text
 
     def test_clipboard_unknown_format(self) -> None:
         buffer = Buffer.from_text(_deck_text())

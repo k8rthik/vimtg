@@ -64,6 +64,17 @@ def _export_conflict(target: Path, ctx: EditorContext, bang: bool) -> str | None
     return None
 
 
+def _render_export(buffer: Buffer, fmt: DeckFormat, ctx: EditorContext) -> str:
+    """The deck in `fmt`, as :export and :clipboard both produce it."""
+    if fmt is DeckFormat.VIMTG:
+        # vimtg -> vimtg is the buffer itself: re-serializing would drop
+        # section headers, block layout and comment positions
+        return buffer.to_text()
+    deck = parse_deck_text(buffer.to_text())
+    service = ImportExportService(card_repo=ctx.card_repo)
+    return service.export_deck(deck, fmt, resolved=ctx.resolved_cards or {})
+
+
 def cmd_export(
     buffer: Buffer,
     cursor: Cursor,
@@ -90,15 +101,7 @@ def cmd_export(
         )
         return buffer, cursor
 
-    if fmt is DeckFormat.VIMTG:
-        # vimtg -> vimtg is the buffer itself: re-serializing would drop
-        # section headers, block layout and comment positions
-        result = buffer.to_text()
-    else:
-        deck = parse_deck_text(buffer.to_text())
-        service = ImportExportService(card_repo=ctx.card_repo)
-        result = service.export_deck(deck, fmt, resolved=ctx.resolved_cards or {})
-
+    result = _render_export(buffer, fmt, ctx)
     if len(parts) == 1:
         ctx.clipboard_text = result
         ctx.clipboard_label = f"{fmt_name} export ({len(result.splitlines())} lines)"
@@ -243,11 +246,7 @@ def cmd_clipboard(
         ctx.error = True
         return buffer, cursor
 
-    deck = parse_deck_text(buffer.to_text())
-    resolved = ctx.resolved_cards or {}
-    service = ImportExportService(card_repo=ctx.card_repo)
-    text = service.export_deck(deck, fmt, resolved=resolved)
-
+    text = _render_export(buffer, fmt, ctx)
     ctx.clipboard_text = text
     ctx.clipboard_label = f"{fmt_name} ({len(text.splitlines())} lines)"
     return buffer, cursor
