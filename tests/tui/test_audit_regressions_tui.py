@@ -55,8 +55,8 @@ async def test_tab_does_not_resurrect_previous_completion(tmp_path: Path) -> Non
         for ch in ":st":
             await pilot.press(ch)
         await pilot.press("escape")
-        # Sv prefills 'vsplit ' — Tab must not replace it with 'stats'
-        await pilot.press("S", "v")
+        # Ctrl-W v prefills 'vsplit ' — Tab must not replace it with 'stats'
+        await pilot.press("ctrl+w", "v")
         assert cl.text == "vsplit "
         await pilot.press("tab")
         assert not cl.text.startswith("stats")

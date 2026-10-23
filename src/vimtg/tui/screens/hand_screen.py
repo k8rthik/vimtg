@@ -1,4 +1,4 @@
-"""HandScreen — sample hand / goldfish overlay (:hand, Sd).
+"""HandScreen — sample hand / goldfish overlay (:hand, Space h).
 
 Draws an opening seven from the main deck and lets the user goldfish:
 n/Space draw, m London mulligan (b bottoms the selected card), r

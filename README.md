@@ -74,7 +74,7 @@ vimtg works offline once card data is downloaded. It makes **no telemetry, analy
 | When | Where | What |
 |---|---|---|
 | `vimtg sync`, the greeter's `[s]`, or the TUI's background auto-sync (on launch and hourly, only when card data is missing or more than seven days old) | `api.scryfall.com`, `data.scryfall.io` | The public `oracle_cards` bulk file (card text, legalities, prices). Turn auto-sync off with `:set noautosync` or `VIMTG_NO_AUTOSYNC=1`. |
-| You open the EDHREC pane (`Sr` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days; disable with `VIMTG_NO_EDHREC=1`. |
+| You open the EDHREC pane (`Space r` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days; disable with `VIMTG_NO_EDHREC=1`. |
 | You import a deck URL (`:import <url>` or the greeter's `[i]`) | The site in the URL: Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or MTGGoldfish | That one public deck. |
 
 Requests identify themselves with a `vimtg/<version>` User-Agent and send nothing about your decks except the commander name (EDHREC) or the deck URL you asked to import. Your decks, settings, and history stay on your machine: card data and history in `~/.local/share/vimtg/`, config in `~/.config/vimtg/`, download caches in `~/.cache/vimtg/` (XDG variables are honoured).
@@ -275,13 +275,13 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 ### Analytics
 
 - `:stats` prints a one-line summary on the command line: card count, average CMC, cards per type, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it). For the curve, colour pips, and mana base, use `:analytics`.
-- `:analytics` (or `Sa`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
+- `:analytics` (or `Space a`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
 - `vimtg info deck.deck` prints counts from the shell.
 
 ### Sample hand
 
-- `:hand` (alias `:goldfish`, key `Sd`) opens a goldfish overlay: it shuffles the main deck and draws an opening seven. Sideboard, maybeboard, commander and companion cards stay out of the library; for Commander the commander is shown in the command zone and the hand comes from the 99. With a sideboard plan active, the post-board deck is used.
+- `:hand` (alias `:goldfish`, key `Space h`) opens a goldfish overlay: it shuffles the main deck and draws an opening seven. Sideboard, maybeboard, commander and companion cards stay out of the library; for Commander the commander is shown in the command zone and the hand comes from the 99. With a sideboard plan active, the post-board deck is used.
 - `n`/`Space` draws the next card, `m` takes a London mulligan (draw seven, then select cards with `j`/`k` and press `b` to put one on the bottom per mulligan; the first mulligan is free in Commander and Brawl), `r` reshuffles a fresh hand, `q`/`Esc` closes.
 - The overlay shows the land count in hand and hypergeometric odds: at least one / two lands in the opening seven, and the chance of hitting every land drop through turns 1 to 5, on the play and on the draw. Lands come from the card database; without one, only basic lands are counted.
 - `:hand seed=42` seeds the shuffle so the same hands come up every time (useful for tests and comparisons).
@@ -289,12 +289,12 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 
 ### Split panes and EDHREC
 
-One pane at a time, beside (`Sv`, `:vsplit file`) or below (`Sh`, `:split file`) the editor.
+One pane at a time, beside (`Ctrl-W v`, `:vsplit file`) or below (`Ctrl-W s`, `:split file`) the editor.
 
 - **Deck pane**: another deck file, read-only, for comparing a netdeck or an old version. `j`/`k`, `Ctrl-D`/`Ctrl-U`, `gg`/`G` scroll.
-- **EDHREC pane** (`Sr`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory. `VIMTG_NO_EDHREC` disables lookups.
-- **Analytics pane** (`Sa`, `:analytics`): described above; opens unfocused because it is a readout.
-- `Ss` switches focus, `Sc` or `:close` closes. A focused pane has an orange border. Any editing key falls through to the editor and refocuses it.
+- **EDHREC pane** (`Space r`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory. `VIMTG_NO_EDHREC` disables lookups.
+- **Analytics pane** (`Space a`, `:analytics`): described above; opens unfocused because it is a readout. `Space a` / `Space r` again close their pane.
+- `Ctrl-W w` switches focus (`Ctrl-W h`/`j`/`k`/`l` by direction), `Ctrl-W c`, `Ctrl-W o` or `:close` closes. A focused pane has an orange border. Any editing key falls through to the editor and refocuses it.
 
 ### Import, export, and clipboard
 
@@ -411,10 +411,10 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `tf` / `tl` | Filter by expression / list tags |
 | `tn` / `tp` | Next / previous card sharing a tag |
 | `gh` | Toggle the history overlay |
-| `Sv` / `Sh` | Vertical / horizontal split (prompts for a deck) |
-| `Sr` / `Sa` | EDHREC pane / analytics pane |
-| `Sd` | Sample hand / goldfish overlay |
-| `Ss` / `Sc` | Switch focus / close pane |
+| `Ctrl-W v` / `Ctrl-W s` | Vertical / horizontal split (prompts for a deck) |
+| `Ctrl-W w` / `Ctrl-W c` | Switch focus / close pane (`Ctrl-W h`/`j`/`k`/`l` focus by direction, `Ctrl-W o` only) |
+| `Space r` / `Space a` | Toggle the EDHREC pane / analytics pane |
+| `Space h` | Sample hand / goldfish overlay |
 | `F1` / `g?` | Full help / quick-reference panel |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 

@@ -8,6 +8,23 @@ from 1.0.0 onward.
 
 ## [Unreleased]
 
+### Changed (breaking key changes)
+
+- Window keys moved to vim's `Ctrl-W` prefix, and the `S` prefix is gone:
+  - `Sv` -> `Ctrl-W v` (vertical split, prompts for a deck)
+  - `Sh` -> `Ctrl-W s` (horizontal split)
+  - `Ss` -> `Ctrl-W w` / `Ctrl-W W`, and `Ctrl-W h`/`j`/`k`/`l` focus by
+    direction (the pane is right of a vertical split, below a
+    horizontal one)
+  - `Sc` -> `Ctrl-W c` / `Ctrl-W q`; `Ctrl-W o` closes every window but
+    the editor. Ctrl-W works from the editor and from a focused pane.
+- Panes moved to a `Space` leader, and they toggle:
+  - `Sa` -> `Space a` (analytics pane; `Space a` again closes it)
+  - `Sr` -> `Space r` (EDHREC pane; `Space r` again closes it)
+  - `Sd` -> `Space h` (sample hand overlay)
+- Which-key menus are titled by their prefix (`window`, `leader`, `go`,
+  `delete` ...) instead of "Next".
+
 ### Fixed
 
 - The which-key popup after an operator shows that operator's motions:

@@ -50,7 +50,7 @@ COMMANDS
   :search [q]   Open card search (as o) with query q
   :stats        One-line deck summary (:analytics has more)
   :validate     Check format legality (uses // Format:)
-  :hand [seed]  Sample hand / goldfish (draw, mulligan; Sd)
+  :hand [seed]  Sample hand / goldfish (draw, mulligan; Space h)
   :cat name     Set card category (:cat! clears)
   :categories   List categories with counts
   :layout       Toggle type/category layout
@@ -444,15 +444,15 @@ COMMAND_HELP: dict[str, str] = {
         ":vsplit deck-file  Open another deck beside this one (alias :vsp, :vs)\n"
         "\n"
         "The split pane is read-only — compare a netdeck or an old\n"
-        "version while editing. Ss switches pane focus (j/k scroll,\n"
-        "Esc returns), Sc / :close closes it."
+        "version while editing. Ctrl-W w switches pane focus (j/k scroll,\n"
+        "Esc returns), Ctrl-W c / :close closes it."
     ),
     "split": (
         ":split deck-file  Open another deck below this one (alias :sp, :hsplit)\n"
         "\n"
-        "Horizontal variant of :vsplit — same keys: Ss switch, :close close."
+        "Horizontal variant of :vsplit — same keys: Ctrl-W w switch, :close close."
     ),
-    "close": ":close  Close the split pane (alias :only; also the Sc key)",
+    "close": ":close  Close the split pane (alias :only; also Ctrl-W c)",
     "edhrec": (
         ":edhrec [type]  EDHREC recommendations for the commander (alias :rec)\n"
         "\n"
@@ -466,7 +466,7 @@ COMMAND_HELP: dict[str, str] = {
         "already in the deck. Results are cached for 7 days."
     ),
     "analytics": (
-        ":analytics  Live deck-analytics pane (alias :ana; also the Sa key)\n"
+        ":analytics  Live deck-analytics pane (alias :ana; Space a toggles it)\n"
         "\n"
         "Mana curve, card counts per type / zone / category, a\n"
         "mana-base check (colored sources vs pip requirements, a\n"
@@ -475,11 +475,11 @@ COMMAND_HELP: dict[str, str] = {
         "to see the chance of drawing one by the opener or turn 3.\n"
         "Everything recomputes as the deck is edited.\n"
         "\n"
-        "Ss focuses the pane (j/k scroll, Esc back); :close closes."
+        "Ctrl-W w focuses the pane (j/k scroll, Esc back); :close closes."
     ),
     "hand": (
         ":hand [seed=N]  Sample hand / goldfish overlay (alias :goldfish;\n"
-        "also the Sd key)\n"
+        "also Space h)\n"
         "\n"
         "Shuffles the main deck and draws an opening seven. Sideboard,\n"
         "maybeboard, commander and companion cards stay out of the\n"

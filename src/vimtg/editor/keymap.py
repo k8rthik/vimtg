@@ -57,14 +57,21 @@ SPECIAL_KEYS = frozenset(
     {"p", "P", "x", "u", "ctrl_r", "+", "-", ".", "A", "n", "N", "*", "#"}
 )
 MULTI_KEY_STARTERS = frozenset(
-    {"g", "[", "]", "m", "'", "t", "q", "@", "S", "z", "Z"}
+    {"g", "[", "]", "m", "'", "t", "q", "@", "z", "Z", "ctrl_w", "space"}
 )
+# The Space key arrives as " "; as a prefix it is named, like ctrl_w
+_SPACE = "space"
+# How a pending named prefix shows in the status line (vim's showcmd)
+_SHOWCMD = {"ctrl_w": "^W", _SPACE: "<Space>"}
 _TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion);
 # gh history overlay, g? quick-reference panel
 _G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?"})
-# S{v,h,s,c,r} — split panes: vertical/horizontal, switch, close, EDHREC
-_SPLIT_SUB_KEYS = frozenset({"v", "h", "s", "c", "r", "a", "d"})
+# Ctrl-W {v,s} split, {w,W,h,j,k,l} focus, {c,q} close, o only — vim's
+# window commands
+_WINDOW_SUB_KEYS = frozenset({"v", "s", "w", "W", "h", "j", "k", "l", "c", "q", "o"})
+# <Space>{a,r,h} — the leader: analytics pane, EDHREC pane, sample hand
+_LEADER_SUB_KEYS = frozenset({"a", "r", "h"})
 # z{s,m,d,c,p} — zone moves; z{i,o} — board in/out of the sideboard plan.
 # m{a-z} is marks only.
 _ZONE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
@@ -76,6 +83,12 @@ _SCROLL_SUB_KEYS = frozenset({"z", "t", "b"})
 _REGISTER_SYMBOLS = frozenset({'"', "_", "+", "*"})
 # Z{Z,Q} — write and quit (:wq) / quit discarding changes (:q!)
 _QUIT_SUB_KEYS = frozenset({"Z", "Q"})
+
+
+def _sequence(prefix: str, key: str) -> str:
+    """The action name of a prefix sequence: 'gg', 'zs', and for a named
+    prefix the two key names apart, 'ctrl_w v' / 'space a'."""
+    return f"{prefix} {key}" if len(prefix) > 1 else prefix + key
 
 
 def _apply_text_edit(
@@ -159,9 +172,10 @@ class KeyMap:
     def pending_display(self) -> str:
         """The in-progress key sequence for status display (e.g. "10", "2d")."""
         register = f'"{self._register}' if self._register else ""
+        prefix = _SHOWCMD.get(self._multi_key_prefix, self._multi_key_prefix)
         return (
             register + self._count_str + (self._operator or "")
-            + self._operator_count_str + self._multi_key_prefix
+            + self._operator_count_str + prefix
         )
 
     def set_mode(self, mode: Mode) -> None:
@@ -212,6 +226,8 @@ class KeyMap:
         return self._feed_normal(key)
 
     def _feed_normal(self, key: str) -> tuple[KeyResult, ParsedAction | None]:
+        if key == " ":
+            key = _SPACE
         if key == "escape":
             self.reset()
             return KeyResult.COMPLETE, ParsedAction("special", "escape")
@@ -260,7 +276,7 @@ class KeyMap:
             self._state = _State.MULTI_KEY
             return KeyResult.PENDING, None
         if self._state == _State.MULTI_KEY:
-            full_key = self._multi_key_prefix + key
+            full_key = _sequence(self._multi_key_prefix, key)
             if full_key in ("gg", "[[", "]]"):
                 action = ParsedAction("motion", full_key, count, self._register)
                 self.reset()
@@ -296,8 +312,9 @@ class KeyMap:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
-            # S{v,h,s,c,r} — split panes and EDHREC recommendations
-            if self._multi_key_prefix == "S" and key in _SPLIT_SUB_KEYS:
+            if (self._multi_key_prefix == "ctrl_w" and key in _WINDOW_SUB_KEYS) or (
+                self._multi_key_prefix == _SPACE and key in _LEADER_SUB_KEYS
+            ):
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action
@@ -443,6 +460,9 @@ class KeyMap:
         # read its 'c' as change.
         if self._state != _State.IDLE:
             return self._feed_normal(key)
+        # Window and leader keys belong to normal mode
+        if key in ("ctrl_w", " "):
+            return KeyResult.NO_MATCH, None
         # Visual x is d, as in vim
         if key in ("d", "y", "c", "x"):
             register = self._register

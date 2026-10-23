@@ -9,7 +9,8 @@ Prefix namespaces (normal mode), each with one meaning:
 
     g   go / global      gg gc gC gl gh g?
     t   tags             ta tr tt tf tl tc tn tp
-    S   splits & panes   Sv Sh Ss Sc Sr Sa Sd
+    ^W  windows          ^Wv ^Ws  ^Ww ^WW ^Wh ^Wj ^Wk ^Wl  ^Wc ^Wq ^Wo
+    ␣   leader           ␣a ␣r ␣h  (Space; panes toggle)
     z   zones & scroll   zs zm zd zc zp  zi zo  zz zt zb
     m   marks (set)      m{a-z}
     '   marks (jump)     '{a-z}
@@ -18,6 +19,9 @@ Prefix namespaces (normal mode), each with one meaning:
     "   registers        "{a-z} "{A-Z} "0 "1-9 "_ "+ "*
     [ ] jumps            [[ ]] [v ]v
     Z   quit             ZZ ZQ
+
+A key that starts with a named key spells its presses apart:
+"ctrl_w v" is Ctrl-W then v, "space a" is Space then a.
 """
 
 from __future__ import annotations
@@ -25,6 +29,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 MARK = "{a-z}"
+
+# Single presses the spec spells by name (as the TUI translates them)
+_NAMED = frozenset({
+    "escape", "f1", "tab", "shift_tab", "enter", "backspace",
+    "up", "down", "left", "right", "space",
+})
+
+
+def keystrokes(key: str) -> tuple[str, ...]:
+    """The presses a spec key stands for: 'gg' is g, g; 'ctrl_d' one
+    press; 'ctrl_w v' Ctrl-W, v; 'm{a-z}' m and the {a-z} placeholder."""
+    if " " in key:
+        return tuple(key.split(" "))
+    if key in _NAMED or key.startswith("ctrl_"):
+        return (key,)
+    if key.endswith(MARK) and key != MARK:
+        return (*keystrokes(key[: -len(MARK)]), MARK)
+    return tuple(key)
 
 
 @dataclass(frozen=True)
@@ -62,9 +84,7 @@ class KeyBinding:
     @property
     def display(self) -> str:
         """Help-overview spelling: Esc / F1 / Ctrl-D/U for named keys."""
-        if self.label and self.label != "S":
-            return self.label
-        return self.shown
+        return self.label or self.shown
 
 
 def _b(
@@ -87,7 +107,7 @@ MARKS_MACROS = "MARKS, MACROS & REGISTERS"
 VISUAL = "VISUAL MODE"
 CATEGORIES = "CATEGORIES"
 CMDLINE = "COMMAND LINE"
-SPLITS = "SPLITS, EDHREC & ANALYTICS"
+WINDOWS = "WINDOWS, PANES & THE LEADER"
 TAGS = "TAGS"
 VCS = "VERSION CONTROL"
 MODES = "MODES"
@@ -197,17 +217,28 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b("gc", "Set the card's category (Tab completes)", CATEGORIES, shorts=("set category",)),
     _b("gC", "Clear the card's category", CATEGORIES, shorts=("clear category",)),
     _b("gl", "Toggle layout: by type / by category", CATEGORIES, shorts=("toggle layout",)),
-    # ── Splits, EDHREC, analytics (S prefix) ──────────────
-    _b(("Sv", "Sh"), "Open a vertical / horizontal split (prompts for a deck)", SPLITS,
-       quick="Commands", label="S", shorts=("vertical split", "horizontal split"),
-       brief="splits/EDHREC"),
-    _b("Sr", "EDHREC recommendations for the commander (:edhrec)", SPLITS, shorts=("EDHREC recs",)),
-    _b("Sa", "Live analytics pane (:analytics)", SPLITS, shorts=("analytics",)),
-    _b("Sd", "Sample hand / goldfish overlay (:hand)", SPLITS, shorts=("sample hand",)),
-    _b("Ss", "Switch focus between the editor and the pane", SPLITS, shorts=("switch pane",),
+    # ── Windows (Ctrl-W prefix) and the Space leader ──────
+    _b(("ctrl_w v", "ctrl_w s"), "Split vertically / horizontally (prompts for a deck)",
+       WINDOWS, quick="Commands", label="Ctrl-W v/s",
+       shorts=("vertical split", "horizontal split"), brief="split"),
+    _b(("ctrl_w w", "ctrl_w W"), "Switch focus between the editor and the pane", WINDOWS,
+       label="Ctrl-W w/W", shorts=("other window", "other window"),
        note="In a pane: j/k move, gg/G top/bottom, Ctrl-D/U half page, "
             "h/l switch EDHREC tabs, Enter adds the selected card, Esc returns"),
-    _b("Sc", "Close the split", SPLITS, shorts=("close split",)),
+    _b(("ctrl_w h", "ctrl_w j", "ctrl_w k", "ctrl_w l"),
+       "Focus the window left / below / above / right", WINDOWS, label="Ctrl-W h/j/k/l",
+       shorts=("window left", "window below", "window above", "window right"),
+       note="The pane is right of a vertical split, below a horizontal one"),
+    _b(("ctrl_w c", "ctrl_w q"), "Close the pane (with no pane, Ctrl-W q is :q)", WINDOWS,
+       label="Ctrl-W c/q", shorts=("close pane", "quit window")),
+    _b("ctrl_w o", "Close every window but this one (the pane)", WINDOWS,
+       label="Ctrl-W o", shorts=("only window",)),
+    _b("space a", "Toggle the live analytics pane (:analytics)", WINDOWS,
+       quick="Commands", label="Space a", shorts=("analytics",), brief="analytics"),
+    _b("space r", "Toggle EDHREC recommendations for the commander (:edhrec)", WINDOWS,
+       label="Space r", shorts=("EDHREC recs",)),
+    _b("space h", "Sample hand / goldfish overlay (:hand)", WINDOWS,
+       label="Space h", shorts=("sample hand",)),
     # ── Tags (t prefix) ───────────────────────────────────
     _b("ta", "Add a tag to the card", TAGS, shorts=("add tag",)),
     _b("tr", "Remove a tag", TAGS, shorts=("remove tag",)),
@@ -237,10 +268,13 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
 
 # Prefix → which-key menu title; every prefix the keymap pends on.
 PREFIX_TITLES: dict[str, str] = {
-    "g": "go", "t": "tags", "S": "splits", "z": "zones & scroll", "m": "marks",
+    "g": "go", "t": "tags", "z": "zones & scroll", "m": "marks",
     "'": "marks", "q": "macros", "@": "macros", '"': "registers",
     "[": "jump back", "]": "jump forward", "Z": "quit",
+    "ctrl_w": "window", "space": "leader",
 }
+# Operator → which-key menu title
+OPERATOR_TITLES: dict[str, str] = {"d": "delete", "y": "yank", "c": "change"}
 
 # Motions that may follow an operator, for the d / y / c which-key menus.
 OPERATOR_MENU: tuple[tuple[str, str], ...] = (
@@ -257,6 +291,11 @@ def _menu_label(key: str) -> str:
     return key.replace("{", "").replace("}", "")
 
 
+def menu_title(prefix: str) -> str:
+    """The which-key heading for a pending prefix or operator."""
+    return PREFIX_TITLES.get(prefix) or OPERATOR_TITLES.get(prefix, prefix)
+
+
 def which_key_menus() -> dict[str, list[tuple[str, str]]]:
     """Pending-key menus: every two-key normal binding grouped by prefix,
     plus the operator menus. The q menu only shows while nothing records
@@ -264,10 +303,13 @@ def which_key_menus() -> dict[str, list[tuple[str, str]]]:
     menus: dict[str, list[tuple[str, str]]] = {}
     for b in bindings("normal"):
         for i, key in enumerate(b.keys):
-            if len(key) == 2 or key.endswith(MARK):
-                prefix = key[0]
-                if prefix in PREFIX_TITLES:
-                    menus.setdefault(prefix, []).append((_menu_label(key), _short(b, i)))
+            presses = keystrokes(key)
+            if len(presses) == 2 and presses[0] in PREFIX_TITLES:
+                prefix = presses[0]
+                # A named prefix is the menu's title; its rows show the
+                # key that follows
+                label = presses[1] if len(prefix) > 1 else _menu_label(key)
+                menus.setdefault(prefix, []).append((label, _short(b, i)))
     for op in ("d", "y", "c"):
         menus[op] = [
             (pattern.replace("{op}", op), desc) for pattern, desc in OPERATOR_MENU

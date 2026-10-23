@@ -15,8 +15,8 @@ which screen is open:
    editor `?` is vim's backward search, so help there is `F1` or `:help`
    and the quick-reference panel is `g?`.
 4. **Separated editor prefixes.** Each prefix has one job: `g` go, `t`
-   tags, `S` splits, `z` zones, `m` marks, `'` jump to mark, `q`/`@`
-   macros, `"` registers, `[`/`]` jumps.
+   tags, `Ctrl-W` windows, `Space` the leader (panes), `z` zones, `m`
+   marks, `'` jump to mark, `q`/`@` macros, `"` registers, `[`/`]` jumps.
 5. **One source of truth.** The editor keys are declared in
    `src/vimtg/editor/keyspec.py`; which-key, the in-app help overview,
    and the drift tests read that table. Screen hint bars render from
@@ -155,27 +155,41 @@ the selection; other keys act on the cursor line.
 | `tc` | Clear the card's tags |
 | `tn` / `tp` | Next / previous card sharing a tag with the cursor |
 
-### Splits, EDHREC, analytics (`S` prefix)
+### Windows (`Ctrl-W` prefix)
+
+vim's window commands, over the editor and its one pane:
 
 | Key | Action |
 |-----|--------|
-| `Sv` / `Sh` | Open a **v**ertical / **h**orizontal split (prompts `:vsplit ` / `:split ` for a deck file) |
-| `Sr` | EDHREC **r**ecommendations for the commander (`:edhrec`) |
-| `Sa` | Live **a**nalytics pane (`:analytics`) |
-| `Sd` | Sample hand: **d**raw an opening seven and goldfish (`:hand`) |
-| `Ss` | **S**witch focus between the editor and the pane |
-| `Sc` | **C**lose the pane |
+| `Ctrl-W v` / `Ctrl-W s` | Split **v**ertically / horizontally (**s**plit): prompts `:vsplit ` / `:split ` for a deck file |
+| `Ctrl-W w` / `Ctrl-W W` | Switch focus between the editor and the pane |
+| `Ctrl-W h` / `Ctrl-W j` / `Ctrl-W k` / `Ctrl-W l` | Focus the window left / below / above / right: the pane is right of a vertical split and below a horizontal one |
+| `Ctrl-W c` / `Ctrl-W q` | **C**lose the pane / **q**uit the window (the pane). With no pane `Ctrl-W c` says E444 and `Ctrl-W q` is `:q` |
+| `Ctrl-W o` | **O**nly: close every window but the editor (the pane) |
+
+### The leader (`Space`)
+
+| Key | Action |
+|-----|--------|
+| `Space a` | Toggle the live **a**nalytics pane (`:analytics`) |
+| `Space r` | Toggle EDHREC **r**ecommendations for the commander (`:edhrec`) |
+| `Space h` | Sample **h**and: draw an opening seven and goldfish (`:hand`) |
+
+`Space a` and `Space r` close their pane when it is the one open, and
+otherwise replace any other pane. Space does nothing else in normal
+mode.
 
 While a pane is focused it uses the shared navigation keys (`j`/`k`,
 `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel). The EDHREC pane adds
 `h`/`l` (or `Tab`/`Shift-Tab`) to switch tabs and `Enter` to add the
-selected card. `Esc` returns to the editor; `:` and `S` sequences pass
-through; any other key refocuses the editor and runs there.
+selected card. `Esc` returns to the editor; `:`, `Ctrl-W` and `Space`
+sequences pass through; any other key refocuses the editor and runs
+there.
 
-`Sd` opens the sample-hand overlay rather than a pane. In it, `n` or
-`Space` draws, `m` takes a London mulligan, `j`/`k` select a card and
-`b` puts it on the bottom, `r` reshuffles a fresh hand, and `q`/`Esc`
-close it.
+`Space h` opens the sample-hand overlay rather than a pane. In it, `n`
+or `Space` draws, `m` takes a London mulligan, `j`/`k` select a card
+and `b` puts it on the bottom, `r` reshuffles a fresh hand, and
+`q`/`Esc` close it.
 
 ### Version control
 
@@ -189,7 +203,8 @@ close it.
 |--------|-----------|------|
 | `g` | go | `gg` `gc` `gC` `gl` `gh` `g?` |
 | `t` | tags | `ta` `tr` `tt` `tf` `tl` `tc` `tn` `tp` |
-| `S` | splits | `Sv` `Sh` `Sr` `Sa` `Sd` `Ss` `Sc` |
+| `Ctrl-W` | window | `v` `s` `w` `W` `h` `j` `k` `l` `c` `q` `o` |
+| `Space` | leader | `a` `r` `h` |
 | `z` | zones & scroll | `zs` `zm` `zd` `zc` `zp` `zo` `zi`, `zz` `zt` `zb` |
 | `m` / `'` | marks | `m{a-z}` `'{a-z}` |
 | `q` / `@` | macros | `q{a-z}` `q` `@{a-z}` `@@` |

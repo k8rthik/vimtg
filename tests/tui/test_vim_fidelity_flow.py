@@ -450,7 +450,7 @@ class TestCommandLine:
             assert cl.text == "stats"  # prefix match skips :tags
             _feed(scr, "<CR>")
             assert scr._state.mode_mgr.current == Mode.NORMAL
-            _feed(scr, "Sa")  # runs :analytics for you: not history
+            _feed(scr, "<Space>a")  # runs :analytics for you: not history
             assert scr._state.cmd_history.entries("cmd") == ("tags", "stats")
 
     @pytest.mark.asyncio

@@ -39,15 +39,25 @@ _DISPLAY = {
     "ctrl_d": "Ctrl-D", "ctrl_u": "Ctrl-U", "ctrl_r": "Ctrl-R",
     "ctrl_j": "Ctrl-J", "ctrl_k": "Ctrl-K", "ctrl_n": "Ctrl-N", "ctrl_p": "Ctrl-P",
     "escape": "Esc", "enter": "Enter", "tab": "Tab", "shift_tab": "Shift-Tab",
-    "backspace": "Backspace", "f1": "F1", " ": "Space",
+    "backspace": "Backspace", "f1": "F1", " ": "Space", "space": "Space",
     "home": "Home", "end": "End", "up": "Up", "down": "Down",
     "left": "Left", "right": "Right",
 }
 
 
 def display_key(key: str) -> str:
-    """The one spelling of a translated key name used in every hint."""
-    return _DISPLAY.get(key, key)
+    """The one spelling of a translated key name used in every hint.
+
+    A sequence that starts with a named key is spelled press by press:
+    'ctrl_w v' is 'Ctrl-W v', 'space a' is 'Space a'; ctrl_x is Ctrl-X.
+    """
+    if key in _DISPLAY:
+        return _DISPLAY[key]
+    if " " in key:
+        return " ".join(display_key(part) for part in key.split(" "))
+    if key.startswith("ctrl_") and len(key) == 6:
+        return f"Ctrl-{key[-1].upper()}"
+    return key
 
 
 class VimNav:

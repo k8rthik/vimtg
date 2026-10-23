@@ -86,6 +86,7 @@ from vimtg.editor.splits import (
     EdhrecOpen,
     SplitDirection,
     SplitOpen,
+    WindowCommand,
 )
 from vimtg.services.clipboard import copy_message, copy_to_clipboard
 from vimtg.services.deck_service import needs_new_deck_prompt, set_deck_identity
@@ -151,6 +152,16 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
 TIPS_MIN_HEIGHT = 18  # first-run tips panel
 SPLIT_MIN_WIDTH = 60  # side-by-side split
 SPLIT_MIN_HEIGHT = 16  # stacked split
+
+# Keys a focused pane leaves to the editor without giving up focus: the
+# command line, and the window and leader prefixes
+_PANE_PASS_KEYS = frozenset({":", "ctrl_w", " "})
+# Ctrl-W h/j/k/l: the direction that reaches the pane in each layout
+# (the other direction of the same axis is back to the editor)
+_TOWARD_PANE = {
+    SplitDirection.VERTICAL: (WindowCommand.RIGHT, WindowCommand.LEFT),
+    SplitDirection.HORIZONTAL: (WindowCommand.DOWN, WindowCommand.UP),
+}
 
 
 @dataclass
@@ -654,8 +665,8 @@ class MainScreen(Screen[None]):
         if pasted is not None:  # a paste recorded in a macro
             self._handle_paste(pasted)
             return
-        # Split pane focused: navigation keys drive the pane; ':' and
-        # 'S' sequences pass through; any other key refocuses the editor
+        # Split pane focused: navigation keys drive the pane; ':', Ctrl-W
+        # and Space sequences pass through; any other key refocuses the editor
         # and is handled normally. Applies during macro replay too, so
         # replayed keys hit the same routing they were recorded under.
         if (
@@ -668,7 +679,7 @@ class MainScreen(Screen[None]):
             if self._handle_split_pane_key(key):
                 self._sync_widgets()
                 return
-            if key not in (":", "S"):
+            if key not in _PANE_PASS_KEYS:
                 self._split_pane.focused = False
                 self._sync_pane_focus()
         # A bare 'q' only stops recording in NORMAL mode with no pending
@@ -1011,8 +1022,10 @@ class MainScreen(Screen[None]):
             self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label)
         if hr.card_sync:
             self._start_card_sync(force=hr.card_sync == "force")
-        if hr.focus_next_pane:
-            self._toggle_pane_focus()
+        if hr.window is not None:
+            self._window_command(hr.window)
+        if hr.toggle_pane:
+            self._toggle_pane(hr.toggle_pane)
         if hr.run_ex_command:
             self._execute_ex(hr.run_ex_command)
         if hr.scroll_view:
@@ -1245,7 +1258,7 @@ class MainScreen(Screen[None]):
         )
         self._apply_split_layout()
         cl.set_message(
-            f"Split: {spec.path.name}  (Ss switch pane, :close to close)"
+            f"Split: {spec.path.name}  (Ctrl-W w switch pane, :close to close)"
         )
 
     def _start_url_import(self, url: str) -> None:
@@ -1326,7 +1339,7 @@ class MainScreen(Screen[None]):
         self._apply_split_layout()
         self._sync_widgets()
         self.query_one("#command-line", CommandLine).set_message(
-            "Analytics pane open  (Ss focus to scroll, :close to close)"
+            "Analytics pane open  (Ctrl-W w focus to scroll, Space a to close)"
         )
 
     def _open_edhrec(self, req: EdhrecOpen) -> None:
@@ -1399,16 +1412,43 @@ class MainScreen(Screen[None]):
         self.query_one("#edhrec-panel", EdhrecPanel).display = False
         self.query_one("#analytics-panel", AnalyticsPanel).display = False
 
-    def _toggle_pane_focus(self) -> None:
+    def _window_command(self, command: WindowCommand) -> None:
+        """Ctrl-W: move focus between the editor and the pane, or close
+        the pane. With no pane, Ctrl-W q is :quit and the rest say why
+        nothing happened, as in vim."""
+        comp = self._split_pane
         cl = self.query_one("#command-line", CommandLine)
-        if self._split_pane is None:
-            cl.set_message("E: No split open (Sv/Sh or :vsplit)", error=True)
+        if command in (WindowCommand.CLOSE, WindowCommand.QUIT, WindowCommand.ONLY):
+            if comp is not None:
+                self._close_split()
+            elif command is WindowCommand.QUIT:
+                self._execute_ex("quit")
+            elif command is WindowCommand.CLOSE:
+                cl.set_message("E444: Cannot close last window", error=True)
+            else:
+                cl.set_message("Already only one window")
+            return
+        if comp is None:
+            cl.set_message("E: No split open (Ctrl-W v / Ctrl-W s or :vsplit)", error=True)
             return
         if not self._split_pane_widget().display:
             cl.set_message("E: Terminal too small to show the split", error=True)
             return
-        self._split_pane.focused = not self._split_pane.focused
+        toward, back = _TOWARD_PANE[comp.direction]
+        if command is WindowCommand.NEXT:
+            comp.focused = not comp.focused
+        elif command in (toward, back):
+            comp.focused = command is toward
+        self._pane_nav.reset()
         self._sync_pane_focus()
+
+    def _toggle_pane(self, kind: str) -> None:
+        """Space a / Space r: close the pane when it is the one open,
+        else open it (in place of any other pane)."""
+        if self._split_pane is not None and self._split_pane.kind == kind:
+            self._close_split()
+            return
+        self._execute_ex(kind)
 
     def _handle_split_pane_key(self, key: str) -> bool:
         """Drive the focused split pane; True when the key was consumed.

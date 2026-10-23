@@ -98,7 +98,7 @@ from vimtg.editor.registers import (
     is_clipboard_register,
 )
 from vimtg.editor.sort_keys import SORT_FIELDS
-from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen
+from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowCommand
 from vimtg.editor.tag_ops import (
     add_tags_in_range,
     remove_tags_in_range,
@@ -238,7 +238,10 @@ class HandlerResult:
     clipboard_text: str | None = None  # text to put on the system clipboard
     clipboard_label: str = ""  # what clipboard_text is, for the message
     card_sync: str = ""  # "sync" / "force": start a background card sync
-    focus_next_pane: bool = False
+    window: WindowCommand | None = None  # a Ctrl-W window command
+    # A pane the Space leader toggles: closes it when it is the one open,
+    # else opens it ("analytics" / "edhrec", as _SplitPane.kind)
+    toggle_pane: str = ""
     command_prefill: str = ""  # pre-typed text when entering command mode
     run_ex_command: str = ""  # execute an ex command as if typed
     plan_changed: bool = False  # active plan or its entries changed
@@ -700,8 +703,10 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             return HandlerResult(
                 command_message=f"Mark '{mark_name}' not set",
             )
-    elif key in ("Sv", "Sh", "Ss", "Sc", "Sr", "Sa", "Sd"):
-        return _handle_split_key(key)
+    elif key in WINDOW_KEYS:
+        return WINDOW_KEYS[key]
+    elif key in LEADER_KEYS:
+        return LEADER_KEYS[key]
     elif key in ("gc", "gC", "gl"):
         return _handle_category_action(state, key[1])
     elif key == "gh":
@@ -851,22 +856,28 @@ def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerRe
     )
 
 
-def _handle_split_key(key: str) -> HandlerResult:
-    """Dispatch S sub-key: v/h open a split prompt, s switch, c close,
-    r EDHREC recommendations, a analytics, d sample hand."""
-    if key == "Sv":
-        return HandlerResult(enter_command=True, command_prefill="vsplit ")
-    if key == "Sh":
-        return HandlerResult(enter_command=True, command_prefill="split ")
-    if key == "Ss":
-        return HandlerResult(focus_next_pane=True)
-    if key == "Sc":
-        return HandlerResult(split_close=True)
-    if key == "Sa":
-        return HandlerResult(run_ex_command="analytics")
-    if key == "Sd":
-        return HandlerResult(run_ex_command="hand")
-    return HandlerResult(run_ex_command="edhrec")
+# Ctrl-W {key}: vim's window commands. v / s prompt for the deck to
+# split with; the rest act on the editor and its one pane.
+WINDOW_KEYS: dict[str, HandlerResult] = {
+    "ctrl_w v": HandlerResult(enter_command=True, command_prefill="vsplit "),
+    "ctrl_w s": HandlerResult(enter_command=True, command_prefill="split "),
+    "ctrl_w w": HandlerResult(window=WindowCommand.NEXT),
+    "ctrl_w W": HandlerResult(window=WindowCommand.NEXT),
+    "ctrl_w h": HandlerResult(window=WindowCommand.LEFT),
+    "ctrl_w j": HandlerResult(window=WindowCommand.DOWN),
+    "ctrl_w k": HandlerResult(window=WindowCommand.UP),
+    "ctrl_w l": HandlerResult(window=WindowCommand.RIGHT),
+    "ctrl_w c": HandlerResult(window=WindowCommand.CLOSE),
+    "ctrl_w q": HandlerResult(window=WindowCommand.QUIT),
+    "ctrl_w o": HandlerResult(window=WindowCommand.ONLY),
+}
+
+# <Space>{key}: the leader. The panes toggle; the hand is an overlay.
+LEADER_KEYS: dict[str, HandlerResult] = {
+    "space a": HandlerResult(toggle_pane="analytics"),
+    "space r": HandlerResult(toggle_pane="edhrec"),
+    "space h": HandlerResult(run_ex_command="hand"),
+}
 
 
 def _handle_comment_action(state: EditorState) -> HandlerResult:
