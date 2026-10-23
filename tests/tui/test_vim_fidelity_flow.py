@@ -44,12 +44,13 @@ DECK = (
 def _keys(seq: str) -> list[str]:
     """'12G d8G' -> ['1', '2', 'G', 'd', '8', 'G']. Spaces only separate;
     <Space> types one. <CR> <Esc> <BS> <Up> <Down> <C-w> <C-u> <C-b>
-    <C-e> <Left> name the other named keys."""
+    <C-e> <C-a> <C-x> <C-o> <Tab> <Left> name the other named keys."""
     named = {
         "<CR>": "enter", "<Esc>": "escape", "<BS>": "backspace",
         "<Up>": "up", "<Down>": "down", "<Left>": "left", "<Right>": "right",
         "<C-w>": "ctrl_w", "<C-u>": "ctrl_u", "<C-b>": "ctrl_b", "<C-e>": "ctrl_e",
-        "<Space>": " ",
+        "<Space>": " ", "<C-a>": "ctrl_a", "<C-x>": "ctrl_x", "<C-o>": "ctrl_o",
+        "<Tab>": "tab",
     }
     out: list[str] = []
     i = 0

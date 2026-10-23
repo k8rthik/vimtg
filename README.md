@@ -391,7 +391,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `d` `y` `c` + motion | Operators (`dw`, `d}`, `y5G`, ...) |
 | `x` | Delete card at cursor |
 | `p` / `P` | Paste below / above |
-| `+` / `-` | Increment / decrement quantity |
+| `+` / `-`, `Ctrl-A` / `Ctrl-X` | Increment / decrement quantity |
 | `zs` `zm` `zd` `zc` `zp` | Move to sideboard / maybeboard / main / commander / companion |
 | `zo` / `zi` | Board out of / into the active plan |
 | `"{x}` | Use register `x` for the next operator (`"_` black hole, `"+` clipboard) |

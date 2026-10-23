@@ -39,6 +39,11 @@ from 1.0.0 onward.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
 
+### Added
+
+- `Ctrl-A` / `Ctrl-X` add to / subtract from the quantity, as `+` / `-`
+  do (counts, visual mode, `.`).
+
 ### Fixed
 
 - Opening a deck with a recovery copy says "Found unsaved changes from

@@ -90,6 +90,7 @@ as in vim, and never eat the next section's blank line or header:
 | `x` | Delete the card under the cursor (into the register); card lines only. A count deletes that many consecutive card lines as one change (`3x`, then one `u`) |
 | `p` / `P` | Paste below / above; `3p` pastes three copies |
 | `+` / `-` | Increment / decrement quantity; `-` at 0 deletes the line. Both keep zone prefixes, plan signs, `@category`, `#tags`, and comments |
+| `Ctrl-A` / `Ctrl-X` | vim's names for `+` / `-`: counts, visual mode and `.` work the same |
 | `.` | Repeat the last change (a count overrides the recorded one). Every edit repeats: operators, `c` together with the card it added, `o`/`O` with their card and copies, `p`/`P`, `+`/`-`, `x`, zone and plan moves, tags, categories, comments, `i`, and `:s` (on the cursor line). A change made on a visual selection repeats on as many lines from the cursor |
 | `u` / `Ctrl-R` | Undo / redo, one change per `u`. Only a quick burst of `+` or `-` folds into one step |
 
@@ -131,6 +132,7 @@ moves the card but warns. An unknown or missing format checks nothing.
 | `x` | Delete the selection (same as `d`) |
 | `S` / `C` / `D` / `Y` | Change / change / delete / yank the selected lines |
 | `+` / `-` | Increment / decrement every card in the selection (`3+` adds three to each) |
+| `Ctrl-A` / `Ctrl-X` | Same as `+` / `-` on the selection |
 | `zs` / `zm` / `zd` / `zc` / `zp` | Move every selected card to that zone |
 | `zi` / `zo` | Board every selected card in / out of the active plan |
 | `o` | Jump to the other end of the selection |

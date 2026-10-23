@@ -389,3 +389,18 @@ class TestCtrlCIsEsc:
             message = _message(_screen(app))
             assert ":recover" in message
             assert "crash" not in message
+
+
+class TestCtrlACtrlX:
+    @pytest.mark.asyncio
+    async def test_counts_dot_and_visual(self, tmp_path: Path) -> None:
+        app = VimTGApp(deck_path=_deck(tmp_path))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            scr = _screen(app)
+            _feed(scr, "6G 3<C-a>")
+            assert _cards(scr)[0] == "7 Goblin Guide"
+            _feed(scr, ". <C-x>")
+            assert _cards(scr)[0] == "9 Goblin Guide"
+            _feed(scr, "Vj<C-x>")
+            assert _cards(scr)[:2] == ["8 Goblin Guide", "3 Monastery Swiftspear"]

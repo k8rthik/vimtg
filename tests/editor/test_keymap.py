@@ -853,3 +853,18 @@ class TestLinewiseCapitals:
     def test_count_and_register(self) -> None:
         action = self._action('"', "a", "3", "Y")
         assert (action.action, action.count, action.register) == ("yy", 3, "a")
+
+
+class TestCtrlAAndCtrlX:
+    def test_they_are_plus_and_minus_with_a_count(self) -> None:
+        for key, special in (("ctrl_a", "+"), ("ctrl_x", "-")):
+            km = KeyMap(mode=Mode.NORMAL)
+            km.feed("3")
+            result, action = km.feed(key)
+            assert result == KeyResult.COMPLETE and action is not None
+            assert (action.action_type, action.action, action.count) == ("special", special, 3)
+
+    def test_ctrl_a_is_not_a_register_name(self) -> None:
+        km = KeyMap(mode=Mode.NORMAL)
+        km.feed('"')
+        assert km.feed("ctrl_a") == (KeyResult.NO_MATCH, None)
