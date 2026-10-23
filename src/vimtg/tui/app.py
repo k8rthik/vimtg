@@ -320,6 +320,11 @@ class VimTGApp(App[None]):
     def card_sync_running(self) -> bool:
         return self._sync_running
 
+    @property
+    def card_sync_progress(self) -> str:
+        """How far the running sync is ('downloading 40%'), '' when unknown."""
+        return self._sync_progress.strip() if self._sync_running else ""
+
     def _refresh_card_status(self) -> None:
         """Push the card data status to every open editor and greeter."""
         from vimtg.tui.screens.greeter import GreeterScreen

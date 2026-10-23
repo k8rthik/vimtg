@@ -450,3 +450,29 @@ async def test_clipboard_with_no_path_says_so(
         cl = _message(app)
         assert cl.error
         assert cl.message.startswith("E: No clipboard available")
+
+
+@pytest.mark.asyncio
+async def test_search_during_the_first_sync_shows_its_progress(tmp_path: Path) -> None:
+    """The download is automatic: the notice says how far it is, not
+    that the user has to run :sync, and follows the progress."""
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._sync_running = True
+        app._set_sync_progress("downloading 40%")
+        await pilot.press("o")
+        await pilot.pause()
+        cl = _message(app)
+        assert cl.message.startswith(
+            "Card database downloading 40%: search works when it finishes"
+        )
+        assert ":sync" not in cl.message
+        await _type(pilot, "bolt")
+        await pilot.pause()
+        sr = _screen(app).query_one("#search-results", SearchResults)
+        assert sr.notice == "Card database downloading 40%: search works when it finishes"
+        app._set_sync_progress("loading 75%")
+        await pilot.pause()
+        assert sr.notice == "Card database loading 75%: search works when it finishes"
+        app._sync_running = False
