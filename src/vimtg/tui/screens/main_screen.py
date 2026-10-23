@@ -773,6 +773,9 @@ class MainScreen(Screen[None]):
             s.mode_mgr.force_normal()
             s.visual_anchor = None  # :'<,'> consumed the selection
             self.keymap.set_mode(Mode.NORMAL)
+            # The typed line goes, as in vim: a command that says nothing
+            # leaves the hint bar, not its own text
+            self.query_one("#command-line", CommandLine).hide()
         elif action.action_type == "special":
             hr = self._dispatch_special(action)
 

@@ -1,7 +1,17 @@
 """Tests for dynamic command-line hints based on cursor position."""
 
+from pathlib import Path
+
+import pytest
+
 from vimtg.editor.buffer import Buffer
-from vimtg.tui.screens.main_screen import _CARD_HINT, _GENERIC_HINT, _hint_for_cursor
+from vimtg.tui.app import VimTGApp
+from vimtg.tui.screens.main_screen import (
+    _CARD_HINT,
+    _GENERIC_HINT,
+    MainScreen,
+    _hint_for_cursor,
+)
 from vimtg.tui.widgets.command_line import CommandLine
 
 # ── _hint_for_cursor tests ────────────────────────────────────────
@@ -179,3 +189,36 @@ def test_set_message_resets_cursor_pos() -> None:
     cl.cursor_pos = 5
     cl.set_message("done")
     assert cl.cursor_pos == 0
+
+
+# ── A finished ex command leaves the command line ─────────────────
+
+
+async def _type(pilot, text: str) -> None:  # type: ignore[no-untyped-def]
+    await pilot.press("colon")
+    for ch in text:
+        await pilot.press({" ": "space", "$": "dollar_sign"}.get(ch, ch))
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("command", ["3", "$", "help", "messages", "config", "hand"])
+async def test_silent_command_returns_to_the_hint_bar(tmp_path: Path, command: str) -> None:
+    """vim clears the : line after a command that says nothing; closing
+    the view a command opened shows the hint bar, not ':help'."""
+    deck = tmp_path / "burn.deck"
+    deck.write_text("// Deck: Burn\n\n4 Goblin Guide\n20 Mountain\n36 Lava Spike\n")
+    app = VimTGApp(deck_path=deck)
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        main = app.screen
+        assert isinstance(main, MainScreen)
+        await _type(pilot, command)
+        if app.screen is not main:
+            await pilot.press("q")
+            await pilot.pause()
+        assert app.screen is main
+        cl = main.query_one("#command-line", CommandLine)
+        assert (cl.prefix, cl.text) == ("", "")
+        assert f":{command}" not in cl.render().plain
