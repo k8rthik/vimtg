@@ -14,10 +14,12 @@ permissions:
 concurrency:
   # "ci-" keeps this group distinct from release.yml's own when it calls
   # this workflow (group names are case-insensitive).
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  # A newer push to a PR branch supersedes its old run; runs on main always
-  # finish, so a quick second merge cannot cancel the first one's results.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # A newer push to a PR branch supersedes its old run. main and nightly get a
+  # group per commit: GitHub cancels a *pending* run whenever a newer one
+  # queues in the same group, so a shared group would drop the middle of
+  # three quick merges even with cancel-in-progress off.
+  group: ci-${{ github.workflow }}-${{ github.ref }}${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/nightly') && format('-{0}', github.sha) || '' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/nightly' }}
 
 defaults:
   run:
