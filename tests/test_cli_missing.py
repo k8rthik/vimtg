@@ -11,7 +11,8 @@ from click.testing import CliRunner
 
 from vimtg import cli
 from vimtg.cli import main
-from vimtg.config.paths import config_dir
+from vimtg.config.settings import Settings
+from vimtg.config.settings_writer import save_settings
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.domain.card import Card
@@ -69,10 +70,7 @@ def test_uses_the_configured_collection(
     deck_file: Path, csv_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(cli, "_try_card_repo", lambda: None)
-    config_dir().mkdir(parents=True, exist_ok=True)
-    (config_dir() / "config.toml").write_text(
-        f'[editor]\ncollection = "{csv_file}"\n', encoding="utf-8"
-    )
+    save_settings(Settings(collection=str(csv_file)))
     result = CliRunner().invoke(main, ["missing", str(deck_file)])
     assert result.exit_code == 0, result.output + result.stderr
     assert result.stdout.splitlines()[0] == "1 Lightning Bolt"

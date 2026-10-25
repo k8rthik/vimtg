@@ -25,6 +25,14 @@ def test_round_trips_through_config_toml() -> None:
     assert loaded.collection == "~/cards/manabox.csv"
 
 
+def test_a_windows_path_round_trips_through_config_toml() -> None:
+    windows_path = "C:\\Users\\runner\\manabox.csv"
+    save_settings(Settings(collection=windows_path))
+    loaded, warning = load_settings_checked()
+    assert warning is None
+    assert loaded.collection == windows_path
+
+
 def test_wrong_type_falls_back_with_a_warning() -> None:
     config_dir().mkdir(parents=True, exist_ok=True)
     (config_dir() / "config.toml").write_text("[editor]\ncollection = 3\n", encoding="utf-8")

@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 
 from vimtg.config.paths import config_dir
+from vimtg.config.settings import Settings
+from vimtg.config.settings_writer import save_settings
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.main_screen import MainScreen
 from vimtg.tui.widgets.command_line import CommandLine
@@ -40,10 +42,7 @@ def _csv(tmp_path: Path) -> Path:
 
 
 def _configure(collection: str) -> None:
-    config_dir().mkdir(parents=True, exist_ok=True)
-    (config_dir() / "config.toml").write_text(
-        f'[editor]\ncollection = "{collection}"\n', encoding="utf-8"
-    )
+    save_settings(Settings(collection=collection))
 
 
 def _screen(app: VimTGApp) -> MainScreen:

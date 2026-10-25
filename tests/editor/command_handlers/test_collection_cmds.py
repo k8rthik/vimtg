@@ -53,6 +53,7 @@ def test_collection_path_expands_tilde(
     registry: CommandRegistry, csv_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("HOME", str(csv_path.parent))
+    monkeypatch.setenv("USERPROFILE", str(csv_path.parent))
     ctx = _run(registry, "collection ~/manabox.csv", EditorContext(settings=Settings()))
     assert ctx.error is False, ctx.message
     assert ctx.settings.collection == str(csv_path)
