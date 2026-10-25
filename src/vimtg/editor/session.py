@@ -179,7 +179,7 @@ class EditorState:
     pending_change: RepeatableAction | None = None
     # Undo node of the delete a c operator made before its card search:
     # the confirmed card folds into it (one change per u)
-    change_node: str | None = None
+    change_node: int | None = None
     # Text a "+ / "* yank or delete queued for the system clipboard; the
     # handler returns it as HandlerResult.clipboard_text (the TUI copies)
     clipboard_out: str | None = None

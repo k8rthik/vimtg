@@ -15,6 +15,9 @@ from 1.0.0 onward.
   `Tab` completes the deck's categories, most used first. The filter
   prompt moved from `tf` to the leader: `Space f` (an empty `Enter`
   clears). The tutor's lesson 10 teaches `gc` and `Space f`.
+- Session undo is a linear stack: `u` walks back, `Ctrl-R` walks
+  forward, and a new edit after an undo discards the redo entries.
+  Branches that nothing could reach are no longer kept.
 - The `S` window prefix is gone: `Ss` is now `Ctrl-W w`, vim's "other
   window", and switches focus between the editor and the pane from
   either side. The pane sits beside the deck when the terminal is wide
