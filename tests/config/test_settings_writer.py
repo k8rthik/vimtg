@@ -59,7 +59,7 @@ class TestSaveSettings:
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
         path = save_settings(Settings())
         assert path.exists()
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "[editor]" in content
         assert 'price_source = "usd"' in content
 
@@ -72,11 +72,11 @@ class TestSaveSettings:
         config_file.write_text(
             '[editor]\nprice_source = "usd"\n\n'
             '[keybindings]\ns = ":w"\nQ = ":q!"\n'
-        )
+        , encoding="utf-8")
 
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
         save_settings(Settings(price_source="eur"))
-        content = config_file.read_text()
+        content = config_file.read_text(encoding="utf-8")
         assert 'price_source = "eur"' in content
         assert "[keybindings]" in content
         assert 's = ":w"' in content
@@ -107,10 +107,10 @@ class TestSaveSettings:
         config_file.write_text(
             '[editor]\nprice_source = "usd"\n\n'
             '[keybindings.normal]\ns = ":w"\n'
-        )
+        , encoding="utf-8")
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
         save_settings(Settings())
-        content = config_file.read_text()
+        content = config_file.read_text(encoding="utf-8")
         assert "[keybindings.normal]" in content
         assert 's = ":w"' in content
 

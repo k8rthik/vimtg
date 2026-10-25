@@ -72,7 +72,8 @@ class _Host(App[None]):
 def wired_repo(db_factory):  # type: ignore[no-untyped-def]
     fixtures = Path(__file__).parent.parent / "fixtures" / "scryfall_sample.json"
     repo = CardRepository(db_factory())
-    repo.bulk_insert([Card.from_scryfall(d) for d in json.loads(fixtures.read_text())])
+    raw = json.loads(fixtures.read_text(encoding="utf-8"))
+    repo.bulk_insert([Card.from_scryfall(d) for d in raw])
     return repo
 
 

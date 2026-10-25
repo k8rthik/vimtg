@@ -448,7 +448,7 @@ class TestEdit:
     def test_reload_and_suffix(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         mine = tmp_path / "mine.deck"
         assert self._edit("", file_path=mine).edit_path == mine
-        (tmp_path / "other.deck").write_text("1 Opt\n")
+        (tmp_path / "other.deck").write_text("1 Opt\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
         assert self._edit("other").edit_path == tmp_path / "other.deck"
         assert self._edit("new").edit_path == tmp_path / "new"  # a new deck
@@ -542,16 +542,16 @@ class TestCommandHistory:
     def test_corrupt_or_missing_file_is_empty(self, tmp_path: Path) -> None:
         path = tmp_path / "h.json"
         assert CommandHistory.load(path).entries("cmd") == ()
-        path.write_text("{not json")
+        path.write_text("{not json", encoding="utf-8")
         assert CommandHistory.load(path).entries("search") == ()
-        path.write_text('{"cmd": ["ok", 3, ""], "search": "x"}')
+        path.write_text('{"cmd": ["ok", 3, ""], "search": "x"}', encoding="utf-8")
         loaded = CommandHistory.load(path)
         assert loaded.entries("cmd") == ("ok",)
         assert loaded.entries("search") == ()
 
     def test_unwritable_path_is_ignored(self, tmp_path: Path) -> None:
         blocker = tmp_path / "file"
-        blocker.write_text("")
+        blocker.write_text("", encoding="utf-8")
         history = CommandHistory(blocker / "h.json")
         history.add("cmd", "w")  # no exception
         assert history.entries("cmd") == ("w",)

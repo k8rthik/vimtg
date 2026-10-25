@@ -488,7 +488,7 @@ class TestDeckFileFallback:
         self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         deck = tmp_path / "burn.deck"
-        deck.write_text("4 Lightning Bolt\n")
+        deck.write_text("4 Lightning Bolt\n", encoding="utf-8")
         launched = MagicMock()
         monkeypatch.setattr(cli, "_launch_editor", launched)
         result = runner.invoke(main, [str(deck)])
@@ -513,7 +513,7 @@ class TestDeckFileFallback:
         self, runner: CliRunner, tmp_path: Path
     ) -> None:
         deck = tmp_path / "x.deck"
-        deck.write_text("// Deck: X\n4 Bolt\n56 Mountain\n")
+        deck.write_text("// Deck: X\n4 Bolt\n56 Mountain\n", encoding="utf-8")
         result = runner.invoke(main, ["info", str(deck)])
         assert result.exit_code == 0
         assert "Mainboard" in result.output

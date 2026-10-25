@@ -53,7 +53,7 @@ def test_relative_and_absolute_paths_share_a_copy(
 
 def test_symlink_shares_its_targets_copy(tmp_path: Path) -> None:
     real = tmp_path / "burn.deck"
-    real.write_text("x\n")
+    real.write_text("x\n", encoding="utf-8")
     link = tmp_path / "link.deck"
     link.symlink_to(real)
     assert recovery_path(link) == recovery_path(real)
@@ -73,7 +73,7 @@ def test_copy_records_its_original_path(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
     saved = write_recovery(deck, "4 Lightning Bolt\n")
     assert saved is not None
-    first = saved.read_text().splitlines()[0]
+    first = saved.read_text(encoding="utf-8").splitlines()[0]
     assert first.startswith(HEADER)
     # JSON, so a Windows path's backslashes are escaped: decode, don't grep
     assert json.loads(first[len(HEADER):]) == {"path": str(deck.resolve())}
@@ -109,7 +109,7 @@ def test_write_read_discard_roundtrip(tmp_path: Path) -> None:
     saved = write_recovery(deck, "4 Lightning Bolt\n", "Traceback: boom")
     assert saved is not None and saved.exists()
     assert read_recovery(deck) == "4 Lightning Bolt\n"
-    assert saved.with_suffix(".log").read_text() == "Traceback: boom"
+    assert saved.with_suffix(".log").read_text(encoding="utf-8") == "Traceback: boom"
     discard_recovery(deck)
     assert read_recovery(deck) is None
     assert not saved.with_suffix(".log").exists()
@@ -137,14 +137,14 @@ def test_pending_only_when_the_copy_differs(tmp_path: Path) -> None:
 
 def test_list_and_orphans(tmp_path: Path) -> None:
     alive = tmp_path / "alive.deck"
-    alive.write_text("x\n")
+    alive.write_text("x\n", encoding="utf-8")
     gone = tmp_path / "gone.deck"
     buffer_id = new_buffer_id()
     write_recovery(alive, "alive\n")
     write_recovery(gone, "gone\n")
     write_recovery(None, "unnamed\n", buffer_id=buffer_id)
     # A copy from before the header existed still lists (as unnamed)
-    (recovery_dir() / "legacy.deck").write_text("legacy\n")
+    (recovery_dir() / "legacy.deck").write_text("legacy\n", encoding="utf-8")
 
     listed = {c.copy: c for c in list_recoveries()}
     assert len(listed) == 4

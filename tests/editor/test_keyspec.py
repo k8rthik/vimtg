@@ -134,13 +134,13 @@ class TestSpecFeedsTheSurfaces:
 
 class TestDocsMatchTheSpec:
     def test_keybindings_doc_names_every_key(self) -> None:
-        doc = DOCS.read_text()
+        doc = DOCS.read_text(encoding="utf-8")
         for _, key in _atoms("normal") + _atoms("visual"):
             spelled = display_key(key)
             assert f"`{spelled}`" in doc, spelled
 
     def test_readme_tables_use_the_z_prefix(self) -> None:
-        readme = README.read_text()
+        readme = README.read_text(encoding="utf-8")
         assert "`zs`" in readme and "`zo`" in readme
         for old in ("`ms`", "`mo`", "`mi`"):
             assert old not in readme, old

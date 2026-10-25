@@ -31,7 +31,7 @@ async def test_shift_o_on_metadata_keeps_block_contiguous(
     tmp_path: Path,
 ) -> None:
     deck = tmp_path / "deck.deck"
-    deck.write_text("// Deck: Burn\n// Format: modern\n\n4 Lightning Bolt\n")
+    deck.write_text("// Deck: Burn\n// Format: modern\n\n4 Lightning Bolt\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         screen = _screen(app)

@@ -31,7 +31,7 @@ def sample_json_path(tmp_path: Path) -> Path:
     """Copy fixture JSON to a temp location for parse tests."""
     src = FIXTURES_DIR / "scryfall_sample.json"
     dest = tmp_path / "oracle_cards.json"
-    dest.write_text(src.read_text())
+    dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     return dest
 
 
@@ -83,7 +83,7 @@ class TestParseAndLoad:
             },
         ]
         json_path = tmp_path / "test_tokens.json"
-        json_path.write_text(json.dumps(data))
+        json_path.write_text(json.dumps(data), encoding="utf-8")
         count = syncer.parse_and_load(json_path)
         assert count == 1
 
@@ -125,7 +125,7 @@ class TestParseAndLoad:
             },
         ]
         json_path = tmp_path / "test_bad.json"
-        json_path.write_text(json.dumps(data))
+        json_path.write_text(json.dumps(data), encoding="utf-8")
         count = syncer.parse_and_load(json_path)
         assert count == 1
 
@@ -222,7 +222,8 @@ class TestSync:
         cache = tmp_path / "sync_cache"
         cache.mkdir()
         cached_json = cache / "oracle_cards.json"
-        cached_json.write_text((FIXTURES_DIR / "scryfall_sample.json").read_text())
+        sample = (FIXTURES_DIR / "scryfall_sample.json").read_text(encoding="utf-8")
+        cached_json.write_text(sample, encoding="utf-8")
         _write_tags_cache(cache)
 
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
@@ -235,14 +236,14 @@ class TestSync:
         """force=True downloads even when a fresh cache exists."""
         cache = tmp_path / "sync_cache"
         cache.mkdir()
-        sample = (FIXTURES_DIR / "scryfall_sample.json").read_text()
+        sample = (FIXTURES_DIR / "scryfall_sample.json").read_text(encoding="utf-8")
         # Stale-looking pre-existing cache; force should ignore it.
-        (cache / "oracle_cards.json").write_text("[]")
+        (cache / "oracle_cards.json").write_text("[]", encoding="utf-8")
 
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
 
         def fake_download(url: str, dest: Path, progress=None) -> Path:
-            dest.write_text(sample)
+            dest.write_text(sample, encoding="utf-8")
             return dest
 
         phases: list[str] = []
@@ -267,9 +268,9 @@ class TestSync:
 
         cache = tmp_path / "sync_cache"
         cache.mkdir()
-        sample = (FIXTURES_DIR / "scryfall_sample.json").read_text()
+        sample = (FIXTURES_DIR / "scryfall_sample.json").read_text(encoding="utf-8")
         stale = cache / "oracle_cards.json"
-        stale.write_text("[]")
+        stale.write_text("[]", encoding="utf-8")
         old = _time.time() - (MAX_AGE_DAYS + 1) * 86400
         os.utime(stale, (old, old))
 
@@ -278,7 +279,7 @@ class TestSync:
 
         def fake_download(url: str, dest: Path, progress=None) -> Path:
             downloaded.append(url)
-            dest.write_text(sample)
+            dest.write_text(sample, encoding="utf-8")
             return dest
 
         with (
@@ -299,8 +300,8 @@ class TestSync:
         cache = tmp_path / "sync_cache"
         cache.mkdir()
         (cache / "oracle_cards.json").write_text(
-            (FIXTURES_DIR / "scryfall_sample.json").read_text()
-        )
+            (FIXTURES_DIR / "scryfall_sample.json").read_text(encoding="utf-8")
+        , encoding="utf-8")
         _write_tags_cache(cache)
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
         phases: list[str] = []
@@ -383,7 +384,7 @@ class TestJsonlParse:
 
     def test_parses_plain_jsonl(self, syncer: ScryfallSync, tmp_path: Path) -> None:
         path = tmp_path / "oracle_cards.jsonl"
-        path.write_text(json.dumps(_minimal_card("a-1", "Shock")) + "\n")
+        path.write_text(json.dumps(_minimal_card("a-1", "Shock")) + "\n", encoding="utf-8")
         assert syncer.parse_and_load(path) == 1
 
     def test_corrupt_gzip_deleted_and_raises(
@@ -420,7 +421,7 @@ class TestJsonlParse:
         cache = tmp_path / "sync_cache"
         cache.mkdir()
         old_json = cache / "oracle_cards.json"
-        old_json.write_text(json.dumps([_minimal_card("a-1", "Old Card")]))
+        old_json.write_text(json.dumps([_minimal_card("a-1", "Old Card")]), encoding="utf-8")
         older = _time.time() - 3600
         _os.utime(old_json, (older, older))
         with gzip.open(cache / "oracle_cards.jsonl.gz", "wt", encoding="utf-8") as f:

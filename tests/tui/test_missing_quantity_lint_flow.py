@@ -15,7 +15,9 @@ from vimtg.tui.widgets.status_line import StatusLine
 @pytest.mark.asyncio
 async def test_nx_line_is_flagged_in_the_editor(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
-    deck.write_text("// Deck: Burn\n// Format:\n// Tags:\n\n4x Shock\n56 Mountain\n")
+    deck.write_text(
+        "// Deck: Burn\n// Format:\n// Tags:\n\n4x Shock\n56 Mountain\n", encoding="utf-8"
+    )
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         await pilot.pause()

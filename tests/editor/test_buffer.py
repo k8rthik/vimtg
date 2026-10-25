@@ -17,7 +17,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 @pytest.fixture
 def sample_text() -> str:
-    return (FIXTURES_DIR / "sample_burn.deck").read_text()
+    return (FIXTURES_DIR / "sample_burn.deck").read_text(encoding="utf-8")
 
 
 @pytest.fixture

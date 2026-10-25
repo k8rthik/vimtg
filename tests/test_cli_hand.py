@@ -50,7 +50,7 @@ def deck(tmp_path: Path) -> Path:
 @pytest.fixture
 def loaded_repo(db_factory: Callable[..., Database]) -> CardRepository:
     repo = CardRepository(db_factory())
-    with open(FIXTURES_DIR / "scryfall_sample.json") as f:
+    with open(FIXTURES_DIR / "scryfall_sample.json", encoding="utf-8") as f:
         repo.bulk_insert([Card.from_scryfall(d) for d in json.load(f)])
     return repo
 

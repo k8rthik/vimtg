@@ -70,7 +70,7 @@ SB: 1 Maybe Card
 
 @pytest.fixture
 def resolved() -> dict[str, Card]:
-    with open(FIXTURES / "scryfall_sample.json") as f:
+    with open(FIXTURES / "scryfall_sample.json", encoding="utf-8") as f:
         cards = [Card.from_scryfall(d) for d in json.load(f)]
     return {c.name: c for c in cards}
 

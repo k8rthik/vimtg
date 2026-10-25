@@ -32,7 +32,7 @@ CANONICAL = (
 
 def _deck(tmp_path: Path, text: str = CANONICAL, name: str = "burn.deck") -> Path:
     path = tmp_path / name
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -275,7 +275,7 @@ class TestZZZQ:
             await pilot.press("6", "G", "d", "d", "Z", "Z")
             await pilot.pause()
         assert app.return_code == 0
-        assert "Goblin Guide" not in path.read_text()
+        assert "Goblin Guide" not in path.read_text(encoding="utf-8")
 
     @pytest.mark.asyncio
     async def test_zq_quits_discarding_changes(self, tmp_path: Path) -> None:
@@ -286,7 +286,7 @@ class TestZZZQ:
             await pilot.press("6", "G", "d", "d", "Z", "Q")
             await pilot.pause()
         assert app.return_code == 0
-        assert path.read_text() == CANONICAL
+        assert path.read_text(encoding="utf-8") == CANONICAL
 
 
 # ── (f) crash safety net ───────────────────────────────────────────
@@ -318,7 +318,7 @@ class TestCrashSafetyNet:
             recovery = recovery_path(path)
             assert recovery.exists()
             assert "Goblin Guide" not in (read_recovery(path) or "")
-            assert "RuntimeError: boom" in recovery.with_suffix(".log").read_text()
+            assert "RuntimeError: boom" in recovery.with_suffix(".log").read_text(encoding="utf-8")
             monkeypatch.undo()
             # Still alive and editable
             await pilot.press("u")
@@ -369,7 +369,7 @@ class TestCrashSafetyNet:
             await pilot.press("ctrl+r", "colon", "w", "enter")
             await pilot.pause()
         assert not recovery_path(path).exists()
-        assert path.read_text() == recovered_text
+        assert path.read_text(encoding="utf-8") == recovered_text
 
     @pytest.mark.asyncio
     async def test_recover_bang_discards(self, tmp_path: Path) -> None:
@@ -548,7 +548,7 @@ async def test_edit_that_normalizing_reverts_leaves_no_undo_step(
     """:cat burn on a card already @burn rewrites the line to the same
     text: the text is unchanged, so no undo step and no modified flag."""
     path = tmp_path / "burn.deck"
-    path.write_text("// Deck: Burn\n\n// Creature\n4 Goblin Guide  @burn\n\n")
+    path.write_text("// Deck: Burn\n\n// Creature\n4 Goblin Guide  @burn\n\n", encoding="utf-8")
     app = VimTGApp(deck_path=path)
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()

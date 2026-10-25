@@ -208,7 +208,9 @@ async def test_silent_command_returns_to_the_hint_bar(tmp_path: Path, command: s
     """vim clears the : line after a command that says nothing; closing
     the view a command opened shows the hint bar, not ':help'."""
     deck = tmp_path / "burn.deck"
-    deck.write_text("// Deck: Burn\n\n4 Goblin Guide\n20 Mountain\n36 Lava Spike\n")
+    deck.write_text(
+        "// Deck: Burn\n\n4 Goblin Guide\n20 Mountain\n36 Lava Spike\n", encoding="utf-8"
+    )
     app = VimTGApp(deck_path=deck)
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()

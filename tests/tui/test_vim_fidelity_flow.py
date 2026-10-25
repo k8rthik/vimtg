@@ -88,7 +88,7 @@ def _cards(scr: MainScreen) -> list[str]:
 
 def _deck(tmp_path: Path, text: str = DECK) -> Path:
     path = tmp_path / "burn.deck"
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -279,7 +279,7 @@ class TestDotRepeat:
 @pytest.fixture
 def card_repo(db_factory):  # type: ignore[no-untyped-def]
     repo = CardRepository(db_factory())
-    data = json.loads((FIXTURES / "scryfall_sample.json").read_text())
+    data = json.loads((FIXTURES / "scryfall_sample.json").read_text(encoding="utf-8"))
     repo.bulk_insert([Card.from_scryfall(d) for d in data])
     return repo
 
@@ -528,7 +528,10 @@ class TestExCommands:
         self, tmp_path: Path
     ) -> None:
         other = tmp_path / "other.deck"
-        other.write_text("// Deck: Other\n// Format: modern\n// Tags:\n\n// Land\n4 Island\n")
+        other.write_text(
+            "// Deck: Other\n// Format: modern\n// Tags:\n\n// Land\n4 Island\n",
+            encoding="utf-8",
+        )
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()

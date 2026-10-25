@@ -185,7 +185,9 @@ class TestClose:
 
 def _deck(tmp_path: Path) -> Path:
     path = tmp_path / "burn.deck"
-    path.write_text("// Deck: Burn\n// Format: modern\n\nDCK:\n    4 Lightning Bolt\n")
+    path.write_text(
+        "// Deck: Burn\n// Format: modern\n\nDCK:\n    4 Lightning Bolt\n", encoding="utf-8"
+    )
     return path
 
 

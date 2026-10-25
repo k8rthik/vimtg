@@ -25,7 +25,7 @@ def seeded_db(db_factory):  # type: ignore[no-untyped-def]
     db_file.parent.mkdir(parents=True, exist_ok=True)
     repo = CardRepository(db_factory(db_file))
     repo.bulk_insert(
-        [Card.from_scryfall(d) for d in json.loads(_FIXTURES.read_text())]
+        [Card.from_scryfall(d) for d in json.loads(_FIXTURES.read_text(encoding="utf-8"))]
     )
     return repo
 
@@ -60,7 +60,7 @@ async def test_o_inside_cmd_block_adds_commander(seeded_db, tmp_path: Path) -> N
     deck = tmp_path / "edh.deck"
     deck.write_text(
         "// Format: commander\n\nCMD:\n    1 Serra Angel\n\nDCK:\n    30 Forest\n"
-    )
+    , encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         screen = _screen(app)
@@ -77,7 +77,7 @@ async def test_o_inside_cmd_block_adds_commander(seeded_db, tmp_path: Path) -> N
 @pytest.mark.asyncio
 async def test_o_on_sb_prefix_line_adds_sideboard(seeded_db, tmp_path: Path) -> None:
     deck = tmp_path / "modern.deck"
-    deck.write_text("// Format: modern\n\n4 Goblin Guide\n\nSB: 2 Duress\n")
+    deck.write_text("// Format: modern\n\n4 Goblin Guide\n\nSB: 2 Duress\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         screen = _screen(app)
@@ -95,7 +95,7 @@ async def test_duplicate_increments_within_cursor_zone_only(
     deck = tmp_path / "modern.deck"
     deck.write_text(
         "// Format: modern\n\n4 Goblin Guide\n\nSB: 2 Lightning Bolt\n"
-    )
+    , encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         screen = _screen(app)
@@ -114,7 +114,7 @@ async def test_mainboard_insert_still_uses_type_sections(
     seeded_db, tmp_path: Path,
 ) -> None:
     deck = tmp_path / "modern.deck"
-    deck.write_text("// Format: modern\n\n// Creature\n4 Goblin Guide\n")
+    deck.write_text("// Format: modern\n\n// Creature\n4 Goblin Guide\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test() as pilot:
         screen = _screen(app)

@@ -33,7 +33,7 @@ SIZE = (100, 30)
 @pytest.fixture
 def card_repo(db_factory):  # type: ignore[no-untyped-def]
     repo = CardRepository(db_factory())
-    data = json.loads((FIXTURES / "scryfall_sample.json").read_text())
+    data = json.loads((FIXTURES / "scryfall_sample.json").read_text(encoding="utf-8"))
     repo.bulk_insert([Card.from_scryfall(d) for d in data])
     return repo
 
@@ -359,7 +359,7 @@ class TestCtrlCIsEsc:
         from vimtg.services.recovery import write_recovery
 
         deck = _deck(tmp_path)
-        write_recovery(deck, deck.read_text() + "4 Shock\n")
+        write_recovery(deck, deck.read_text(encoding="utf-8") + "4 Shock\n")
         app = VimTGApp(deck_path=deck)
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()

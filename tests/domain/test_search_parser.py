@@ -328,6 +328,7 @@ class TestDocsNameEveryKey:
 
         from vimtg.domain.search import _KEYS
 
-        doc = (Path(__file__).parent.parent.parent / "docs" / "search.md").read_text()
+        doc_path = Path(__file__).parent.parent.parent / "docs" / "search.md"
+        doc = doc_path.read_text(encoding="utf-8")
         missing = [key for key in _KEYS if f"`{key}`" not in doc and f"`{key}:`" not in doc]
         assert missing == []

@@ -188,4 +188,4 @@ async def test_save_round_trips_the_plan(seeded_db, tmp_path: Path) -> None:
         await pilot.press("o")
         await pilot.pause()
         await _ex(pilot, "w")
-    assert deck.read_text().endswith("\nVS: Tron\n    -4 Goblin Guide\n")
+    assert deck.read_text(encoding="utf-8").endswith("\nVS: Tron\n    -4 Goblin Guide\n")
