@@ -14,6 +14,7 @@ import httpx
 from click.shell_completion import CompletionItem
 
 from vimtg import __version__
+from vimtg.cli_json import dumps, validation_doc
 from vimtg.config.paths import cache_dir, db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from vimtg.domain.card import Card
     from vimtg.domain.deck import Deck, DeckEntry
     from vimtg.domain.deck_lines import MissingQuantityLine
+    from vimtg.domain.validation import ValidationReport
 
 
 def _make_service() -> DeckService:
@@ -241,8 +243,15 @@ def _no_card_db_note() -> str:
     help="Exit non-zero on warnings too (e.g. unknown card names); "
     "requires a card database.",
 )
-def validate(path: str, strict: bool) -> None:
-    """Validate a deck file (format-aware when a card database exists)."""
+@click.option(
+    "--json", "as_json", is_flag=True,
+    help="Print the report as one JSON document (schema vimtg.validation/1).",
+)
+def validate(path: str, strict: bool, as_json: bool) -> None:
+    """Validate a deck file (format-aware when a card database exists).
+
+    Exits 0 when the deck is valid, 1 on errors (with --strict, on
+    warnings too)."""
     from vimtg.config.settings import load_settings
     from vimtg.data.deck_repository import missing_quantity_lines
     from vimtg.domain.validation import legality_skipped_note, validation_report
@@ -272,13 +281,21 @@ def validate(path: str, strict: bool) -> None:
         if note:
             click.echo(note, err=True)
 
-    if not report.problems:
+    ok = not any(p.level == "error" or strict for p in report.problems)
+    if as_json:
+        click.echo(dumps(validation_doc(path, report, ok)))
+    elif not report.problems:
         click.echo(f"{file_path.name}: ok" + (f" ({fmt})" if fmt else ""))
         if report.bracket:
             click.echo(f"{file_path.name}: info: {report.bracket}")
-        return
+    else:
+        _echo_problems(file_path.name, text, report)
+    if not ok:
+        sys.exit(1)
 
-    has_errors = False
+
+def _echo_problems(name: str, text: str, report: ValidationReport) -> None:
+    """The text report: one `file:line: level: message` per problem."""
     # The file's own line goes in the file:line: slot (what other
     # editors and quickfix lists jump to); when the vimtg editor shows
     # that line elsewhere (it scaffolds missing '// Tags:'-style lines
@@ -291,15 +308,10 @@ def validate(path: str, strict: bool) -> None:
             editor_line = shown_at.get(err.line_number, err.line_number)
             if editor_line != err.line_number:
                 note = f" (line {editor_line} in the vimtg editor)"
-        click.echo(f"{file_path.name}:{line_part} {err.level}: {err.message}{note}")
-        if err.level == "error" or strict:
-            has_errors = True
+        click.echo(f"{name}:{line_part} {err.level}: {err.message}{note}")
     # Informational only: never an error, and --strict ignores it.
     if report.bracket:
-        click.echo(f"{file_path.name}: info: {report.bracket}")
-
-    if has_errors:
-        sys.exit(1)
+        click.echo(f"{name}: info: {report.bracket}")
 
 
 @main.command()

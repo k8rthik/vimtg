@@ -93,6 +93,11 @@ from 1.0.0 onward.
 
 ### Added
 
+- `--json` on `vimtg validate` prints the report as one JSON document
+  on stdout (`{"schema": "vimtg.validation/1", "file", "format", "ok",
+  "legality_checked", "problems": [{"line", "level", "message",
+  "code"}], "bracket"}`); notes stay on stderr and the exit codes are
+  unchanged, so a git hook or CI job can read it with `jq`.
 - Collection awareness, offline, from a CSV export. `:collection
   path.csv` loads a ManaBox, Moxfield, Archidekt, or Deckbox export (or
   any CSV with a name and a count column), sums copies across printings,

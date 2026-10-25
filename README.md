@@ -458,7 +458,7 @@ vimtg sync [--force]                   # download or refresh the card database
 vimtg tutor                            # the lesson deck, in an offline sandbox
 vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices follow price_source/show_prices
 vimtg search otag:ramp c:g             # Scryfall oracle tags work offline too
-vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
+vimtg validate deck.deck [--strict] [--json]  # legality report; exit 1 on errors (--strict: warnings too)
 vimtg info deck.deck                   # zones, format, and a stats line
 vimtg missing deck.deck [--collection cards.csv]  # cards your collection lacks, store-pastable; total cost on stderr
 vimtg guide deck.deck [--markdown]     # sideboard plans

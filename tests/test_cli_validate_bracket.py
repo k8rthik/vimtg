@@ -88,3 +88,15 @@ def test_no_bracket_line_without_card_db(
     deck = _commander_deck(tmp_path, ["Smothering Tithe"])
     result = CliRunner().invoke(main, ["validate", str(deck)])
     assert "bracket" not in result.output
+
+
+def test_bracket_in_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repo: CardRepository
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: repo)
+    deck = _commander_deck(tmp_path, ["Smothering Tithe", "Gamble"])
+    result = CliRunner().invoke(main, ["validate", "--json", str(deck)])
+    assert result.exit_code == 0, result.output
+    doc = json.loads(result.stdout)
+    assert doc["ok"] is True
+    assert doc["bracket"].startswith("2 Game Changers (Smothering Tithe, Gamble)")
