@@ -223,6 +223,7 @@ class TestSync:
         cache.mkdir()
         cached_json = cache / "oracle_cards.json"
         cached_json.write_text((FIXTURES_DIR / "scryfall_sample.json").read_text())
+        _write_tags_cache(cache)
 
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
         count = syncer.sync(force=False)
@@ -300,6 +301,7 @@ class TestSync:
         (cache / "oracle_cards.json").write_text(
             (FIXTURES_DIR / "scryfall_sample.json").read_text()
         )
+        _write_tags_cache(cache)
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
         phases: list[str] = []
         syncer.sync(force=False, progress=lambda phase, c, t: phases.append(phase))
@@ -402,6 +404,7 @@ class TestJsonlParse:
         cache.mkdir()
         with gzip.open(cache / "oracle_cards.jsonl.gz", "wt", encoding="utf-8") as f:
             f.write(json.dumps(_minimal_card("a-1", "Shock")) + "\n")
+        _write_tags_cache(cache)
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
         assert syncer.sync(force=False) == 1
         # Cached loads also stamp last_sync so sync_is_due() settles
@@ -422,6 +425,7 @@ class TestJsonlParse:
         _os.utime(old_json, (older, older))
         with gzip.open(cache / "oracle_cards.jsonl.gz", "wt", encoding="utf-8") as f:
             f.write(json.dumps(_minimal_card("a-2", "New Card")) + "\n")
+        _write_tags_cache(cache)
 
         syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
         syncer.sync(force=False)
