@@ -57,9 +57,8 @@ def sample_repo(
     monkeypatch: pytest.MonkeyPatch,
 ) -> CardRepository:
     repo = CardRepository(db_factory())
-    repo.replace_all(
-        [Card.from_scryfall(c) for c in json.loads(scryfall_sample_path.read_text())]
-    )
+    raw = json.loads(scryfall_sample_path.read_text(encoding="utf-8"))
+    repo.replace_all([Card.from_scryfall(c) for c in raw])
     monkeypatch.setattr(cli, "_try_card_repo", lambda: repo)
     return repo
 
