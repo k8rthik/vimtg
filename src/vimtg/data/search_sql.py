@@ -223,11 +223,14 @@ class _Compiler:
             return f"({_IS_SQL[node.flag]})"
         if isinstance(node, TagMatch):
             # card_tags already holds every ancestor of a card's tags;
-            # an alias is looked up in the same subquery
+            # the typed slug, or the tag it aliases, resolves to its id
+            # once, and the card's oracle id to its surrogate per row
             return (
-                "EXISTS (SELECT 1 FROM card_tags ct WHERE ct.oracle_id = c.oracle_id "
-                f"AND ct.slug IN ({self.bind(node.slug)}, "
-                f"(SELECT a.slug FROM tag_aliases a WHERE a.alias = {self.bind(node.slug)})))"
+                "EXISTS (SELECT 1 FROM card_tags ct "
+                "JOIN oracle_ids o ON o.id = ct.card_oracle "
+                "WHERE o.oracle_id = c.oracle_id AND ct.tag_id IN "
+                f"(SELECT t.id FROM tags t WHERE t.slug = {self.bind(node.slug)} "
+                f"UNION SELECT a.tag_id FROM tag_aliases a WHERE a.alias = {self.bind(node.slug)}))"
             )
         raise TypeError(f"unknown search node {node!r}")  # pragma: no cover
 

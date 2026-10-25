@@ -1,4 +1,4 @@
-"""Upgrading older databases (PRAGMA user_version 0 to 3) to the current schema."""
+"""Upgrading older databases (PRAGMA user_version 0 to 4) to the current schema."""
 
 from __future__ import annotations
 
@@ -309,3 +309,50 @@ def test_v3_database_gains_the_oracle_tag_tables(tmp_path: Path) -> None:
         assert tags.get_last_sync() is None
     finally:
         db.close()
+
+
+def test_v4_text_keyed_tags_are_dropped_and_resync_restores_them(
+    real_shape_repo: CardRepository,
+) -> None:
+    """A v4 database kept the oracle id and slug text in every tag row.
+    Opening it under v5 leaves the tags unsynced (the search says so)
+    until the next tag sync, which fills the integer-keyed tables and
+    makes ``otag:`` searches work again."""
+    from tests.tag_support import load_fixture_tags
+    from vimtg.data.tag_repository import TagRepository
+    from vimtg.services.search_service import SearchService
+
+    db = real_shape_repo.database
+    conn = db.connect()
+    for table in ("card_tags", "tag_aliases", "tags", "oracle_ids"):
+        conn.execute(f"DROP TABLE {table}")
+    conn.execute(
+        "CREATE TABLE card_tags (oracle_id TEXT NOT NULL, slug TEXT NOT NULL, "
+        "PRIMARY KEY (oracle_id, slug)) WITHOUT ROWID"
+    )
+    conn.execute("CREATE INDEX idx_card_tags_slug ON card_tags(slug)")
+    conn.execute("CREATE TABLE tag_aliases (alias TEXT PRIMARY KEY, slug TEXT NOT NULL)")
+    sol_ring = real_shape_repo.get_by_name("Sol Ring")
+    assert sol_ring is not None
+    conn.execute("INSERT INTO card_tags VALUES (?, 'ramp')", (sol_ring.oracle_id,))
+    conn.execute("INSERT INTO tag_aliases VALUES ('acceleration', 'ramp')")
+    conn.execute(
+        "INSERT INTO sync_metadata (key, value) "
+        "VALUES ('last_tag_sync', '2026-10-01T00:00:00+00:00')"
+    )
+    conn.execute("PRAGMA user_version = 4")
+    conn.commit()
+
+    db.initialize()
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    tags = TagRepository(db)
+    assert not tags.has_tags()
+    assert tags.get_last_sync() is None
+    service = SearchService(real_shape_repo)
+    assert service.tags_unsynced("otag:ramp")
+    assert service.search("otag:ramp") == []
+
+    load_fixture_tags(real_shape_repo)
+    assert not service.tags_unsynced("otag:ramp")
+    assert [c.name for c in service.search("otag:ramp")] == ["Sol Ring"]
+    assert [c.name for c in service.search("otag:acceleration")] == ["Sol Ring"]

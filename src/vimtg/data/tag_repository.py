@@ -1,10 +1,12 @@
 """Oracle tags in SQLite: the expanded ``card_tags`` rows search joins
-on, and the ``tag_aliases`` it resolves a typed alias through."""
+on, keyed by the integer ids ``tags`` and ``oracle_ids`` assign, and
+the ``tag_aliases`` it resolves a typed alias through."""
 
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
+from itertools import batched
 
 from vimtg.data.database import Database
 from vimtg.domain.oracle_tags import OracleTag, alias_rows, card_tag_rows
@@ -27,17 +29,31 @@ class TagRepository:
         tags = list(tags)
         if not tags:
             raise ValueError("no oracle tags to load")
+        tag_ids = {tag.slug: n for n, tag in enumerate(tags, 1)}
+        oracle_ids: dict[str, int] = {}
         conn = self._db.connect()
         try:
-            conn.execute("DELETE FROM card_tags")
-            conn.execute("DELETE FROM tag_aliases")
-            for batch in _batches(card_tag_rows(tags)):
+            for table in ("card_tags", "tag_aliases", "tags", "oracle_ids"):
+                conn.execute(f"DELETE FROM {table}")  # noqa: S608
+            conn.executemany(
+                "INSERT OR IGNORE INTO tags (id, slug) VALUES (?, ?)",
+                [(n, slug) for slug, n in tag_ids.items()],
+            )
+            for batch in batched(card_tag_rows(tags), _BATCH_SIZE):
                 conn.executemany(
-                    "INSERT OR IGNORE INTO card_tags (oracle_id, slug) VALUES (?, ?)", batch
+                    "INSERT OR IGNORE INTO card_tags (card_oracle, tag_id) VALUES (?, ?)",
+                    [
+                        (oracle_ids.setdefault(oracle_id, len(oracle_ids) + 1), tag_ids[slug])
+                        for oracle_id, slug in batch
+                    ],
                 )
             conn.executemany(
-                "INSERT OR IGNORE INTO tag_aliases (alias, slug) VALUES (?, ?)",
-                list(alias_rows(tags)),
+                "INSERT INTO oracle_ids (id, oracle_id) VALUES (?, ?)",
+                [(n, oracle_id) for oracle_id, n in oracle_ids.items()],
+            )
+            conn.executemany(
+                "INSERT OR IGNORE INTO tag_aliases (alias, tag_id) VALUES (?, ?)",
+                [(alias, tag_ids[slug]) for alias, slug in alias_rows(tags)],
             )
             conn.execute(
                 "INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)",
@@ -67,14 +83,3 @@ class TagRepository:
             "SELECT value FROM sync_metadata WHERE key = ?", (LAST_TAG_SYNC_KEY,)
         ).fetchone()
         return str(row["value"]) if row is not None else None
-
-
-def _batches(rows: Iterable[tuple[str, str]]) -> Iterator[list[tuple[str, str]]]:
-    batch: list[tuple[str, str]] = []
-    for row in rows:
-        batch.append(row)
-        if len(batch) >= _BATCH_SIZE:
-            yield batch
-            batch = []
-    if batch:
-        yield batch
