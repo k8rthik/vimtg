@@ -76,9 +76,10 @@ vimtg works offline once card data is downloaded. It makes **no telemetry, analy
 |---|---|---|
 | `vimtg sync`, the greeter's `[s]`, or the TUI's background auto-sync (on launch and hourly, only when card data is missing or more than seven days old) | `api.scryfall.com`, `data.scryfall.io` | The public `oracle_cards` bulk file (card text, legalities, prices; ~25 MB) and the `oracle_tags` bulk file (Scryfall's `otag:` tags; ~6 MB). Turn auto-sync off with `:set noautosync` or `VIMTG_NO_AUTOSYNC=1`. |
 | You open the EDHREC pane (`Space r` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days (offline, an older cached page is shown and says how old it is); disable with `VIMTG_NO_EDHREC=1`. |
+| You run `:combos` (`Space c`) or `vimtg combos` | `backend.commanderspellbook.com` | The card names and counts of the deck's main deck, companion and commander zone. Cached for seven days per card list (offline or rate-limited, an older cached result for the same cards is shown and says how old it is); disable with `VIMTG_NO_SPELLBOOK=1`. |
 | You import a deck URL (`:import <url>` or the greeter's `[i]`) | The site in the URL: Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or MTGGoldfish | That one public deck. |
 
-Requests identify themselves with a `vimtg/<version>` User-Agent and send nothing about your decks except the commander name (EDHREC) or the deck URL you asked to import. Your decks, settings, and history stay on your machine: card data and history in `~/.local/share/vimtg/`, config in `~/.config/vimtg/`, download caches in `~/.cache/vimtg/` (XDG variables are honoured).
+Requests identify themselves with a `vimtg/<version>` User-Agent and send nothing about your decks except the commander name (EDHREC), the deck's card list when you ask for its combos (Commander Spellbook), or the deck URL you asked to import. Your decks, settings, and history stay on your machine: card data and history in `~/.local/share/vimtg/`, config in `~/.config/vimtg/`, download caches in `~/.cache/vimtg/` (XDG variables are honoured).
 
 ## Documentation
 
@@ -105,7 +106,7 @@ The rest of this page is a full feature tour.
   - [Analytics](#analytics)
   - [Collection](#collection)
   - [Sample hand](#sample-hand)
-  - [The side pane and EDHREC](#the-side-pane-and-edhrec)
+  - [The side pane, EDHREC, and combos](#the-side-pane-edhrec-and-combos)
   - [Import, export, and clipboard](#import-export-and-clipboard)
   - [Version control](#version-control)
   - [Greeter](#greeter)
@@ -288,10 +289,11 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 - `:hand seed=42` seeds the shuffle so the same hands come up every time (useful for tests and comparisons).
 - `vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]` prints a sample hand, any extra draws and the odds from the shell.
 
-### The side pane and EDHREC
+### The side pane, EDHREC, and combos
 
 One pane at a time, beside the editor when the terminal is at least 60 columns wide (narrower terminals hide it until there is room again).
 - **EDHREC pane** (`Space r`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory; offline, an older cached page still opens, its header saying `cached N days ago (offline)`. `VIMTG_NO_EDHREC` disables lookups.
+- **Combos overlay** (`Space c`, `:combos`, alias `:combo`): looks the deck up on [Commander Spellbook](https://commanderspellbook.com) and lists the combos it already holds ("In this deck") and those missing exactly one card ("One card away"), most popular first. Each row shows the combo's cards and what it produces; a one-away row highlights the missing card, and `Enter` on it adds that card to the mainboard where `o` would file it (`u` undoes). The footer shows the selected combo's page. Works for any format; the commander zone is sent as commanders. Cached for seven days per card list, so any card edit looks up again. `VIMTG_NO_SPELLBOOK` disables lookups.
 - **Analytics pane** (`Space a`, `:analytics`): described above; opens unfocused because it is a readout. `Space a` / `Space r` again close their pane.
 - `Ctrl-W w` switches focus between the editor and the pane; `:close`, or the pane's own `Space` key again, closes it. A focused pane has an orange border; in it `q` closes the pane and `Esc` returns to the editor. Any editing key (and `gh`, `g?`, `gc`) falls through to the editor and refocuses it.
 
@@ -413,6 +415,7 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 | `Ctrl-W w` | Switch focus between the editor and the pane |
 | `Space r` / `Space a` | Toggle the EDHREC pane / analytics pane |
 | `Space h` | Sample hand / goldfish overlay |
+| `Space c` | Combos in the deck and one card away (Commander Spellbook) |
 | `Space f` | Filter the view by category (empty clears) |
 | `F1` / `g?` | Full help / cheat sheet |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
@@ -440,7 +443,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 | `:collection [path]`, `:collection!` | Load, report, or forget your collection CSV |
 | `:sync`, `:sync!` | Download card data in the background (`!` re-downloads) |
 | `:analytics`, `:edhrec [type]`, `:close` | The side pane |
-| `:validate`, `:hand [seed=N]` | Legality, sample hand |
+| `:validate`, `:hand [seed=N]`, `:combos` | Legality, sample hand, combos in the deck and one card away |
 | `:history` (or `gh`), `:commit msg`, `:checkpoint name` | Version control |
 | `:set [key=value]`, `:config`, `:map`, `:unmap` | Configuration |
 | `:help [command]` | Help |
@@ -465,6 +468,7 @@ vimtg info deck.deck [--json]          # zones, format, and a stats line
 vimtg missing deck.deck [--collection cards.csv] [--json]  # cards your collection lacks, store-pastable; total cost on stderr
 vimtg diff old.deck new.deck [--json]  # card-level changes by zone, plus a stats line with card data
 git show HEAD:burn.deck | vimtg diff - burn.deck   # what changed since the last commit ('-' is stdin)
+vimtg combos deck.deck [--json]        # combos in the deck and one card away (Commander Spellbook); exit 1 if the lookup fails
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing out.txt
@@ -473,6 +477,8 @@ vimtg convert https://moxfield.com/decks/ID --to dek   # a deck URL works too; -
 
 Notes, warnings and errors go to stderr; a command's own output (the deck, the validation report, search rows) goes to stdout, so it pipes cleanly.
 
+`vimtg combos` prints one line per combo the deck holds, `742-1295  Demonic Consultation + Thassa's Oracle  →  Exile your library, Win the game`, then the combos one card away with the card to add (`(add Tainted Pact)`), then a line crediting [Commander Spellbook](https://commanderspellbook.com). Its `--json` document gives each combo's page link, colour identity, mana needed and popularity.
+
 `vimtg diff` prints one line per changed card, grouped Mainboard, Sideboard, then any other zone, worded like the history overlay's Diff panel: `+ 2 Eidolon of the Great Revel`, `- 1 Skullcrack`, `~ Lava Spike  3 → 4`, and `⇄ Goblin Guide  main → sideboard` for a card that changed zone. It compares cards only: two files whose cards match exit `0` even when their comments, metadata or sideboard plans differ (a note on stderr says so). In git, `git difftool -y -x 'vimtg diff' HEAD~1 -- burn.deck` runs it on a past revision.
 
 Exit codes:
@@ -480,12 +486,12 @@ Exit codes:
 | Code | Meaning |
 |---|---|
 | `0` | Success. `validate`: the deck is valid. `diff`: the decks hold the same cards. |
-| `1` | `validate`: the deck has errors (with `--strict`, warnings too). `diff`: the decks differ. Any command: an error it explains on stderr, such as no card database for `search` or an unreadable collection for `missing`. |
+| `1` | `validate`: the deck has errors (with `--strict`, warnings too). `diff`: the decks differ. `combos`: the lookup failed (offline with nothing cached, rate-limited, or disabled). Any command: an error it explains on stderr, such as no card database for `search` or an unreadable collection for `missing`. |
 | `2` | A usage error: an unknown option, a missing argument, a file that does not exist. `diff`: a deck that cannot be read. |
 
 The CLI prints no colour, so a pipe, a log file or `NO_COLOR=1` always gets plain text.
 
-`--json` on `validate`, `info`, `search`, `missing` and `diff` prints exactly one JSON document on stdout and nothing else there. Each names its shape in a `schema` key (`vimtg.validation/1`, `vimtg.info/1`, `vimtg.search/1`, `vimtg.missing/1`, `vimtg.diff/1`), so a script can branch on it; keys are snake_case, zones are `commander`, `companion`, `main`, `sideboard` and `maybeboard`, and a missing value (no price, no format, no card data) is `null`. The exit code is the same as without `--json`, and a command that fails prints nothing on stdout.
+`--json` on `validate`, `info`, `search`, `missing`, `diff` and `combos` prints exactly one JSON document on stdout and nothing else there. Each names its shape in a `schema` key (`vimtg.validation/1`, `vimtg.info/1`, `vimtg.search/1`, `vimtg.missing/1`, `vimtg.diff/1`, `vimtg.combos/1`), so a script can branch on it; keys are snake_case, zones are `commander`, `companion`, `main`, `sideboard` and `maybeboard`, and a missing value (no price, no format, no card data) is `null`. The exit code is the same as without `--json`, and a command that fails prints nothing on stdout.
 
 ## Known gaps
 
@@ -507,4 +513,4 @@ MIT, see [LICENSE](https://github.com/k8rthik/vimtg/blob/main/LICENSE).
 
 vimtg is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
 
-Card data and card-image links are provided by [Scryfall](https://scryfall.com) and used under Scryfall's [API and data guidelines](https://scryfall.com/docs/api); Scryfall is not affiliated with vimtg and does not endorse it. Deck-popularity data and recommendations come from [EDHREC](https://edhrec.com), which is likewise not affiliated with vimtg. vimtg is free and non-commercial: no payment, account, or subscription is required to use it or the card data it shows.
+Card data and card-image links are provided by [Scryfall](https://scryfall.com) and used under Scryfall's [API and data guidelines](https://scryfall.com/docs/api); Scryfall is not affiliated with vimtg and does not endorse it. Deck-popularity data and recommendations come from [EDHREC](https://edhrec.com), and combo data comes from [Commander Spellbook](https://commanderspellbook.com); neither is affiliated with vimtg. vimtg is free and non-commercial: no payment, account, or subscription is required to use it or the card data it shows.

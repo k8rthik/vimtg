@@ -93,6 +93,18 @@ from 1.0.0 onward.
 
 ### Added
 
+- Combos through [Commander Spellbook](https://commanderspellbook.com):
+  `:combos` (alias `:combo`, key `Space c`) opens a `Combos — <deck>`
+  overlay listing the combos the deck holds ("In this deck") and those
+  missing exactly one card ("One card away"), most popular first, each
+  with its cards and what it produces. `Enter` on a one-away combo adds
+  the missing card to the mainboard where `o` would file it. `vimtg
+  combos deck.deck [--json]` prints the same lists (a `vimtg.combos/1`
+  document with `--json`) and exits `1` when the lookup fails. The deck's
+  main, companion and commander card names go to
+  `backend.commanderspellbook.com`; results are cached for seven days per
+  card list, an older cached result is shown when offline or
+  rate-limited, and `VIMTG_NO_SPELLBOOK=1` turns lookups off.
 - `list` export format (`:export list`, `:clipboard list`, `vimtg convert
   --to list`; aliases `mpc` and `tcgplayer`): one `N Card Name` line per
   card, commander first and sideboard last, with no headers or blank
