@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.tui.history_support import STATE_V2, HistoryHostApp, make_history_screen
+from tests.tui.history_support import HistoryHostApp, make_history_screen
 from tests.tui.test_merge_screen import _HostApp as MergeHost
 from tests.tui.test_merge_screen import _make_screen as make_merge_screen
 from tests.tui.test_merge_screen import _Recorder
@@ -20,7 +20,6 @@ from vimtg.tui.screens.history_screen import HistoryCommandLine
 from vimtg.tui.screens.main_screen import MainScreen
 from vimtg.tui.screens.merge_screen import MergeCommandLine
 from vimtg.tui.theme import COLORS
-from vimtg.tui.widgets.branches_panel import BranchesPanel
 from vimtg.tui.widgets.command_line import CommandLine
 
 
@@ -111,40 +110,3 @@ async def test_editor_vcs_without_database_is_an_error(tmp_path: Path) -> None:
         assert cl.message == "E: VCS unavailable (no database)"
         assert cl.error
 
-
-UNCOMMITTED_HISTORY = "E: Uncommitted changes — commit them first (c)"
-UNCOMMITTED_EDITOR = "E: Uncommitted changes — commit them first (:commit)"
-
-
-@pytest.mark.asyncio
-async def test_history_and_editor_word_uncommitted_changes_alike(
-    vcs_with_history: VersionControlService, tmp_path: Path,
-) -> None:
-    vcs_with_history.create_branch("budget")
-    screen = make_history_screen(vcs_with_history, current_state=STATE_V2 + "1 Shock\n")
-    app = HistoryHostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("2")
-        branches = screen.query_one("#branches-panel", BranchesPanel)
-        while (selected := branches.get_selected_branch()) and selected.name != "budget":
-            await pilot.press("j")
-        await pilot.press("B")
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert cl.message == UNCOMMITTED_HISTORY
-        assert _drawn_in_error_colour(cl)
-
-    editor = VimTGApp(deck_path=_deck(tmp_path))
-    async with editor.run_test() as pilot:
-        await pilot.pause()
-        main = editor.screen
-        assert isinstance(main, MainScreen)
-        main._execute_ex("commit first")
-        main._execute_ex("branch budget")
-        main._execute_ex("1d")
-        main._execute_ex("branch! budget")
-        await pilot.pause()
-        cl = main.query_one("#command-line", CommandLine)
-        assert cl.message == UNCOMMITTED_EDITOR
-        assert cl.error

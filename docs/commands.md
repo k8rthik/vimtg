@@ -7,7 +7,7 @@ an offset alone counts from the cursor line: `.,+3d` deletes four lines,
 `:+2` goes two lines down, `$-1` is the line before the last.
 
 A command that lists things (`:registers`, `:marks`, `:tags`,
-`:categories`, `:plans`, `:validate`, `:branch`, `:g/pat/p`, and the `tl`
+`:categories`, `:plans`, `:validate`, `:g/pat/p`, and the `tl`
 key) prints on the command line when its output fits on one line, and
 otherwise opens it in a floating pager, one entry per line, as vim's
 more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
@@ -175,12 +175,6 @@ overlay keys.
 | `:history` (alias `:log`) | Open the history overlay (also `gh`) |
 | `:commit "msg"` | Snapshot the current deck state |
 | `:checkpoint name` | Commit the current state and tag it |
-| `:branch` | List branches (`*` marks the current one) |
-| `:branch name` | Create a new branch at the current tip |
-| `:branch! name` | Switch to an existing branch (loads its tip) |
-| `:merge branch` | Merge a branch (3-way; fast-forwards when possible) |
-| `:merge path.deck` | Merge another deck file's cards (empty merge base) |
-| `:rebase branch` | Replay this branch's commits onto another branch tip |
 
 History belongs to the deck file, so a deck that has never been written
 has none: `:commit`, `:checkpoint`, `gh`, and the other history commands
