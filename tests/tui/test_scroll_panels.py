@@ -158,7 +158,7 @@ class TestStatsCurrency:
         assert "tix 12.50" in sp.render().plain
 
 
-def _snap(i: int, branch: str = "main") -> VCSSnapshot:
+def _snap(i: int) -> VCSSnapshot:
     return VCSSnapshot(
         id=f"{i:07d}abcdef",
         deck_path="/d.deck",
@@ -166,10 +166,8 @@ def _snap(i: int, branch: str = "main") -> VCSSnapshot:
         deck_state="",
         timestamp=datetime(2026, 1, 2, 15, 30, 0),
         description=f"snap {i}",
-        branch=branch,
         tag=None,
         deck_hash="",
-        merge_parent_id=None,
     )
 
 

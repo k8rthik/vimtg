@@ -113,43 +113,27 @@ class TestCursorPosition:
         assert "Ln 25/25" in text.plain
 
 
-class TestVcsBranch:
-    def test_no_branch_no_brackets(self) -> None:
+class TestVcsSnapshots:
+    def test_snapshot_count(self) -> None:
         sl = StatusLine()
-        assert "[" not in sl.render().plain or "[+]" in sl.render().plain
-
-    def test_branch_appears_in_brackets(self) -> None:
-        sl = StatusLine()
-        sl.vcs_branch = "main"
-        text = sl.render()
-        assert "[main]" in text.plain
-
-    def test_branch_snapshot_count(self) -> None:
-        sl = StatusLine()
-        sl.vcs_branch = "feature"
         sl.vcs_snapshot_count = 7
-        text = sl.render()
-        assert "[feature]" in text.plain
-        assert "(7)" in text.plain
+        assert "7 snapshots" in sl.render().plain
 
-    def test_branch_no_snapshot_count_when_zero(self) -> None:
+    def test_no_snapshot_count_when_zero(self) -> None:
         """A zero snapshot count is noise — should be suppressed."""
         sl = StatusLine()
-        sl.vcs_branch = "main"
         sl.vcs_snapshot_count = 0
-        text = sl.render()
-        assert "(0)" not in text.plain
+        assert "snapshots" not in sl.render().plain
 
 
 class TestSegmentOrdering:
     def test_segments_appear_in_canonical_order(self) -> None:
-        """mode | filename | modified | cards | branch | line-pos."""
+        """mode | filename | modified | cards | snapshots | line-pos."""
         sl = StatusLine()
         sl.mode = Mode.NORMAL
         sl.filename = "burn.deck"
         sl.modified = True
         sl.card_count = 60
-        sl.vcs_branch = "main"
         sl.vcs_snapshot_count = 3
         sl.cursor_line = 5
         sl.total_lines = 60
@@ -159,7 +143,7 @@ class TestSegmentOrdering:
             plain.index("burn.deck"),
             plain.index("[+]"),
             plain.index("60 cards"),
-            plain.index("[main]"),
+            plain.index("3 snapshots"),
             plain.index("Ln 6/60"),
         ]
         assert order == sorted(order), f"segments out of order: {order}"

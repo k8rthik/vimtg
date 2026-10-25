@@ -2057,7 +2057,6 @@ class MainScreen(Screen[None]):
             except sqlite3.Error:
                 pass
             else:
-                sl.vcs_branch = status.branch
                 sl.vcs_snapshot_count = status.snapshot_count
 
         cl = self.query_one("#command-line", CommandLine)

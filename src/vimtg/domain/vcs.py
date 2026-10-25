@@ -1,8 +1,8 @@
 """Persistent version control dataclasses for deck history.
 
 Separate from the in-memory SnapshotTree used for session undo/redo.
-These types represent SQLite-persisted snapshots and branches that
-survive across editing sessions.
+These types represent SQLite-persisted snapshots that survive across
+editing sessions.
 
 TUI-agnostic: no Textual imports.
 """
@@ -15,11 +15,7 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class VCSSnapshot:
-    """A persisted point-in-time deck state (like a git commit).
-
-    merge_parent_id is the second parent of a merge commit; log rendering
-    walks parent_id only (first-parent), while ancestry queries follow both.
-    """
+    """A persisted point-in-time deck state (like a git commit)."""
 
     id: str
     deck_path: str
@@ -27,27 +23,14 @@ class VCSSnapshot:
     deck_state: str
     timestamp: datetime
     description: str
-    branch: str = "main"
     tag: str | None = None
     deck_hash: str = ""
-    merge_parent_id: str | None = None
-
-
-@dataclass(frozen=True)
-class VCSBranch:
-    """A named branch head pointer."""
-
-    name: str
-    deck_path: str
-    tip_id: str
-    created_at: datetime
 
 
 @dataclass(frozen=True)
 class VCSStatus:
     """Current VCS state for a deck (displayed in status line)."""
 
-    branch: str
     snapshot_count: int
     has_uncommitted_changes: bool
     last_snapshot_description: str = ""

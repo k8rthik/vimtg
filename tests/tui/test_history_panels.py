@@ -18,7 +18,6 @@ def _snapshot(
         deck_state="",
         timestamp=datetime(2026, 1, 2, 15, 30, 0),
         description=description,
-        branch="main",
         tag=tag,
     )
 

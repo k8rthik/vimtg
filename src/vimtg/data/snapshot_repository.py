@@ -1,4 +1,4 @@
-"""Persistent storage for deck version control snapshots and branches."""
+"""Persistent storage for deck version control snapshots."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from vimtg.data.database import Database
-from vimtg.domain.vcs import VCSBranch, VCSSnapshot
+from vimtg.domain.vcs import VCSSnapshot
 
 
 def _parse_timestamp(value: object) -> datetime:
@@ -35,25 +35,13 @@ def _row_to_snapshot(row: dict[str, Any]) -> VCSSnapshot:
         deck_state=row["deck_state"],
         timestamp=_parse_timestamp(row["timestamp"]),
         description=row["description"] or "",
-        branch=row["branch"] or "main",
         tag=row["tag"],
         deck_hash=row["deck_hash"] or "",
-        merge_parent_id=row["merge_parent_id"],
-    )
-
-
-def _row_to_branch(row: dict[str, Any]) -> VCSBranch:
-    """Convert a SQLite Row to a VCSBranch."""
-    return VCSBranch(
-        name=row["name"],
-        deck_path=row["deck_path"],
-        tip_id=row["tip_id"],
-        created_at=_parse_timestamp(row["created_at"]),
     )
 
 
 class SnapshotRepository:
-    """SQLite CRUD for persistent deck snapshots and branches."""
+    """SQLite CRUD for persistent deck snapshots."""
 
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -64,8 +52,8 @@ class SnapshotRepository:
         conn.execute(
             """INSERT INTO snapshots
                (id, deck_path, parent_id, deck_state, timestamp,
-                description, branch, tag, deck_hash, merge_parent_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                description, tag, deck_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 snapshot.id,
                 snapshot.deck_path,
@@ -73,10 +61,8 @@ class SnapshotRepository:
                 snapshot.deck_state,
                 snapshot.timestamp.isoformat(),
                 snapshot.description,
-                snapshot.branch,
                 snapshot.tag,
                 snapshot.deck_hash,
-                snapshot.merge_parent_id,
             ),
         )
         conn.commit()
@@ -91,29 +77,38 @@ class SnapshotRepository:
             return None
         return _row_to_snapshot(row)
 
-    def list_snapshots(
-        self,
-        deck_path: str,
-        branch: str | None = None,
-        limit: int = 100,
-    ) -> list[VCSSnapshot]:
-        """List snapshots for a deck, optionally filtered by branch, newest first."""
+    def list_snapshots(self, deck_path: str, limit: int = 100) -> list[VCSSnapshot]:
+        """List snapshots for a deck, newest first."""
         conn = self._db.connect()
-        if branch is not None:
-            rows = conn.execute(
-                """SELECT * FROM snapshots
-                   WHERE deck_path = ? AND branch = ?
-                   ORDER BY timestamp DESC LIMIT ?""",
-                (deck_path, branch, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """SELECT * FROM snapshots
-                   WHERE deck_path = ?
-                   ORDER BY timestamp DESC LIMIT ?""",
-                (deck_path, limit),
-            ).fetchall()
+        rows = conn.execute(
+            """SELECT * FROM snapshots
+               WHERE deck_path = ?
+               ORDER BY timestamp DESC LIMIT ?""",
+            (deck_path, limit),
+        ).fetchall()
         return [_row_to_snapshot(r) for r in rows]
+
+    def tip(self, deck_path: str) -> VCSSnapshot | None:
+        """The end of a deck's chain: the snapshot no other snapshot
+        descends from (the newest such one, should an old database hold
+        several). None before the first commit.
+
+        Chosen by structure, not by timestamp, so a clock step between two
+        saves cannot make an older snapshot the tip and fork the chain.
+        """
+        conn = self._db.connect()
+        rows = conn.execute(
+            "SELECT id, parent_id, timestamp FROM snapshots WHERE deck_path = ?",
+            (deck_path,),
+        ).fetchall()
+        parents = {row["parent_id"] for row in rows}
+        leaves = [row for row in rows if row["id"] not in parents]
+        if not leaves:
+            return None
+        newest = max(
+            leaves, key=lambda row: (_parse_timestamp(row["timestamp"]), row["id"])
+        )
+        return self.get_snapshot(newest["id"])
 
     def get_ancestors(
         self, snapshot_id: str, limit: int = 50
@@ -132,67 +127,6 @@ class SnapshotRepository:
             result.append(snap)
             current_id = snap.parent_id
         return result
-
-    def get_history(
-        self, snapshot_id: str, deck_path: str, limit: int = 100
-    ) -> list[VCSSnapshot]:
-        """Every snapshot reachable from snapshot_id, newest first.
-
-        Follows both parent_id and merge_parent_id (so merged-in commits
-        appear, like `git log` without --first-parent) but never leaves
-        the deck_path partition. The tip is always first; the rest are
-        ordered by (timestamp, id) descending.
-
-        The graph walk reads ids and parents only; full rows (with the
-        deck text) are fetched for the `limit` survivors afterwards, so
-        a deck with thousands of auto-snapshots stays cheap to open.
-        """
-        conn = self._db.connect()
-        seen: dict[str, tuple[datetime, str | None, str | None]] = {}
-        frontier = [snapshot_id]
-        while frontier:
-            current = frontier.pop()
-            if current in seen:
-                continue
-            row = conn.execute(
-                "SELECT id, parent_id, merge_parent_id, timestamp "
-                "FROM snapshots WHERE id = ? AND deck_path = ?",
-                (current, deck_path),
-            ).fetchone()
-            if row is None:
-                continue
-            parent, merge_parent = row["parent_id"], row["merge_parent_id"]
-            seen[current] = (_parse_timestamp(row["timestamp"]), parent, merge_parent)
-            frontier.extend(
-                pid for pid in (parent, merge_parent)
-                if pid is not None and pid not in seen
-            )
-        if snapshot_id not in seen:
-            return []
-        rest = sorted(
-            (sid for sid in seen if sid != snapshot_id),
-            key=lambda sid: (seen[sid][0], sid),
-            reverse=True,
-        )
-        wanted = [snapshot_id, *rest][:limit]
-        return self._fetch_in_order(wanted)
-
-    def _fetch_in_order(self, ids: list[str]) -> list[VCSSnapshot]:
-        """Full rows for `ids`, in the given order (chunked IN queries)."""
-        conn = self._db.connect()
-        by_id: dict[str, VCSSnapshot] = {}
-        chunk = 500
-        for i in range(0, len(ids), chunk):
-            part = ids[i:i + chunk]
-            marks = ",".join("?" * len(part))
-            rows = conn.execute(
-                f"SELECT * FROM snapshots WHERE id IN ({marks})",  # noqa: S608
-                part,
-            ).fetchall()
-            for row in rows:
-                snap = _row_to_snapshot(row)
-                by_id[snap.id] = snap
-        return [by_id[sid] for sid in ids if sid in by_id]
 
     def update_snapshot_description(self, snapshot_id: str, description: str) -> None:
         conn = self._db.connect()
@@ -231,160 +165,5 @@ class SnapshotRepository:
         conn.execute(
             f"DELETE FROM snapshots WHERE id IN ({placeholders})",  # noqa: S608
             snapshot_ids,
-        )
-        conn.commit()
-
-    def get_ancestor_ids(self, snapshot_id: str, deck_path: str) -> set[str]:
-        """All snapshot ids reachable from snapshot_id (inclusive).
-
-        Follows both parent_id and merge_parent_id, but never leaves the
-        given deck_path partition — a parent edge into another deck's
-        history is treated as missing.
-        """
-        conn = self._db.connect()
-        visited: set[str] = set()
-        frontier = [snapshot_id]
-        while frontier:
-            current = frontier.pop()
-            if current in visited:
-                continue
-            row = conn.execute(
-                "SELECT parent_id, merge_parent_id FROM snapshots"
-                " WHERE id = ? AND deck_path = ?",
-                (current, deck_path),
-            ).fetchone()
-            if row is None:
-                continue
-            visited.add(current)
-            for pid in (row["parent_id"], row["merge_parent_id"]):
-                if pid is not None and pid not in visited:
-                    frontier.append(pid)
-        return visited
-
-    def is_ancestor(
-        self, ancestor_id: str, descendant_id: str, deck_path: str
-    ) -> bool:
-        """True if ancestor_id is reachable from descendant_id (or equal)."""
-        conn = self._db.connect()
-        visited: set[str] = set()
-        frontier = [descendant_id]
-        while frontier:
-            current = frontier.pop()
-            if current in visited:
-                continue
-            visited.add(current)
-            row = conn.execute(
-                "SELECT parent_id, merge_parent_id FROM snapshots"
-                " WHERE id = ? AND deck_path = ?",
-                (current, deck_path),
-            ).fetchone()
-            if row is None:
-                continue  # outside this deck's partition — not an ancestor
-            if current == ancestor_id:
-                return True
-            for pid in (row["parent_id"], row["merge_parent_id"]):
-                if pid is not None and pid not in visited:
-                    frontier.append(pid)
-        return False
-
-    def find_merge_base(
-        self, id_a: str, id_b: str, deck_path: str
-    ) -> str | None:
-        """Best common ancestor of two snapshots, or None if unrelated.
-
-        Intersects the two ancestor sets and picks the candidate with the
-        greatest (timestamp, id) — deterministic for deck-scale histories.
-        """
-        common = self.get_ancestor_ids(id_a, deck_path) & self.get_ancestor_ids(
-            id_b, deck_path
-        )
-        if not common:
-            return None
-        candidates = [
-            snap
-            for sid in common
-            if (snap := self.get_snapshot(sid)) is not None
-        ]
-        if not candidates:
-            return None
-        best = max(candidates, key=lambda s: (s.timestamp, s.id))
-        return best.id
-
-    # ── Branch operations ─────────────────────────────────
-
-    def save_branch(self, branch: VCSBranch) -> None:
-        """Insert or update a branch head."""
-        conn = self._db.connect()
-        conn.execute(
-            """INSERT OR REPLACE INTO branches
-               (name, deck_path, tip_id, created_at)
-               VALUES (?, ?, ?, ?)""",
-            (
-                branch.name,
-                branch.deck_path,
-                branch.tip_id,
-                branch.created_at.isoformat(),
-            ),
-        )
-        conn.commit()
-
-    def get_branch(self, deck_path: str, name: str) -> VCSBranch | None:
-        """Fetch a single branch by name and deck path."""
-        conn = self._db.connect()
-        row = conn.execute(
-            "SELECT * FROM branches WHERE deck_path = ? AND name = ?",
-            (deck_path, name),
-        ).fetchone()
-        if row is None:
-            return None
-        return _row_to_branch(row)
-
-    def list_branches(self, deck_path: str) -> list[VCSBranch]:
-        """List all branches for a deck."""
-        conn = self._db.connect()
-        rows = conn.execute(
-            "SELECT * FROM branches WHERE deck_path = ? ORDER BY name",
-            (deck_path,),
-        ).fetchall()
-        return [_row_to_branch(r) for r in rows]
-
-    def delete_branch(self, deck_path: str, branch_name: str) -> None:
-        """Delete a branch (not its snapshots)."""
-        conn = self._db.connect()
-        conn.execute(
-            "DELETE FROM branches WHERE deck_path = ? AND name = ?",
-            (deck_path, branch_name),
-        )
-        conn.commit()
-
-    def update_branch_tip(
-        self, deck_path: str, branch_name: str, new_tip_id: str
-    ) -> None:
-        """Update a branch's tip to point at a new snapshot."""
-        conn = self._db.connect()
-        conn.execute(
-            "UPDATE branches SET tip_id = ? WHERE deck_path = ? AND name = ?",
-            (new_tip_id, deck_path, branch_name),
-        )
-        conn.commit()
-
-    # ── Head (current branch) operations ──────────────────
-
-    def get_head(self, deck_path: str) -> str | None:
-        """Return the persisted current branch for a deck, if any."""
-        conn = self._db.connect()
-        row = conn.execute(
-            "SELECT current_branch FROM deck_heads WHERE deck_path = ?",
-            (deck_path,),
-        ).fetchone()
-        return row["current_branch"] if row else None
-
-    def set_head(self, deck_path: str, branch: str) -> None:
-        """Persist the current branch for a deck."""
-        conn = self._db.connect()
-        conn.execute(
-            """INSERT OR REPLACE INTO deck_heads (deck_path, current_branch)
-               VALUES (?, ?)""",
-            (deck_path, branch),
         )
         conn.commit()
