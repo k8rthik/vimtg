@@ -15,6 +15,15 @@ from enum import Enum
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.deck import DeckSection
 
+# The order `vimtg diff` reports zones in
+DIFF_ZONE_ORDER = (
+    DeckSection.MAIN,
+    DeckSection.SIDEBOARD,
+    DeckSection.COMMANDER,
+    DeckSection.COMPANION,
+    DeckSection.MAYBEBOARD,
+)
+
 
 class ChangeType(Enum):
     """Classification of a single card change between two deck states."""
@@ -80,6 +89,16 @@ class DeckDiff:
     @property
     def has_changes(self) -> bool:
         return any(c.change_type != ChangeType.UNCHANGED for c in self.changes)
+
+    def changed_cards(self) -> tuple[CardChange, ...]:
+        """Every change but UNCHANGED, grouped by zone (mainboard,
+        sideboard, commander, companion, maybeboard) and by name within
+        one. A moved card is listed under the zone it moved to."""
+        rank = {section: i for i, section in enumerate(DIFF_ZONE_ORDER)}
+        return tuple(sorted(
+            (c for c in self.changes if c.change_type != ChangeType.UNCHANGED),
+            key=lambda c: (rank[c.section], c.card_name),
+        ))
 
     @property
     def added_count(self) -> int:

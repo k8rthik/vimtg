@@ -93,6 +93,14 @@ from 1.0.0 onward.
 
 ### Added
 
+- `vimtg diff old.deck new.deck` compares two decks card by card: one
+  line per added, removed, re-counted or moved card, grouped Mainboard
+  then Sideboard and worded like the history overlay's Diff panel, then
+  a stats line (cards, average CMC, price) with card data. It exits `0`
+  when the decks hold the same cards, `1` when they differ and `2` when
+  a deck cannot be read, like `diff(1)`; `-` reads one side from stdin
+  (`git show HEAD:burn.deck | vimtg diff - burn.deck`), and `--json`
+  prints a `vimtg.diff/1` document.
 - `--json` on `vimtg validate` prints the report as one JSON document
   on stdout (`{"schema": "vimtg.validation/1", "file", "format", "ok",
   "legality_checked", "problems": [{"line", "level", "message",

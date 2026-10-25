@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from vimtg.domain.card import Card
     from vimtg.domain.collection import Ownership, OwnershipSummary
     from vimtg.domain.deck import Deck
+    from vimtg.domain.deck_diff import CardChange, DeckDiff
     from vimtg.domain.validation import ValidationError, ValidationReport
 
 # Zone keys are DeckSection values ("main", "sideboard", ...), in
@@ -273,4 +274,83 @@ def missing_doc(
             "unpriced_unique": summary.unpriced_unique,
             "price_source": summary.price_source,
         },
+    }
+
+
+class SideJson(TypedDict):
+    zone: str
+    quantity: int
+
+
+class ChangeJson(TypedDict):
+    name: str
+    change: str  # "added", "removed", "quantity_changed" or "section_moved"
+    old: SideJson | None  # null for an added card
+    new: SideJson | None  # null for a removed card
+
+
+class DeckTotalsJson(TypedDict):
+    total_cards: int
+    average_cmc: float
+    price: float | None
+
+
+class DiffStatsJson(TypedDict):
+    old: DeckTotalsJson
+    new: DeckTotalsJson
+    price_source: str
+    curve_delta: list[int]  # index = mana value, the last bucket is 7+
+
+
+class DiffJson(TypedDict):
+    schema: str
+    old: str
+    new: str
+    identical: bool
+    changes: list[ChangeJson]
+    stats: DiffStatsJson | None
+
+
+def _side(zone: DeckSection | None, quantity: int | None) -> SideJson | None:
+    if quantity is None:
+        return None
+    return {"zone": (zone or DeckSection.MAIN).value, "quantity": quantity}
+
+
+def _change(change: CardChange) -> ChangeJson:
+    return {
+        "name": change.card_name,
+        "change": change.change_type.value,
+        "old": _side(change.old_section or change.section, change.old_quantity),
+        "new": _side(change.new_section or change.section, change.new_quantity),
+    }
+
+
+def diff_doc(old: str, new: str, diff: DeckDiff, price_source: str) -> DiffJson:
+    """`vimtg diff --json`: the card changes from `old` to `new`, and
+    the stats either side when card data exists."""
+    delta = diff.stats_delta
+    stats: DiffStatsJson | None = None
+    if delta is not None:
+        stats = {
+            "old": {
+                "total_cards": delta.old_total,
+                "average_cmc": delta.old_avg_cmc,
+                "price": delta.old_price,
+            },
+            "new": {
+                "total_cards": delta.new_total,
+                "average_cmc": delta.new_avg_cmc,
+                "price": delta.new_price,
+            },
+            "price_source": price_source,
+            "curve_delta": [delta.curve_delta.get(mv, 0) for mv in range(8)],
+        }
+    return {
+        "schema": _schema("diff"),
+        "old": old,
+        "new": new,
+        "identical": not diff.has_changes,
+        "changes": [_change(c) for c in diff.changed_cards()],
+        "stats": stats,
     }

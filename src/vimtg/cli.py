@@ -14,6 +14,7 @@ import httpx
 from click.shell_completion import CompletionItem
 
 from vimtg import __version__
+from vimtg.cli_errors import friendly_error
 from vimtg.cli_json import dumps, info_doc, missing_doc, search_doc, validation_doc
 from vimtg.config.paths import cache_dir, db_path
 from vimtg.data.card_repository import CardRepository
@@ -51,34 +52,6 @@ def _make_card_repo() -> CardRepository:
     return CardRepository(db)
 
 
-def _friendly_error(exc: OSError | UnicodeDecodeError | sqlite3.Error) -> str:
-    """A one-line message plus a hint for an ordinary environment error."""
-    if isinstance(exc, UnicodeDecodeError):
-        return (
-            f"cannot read file: it is not UTF-8 text ({exc.reason}).\n"
-            "Hint: re-save the deck as UTF-8, or check you passed the right file."
-        )
-    if isinstance(exc, sqlite3.Error):
-        return (
-            f"card database error: {exc}\n"
-            f"Hint: the database at {db_path()} may be corrupt — run "
-            "`vimtg sync` (or start vimtg) to rebuild it; deck history is "
-            "salvaged and the damaged file kept as a backup."
-        )
-    target = exc.filename if exc.filename is not None else ""
-    reason = exc.strerror or str(exc)
-    hint = {
-        errno.ENOENT: "check the path exists (and its parent directory, for output files).",
-        errno.EISDIR: "pass a deck file, not a directory.",
-        errno.ENOTDIR: "a component of the path is not a directory.",
-        errno.EACCES: "check the file and directory permissions.",
-        errno.EPERM: "check the file and directory permissions.",
-        errno.ENOSPC: "free some disk space and retry.",
-    }.get(exc.errno or 0)
-    msg = f"{target}: {reason}" if target else reason
-    return msg + (f"\nHint: {hint}" if hint else "")
-
-
 class _DeckFileGroup(click.Group):
     """Vim-style invocation: `vimtg burn.deck` opens the editor.
 
@@ -110,9 +83,9 @@ class _DeckFileGroup(click.Group):
         except OSError as exc:
             if exc.errno == errno.EPIPE:  # click handles broken pipes itself
                 raise
-            raise click.ClickException(_friendly_error(exc)) from exc
+            raise click.ClickException(friendly_error(exc)) from exc
         except (UnicodeDecodeError, sqlite3.Error) as exc:
-            raise click.ClickException(_friendly_error(exc)) from exc
+            raise click.ClickException(friendly_error(exc)) from exc
 
 
 @click.group(cls=_DeckFileGroup, invoke_without_command=True)
@@ -475,6 +448,25 @@ def missing(path: str, collection_arg: str | None, as_json: bool) -> None:
         if summary.unpriced_unique:
             total += f", {summary.unpriced_unique} unpriced"
     click.echo(f"Total to complete: {total}", err=True)
+
+
+_DECK_OR_STDIN = click.Path(exists=True, dir_okay=False, allow_dash=True)
+
+
+@main.command(name="diff")
+@click.argument("old", type=_DECK_OR_STDIN)
+@click.argument("new", type=_DECK_OR_STDIN)
+@_json_option("vimtg.diff/1")
+def diff_cmd(old: str, new: str, as_json: bool) -> None:
+    """Compare two decks card by card: what was added, removed, changed
+    in quantity or moved between zones, and (with card data) a stats
+    line. '-' reads one side from stdin.
+
+    Exits 0 when the decks hold the same cards, 1 when they differ and
+    2 when a deck cannot be read, like diff(1)."""
+    from vimtg.cli_diff import diff_decks
+
+    sys.exit(diff_decks(old, new, _try_card_repo, as_json))
 
 
 @main.command()
