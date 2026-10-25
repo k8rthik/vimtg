@@ -225,7 +225,7 @@ class TestCache:
         client = SpellbookClient(cache_dir=tmp_path)
         with patch(POST, return_value=_response()):
             client.find(_deck())
-        next((tmp_path / "spellbook").glob("*.json")).write_text("{not json")
+        next((tmp_path / "spellbook").glob("*.json")).write_text("{not json", encoding="utf-8")
         with patch(POST, return_value=_response()) as post:
             report = client.find(_deck())
         assert post.call_count == 1
