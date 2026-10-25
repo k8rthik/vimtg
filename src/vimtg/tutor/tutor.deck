@@ -148,7 +148,7 @@
 // Lesson 13: VERSION HISTORY
 // ------------------------------------------------------------
 // :commit saves a snapshot of the deck with a message.
-// gh opens the history: snapshots, diffs, branches. q closes.
+// gh opens the history: snapshots, diffs, stats. q closes.
 // Try it: type :w Enter, then :commit first try Enter, then gh.
 
 // ------------------------------------------------------------

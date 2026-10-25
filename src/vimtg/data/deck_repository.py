@@ -246,7 +246,7 @@ def serialize_deck(deck: Deck) -> str:
         lines.append(f"// Tags: {', '.join(sorted(deck.metadata.tags))}")
 
     # Freeform comments (positions are not reconstructed, but the text
-    # must survive — :import and VCS cherry-pick serialize through here)
+    # must survive — :import serializes through here)
     for comment in sorted(deck.comments, key=lambda c: c.line_number):
         lines.append(comment.text)
 
