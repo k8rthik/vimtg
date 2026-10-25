@@ -322,35 +322,19 @@ Shared navigation. `q`, `Esc`, or `?` closes.
 
 ### History overlay (`gh`, `:history`)
 
-A floating lazygit-style window with five panels: Working copy,
-Branches, Snapshots, Diff, Stats.
+A floating lazygit-style window with four panels: Working copy,
+Snapshots, Diff, Stats.
 
 | Key | Action |
 |-----|--------|
-| `1`-`5` / `Tab` / `Shift-Tab` | Jump to / cycle panels |
+| `1`-`4` / `Tab` / `Shift-Tab` | Jump to / cycle panels |
 | shared navigation | Move the selection, or scroll the Diff and Stats panels |
-| `Enter` | Open the item: switch to the branch, or jump to the Diff panel |
+| `Enter` | Open the item in the Diff panel |
 | `c` | Commit the working copy (prompts for a message) |
-| `b` | Create a branch at the current tip |
-| `B` / `D` | Switch to / delete the selected branch (Branches panel only) |
-| `m` / `r` | Merge / rebase onto the selected branch (Branches panel only) |
 | `t` / `T` | Tag / untag the selected snapshot (Snapshots panel only) |
 | `R` | Restore the selected snapshot into the editor, y/N (Snapshots panel only) |
-| `p` | Cherry-pick the selected snapshot onto the tip (Snapshots panel only) |
 | `d` | Show or hide unchanged cards in the diff |
 | `q` / `Esc` / `gh` | Close (`Esc` first cancels an open prompt) |
-| `?` | This screen's help topic |
-
-### Merge conflicts
-
-| Key | Action |
-|-----|--------|
-| shared navigation | Move between conflicts |
-| `o` / `t` | Take ours / theirs (auto-advances) |
-| `c` | Custom quantity (`0` omits the card) |
-| `u` | Unresolve |
-| `Enter` | Confirm; every conflict must be resolved |
-| `q` / `Esc` | Abort: nothing is committed (with a card resolved, the first press warns and a second discards) |
 | `?` | This screen's help topic |
 
 ## Remapping
