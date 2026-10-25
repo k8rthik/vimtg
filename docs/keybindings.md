@@ -183,6 +183,7 @@ or the pane's own `Space` key, closes it.
 | `Space r` | Toggle EDHREC **r**ecommendations for the commander (`:edhrec`) |
 | `Space h` | Sample **h**and: draw an opening seven and goldfish (`:hand`) |
 | `Space f` | **F**ilter the view by a category expression (`:filter`); `Enter` on an empty prompt clears it |
+| `Space c` | **C**ombos the deck holds and those one card away, from Commander Spellbook (`:combos`) |
 
 `Space a` and `Space r` close their pane when it is the one open, and
 otherwise replace any other pane. Space does nothing else in normal
@@ -201,6 +202,15 @@ or `Space` draws, `m` takes a London mulligan, `j`/`k` (and `gg`/`G`,
 `Ctrl-D`/`Ctrl-U`, `Home`/`End`) select a card and `b` puts it on the
 bottom, `r` reshuffles a fresh hand, `?` opens the hand help topic, `F1`
 the full help, and `q`/`Esc` close it.
+
+`Space c` opens the combos overlay, also an overlay. It lists "In this
+deck" and "One card away" combos, most popular first, each with its
+cards and what it produces; a one-away combo highlights the card it is
+missing. `j`/`k` (and `gg`/`G`, `Ctrl-D`/`Ctrl-U`) select a combo, the
+footer shows its commanderspellbook.com link, `Enter` on a one-away
+combo closes the overlay and adds the missing card to the mainboard as
+`o` would file it, `?` opens the combos help topic, and `q`/`Esc` close
+it.
 
 ### Version control
 

@@ -1020,12 +1020,13 @@ WINDOW_KEYS: dict[str, HandlerResult] = {
     "ctrl_w w": HandlerResult(focus_other_window=True),
 }
 
-# <Space>{key}: the leader. The panes toggle; the hand is an overlay;
+# <Space>{key}: the leader. The panes toggle; the hand and combos are overlays;
 # Space f (the filter prompt) needs the state, see _open_filter_prompt.
 LEADER_KEYS: dict[str, HandlerResult] = {
     "space a": HandlerResult(toggle_pane="analytics"),
     "space r": HandlerResult(toggle_pane="edhrec"),
     "space h": HandlerResult(run_ex_command="hand"),
+    "space c": HandlerResult(run_ex_command="combos"),
 }
 
 

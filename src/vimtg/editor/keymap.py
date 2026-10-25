@@ -75,9 +75,9 @@ _G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?", "v"})
 # Ctrl-W {v,s} split, {w,W,h,j,k,l} focus, {c,q} close, o only — vim's
 # window commands
 _WINDOW_SUB_KEYS = frozenset({"w"})
-# <Space>{a,r,h,f} — the leader: analytics pane, EDHREC pane, sample
-# hand, view filter
-_LEADER_SUB_KEYS = frozenset({"a", "r", "h", "f"})
+# <Space>{a,r,h,f,c} — the leader: analytics pane, EDHREC pane, sample
+# hand, view filter, combos
+_LEADER_SUB_KEYS = frozenset({"a", "r", "h", "f", "c"})
 # z{s,m,d,c,p} — zone moves; z{i,o} — board in/out of the sideboard plan.
 # m{a-z} is marks only.
 _ZONE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})

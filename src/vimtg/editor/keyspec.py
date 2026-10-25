@@ -252,6 +252,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        label="Space r", shorts=("EDHREC recs",)),
     _b("space h", "Sample hand / goldfish overlay (:hand)", WINDOWS,
        label="Space h", shorts=("sample hand",)),
+    _b("space c", "Combos in the deck and one card away (:combos)", WINDOWS,
+       label="Space c", shorts=("combos",)),
     _b("space f", "Filter the view by category (:filter; empty clears)", WINDOWS,
        label="Space f", shorts=("filter view",)),
     # ── Version control ───────────────────────────────────
