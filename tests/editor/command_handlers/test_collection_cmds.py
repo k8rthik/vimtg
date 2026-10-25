@@ -68,7 +68,7 @@ def test_bare_collection_reports_none_loaded(registry: CommandRegistry) -> None:
 def test_bare_collection_reports_the_loaded_one(
     registry: CommandRegistry, csv_path: Path
 ) -> None:
-    loaded = parse_collection_csv(csv_path.read_text(), csv_path)
+    loaded = parse_collection_csv(csv_path.read_text(encoding="utf-8"), csv_path)
     ctx = _run(
         registry, "collection",
         EditorContext(settings=Settings(collection=str(csv_path)), collection=loaded),
@@ -80,7 +80,7 @@ def test_bare_collection_reports_the_loaded_one(
 def test_bang_clears_the_collection_and_the_setting(
     registry: CommandRegistry, csv_path: Path
 ) -> None:
-    loaded = parse_collection_csv(csv_path.read_text(), csv_path)
+    loaded = parse_collection_csv(csv_path.read_text(encoding="utf-8"), csv_path)
     ctx = _run(
         registry, "collection!",
         EditorContext(settings=Settings(collection=str(csv_path)), collection=loaded),
@@ -95,7 +95,7 @@ def test_bang_clears_the_collection_and_the_setting(
 def test_missing_file_fails_and_keeps_the_old_collection(
     registry: CommandRegistry, csv_path: Path, tmp_path: Path
 ) -> None:
-    loaded = parse_collection_csv(csv_path.read_text(), csv_path)
+    loaded = parse_collection_csv(csv_path.read_text(encoding="utf-8"), csv_path)
     ctx = _run(
         registry, f"collection {tmp_path / 'nope.csv'}",
         EditorContext(settings=Settings(collection=str(csv_path)), collection=loaded),
