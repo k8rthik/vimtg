@@ -46,6 +46,22 @@ CARD_NAMES_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_card_names_id ON card_names(scryfall_id)",
 )
 
+# Scryfall oracle tags (otag:), expanded at load time so a card tagged
+# with a leaf tag has a row for every ancestor tag too. Keyed by
+# oracle_id, so a resync of the cards table leaves them valid.
+TAG_TABLES = (
+    """CREATE TABLE IF NOT EXISTS card_tags (
+        oracle_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        PRIMARY KEY (oracle_id, slug)
+    ) WITHOUT ROWID""",
+    "CREATE INDEX IF NOT EXISTS idx_card_tags_slug ON card_tags(slug)",
+    """CREATE TABLE IF NOT EXISTS tag_aliases (
+        alias TEXT PRIMARY KEY,
+        slug TEXT NOT NULL
+    ) WITHOUT ROWID""",
+)
+
 # Bumped whenever a migration needs to run once against an existing DB.
 #   0 -> v0.8 and earlier (no PRAGMA user_version set)
 #   1 -> oracle_id / produced_mana / game_changer, card_names aliases,
@@ -54,7 +70,8 @@ CARD_NAMES_INDEXES = (
 #        face_stats (per-face power/toughness)
 #   3 -> deck history is linear: the branches and deck_heads tables are
 #        dropped
-SCHEMA_VERSION = 3
+#   4 -> card_tags and tag_aliases (Scryfall oracle tags)
+SCHEMA_VERSION = 4
 
 CARDS_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
@@ -154,6 +171,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         _migrate_to_v2(conn)
     if version < 3:
         _migrate_to_v3(conn)
+    if version < 4:
+        _migrate_to_v4(conn)
 
 
 def _migrate_to_v1(conn: sqlite3.Connection) -> None:
@@ -239,6 +258,19 @@ def _migrate_to_v3(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _migrate_to_v4(conn: sqlite3.Connection) -> None:
+    """Oracle tags arrive in their own tables, empty until the next
+    sync downloads the tags file; cards and history are untouched."""
+    try:
+        for sql in TAG_TABLES:
+            conn.execute(sql)
+        conn.execute("PRAGMA user_version = 4")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+
 def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARDS_TABLE)
     conn.execute(CARDS_FTS)
@@ -247,6 +279,8 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARD_NAMES_TABLE)
     for idx in CARD_NAMES_INDEXES:
         conn.execute(idx)
+    for sql in TAG_TABLES:
+        conn.execute(sql)
     conn.execute(SYNC_TABLE)
     conn.execute(SNAPSHOTS_TABLE)
     for idx in SNAPSHOT_INDEXES:
