@@ -268,3 +268,67 @@ def test_a_card_line_never_wraps_past_the_width() -> None:
     line = render_line(0, buf, cursor_row=1, resolved={name: card}, width=40)[0]
     assert len(line.plain) <= 40
     assert line.plain.endswith("…")
+
+
+class TestOwnershipSign:
+    """The ○ gutter sign and the inline 'owned N of M' line."""
+
+    def _own(self, needed: int, owned: int):  # type: ignore[no-untyped-def]
+        from vimtg.domain.collection import Ownership
+        from vimtg.domain.deck import DeckEntry, DeckSection
+
+        entry = DeckEntry(needed, "Lightning Bolt", DeckSection.MAIN, line_number=1)
+        return Ownership(entry, owned)
+
+    def _err(self, level: str = "error"):  # type: ignore[no-untyped-def]
+        from vimtg.domain.validation import ValidationError
+
+        return ValidationError(level, "test issue", line_number=1)
+
+    def test_missing_copies_show_a_dim_circle(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        lines = render_line(0, buf, cursor_row=1, resolved={}, ownership=self._own(4, 2))
+        assert lines[0].plain.startswith("○ ")
+        assert "dim" in str(lines[0].spans[0].style)
+
+    def test_fully_owned_line_has_no_sign(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        lines = render_line(0, buf, cursor_row=1, resolved={}, ownership=self._own(4, 4))
+        assert lines[0].plain.startswith("  ")
+
+    def test_error_and_warning_win_the_gutter_cell(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        error = render_line(
+            0, buf, cursor_row=1, resolved={},
+            line_error=self._err(), ownership=self._own(4, 0),
+        )
+        warning = render_line(
+            0, buf, cursor_row=1, resolved={},
+            line_error=self._err("warning"), ownership=self._own(4, 0),
+        )
+        assert error[0].plain.startswith("✗ ")
+        assert warning[0].plain.startswith("! ")
+
+    def test_expansion_ends_with_the_owned_count(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        card = _make_card()
+        lines = render_line(
+            0, buf, cursor_row=0, resolved={"Lightning Bolt": card},
+            ownership=self._own(4, 2),
+        )
+        assert lines[-1].plain.strip().endswith("owned 2 of 4")
+
+    def test_expansion_says_not_owned(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        card = _make_card()
+        lines = render_line(
+            0, buf, cursor_row=0, resolved={"Lightning Bolt": card},
+            ownership=self._own(4, 0),
+        )
+        assert lines[-1].plain.strip().endswith("not owned")
+
+    def test_no_owned_line_without_a_collection(self) -> None:
+        buf = Buffer.from_text("4 Lightning Bolt\n")
+        card = _make_card()
+        lines = render_line(0, buf, cursor_row=0, resolved={"Lightning Bolt": card})
+        assert "owned" not in lines[-1].plain

@@ -31,6 +31,7 @@ from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.scryfall_sync import NO_CARD_DATA, card_data_badge
 from vimtg.domain.card import Card
+from vimtg.domain.collection import Collection, Ownership, ownership
 from vimtg.domain.formats import get_format_rules
 from vimtg.domain.search import SearchSyntaxError
 from vimtg.domain.sideboard_plan import apply_plan, find_plan
@@ -52,6 +53,7 @@ from vimtg.editor.lint import (
     LintResult,
     effective_format,
     lint_buffer,
+    ownership_rows,
 )
 from vimtg.editor.macros import paste_key, pasted_text
 from vimtg.editor.modes import Mode, ModeManager
@@ -244,7 +246,12 @@ class MainScreen(Screen[None]):
         self._deck_names: frozenset[str] = frozenset()
         self._deck_names_key: Buffer | None = None
         # Analytics pane recompute cache, keyed like lint (identity)
-        self._analytics_key: tuple[Buffer, dict[str, Card], str | None] | None = None
+        self._analytics_key: (
+            tuple[Buffer, dict[str, Card], str | None, Collection | None] | None
+        ) = None
+        # Deck view ownership rows, keyed by (buffer, collection) identity
+        self._ownership_key: tuple[Buffer, Collection | None] | None = None
+        self._ownership_cache: dict[int, Ownership] = {}
         # Active-plan row deltas for the deck view, keyed by (buffer, plan)
         self._plan_deltas_key: tuple[Buffer, str | None] | None = None
         self._plan_deltas_cache: dict[int, int] = {}
@@ -1845,6 +1852,7 @@ class MainScreen(Screen[None]):
             or key[0] is not s.buffer
             or key[1] is not s.resolved_cards
             or key[2] != s.active_plan
+            or key[3] is not s.collection
         ):
             deck = parse_deck_text(s.buffer.to_text())
             # With a plan active the pane shows the post-board deck
@@ -1853,9 +1861,11 @@ class MainScreen(Screen[None]):
                 deck = apply_plan(deck, plan)
             panel.plan_name = plan.name if plan is not None else ""
             panel.data = build_analytics_data(
-                deck, s.resolved_cards, s.settings.price_source
+                deck, s.resolved_cards, s.settings.price_source, s.collection
             )
-            self._analytics_key = (s.buffer, s.resolved_cards, s.active_plan)
+            self._analytics_key = (
+                s.buffer, s.resolved_cards, s.active_plan, s.collection
+            )
         # Draw odds follow the cursor — mainboard cards only (the odds
         # population is the mainboard)
         row = s.cursor.row
@@ -1867,6 +1877,20 @@ class MainScreen(Screen[None]):
             panel.cursor_card = (name, s.buffer.quantity_at(row) or 0)
         else:
             panel.cursor_card = None
+
+    def _ownership_rows(self) -> dict[int, Ownership]:
+        """Row -> ownership against the loaded collection, cached per
+        (buffer, collection); empty without a collection."""
+        s = self._state
+        key = (s.buffer, s.collection)
+        if self._ownership_key != key:
+            self._ownership_cache = (
+                ownership_rows(ownership(parse_deck_text(s.buffer.to_text()), s.collection))
+                if s.collection is not None
+                else {}
+            )
+            self._ownership_key = key
+        return self._ownership_cache
 
     def _plan_deltas(self) -> dict[int, int]:
         """Row deltas of the active plan, cached per (buffer, plan)."""
@@ -1941,6 +1965,7 @@ class MainScreen(Screen[None]):
         dv.category_filter = s.category_filter
         dv.line_errors = self._lint.line_errors
         dv.plan_deltas = self._plan_deltas()
+        dv.ownership = self._ownership_rows()
 
         comp = self._split_pane
         if comp is not None:

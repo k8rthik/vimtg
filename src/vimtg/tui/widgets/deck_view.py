@@ -13,6 +13,7 @@ from textual.widgets import Static
 
 from vimtg.domain.card import Card
 from vimtg.domain.categories import CategoryFilter
+from vimtg.domain.collection import Ownership
 from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.category_ops import filter_hides
@@ -61,6 +62,8 @@ class DeckView(Static):
     line_errors: reactive[dict[int, ValidationError]] = reactive(dict)
     # Row -> -N/+N of the active sideboard plan (editor.plan_ops.row_deltas)
     plan_deltas: reactive[dict[int, int]] = reactive(dict)
+    # Row -> the collection's ownership of that card (editor.lint.ownership_rows)
+    ownership: reactive[dict[int, Ownership]] = reactive(dict)
 
     # Buffer-line scroll offset; follows the cursor. The window is
     # sized in rendered rows, so the cursor row's inline expansion
@@ -126,6 +129,7 @@ class DeckView(Static):
             line_error=self.line_errors.get(i),
             header_count=counts.get(i),
             plan_delta=self.plan_deltas.get(i),
+            ownership=self.ownership.get(i),
         )
 
     def render(self) -> Text:
@@ -243,6 +247,11 @@ class DeckView(Static):
         self,
         _old: dict[int, ValidationError],
         _new: dict[int, ValidationError],
+    ) -> None:
+        self.refresh()
+
+    def watch_ownership(
+        self, _old: dict[int, Ownership], _new: dict[int, Ownership]
     ) -> None:
         self.refresh()
 

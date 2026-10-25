@@ -112,3 +112,32 @@ async def test_collection_command_loads_and_persists_the_path(tmp_path: Path) ->
         assert screen._state.collection is None
         saved = tomllib.loads((config_dir() / "config.toml").read_text(encoding="utf-8"))
         assert saved["editor"]["collection"] == ""
+
+
+@pytest.mark.asyncio
+async def test_deck_view_marks_missing_cards_and_analytics_shows_the_block(
+    tmp_path: Path,
+) -> None:
+    from vimtg.tui.widgets.analytics_panel import AnalyticsPanel
+    from vimtg.tui.widgets.deck_view import DeckView
+
+    _configure(str(_csv(tmp_path)))
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        screen = _screen(app)
+        view = screen.query_one("#deck-view", DeckView)
+        rows = view.render().plain.splitlines()
+        guide = next(r for r in rows if "Goblin Guide" in r)
+        bolt_side = next(r for r in rows if r.lstrip("○!✗ 0123456789").startswith("SB:"))
+        mountain = next(r for r in rows if "Mountain" in r)
+        assert guide.startswith("○")
+        # 6 Bolts across zones: 1 is missing, but the copy-limit error wins the cell
+        assert bolt_side.startswith("✗")
+        assert not mountain.startswith("○")
+        await _ex(pilot, ":analytics")
+        panel = screen.query_one("#analytics-panel", AnalyticsPanel)
+        text = panel.render().plain
+        assert "COLLECTION" in text
+        assert "Owned 25/30" in text
+        assert "Missing 5 (2 unique)" in text

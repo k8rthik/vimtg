@@ -27,12 +27,19 @@ from vimtg.domain.analytics import (
     zone_counts,
 )
 from vimtg.domain.card import Card, Color
+from vimtg.domain.collection import (
+    Collection,
+    OwnershipSummary,
+    ownership,
+    summarize_ownership,
+)
 from vimtg.domain.deck import Deck, DeckSection
 from vimtg.domain.probabilities import (
     OPENING_HAND_SIZE,
     draws_by_turn,
     prob_at_least,
 )
+from vimtg.editor.config_options import currency_symbol_for
 from vimtg.tui.keys import render_hints
 from vimtg.tui.theme import COLORS
 from vimtg.tui.widgets.scrolling import (
@@ -70,10 +77,15 @@ class AnalyticsData:
     deck_size: int  # mainboard cards, the draw-odds population
     # Commander decks only: Game Changers and the bracket they imply
     bracket: BracketEstimate | None = None
+    # Only while a collection is loaded: owned/missing and the cost to complete
+    collection: OwnershipSummary | None = None
 
 
 def build_analytics_data(
-    deck: Deck, resolved_cards: dict[str, Card], price_source: str = "usd"
+    deck: Deck,
+    resolved_cards: dict[str, Card],
+    price_source: str = "usd",
+    collection: Collection | None = None,
 ) -> AnalyticsData:
     """Compute the full analytics bundle for one deck state."""
     stats = compute_stats(deck, resolved_cards, price_source)
@@ -98,6 +110,11 @@ def build_analytics_data(
         bracket=(
             estimate_bracket(deck, resolved_cards)
             if is_commander_deck(deck)
+            else None
+        ),
+        collection=(
+            summarize_ownership(ownership(deck, collection), resolved_cards, price_source)
+            if collection is not None
             else None
         ),
     )
@@ -208,6 +225,7 @@ class AnalyticsPanel(Static):
         self._curve_lines(lines, data)
         self._type_lines(lines, data)
         self._zone_lines(lines, data)
+        self._collection_lines(lines, data)
         self._category_lines(lines, data)
         self._mana_base_lines(lines, data)
         self._bracket_lines(lines, data)
@@ -248,6 +266,29 @@ class AnalyticsPanel(Static):
         self._heading(lines, "ZONES")
         row = Text("  ")
         row.append(" · ".join(f"{label} {n}" for label, n in data.zones))
+        lines.append(row)
+
+    def _collection_lines(self, lines: list[Text], data: AnalyticsData) -> None:
+        summary = data.collection
+        if summary is None:
+            return
+        self._heading(lines, "COLLECTION")
+        lines.append(Text(f"  Owned {summary.owned_cards}/{summary.needed_cards}"))
+        missing = Text(f"  Missing {summary.missing_cards}")
+        if summary.missing_cards:
+            missing.append(f" ({summary.missing_unique} unique)", style="dim")
+        lines.append(missing)
+        if not summary.missing_cards:
+            return
+        symbol = currency_symbol_for(summary.price_source)
+        cost = (
+            f"{symbol}{summary.cost_to_complete:.2f}"
+            if summary.cost_to_complete is not None
+            else "unknown"
+        )
+        row = Text(f"  To complete {cost}")
+        if summary.unpriced_unique:
+            row.append(f", {summary.unpriced_unique} unpriced", style="dim")
         lines.append(row)
 
     def _category_lines(self, lines: list[Text], data: AnalyticsData) -> None:

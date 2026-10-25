@@ -101,3 +101,45 @@ class TestAnalyticsPanelRender:
     def test_no_cursor_card_row_without_cursor(self, card_map: dict[str, Card]) -> None:
         text = _panel(card_map).render().plain
         assert "Lightning Bolt" not in text
+
+
+class TestCollectionBlock:
+    def _collection(self, text: str):  # type: ignore[no-untyped-def]
+        from pathlib import Path
+
+        from vimtg.domain.collection import parse_collection_csv
+
+        return parse_collection_csv(text, Path("manabox.csv"))
+
+    def test_absent_without_a_collection(self, card_map: dict[str, Card]) -> None:
+        assert "COLLECTION" not in _panel(card_map).render().plain
+
+    def test_owned_missing_and_cost(self, card_map: dict[str, Card]) -> None:
+        collection = self._collection(
+            "Count,Name\n4,Goblin Guide\n2,Eidolon of the Great Revel\n"
+            "4,Lightning Bolt\n18,Mountain\n1,Sacred Foundry\n"
+        )
+        panel = AnalyticsPanel()
+        panel.data = build_analytics_data(
+            parse_deck_text(_DECK), card_map, collection=collection
+        )
+        text = panel.render().plain
+        assert "COLLECTION" in text
+        assert "Owned 29/37" in text
+        assert "Missing 8 (4 unique)" in text
+        # 2 Eidolon at 2.00, 1 Sacred Foundry at 12.00, 3 Rest in Peace at 4.00
+        assert "To complete $28.00, 1 unpriced" in text
+
+    def test_complete_deck_shows_no_cost_line(self, card_map: dict[str, Card]) -> None:
+        collection = self._collection(
+            "Count,Name\n4,Goblin Guide\n4,Eidolon of the Great Revel\n"
+            "4,Lightning Bolt\n20,Mountain\n2,Sacred Foundry\n3,Rest in Peace\n"
+        )
+        panel = AnalyticsPanel()
+        panel.data = build_analytics_data(
+            parse_deck_text(_DECK), card_map, collection=collection
+        )
+        text = panel.render().plain
+        assert "Owned 37/37" in text
+        assert "Missing 0" in text
+        assert "To complete" not in text
