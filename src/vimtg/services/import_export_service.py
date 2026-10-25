@@ -17,12 +17,18 @@ from vimtg.domain.card import Card
 from vimtg.domain.card_names import CardMap, normalize_card_name
 from vimtg.domain.card_types import TYPE_ORDER, primary_type
 from vimtg.domain.categories import format_inline_category
+from vimtg.domain.csv_rows import (
+    COUNT_HEADERS,
+    NAME_HEADERS,
+    card_name_cell,
+    count_cell,
+    find_column,
+)
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 from vimtg.domain.deck_lines import (
     clamp_quantity,
     format_inline_comment,
     strip_bom,
-    strip_printing_suffix,
 )
 from vimtg.domain.formats import format_requires_commander
 from vimtg.domain.section_keys import SectionKey, SectionKind
@@ -76,26 +82,24 @@ def format_list() -> str:
     return ", ".join(PRIMARY_FORMAT_NAMES[:-1]) + f", or {PRIMARY_FORMAT_NAMES[-1]}"
 
 
-def _row_quantity(row: Mapping[str, str | None]) -> int:
-    """Read a card quantity from a CSV row, trying 'Count' then 'Quantity'.
+def _csv_columns(reader: csv.DictReader[str]) -> tuple[str | None, str | None]:
+    """The (count, name) headers of a vendor CSV, matched case-insensitively."""
+    return (
+        find_column(reader.fieldnames, COUNT_HEADERS),
+        find_column(reader.fieldnames, NAME_HEADERS),
+    )
+
+
+def _row_quantity(row: Mapping[str, str | None], column: str | None) -> int:
+    """Read a card quantity from a CSV row's count column.
 
     Falls back to 1 for missing, empty, or non-integer cells so a single
     malformed value never aborts the whole import.
     """
-    raw = row.get("Count") or row.get("Quantity")
-    if raw is None:
-        return 1
-    try:
-        qty = int(str(raw).strip())
-    except ValueError:
+    qty = count_cell(row, column)
+    if qty is None:
         return 1
     return clamp_quantity(qty) if qty > 0 else 1
-
-
-def _csv_name(row: Mapping[str, str | None]) -> str:
-    """The card name of a CSV row, without any printing suffix."""
-    # DictReader yields None (not the default) for short rows
-    return strip_printing_suffix(row.get("Name") or "")
 
 
 def normalize_text(text: str) -> str:
@@ -679,11 +683,12 @@ class ImportExportService:
 
     def _import_moxfield(self, text: str) -> ImportReport:
         reader = csv.DictReader(io.StringIO(text))
+        count_col, name_col = _csv_columns(reader)
         entries: list[DeckEntry] = []
         skipped: list[SkippedLine] = []
         for row in reader:
-            qty = _row_quantity(row)
-            name = _csv_name(row)
+            qty = _row_quantity(row, count_col)
+            name = card_name_cell(row, name_col)
             section_str = (row.get("Section") or "mainboard").lower()
             if "side" in section_str:
                 section = DeckSection.SIDEBOARD
@@ -736,11 +741,12 @@ class ImportExportService:
         Archidekt URL import: Commander/Companion/Sideboard/Maybeboard
         pick the zone, a user category becomes the @category."""
         reader = csv.DictReader(io.StringIO(text))
+        count_col, name_col = _csv_columns(reader)
         entries: list[DeckEntry] = []
         skipped: list[SkippedLine] = []
         for row in reader:
-            qty = _row_quantity(row)
-            name = _csv_name(row)
+            qty = _row_quantity(row, count_col)
+            name = card_name_cell(row, name_col)
             if not name:
                 if _row_has_content(row):
                     skipped.append(_skipped_row(reader, row))
