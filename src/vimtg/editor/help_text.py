@@ -381,19 +381,12 @@ COMMAND_HELP: dict[str, str] = {
     ),
     "unmap": ":unmap key  Remove a key remapping",
     "home": ":home  Return to the greeter (:home! discards changes)",
-    "vsplit": (
-        ":vsplit deck-file  Open another deck beside this one (alias :vsp, :vs)\n"
+    "close": (
+        ":close  Close the side pane (analytics or EDHREC)\n"
         "\n"
-        "The split pane is read-only — compare a netdeck or an old\n"
-        "version while editing. Ctrl-W w switches pane focus (j/k scroll,\n"
-        "q closes, Esc returns), Ctrl-W c / :close closes it."
+        "q in a focused pane and the pane's own Space key close it too;\n"
+        "Ctrl-W w moves focus between the editor and the pane."
     ),
-    "split": (
-        ":split deck-file  Open another deck below this one (alias :sp, :hsplit)\n"
-        "\n"
-        "Horizontal variant of :vsplit — same keys: Ctrl-W w switch, :close close."
-    ),
-    "close": ":close  Close the split pane (alias :only; also Ctrl-W c)",
     "edhrec": (
         ":edhrec [type]  EDHREC recommendations for the commander (alias :rec)\n"
         "\n"

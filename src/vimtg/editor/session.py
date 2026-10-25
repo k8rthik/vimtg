@@ -105,7 +105,7 @@ from vimtg.editor.registers import (
     is_clipboard_register,
 )
 from vimtg.editor.sort_keys import SORT_FIELDS
-from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowCommand
+from vimtg.editor.splits import EdhrecOpen
 from vimtg.services.history_service import HistoryService
 
 if TYPE_CHECKING:
@@ -251,17 +251,16 @@ class HandlerResult:
     enter_comment_input: bool = False
     comment_prefill: str = ""
     replay_keys: tuple[str, ...] = ()  # macro playback via the key pipeline
-    # Companion pane (splits / EDHREC)
-    split_open: SplitOpen | None = None
+    # The side pane (analytics / EDHREC)
     split_close: bool = False
     edhrec_open: EdhrecOpen | None = None
-    analytics_open: AnalyticsOpen | None = None
+    analytics_open: bool = False
     hand_open: HandOpen | None = None  # sample-hand overlay (:hand)
     import_url: str = ""  # deck-site URL to fetch asynchronously
     clipboard_text: str | None = None  # text to put on the system clipboard
     clipboard_label: str = ""  # what clipboard_text is, for the message
     card_sync: str = ""  # "sync" / "force": start a background card sync
-    window: WindowCommand | None = None  # a Ctrl-W window command
+    focus_other_window: bool = False  # Ctrl-W w
     # A pane the Space leader toggles: closes it when it is the one open,
     # else opens it ("analytics" / "edhrec", as _SplitPane.kind)
     toggle_pane: str = ""
@@ -654,7 +653,6 @@ def handle_command(
             help_topic=ctx.help_topic,
             vcs_commit_description=ctx.vcs_commit_description,
             vcs_checkpoint_name=ctx.vcs_checkpoint_name,
-            split_open=ctx.split_open,
             split_close=ctx.split_close,
             edhrec_open=ctx.edhrec_open,
             analytics_open=ctx.analytics_open,
@@ -1010,20 +1008,9 @@ def _repeat_find(state: EditorState, *, backward: bool, count: int) -> HandlerRe
     )
 
 
-# Ctrl-W {key}: vim's window commands. v / s prompt for the deck to
-# split with; the rest act on the editor and its one pane.
+# Ctrl-W w: vim's "other window", between the editor and its one pane.
 WINDOW_KEYS: dict[str, HandlerResult] = {
-    "ctrl_w v": HandlerResult(enter_command=True, command_prefill="vsplit "),
-    "ctrl_w s": HandlerResult(enter_command=True, command_prefill="split "),
-    "ctrl_w w": HandlerResult(window=WindowCommand.NEXT),
-    "ctrl_w W": HandlerResult(window=WindowCommand.NEXT),
-    "ctrl_w h": HandlerResult(window=WindowCommand.LEFT),
-    "ctrl_w j": HandlerResult(window=WindowCommand.DOWN),
-    "ctrl_w k": HandlerResult(window=WindowCommand.UP),
-    "ctrl_w l": HandlerResult(window=WindowCommand.RIGHT),
-    "ctrl_w c": HandlerResult(window=WindowCommand.CLOSE),
-    "ctrl_w q": HandlerResult(window=WindowCommand.QUIT),
-    "ctrl_w o": HandlerResult(window=WindowCommand.ONLY),
+    "ctrl_w w": HandlerResult(focus_other_window=True),
 }
 
 # <Space>{key}: the leader. The panes toggle; the hand is an overlay;

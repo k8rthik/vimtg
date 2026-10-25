@@ -12,7 +12,7 @@ import sqlite3
 import traceback
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -83,13 +83,7 @@ from vimtg.editor.session import (
     note_jump,
     resolve_cards,
 )
-from vimtg.editor.splits import (
-    AnalyticsOpen,
-    EdhrecOpen,
-    SplitDirection,
-    SplitOpen,
-    WindowCommand,
-)
+from vimtg.editor.splits import EdhrecOpen
 from vimtg.services.clipboard import copy_message, copy_to_clipboard
 from vimtg.services.deck_service import needs_new_deck_prompt, set_deck_identity
 from vimtg.services.deck_sources import (
@@ -151,31 +145,19 @@ def _hint_for_cursor(buffer: Buffer, row: int) -> str:
 
 # Below these sizes the screen sheds extras instead of squeezing the deck
 TIPS_MIN_HEIGHT = 18  # first-run tips panel
-SPLIT_MIN_WIDTH = 60  # side-by-side split
-SPLIT_MIN_HEIGHT = 16  # stacked split
+SPLIT_MIN_WIDTH = 60  # the pane sits beside the deck, or hides
 
 # Keys a focused pane leaves to the editor without giving up focus: the
 # command line, and the window and leader prefixes
 _PANE_PASS_KEYS = frozenset({":", "ctrl_w", " "})
-# Ctrl-W h/j/k/l: the direction that reaches the pane in each layout
-# (the other direction of the same axis is back to the editor)
-_TOWARD_PANE = {
-    SplitDirection.VERTICAL: (WindowCommand.RIGHT, WindowCommand.LEFT),
-    SplitDirection.HORIZONTAL: (WindowCommand.DOWN, WindowCommand.UP),
-}
 
 
 @dataclass
 class _SplitPane:
-    """State of the split pane (second deck or EDHREC)."""
+    """State of the side pane (analytics or EDHREC)."""
 
-    kind: str  # "deck" | "edhrec" | "analytics"
-    direction: SplitDirection
+    kind: str  # "edhrec" | "analytics"
     focused: bool = False
-    path: Path | None = None
-    buffer: Buffer | None = None
-    resolved: dict[str, Card] = field(default_factory=dict)
-    cursor_row: int = 0
 
 
 class MainScreen(Screen[None]):
@@ -290,7 +272,6 @@ class MainScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Container(
             DeckView(id="deck-view"),
-            DeckView(id="deck-view-2"),
             EdhrecPanel(id="edhrec-panel"),
             AnalyticsPanel(id="analytics-panel"),
             id="editor-area",
@@ -312,7 +293,6 @@ class MainScreen(Screen[None]):
         self.query_one("#search-results", SearchResults).display = False
         self.query_one("#help-panel", HelpPanel).display = False
         self.query_one("#which-key", WhichKey).display = False
-        self.query_one("#deck-view-2", DeckView).display = False
         self.query_one("#edhrec-panel", EdhrecPanel).display = False
         self.query_one("#analytics-panel", AnalyticsPanel).display = False
 
@@ -1043,12 +1023,10 @@ class MainScreen(Screen[None]):
             self._confirm_insert()
         if hr.split_close:
             self._close_split()
-        if hr.split_open is not None:
-            self._open_split_deck(hr.split_open)
         if hr.edhrec_open is not None:
             self._open_edhrec(hr.edhrec_open)
-        if hr.analytics_open is not None:
-            self._open_analytics(hr.analytics_open)
+        if hr.analytics_open:
+            self._open_analytics()
         if hr.hand_open is not None:
             from vimtg.tui.screens.hand_screen import HandScreen
 
@@ -1059,8 +1037,8 @@ class MainScreen(Screen[None]):
             self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label)
         if hr.card_sync:
             self._start_card_sync(force=hr.card_sync == "force")
-        if hr.window is not None:
-            self._window_command(hr.window)
+        if hr.focus_other_window:
+            self._focus_other_window()
         if hr.toggle_pane:
             self._toggle_pane(hr.toggle_pane)
         for _ in range(hr.ex_repeat if hr.run_ex_command else 0):
@@ -1241,12 +1219,6 @@ class MainScreen(Screen[None]):
         if not message.view.is_current_request(message.row):
             return  # superseded by a later wheel event
         s = self._state
-        comp = self._split_pane
-        if comp is not None and message.view.id == "deck-view-2":
-            if comp.buffer is not None:
-                comp.cursor_row = max(0, min(message.row, comp.buffer.line_count() - 1))
-                self._sync_widgets()
-            return
         if not (s.mode_mgr.is_normal() or s.mode_mgr.is_visual()):
             return
         s.cursor = s.cursor.move_to(
@@ -1254,44 +1226,36 @@ class MainScreen(Screen[None]):
         )
         self._sync_widgets()
 
-    def _split_pane_widget(self) -> DeckView | EdhrecPanel | AnalyticsPanel:
+    def _split_pane_widget(self) -> EdhrecPanel | AnalyticsPanel:
         if self._split_pane is not None and self._split_pane.kind == "edhrec":
             return self.query_one("#edhrec-panel", EdhrecPanel)
-        if self._split_pane is not None and self._split_pane.kind == "analytics":
-            return self.query_one("#analytics-panel", AnalyticsPanel)
-        return self.query_one("#deck-view-2", DeckView)
+        return self.query_one("#analytics-panel", AnalyticsPanel)
 
     def _apply_split_layout(self) -> None:
-        """Show the split-pane widget in the requested direction."""
+        """Show the pane widget beside the deck when the terminal is wide
+        enough; otherwise the deck alone (the pane stays open and comes
+        back when the terminal grows)."""
         comp = self._split_pane
         if comp is None:
             return
-        area = self.query_one("#editor-area", Container)
-        side_by_side = comp.direction is SplitDirection.VERTICAL
-        area.styles.layout = "horizontal" if side_by_side else "vertical"
-        show: DeckView | EdhrecPanel | AnalyticsPanel | None = self._split_pane_widget()
-        if not self._split_fits(side_by_side):
-            # No room for two panes: show the deck alone (the split
-            # stays open and comes back when the terminal grows)
+        show: EdhrecPanel | AnalyticsPanel | None = self._split_pane_widget()
+        if not self._split_fits():
             show = None
             comp.focused = False
         for widget in (
-            self.query_one("#deck-view-2", DeckView),
             self.query_one("#edhrec-panel", EdhrecPanel),
             self.query_one("#analytics-panel", AnalyticsPanel),
         ):
             widget.display = widget is show
         self._sync_pane_focus()
 
-    def _split_fits(self, side_by_side: bool) -> bool:
-        """True when the terminal has room for the split pane (unknown
-        size — before the first layout — counts as room)."""
+    def _split_fits(self) -> bool:
+        """True when the terminal has room for the pane (unknown size,
+        before the first layout, counts as room)."""
         width, height = self.size
         if not width or not height:
             return True
-        if side_by_side:
-            return width >= SPLIT_MIN_WIDTH
-        return height >= SPLIT_MIN_HEIGHT
+        return width >= SPLIT_MIN_WIDTH
 
     def _sync_pane_focus(self) -> None:
         """Reflect which pane is active: separator color + panel state."""
@@ -1300,34 +1264,11 @@ class MainScreen(Screen[None]):
             return
         widget = self._split_pane_widget()
         color = COLORS["focus"] if comp.focused else COLORS["comment"]
-        if comp.direction is SplitDirection.VERTICAL:
-            widget.styles.border_left = ("solid", color)
-            widget.styles.border_top = None
-        else:
-            widget.styles.border_top = ("solid", color)
-            widget.styles.border_left = None
+        widget.styles.border_left = ("solid", color)
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         panel.focused_panel = comp.kind == "edhrec" and comp.focused
         ap = self.query_one("#analytics-panel", AnalyticsPanel)
         ap.focused_panel = comp.kind == "analytics" and comp.focused
-
-    def _open_split_deck(self, spec: SplitOpen) -> None:
-        cl = self.query_one("#command-line", CommandLine)
-        try:
-            text = spec.path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            cl.set_message(f"E: Cannot open {spec.path.name}: {exc}", error=True)
-            return
-        buf = Buffer.from_text(text)
-        resolved = resolve_cards(buf, self.card_repo) if self.card_repo else {}
-        self._split_pane = _SplitPane(
-            kind="deck", direction=spec.direction,
-            path=spec.path, buffer=buf, resolved=resolved,
-        )
-        self._apply_split_layout()
-        cl.set_message(
-            f"Split: {spec.path.name}  (Ctrl-W w switch pane, :close to close)"
-        )
 
     def _start_url_import(self, url: str, *, force: bool = False) -> None:
         """:import <url> — fetch the deck from any site in
@@ -1386,12 +1327,10 @@ class MainScreen(Screen[None]):
         imported = ImportExportService(card_repo=self.card_repo).to_vimtg(remote, url=url)
         self._open_new_buffer(NewBuffer(text=imported.text, message=imported.summary(host)))
 
-    def _open_analytics(self, req: AnalyticsOpen) -> None:
+    def _open_analytics(self) -> None:
         # Focus stays in the editor: the pane is a live readout that
         # updates as the deck is edited, not a list to navigate
-        self._split_pane = _SplitPane(
-            kind="analytics", direction=req.direction,
-        )
+        self._split_pane = _SplitPane(kind="analytics")
         self._analytics_key = None  # force a fresh compute
         self._apply_split_layout()
         self._sync_widgets()
@@ -1401,9 +1340,7 @@ class MainScreen(Screen[None]):
 
     def _open_edhrec(self, req: EdhrecOpen) -> None:
         # Focus starts on the panel so j/k/h/l work immediately
-        self._split_pane = _SplitPane(
-            kind="edhrec", direction=req.direction, focused=True,
-        )
+        self._split_pane = _SplitPane(kind="edhrec", focused=True)
         self._apply_split_layout()
         panel = self.query_one("#edhrec-panel", EdhrecPanel)
         panel.page = None
@@ -1462,40 +1399,24 @@ class MainScreen(Screen[None]):
     def _close_split(self) -> None:
         cl = self.query_one("#command-line", CommandLine)
         if self._split_pane is None:
-            cl.set_message("E: No split open", error=True)
+            cl.set_message("E: No pane open", error=True)
             return
         self._split_pane = None
-        self.query_one("#deck-view-2", DeckView).display = False
         self.query_one("#edhrec-panel", EdhrecPanel).display = False
         self.query_one("#analytics-panel", AnalyticsPanel).display = False
 
-    def _window_command(self, command: WindowCommand) -> None:
-        """Ctrl-W: move focus between the editor and the pane, or close
-        the pane. With no pane, Ctrl-W q is :quit and the rest say why
-        nothing happened, as in vim."""
+    def _focus_other_window(self) -> None:
+        """Ctrl-W w: move focus between the editor and the pane. With no
+        pane it says why nothing happened, as in vim."""
         comp = self._split_pane
         cl = self.query_one("#command-line", CommandLine)
-        if command in (WindowCommand.CLOSE, WindowCommand.QUIT, WindowCommand.ONLY):
-            if comp is not None:
-                self._close_split()
-            elif command is WindowCommand.QUIT:
-                self._execute_ex("quit")
-            elif command is WindowCommand.CLOSE:
-                cl.set_message("E444: Cannot close last window", error=True)
-            else:
-                cl.set_message("Already only one window")
-            return
         if comp is None:
-            cl.set_message("E: No split open (Ctrl-W v / Ctrl-W s or :vsplit)", error=True)
+            cl.set_message("E: No pane open (Space a or Space r)", error=True)
             return
         if not self._split_pane_widget().display:
-            cl.set_message("E: Terminal too small to show the split", error=True)
+            cl.set_message("E: Terminal too small to show the pane", error=True)
             return
-        toward, back = _TOWARD_PANE[comp.direction]
-        if command is WindowCommand.NEXT:
-            comp.focused = not comp.focused
-        elif command in (toward, back):
-            comp.focused = command is toward
+        comp.focused = not comp.focused
         self._pane_nav.reset()
         self._sync_pane_focus()
 
@@ -1537,25 +1458,12 @@ class MainScreen(Screen[None]):
         return False
 
     def _pane_viewport(self, comp: _SplitPane) -> int:
-        if comp.kind == "deck":
-            return self.query_one("#deck-view-2", DeckView).size.height
         if comp.kind == "analytics":
             return self.query_one("#analytics-panel", AnalyticsPanel).viewport_rows()
         return self.query_one("#edhrec-panel", EdhrecPanel).viewport_rows()
 
     def _pane_navigate(self, comp: _SplitPane, step: int | str) -> None:
         """Apply a shared navigation step to whichever pane is focused."""
-        if comp.kind == "deck":
-            if comp.buffer is None:
-                return
-            last = comp.buffer.line_count() - 1
-            if step == "home":
-                comp.cursor_row = 0
-            elif step == "end":
-                comp.cursor_row = last
-            else:
-                comp.cursor_row = max(0, min(comp.cursor_row + int(step), last))
-            return
         if comp.kind == "analytics":
             panel = self.query_one("#analytics-panel", AnalyticsPanel)
             if step == "home":
@@ -1996,17 +1904,7 @@ class MainScreen(Screen[None]):
 
         comp = self._split_pane
         if comp is not None:
-            if comp.kind == "deck" and comp.buffer is not None:
-                dv2 = self.query_one("#deck-view-2", DeckView)
-                dv2.buffer = comp.buffer
-                dv2.cursor = Cursor(row=comp.cursor_row)
-                dv2.resolved_cards = comp.resolved
-                dv2.price_source = price_src
-                dv2.currency_symbol = cur_sym
-                dv2.show_prices = s.settings.show_prices
-                dv2.show_line_numbers = s.settings.show_line_numbers
-                dv2.auto_expand = s.settings.auto_expand
-            elif comp.kind == "edhrec":
+            if comp.kind == "edhrec":
                 if self._deck_names_key is not s.buffer:
                     self._deck_names = frozenset(
                         name.lower()

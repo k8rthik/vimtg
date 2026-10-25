@@ -300,14 +300,13 @@ class EditorContext:
     category_filter: Any = None
     category_filter_set: bool = False
     remapper: Any = None  # KeyRemapper — :map/:unmap mutate it
-    # A split pane is open beside the editor: :q / :wq / :x close it
+    # The side pane is open beside the editor: :q / :wq / :x close it
     # (the window) instead of quitting
     pane_open: bool = False
-    # Companion-pane requests (SplitOpen / EdhrecOpen from editor.splits)
-    split_open: Any = None
+    # Side-pane requests (EdhrecOpen from editor.splits)
     split_close: bool = False
     edhrec_open: Any = None
-    analytics_open: Any = None
+    analytics_open: bool = False
     hand_open: Any = None  # HandOpen — sample-hand overlay request
     import_url: str = ""  # deck-site URL to fetch asynchronously
     # System-clipboard copy request: the TUI owns the terminal, so it

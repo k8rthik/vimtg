@@ -104,7 +104,7 @@ The rest of this page is a full feature tour.
   - [Sideboard plans](#sideboard-plans)
   - [Analytics](#analytics)
   - [Sample hand](#sample-hand)
-  - [Split panes and EDHREC](#split-panes-and-edhrec)
+  - [The side pane and EDHREC](#the-side-pane-and-edhrec)
   - [Import, export, and clipboard](#import-export-and-clipboard)
   - [Version control](#version-control)
   - [Greeter](#greeter)
@@ -194,7 +194,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Undo/redo**: `u`/`Ctrl-R`, counted. Session history is a snapshot tree: undo walks to the parent, redo to the newest child, and abandoned branches are kept. Each change is its own undo step, as in vim; only a quick burst of `+` or `-` on a card (within two seconds, not interrupted by an undo) collapses into one step. Undoing back to the loaded or last-saved state clears the modified flag.
 - **Remapping**: `:map key action` (session-only, multi-character targets allowed, `:`-prefixed targets auto-submit), `:unmap key`, bare `:map` lists. Persistent maps live in `[keybindings]` in `config.toml`, per mode.
 - **Which-key**: when a key sequence is pending (`d`, `y`, `c`, `g`, `[`, `]`, `"`, `q`, `@`, `m`, `'`, `Ctrl-W`, `Space`, `t`, `z`) a popup titled by the prefix shows the possible completions, derived from the same key spec as the help overview. The status line shows the pending sequence and counts.
-- **Mouse**: wheel and trackpad scroll the deck view, the split pane, the EDHREC pane, and the analytics pane, vim-style: three lines per notch, the cursor is dragged only when it would leave the scroll-off band. There is no click-to-position.
+- **Mouse**: wheel and trackpad scroll the deck view and the side pane (EDHREC or analytics), vim-style: three lines per notch, the cursor is dragged only when it would leave the scroll-off band. There is no click-to-position.
 
 ### Card database and search
 
@@ -280,14 +280,12 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 - `:hand seed=42` seeds the shuffle so the same hands come up every time (useful for tests and comparisons).
 - `vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]` prints a sample hand, any extra draws and the odds from the shell.
 
-### Split panes and EDHREC
+### The side pane and EDHREC
 
-One pane at a time, beside (`Ctrl-W v`, `:vsplit file`) or below (`Ctrl-W s`, `:split file`) the editor.
-
-- **Deck pane**: another deck file, read-only, for comparing a netdeck or an old version. `j`/`k`, `Ctrl-D`/`Ctrl-U`, `gg`/`G` scroll.
+One pane at a time, beside the editor when the terminal is at least 60 columns wide (narrower terminals hide it until there is room again).
 - **EDHREC pane** (`Space r`, `:edhrec [type]`): recommendations for the commander(s) on the deck's `CMD:` lines, Commander-only, partner pairs supported. Tabs: Top, Creatures, Instants, Sorceries, Artifacts, Enchantments, Planeswalkers, Battles, Lands. Each row shows inclusion rate and synergy score; `✓` marks cards already in the deck. `h`/`l` switch tabs, `Enter` adds the selected card to its type section. Responses are cached for seven days in the XDG cache directory; offline, an older cached page still opens, its header saying `cached N days ago (offline)`. `VIMTG_NO_EDHREC` disables lookups.
 - **Analytics pane** (`Space a`, `:analytics`): described above; opens unfocused because it is a readout. `Space a` / `Space r` again close their pane.
-- `Ctrl-W w` switches focus (`Ctrl-W h`/`j`/`k`/`l` by direction), `Ctrl-W c`, `Ctrl-W o` or `:close` closes. A focused pane has an orange border; in it `q` closes the pane and `Esc` returns to the editor. Any editing key (and `gh`, `g?`, `gc`) falls through to the editor and refocuses it.
+- `Ctrl-W w` switches focus between the editor and the pane; `:close`, or the pane's own `Space` key again, closes it. A focused pane has an orange border; in it `q` closes the pane and `Esc` returns to the editor. Any editing key (and `gh`, `g?`, `gc`) falls through to the editor and refocuses it.
 
 ### Import, export, and clipboard
 
@@ -340,13 +338,13 @@ Where things live (XDG-aware): card database plus deck snapshots in `~/.local/sh
 
 Empty decks show a short "Getting started" tips panel under the deck, kept through the first cards until the first `:w` (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Listing commands (`:registers`, `:marks`, `:categories`, `:plans`, `:validate`, `:g/pat/p`) print on the command line when the output fits on one line, and otherwise open it in a floating pager, one entry per line (vim's more-prompt). Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100, together with pop-up notices (card sync results, database recovery, config warnings).
 
-Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and a split pane steps aside while the terminal is too narrow for it.
+Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and the side pane steps aside while the terminal is too narrow for it.
 
 Help, `:messages`, `:config`, `:hand`, and the history overlay all open as the same floating window over the editor (titled on its top border, its close keys on the bottom one); a window opened from another, such as `?` in the history overlay, floats above both. `F1` or `:help` opens the help window; `g?` toggles a short cheat sheet under the deck, the rows the which-key popup shows (`F1` from it opens the full help). On a topic, `F1` switches the help window to the overview. The greeter's `?` and `F1` open the same help window. In the editor `?` is vim's backward search, not help; `:help <command>` opens that command's topic, under its full name or an alias (`:help export`, `:help exp`). The command line shows cursor-sensitive hints on card lines, plan lines, and elsewhere, and `:` commands fuzzy-complete with `Tab`/`Shift-Tab`. After a space, arguments complete too: `:layout` modes, `:sort` fields, `:filter` categories from the deck (the term after `+`, `|`, or `-`), and `:category`/`:cat` names from the deck, history, and presets.
 
 ## Keybindings
 
-Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`; `Ctrl-C` is `Esc` and never quits), one help vocabulary (`F1` everywhere; `?` on screens other than the editor, where it is backward search), one job per editor prefix (`g` go, `Ctrl-W` windows, `Space` the leader, `z` zones and scrolling, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
+Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`; `Ctrl-C` is `Esc` and never quits), one help vocabulary (`F1` everywhere; `?` on screens other than the editor, where it is backward search), one job per editor prefix (`g` go, `Ctrl-W` the pane, `Space` the leader, `z` zones and scrolling, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
 
 <details>
 <summary><strong>Modes and navigation</strong></summary>
@@ -396,15 +394,14 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 </details>
 
 <details>
-<summary><strong>Categories, filters, splits</strong></summary>
+<summary><strong>Categories, filters, the pane</strong></summary>
 
 | Key | Action |
 |-----|--------|
 | `gc` / `gC` | Set / clear category (Tab completes) |
 | `gl` | Toggle type / category layout |
 | `gh` | Toggle the history overlay |
-| `Ctrl-W v` / `Ctrl-W s` | Vertical / horizontal split (prompts for a deck) |
-| `Ctrl-W w` / `Ctrl-W c` | Switch focus / close pane (`Ctrl-W h`/`j`/`k`/`l` focus by direction, `Ctrl-W o` only) |
+| `Ctrl-W w` | Switch focus between the editor and the pane |
 | `Space r` / `Space a` | Toggle the EDHREC pane / analytics pane |
 | `Space h` | Sample hand / goldfish overlay |
 | `Space f` | Filter the view by category (empty clears) |
@@ -432,7 +429,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 | `:plan [name]`, `:plan!`, `:plans` | Sideboard plans |
 | `:export fmt [file]`, `:import [file\|url]`, `:clipboard [fmt]` | Formats: arena, mtgo, dek, moxfield, archidekt, vimtg, guide; bare `:import` reads the clipboard |
 | `:sync`, `:sync!` | Download card data in the background (`!` re-downloads) |
-| `:vsplit`, `:split`, `:close`, `:edhrec [type]`, `:analytics` | Panes |
+| `:analytics`, `:edhrec [type]`, `:close` | The side pane |
 | `:validate`, `:hand [seed=N]` | Legality, sample hand |
 | `:history` (or `gh`), `:commit msg`, `:checkpoint name` | Version control |
 | `:set [key=value]`, `:config`, `:map`, `:unmap` | Configuration |

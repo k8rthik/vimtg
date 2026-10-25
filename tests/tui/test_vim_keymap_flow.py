@@ -21,9 +21,9 @@ from tests.tui.test_vim_fidelity_flow import (
 )
 from vimtg.data.card_repository import CardRepository
 from vimtg.domain.card import Card
+from vimtg.editor.modes import Mode
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.main_screen import MainScreen
-from vimtg.tui.widgets.command_line import CommandLine
 from vimtg.tui.widgets.deck_view import DeckView
 from vimtg.tui.widgets.which_key import WhichKey
 
@@ -51,70 +51,32 @@ class TestWhichKeyFollowsTheSequence:
             assert "set category" not in plain
 
 
-def _other(tmp_path: Path) -> Path:
-    path = tmp_path / "other.deck"
-    path.write_text("4 Opt\n4 Consider\n")
-    return path
-
-
 class TestCtrlWWindows:
     @pytest.mark.asyncio
-    async def test_ctrl_w_v_and_s_prompt_for_a_deck(self, tmp_path: Path) -> None:
+    async def test_w_moves_focus_into_the_pane_and_back(self, tmp_path: Path) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, "<C-w>v")
-            assert scr.query_one("#command-line", CommandLine).text == "vsplit "
-            _feed(scr, "<Esc><C-w>s")
-            assert scr.query_one("#command-line", CommandLine).text == "split "
-
-    @pytest.mark.asyncio
-    async def test_focus_moves_by_w_and_by_direction(self, tmp_path: Path) -> None:
-        app = VimTGApp(deck_path=_deck(tmp_path))
-        async with app.run_test(size=SIZE) as pilot:
-            await pilot.pause()
-            scr = _screen(app)
-            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR>")
+            _feed(scr, "<Space>a")
             pane = scr._split_pane
             assert pane is not None and not pane.focused
             _feed(scr, "<C-w>w")
             assert pane.focused
-            _feed(scr, "<C-w>W")
-            assert not pane.focused
-            _feed(scr, "<C-w>l")
-            assert pane.focused
-            _feed(scr, "<C-w>j")  # nothing below a side-by-side pane
-            assert pane.focused
-            _feed(scr, "<C-w>h")
+            _feed(scr, "<C-w>w")
             assert not pane.focused
 
     @pytest.mark.asyncio
-    async def test_a_stacked_pane_is_below(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("key", ["v", "s", "W", "h", "j", "k", "l", "c", "q", "o"])
+    async def test_second_deck_window_keys_are_gone(self, tmp_path: Path, key: str) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":split<Space>{_other(tmp_path)}<CR><C-w>j")
+            _feed(scr, f"<Space>a<C-w>{key}")
             pane = scr._split_pane
-            assert pane is not None and pane.focused
-            _feed(scr, "<C-w>k")
-            assert not pane.focused
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("key", ["c", "q", "o"])
-    async def test_close_keys_close_the_pane_from_either_window(
-        self, tmp_path: Path, key: str
-    ) -> None:
-        app = VimTGApp(deck_path=_deck(tmp_path))
-        async with app.run_test(size=SIZE) as pilot:
-            await pilot.pause()
-            scr = _screen(app)
-            other = _other(tmp_path)
-            _feed(scr, f":vsplit<Space>{other}<CR><C-w>{key}")
-            assert scr._split_pane is None
-            _feed(scr, f":vsplit<Space>{other}<CR><C-w>w<C-w>{key}")
-            assert scr._split_pane is None
+            assert pane is not None and not pane.focused  # the key did nothing
+            assert scr._state.mode_mgr.current == Mode.NORMAL
             assert app.is_running
 
     @pytest.mark.asyncio
@@ -123,13 +85,8 @@ class TestCtrlWWindows:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, "<C-w>c")
-            assert "E444" in _message(scr)
-            _feed(scr, "<C-w>o")
-            assert _message(scr) == "Already only one window"
-            _feed(scr, "6Gdd<C-w>q")  # Ctrl-W q is :quit, which guards changes
-            assert app.is_running
-            assert _message(scr).startswith("E37: No write since last change")
+            _feed(scr, "<C-w>w")
+            assert _message(scr) == "E: No pane open (Space a or Space r)"
 
     @pytest.mark.asyncio
     async def test_which_key_titles_the_window_menu(self, tmp_path: Path) -> None:
@@ -139,7 +96,7 @@ class TestCtrlWWindows:
             scr = _screen(app)
             _feed(scr, "<C-w>")
             plain = scr.query_one("#which-key", WhichKey).render().plain
-            assert "window:" in plain and "vertical split" in plain
+            assert "window:" in plain and "other window" in plain
 
 
 class TestSpaceLeader:
@@ -222,7 +179,7 @@ class TestFocusedPaneKeys:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w q")
+            _feed(scr, "<Space>a<C-w>w q")
             assert scr._split_pane is None
             assert not scr._state.macros.is_recording
 
@@ -232,7 +189,7 @@ class TestFocusedPaneKeys:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w<Esc>")
+            _feed(scr, "<Space>a<C-w>w<Esc>")
             assert scr._split_pane is not None and not scr._split_pane.focused
 
     @pytest.mark.asyncio
@@ -243,7 +200,7 @@ class TestFocusedPaneKeys:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w g?")
+            _feed(scr, "<Space>a<C-w>w g?")
             assert scr.query_one("#help-panel", HelpPanel).display
             _feed(scr, "<Esc><C-w>w 6G gc")
             assert scr._state.prompt_action == "category"
@@ -309,8 +266,6 @@ class TestLinewiseCapitals:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("key", ["S", "C"])
     async def test_s_and_c_change_the_line(self, tmp_path: Path, key: str) -> None:
-        from vimtg.editor.modes import Mode
-
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
@@ -346,8 +301,6 @@ class TestCtrlCIsEsc:
 
     @pytest.mark.asyncio
     async def test_ctrl_c_cancels_what_esc_cancels(self, tmp_path: Path) -> None:
-        from vimtg.editor.modes import Mode
-
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
@@ -368,7 +321,7 @@ class TestCtrlCIsEsc:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w")
+            _feed(scr, "<Space>a<C-w>w")
             await pilot.press("ctrl+c")
             assert scr._split_pane is not None and not scr._split_pane.focused
 
@@ -481,8 +434,6 @@ class TestKShowsCardDetails:
 class TestReselectAndRepeatEx:
     @pytest.mark.asyncio
     async def test_gv_reselects_the_last_selection(self, tmp_path: Path) -> None:
-        from vimtg.editor.modes import Mode
-
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
@@ -506,8 +457,6 @@ class TestReselectAndRepeatEx:
         self, tmp_path: Path, way_out: str, end_row: int,
     ) -> None:
         """However the selection ended, gv brings the same one back."""
-        from vimtg.editor.modes import Mode
-
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
@@ -520,8 +469,6 @@ class TestReselectAndRepeatEx:
 
     @pytest.mark.asyncio
     async def test_gv_after_an_operator(self, tmp_path: Path) -> None:
-        from vimtg.editor.modes import Mode
-
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
@@ -633,9 +580,9 @@ class TestQuitClosesWindows:
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR>:q<CR>")
+            _feed(scr, "<Space>a:q<CR>")
             assert scr._split_pane is None and app.is_running
-            _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w:q<CR>")
+            _feed(scr, "<Space>a<C-w>w:q<CR>")
             assert scr._split_pane is None and app.is_running
             _feed(scr, ":q<CR>")
             await pilot.pause()
@@ -647,8 +594,6 @@ class TestVisualPut:
     async def test_p_replaces_the_selection_and_keeps_what_it_replaced(
         self, tmp_path: Path
     ) -> None:
-        from vimtg.editor.modes import Mode
-
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()

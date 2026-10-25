@@ -8,7 +8,7 @@ handled without being documented, or documented without being handled.
 Prefix namespaces (normal mode), each with one meaning:
 
     g   go / global      gg gc gC gl gh g?
-    ^W  windows          ^Wv ^Ws  ^Ww ^WW ^Wh ^Wj ^Wk ^Wl  ^Wc ^Wq ^Wo
+    ^W  windows          ^Ww
     ␣   leader           ␣a ␣r ␣h ␣f  (Space; panes toggle, f filters)
     z   zones & scroll   zs zm zd zc zp  zi zo  zz zt zb
     m   marks (set)      m{a-z}
@@ -241,22 +241,11 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
     _b("gC", "Clear the card's category", CATEGORIES, shorts=("clear category",)),
     _b("gl", "Toggle layout: by type / by category", CATEGORIES, shorts=("toggle layout",)),
     # ── Windows (Ctrl-W prefix) and the Space leader ──────
-    _b(("ctrl_w v", "ctrl_w s"), "Split vertically / horizontally (prompts for a deck)",
-       WINDOWS, quick="Commands", label="Ctrl-W v/s",
-       shorts=("vertical split", "horizontal split"), brief="split"),
-    _b(("ctrl_w w", "ctrl_w W"), "Switch focus between the editor and the pane", WINDOWS,
-       label="Ctrl-W w/W", shorts=("other window", "other window"),
+    _b("ctrl_w w", "Switch focus between the editor and the pane", WINDOWS,
+       label="Ctrl-W w", shorts=("other window",),
        note="In a pane: j/k move, gg/G top/bottom, Ctrl-D/U half page, "
             "h/l switch EDHREC tabs, Enter adds the selected card, q closes "
             "the pane, Esc returns to the editor"),
-    _b(("ctrl_w h", "ctrl_w j", "ctrl_w k", "ctrl_w l"),
-       "Focus the window left / below / above / right", WINDOWS, label="Ctrl-W hjkl",
-       shorts=("window left", "window below", "window above", "window right"),
-       note="The pane is right of a vertical split, below a horizontal one"),
-    _b(("ctrl_w c", "ctrl_w q"), "Close the pane (with no pane, Ctrl-W q is :q)", WINDOWS,
-       label="Ctrl-W c/q", shorts=("close pane", "quit window")),
-    _b("ctrl_w o", "Close every window but this one (the pane)", WINDOWS,
-       label="Ctrl-W o", shorts=("only window",)),
     _b("space a", "Toggle the live analytics pane (:analytics)", WINDOWS,
        quick="Commands", label="Space a", shorts=("analytics",), brief="analytics"),
     _b("space r", "Toggle EDHREC recommendations for the commander (:edhrec)", WINDOWS,

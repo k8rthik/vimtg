@@ -49,7 +49,7 @@ def display_key(key: str) -> str:
     """The one spelling of a translated key name used in every hint.
 
     A sequence that starts with a named key is spelled press by press:
-    'ctrl_w v' is 'Ctrl-W v', 'space a' is 'Space a'; ctrl_x is Ctrl-X.
+    'ctrl_w w' is 'Ctrl-W w', 'space a' is 'Space a'; ctrl_x is Ctrl-X.
     """
     if key in _DISPLAY:
         return _DISPLAY[key]

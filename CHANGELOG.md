@@ -15,14 +15,10 @@ from 1.0.0 onward.
   `Tab` completes the deck's categories, most used first. The filter
   prompt moved from `tf` to the leader: `Space f` (an empty `Enter`
   clears). The tutor's lesson 10 teaches `gc` and `Space f`.
-- Window keys moved to vim's `Ctrl-W` prefix, and the `S` prefix is gone:
-  - `Sv` -> `Ctrl-W v` (vertical split, prompts for a deck)
-  - `Sh` -> `Ctrl-W s` (horizontal split)
-  - `Ss` -> `Ctrl-W w` / `Ctrl-W W`, and `Ctrl-W h`/`j`/`k`/`l` focus by
-    direction (the pane is right of a vertical split, below a
-    horizontal one)
-  - `Sc` -> `Ctrl-W c` / `Ctrl-W q`; `Ctrl-W o` closes every window but
-    the editor. Ctrl-W works from the editor and from a focused pane.
+- The `S` window prefix is gone: `Ss` is now `Ctrl-W w`, vim's "other
+  window", and switches focus between the editor and the pane from
+  either side. The pane sits beside the deck when the terminal is wide
+  enough and hides otherwise.
 - Panes moved to a `Space` leader, and they toggle:
   - `Sa` -> `Space a` (analytics pane; `Space a` again closes it)
   - `Sr` -> `Space r` (EDHREC pane; `Space r` again closes it)
@@ -56,6 +52,12 @@ from 1.0.0 onward.
 
 ### Removed
 
+- The read-only second deck view. `:vsplit`/`:vsp`/`:vs`,
+  `:split`/`:sp`/`:hsplit` and `:only` answer E492, and `Ctrl-W v`/`s`,
+  `W`, `h`/`j`/`k`/`l`, `c`/`q`/`o` are unbound. The one side pane hosts
+  analytics (`Space a`, `:analytics`) or EDHREC (`Space r`, `:edhrec`);
+  `:close`, `q` in the pane or the pane's `Space` key closes it and
+  `Ctrl-W w` moves focus.
 - Ex commands that only mirrored a normal-mode key or a second entry
   point answer E492: `:d`/`:delete`, `:y`/`:yank`, `:m`/`:move`,
   `:t`/`:co`/`:copy`, `:undo`/`:u`, `:redo`/`:red` (use `dd`, `yy`, `p`,

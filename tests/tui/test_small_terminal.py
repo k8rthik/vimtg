@@ -141,16 +141,14 @@ async def test_tips_panel_yields_to_a_short_terminal(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_side_split_hidden_when_too_narrow(tmp_path: Path) -> None:
-    other = tmp_path / "other.deck"
-    other.write_text("4 Shock\n", encoding="utf-8")
+async def test_side_pane_hidden_when_too_narrow(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck(tmp_path))
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         screen = _main(app)
-        screen._execute_ex(f"vsplit {other}")
+        screen._execute_ex("analytics")
         await pilot.pause()
-        pane = screen.query_one("#deck-view-2")
+        pane = screen.query_one("#analytics-panel")
         assert pane.display is True
         await pilot.resize_terminal(40, 30)
         await pilot.pause()

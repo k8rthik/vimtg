@@ -73,27 +73,32 @@ class TestEditorFixes:
 
 class TestPaneNavigation:
     @pytest.mark.asyncio
-    async def test_deck_pane_gg_home_end(self, tmp_path: Path) -> None:
+    async def test_analytics_pane_gg_home_end(self, tmp_path: Path) -> None:
+        from vimtg.tui.widgets.analytics_panel import AnalyticsPanel
+
         deck = _deck(tmp_path)
         app = VimTGApp(deck_path=deck)
-        async with app.run_test(size=(120, 30)) as pilot:
+        async with app.run_test(size=(120, 12)) as pilot:
             await pilot.pause()
             screen = app.screen
-            await pilot.press(*f":vsplit {deck}", "enter")
+            await pilot.press(*":analytics", "enter")
             await pilot.pause()
             await pilot.press("ctrl+w", "w")  # focus the pane
             pane = screen._split_pane  # type: ignore[attr-defined]
             assert pane is not None and pane.focused
+            panel = screen.query_one("#analytics-panel", AnalyticsPanel)
+            top = panel.render()
             await pilot.press("G")
-            assert pane.cursor_row == pane.buffer.line_count() - 1
+            bottom = panel.render()
+            assert str(bottom) != str(top)  # a short terminal: G scrolls the pane
             await pilot.press("g", "g")
-            assert pane.cursor_row == 0
+            assert str(panel.render()) == str(top)
             await pilot.press("end")
-            assert pane.cursor_row == pane.buffer.line_count() - 1
+            assert str(panel.render()) == str(bottom)
             await pilot.press("home")
-            assert pane.cursor_row == 0
+            assert str(panel.render()) == str(top)
             await pilot.press("ctrl+d")
-            assert pane.cursor_row > 0
+            assert str(panel.render()) != str(top)
             # bare g then a non-nav key: the pane is unfocused and the key runs
             await pilot.press("g", "escape")
             assert not pane.focused
