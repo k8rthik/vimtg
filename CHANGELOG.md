@@ -10,6 +10,11 @@ from 1.0.0 onward.
 
 ### Changed (breaking key changes)
 
+- `:filter` matches each card's `@category` instead of its `#tags`, with
+  the same grammar (`ramp`, `ramp|draw`, `-removal`, `ramp -removal`);
+  `Tab` completes the deck's categories, most used first. The filter
+  prompt moved from `tf` to the leader: `Space f` (an empty `Enter`
+  clears). The tutor's lesson 10 teaches `gc` and `Space f`.
 - Window keys moved to vim's `Ctrl-W` prefix, and the `S` prefix is gone:
   - `Sv` -> `Ctrl-W v` (vertical split, prompts for a deck)
   - `Sh` -> `Ctrl-W s` (horizontal split)
@@ -51,6 +56,12 @@ from 1.0.0 onward.
 
 ### Removed
 
+- Card tags are no longer edited in vimtg: the `t` prefix (`ta` `tr` `tt`
+  `tf` `tl` `tc` `tn` `tp`) is unbound and `:tag`, `:untag`, `:tags` and
+  `:retag` answer E492. A card's one label is its `@category` (`gc`,
+  `:category`). Files that carry `#tag` tokens on card lines still read
+  and write them unchanged (sorted on write), and the deck-level
+  `// Tags:` line keeps `:dtag` / `:duntag`.
 - Deck history is linear. The git-style `:branch`, `:merge` and `:rebase`
   commands, the overlay's Branches panel with its `b`/`B`/`D`/`m`/`r`
   keys, cherry-pick (`p`) and the merge conflict screen are gone; the

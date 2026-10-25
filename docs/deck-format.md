@@ -109,8 +109,10 @@ between zones keeps its token.
   names without accents or the Æ ligature (`Lim-Dul's Vault`, `Æther Vial`).
   The text you wrote is kept as-is.
 - The optional `@category` token follows the name after two spaces.
-- Tags follow and are space-separated `#word` tokens. They are
-  stored deck-locally and never sent to Scryfall.
+- Tags follow as space-separated `#word` tokens. vimtg reads and writes
+  them unchanged (sorted on write), so a file from another tool or an
+  earlier vimtg round-trips, but no longer edits them: the label the
+  editor sets and filters on is `@category`.
 - An inline comment may follow, introduced by two spaces and `//`
   (`4 Bolt  @removal  #burn  // best card`). Canonical order is name,
   category, tags, comment.

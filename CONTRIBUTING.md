@@ -99,8 +99,9 @@ draft and stays inert until the maintainer enables it.
 
 ```
 src/vimtg/
-  domain/      Pure data and rules: Card, Deck, zones, sections, categories,
-               tags, sideboard plans, formats, validation, diff, merge,
+  domain/      Pure data and rules: Card, Deck, zones, sections, categories
+               and their filter, tag tokens, sideboard plans, formats,
+               validation, diff, merge,
                analytics, probabilities, snapshot tree (frozen dataclasses, no I/O)
   editor/      Vim engine: buffer, cursor, modes, keymap, motions, operators,
                registers, marks, macros, dot repeat, layout, placement, lint,

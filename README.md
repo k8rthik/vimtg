@@ -99,7 +99,6 @@ The rest of this page is a full feature tour.
   - [Zones](#zones)
   - [Sections, layouts, and placement](#sections-layouts-and-placement)
   - [Categories](#categories)
-  - [Tags and filters](#tags-and-filters)
   - [Bulk editing](#bulk-editing)
   - [Format-aware validation and live lint](#format-aware-validation-and-live-lint)
   - [Sideboard plans](#sideboard-plans)
@@ -236,14 +235,8 @@ One `@category` purpose label per card (`@ramp`, `@draw`, `@wincon`); names are 
 - In a category-grouped deck the token and the header always agree: setting a category moves the card under its `// @name` header (created if needed), clearing moves it to `// Uncategorized`, and a card added under a category header takes that category.
 - `:cat name` / `:cat!` (range-aware), `:categories` lists with counts.
 - Archidekt imports turn user-made categories into `@category` tokens.
-
-### Tags and filters
-
-Deck-level annotations, any number per card: `#core`, `#flex`, `#budget`.
-
-- `ta` add, `tr` remove, `tt` toggle, `tc` clear, `tl` list with counts, `tf` filter, `tn`/`tp` jump to the next/previous card sharing a tag with the cursor.
-- `:tag`, `:untag`, `:untag!`, `:tags`, `:retag /old/new/` (rename everywhere), `:dtag` / `:duntag` (add or remove deck-level tags on the `// Tags:` line).
-- **Filter grammar**: `core+flex` is AND, `core|flex` is OR, `-flex` is NOT. `:filter expr` dims non-matching cards and suppresses their expansion; `:filter!` or an empty expression clears.
+- **Filters**: `Space f` or `:filter expr` dims every card whose category fails the expression and suppresses its expansion. `ramp|draw` is OR, `-removal` is NOT, `ramp -removal` is AND NOT; `Tab` completes the deck's categories, most used first. `:filter!` or an empty expression clears.
+- A card line may also carry `#tag` tokens written by other tools or by earlier vimtg versions. vimtg reads and writes them unchanged (sorted on write) but no longer edits them. `:dtag` / `:duntag` edit the deck-level `// Tags:` line.
 
 ### Bulk editing
 
@@ -346,7 +339,7 @@ Where things live (XDG-aware): card database plus deck snapshots in `~/.local/sh
 
 ### Help
 
-Empty decks show a short "Getting started" tips panel under the deck, kept through the first cards until the first `:w` (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Listing commands (`:registers`, `:marks`, `:tags`, `:categories`, `:plans`, `:validate`, `:g/pat/p`, `tl`) print on the command line when the output fits on one line, and otherwise open it in a floating pager, one entry per line (vim's more-prompt). Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100, together with pop-up notices (card sync results, database recovery, config warnings).
+Empty decks show a short "Getting started" tips panel under the deck, kept through the first cards until the first `:w` (`Esc` hides it, `:tips off` turns it off for good, `:tips` shows it again); `:help` opens on the same "GETTING STARTED" section. Listing commands (`:registers`, `:marks`, `:categories`, `:plans`, `:validate`, `:g/pat/p`) print on the command line when the output fits on one line, and otherwise open it in a floating pager, one entry per line (vim's more-prompt). Messages on the command line vanish at the next key, except errors, which stay up while you move the cursor; `:messages` lists the last 100, together with pop-up notices (card sync results, database recovery, config warnings).
 
 Below 30×8 the editor shows a "terminal too small" notice instead of a garbled layout; overlays (search results, the `g?` panel) are capped at about half the screen, and a split pane steps aside while the terminal is too narrow for it.
 

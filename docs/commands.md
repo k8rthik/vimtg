@@ -6,7 +6,7 @@ current line, `'a,'b` for marks). Any address takes `+N` / `-N` offsets, and
 an offset alone counts from the cursor line: `.,+3d` deletes four lines,
 `:+2` goes two lines down, `$-1` is the line before the last.
 
-A command that lists things (`:registers`, `:marks`, `:tags`,
+A command that lists things (`:registers`, `:marks`,
 `:categories`, `:plans`, `:validate`, `:g/pat/p`, and the `tl`
 key) prints on the command line when its output fits on one line, and
 otherwise opens it in a floating pager, one entry per line, as vim's
@@ -93,9 +93,22 @@ keeps its `@category` token, so toggling back and forth is lossless.
 | `:layout type` | Regroup mainboard by card type (`// Creatures`, …) |
 | `:layout category` | Regroup by category (`// @ramp`, …); uncategorized cards group last |
 | `:layout` | Toggle between the two (also the `gl` key) |
+| `:filter expr` | Dim every card whose `@category` fails the expression and suppress its expansion; `:filter!` or a bare `:filter` clears. `Space f` opens the same prompt. `Tab` completes the deck's categories, most used first |
 
 In-group card order follows the `sort_order` setting
 (`:set sort_order=cmc` by default).
+
+Filter expression grammar:
+
+```
+expr  := term ('|' term)*
+term  := factor ('+' factor)*
+factor := '-'? IDENT
+```
+
+So `ramp|draw` is `ramp OR draw` and `ramp -removal` is `ramp AND NOT
+removal`. A card has one category, so `ramp+draw` (AND) matches nothing.
+An empty expression clears the filter.
 
 ## Splits & EDHREC
 
@@ -122,25 +135,17 @@ inclusion rate and synergy score; `✓` marks cards already in the deck,
 and `Enter` adds the selected card to the matching type section.
 Responses are cached for 7 days under the XDG cache directory.
 
-## Tags
+## Deck tags
+
+The `// Tags:` metadata line labels the whole deck. Card lines may carry
+`#tag` tokens too (written by other tools or by earlier vimtg versions);
+vimtg keeps them as they are and no longer edits them, so a card's label
+is its `@category`.
 
 | Command | Description |
 |---------|-------------|
-| `:filter expr` | Dim every card whose `@category` fails the expression; `:filter!` or a bare `:filter` clears (also `Space f`) |
 | `:dtag name...` | Add deck-level tags to the `// Tags:` metadata line, creating the line when the deck has none |
 | `:duntag name...` | Remove deck-level tags from the `// Tags:` line. The emptied line stays, so `i` can refill it |
-
-Filter expression grammar:
-
-```
-expr  := term ('|' term)*
-term  := factor ('+' factor)*
-factor := '-'? IDENT
-```
-
-So `ramp|draw` is `ramp OR draw` and `ramp -removal` is `ramp AND NOT
-removal`. A card has one category, so `ramp+draw` (AND) matches nothing.
-An empty expression clears the filter.
 
 ## Import / export
 
