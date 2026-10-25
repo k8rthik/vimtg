@@ -52,7 +52,9 @@ CARD_NAMES_INDEXES = (
 #        stale duplicate card rows removed
 #   2 -> split cards store both halves' cost ("{1}{R} // {1}{U}"),
 #        face_stats (per-face power/toughness)
-SCHEMA_VERSION = 2
+#   3 -> deck history is linear: the branches and deck_heads tables are
+#        dropped
+SCHEMA_VERSION = 3
 
 CARDS_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
@@ -78,6 +80,8 @@ CREATE TABLE IF NOT EXISTS sync_metadata (
 )
 """
 
+# branch and merge_parent_id are unread since v3 and kept at their
+# defaults: dropping a column rebuilds the table for nothing.
 SNAPSHOTS_TABLE = """
 CREATE TABLE IF NOT EXISTS snapshots (
     id TEXT PRIMARY KEY,
@@ -95,25 +99,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 
 SNAPSHOT_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_snapshots_deck ON snapshots(deck_path)",
-    "CREATE INDEX IF NOT EXISTS idx_snapshots_branch ON snapshots(deck_path, branch)",
 )
-
-BRANCHES_TABLE = """
-CREATE TABLE IF NOT EXISTS branches (
-    name TEXT NOT NULL,
-    deck_path TEXT NOT NULL,
-    tip_id TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (name, deck_path)
-)
-"""
-
-DECK_HEADS_TABLE = """
-CREATE TABLE IF NOT EXISTS deck_heads (
-    deck_path TEXT PRIMARY KEY,
-    current_branch TEXT NOT NULL
-)
-"""
 
 
 _PRICE_MIGRATIONS = (
@@ -139,7 +125,6 @@ _CARD_V1_MIGRATIONS = (
 
 _SNAPSHOT_MIGRATIONS = (
     ("deck_hash", "ALTER TABLE snapshots ADD COLUMN deck_hash TEXT DEFAULT ''"),
-    ("merge_parent_id", "ALTER TABLE snapshots ADD COLUMN merge_parent_id TEXT"),
 )
 
 
@@ -167,6 +152,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         _migrate_to_v1(conn)
     if version < 2:
         _migrate_to_v2(conn)
+    if version < 3:
+        _migrate_to_v3(conn)
 
 
 def _migrate_to_v1(conn: sqlite3.Connection) -> None:
@@ -237,6 +224,21 @@ def _migrate_to_v2(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _migrate_to_v3(conn: sqlite3.Connection) -> None:
+    """Deck history became one chain per deck: the branch heads and the
+    current-branch pointer have nothing left to point at. Snapshots are
+    not touched; every row that was on a branch stays in the table."""
+    try:
+        conn.execute("DROP TABLE IF EXISTS branches")
+        conn.execute("DROP TABLE IF EXISTS deck_heads")
+        conn.execute("DROP INDEX IF EXISTS idx_snapshots_branch")
+        conn.execute("PRAGMA user_version = 3")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+
 def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARDS_TABLE)
     conn.execute(CARDS_FTS)
@@ -249,7 +251,5 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(SNAPSHOTS_TABLE)
     for idx in SNAPSHOT_INDEXES:
         conn.execute(idx)
-    conn.execute(BRANCHES_TABLE)
-    conn.execute(DECK_HEADS_TABLE)
     conn.commit()
     _run_migrations(conn)

@@ -1,9 +1,9 @@
 """Startup integrity check and recovery for the vimtg database.
 
 The database file holds the card data (rebuildable from Scryfall with
-a sync) and the user's deck history — snapshots, branches and deck
-heads — which is NOT rebuildable. A corrupt file must therefore never
-be thrown away: recovery
+a sync) and the user's deck history — the snapshots — which is NOT
+rebuildable. A corrupt file must therefore never be thrown away:
+recovery
 
 1. copies the damaged file (and its WAL/SHM sidecars) byte for byte to
    ``<name>.corrupt-<timestamp>`` and leaves that copy alone,
@@ -29,9 +29,9 @@ from pathlib import Path
 from vimtg.data.database import Database
 from vimtg.data.schema import initialize_schema
 
-# Tables holding user data, in copy order. Card tables are not listed:
-# a sync rebuilds them.
-HISTORY_TABLES = ("snapshots", "branches", "deck_heads")
+# Tables holding user data. Card tables are not listed: a sync rebuilds
+# them.
+HISTORY_TABLES = ("snapshots",)
 
 _SIDECARS = ("-wal", "-shm")
 # Primary result codes that mean the file itself is damaged

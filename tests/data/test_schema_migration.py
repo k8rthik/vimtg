@@ -1,4 +1,4 @@
-"""Upgrading older databases (PRAGMA user_version 0 and 1) to the current schema."""
+"""Upgrading older databases (PRAGMA user_version 0, 1 and 2) to the current schema."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from pathlib import Path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
 from vimtg.data.schema import SCHEMA_VERSION
+from vimtg.data.snapshot_repository import SnapshotRepository
 from vimtg.domain.card import Card
+from vimtg.services.vcs_service import VersionControlService
 
 # The cards table exactly as v0.8 created it.
 _V08_CARDS = """
@@ -127,15 +129,19 @@ def test_v08_database_upgrades_in_place(tmp_path: Path) -> None:
         # Last sync forgotten so the next sync backfills new fields
         assert repo.get_last_sync() is None
 
-        # History tables untouched
+        # Snapshots untouched, branch tables gone
         snap = conn.execute("SELECT * FROM snapshots").fetchall()
         assert [(r["id"], r["deck_state"], r["description"]) for r in snap] == [
             ("s1", "4 Lightning Bolt", "first")
         ]
-        assert conn.execute("SELECT COUNT(*) FROM branches").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM deck_heads").fetchone()[0] == 1
+        assert _tables(conn) & {"branches", "deck_heads"} == set()
     finally:
         db.close()
+
+
+def _tables(conn: sqlite3.Connection) -> set[str]:
+    rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    return {r[0] for r in rows}
 
 
 def test_migration_runs_once(tmp_path: Path) -> None:
@@ -197,7 +203,7 @@ def test_v1_split_cost_forces_resync(tmp_path: Path) -> None:
     try:
         db.initialize()
         conn = db.connect()
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 3
         columns = {r[1] for r in conn.execute("PRAGMA table_info(cards)")}
         assert "face_stats" in columns
         repo = CardRepository(db)
@@ -207,10 +213,9 @@ def test_v1_split_cost_forces_resync(tmp_path: Path) -> None:
         # Old rows read back unchanged until that sync
         fire_ice = repo.search("Fire")[0]
         assert fire_ice.mana_cost == "{1}{R}" and fire_ice.face_stats == ()
-        # History tables untouched
+        # Snapshots untouched, branch tables gone
         assert conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM branches").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM deck_heads").fetchone()[0] == 1
+        assert _tables(conn) & {"branches", "deck_heads"} == set()
     finally:
         db.close()
 
@@ -221,6 +226,34 @@ def test_v1_with_full_costs_keeps_last_sync(tmp_path: Path) -> None:
     db = Database(path)
     try:
         db.initialize()
+        assert CardRepository(db).get_last_sync() == "2026-10-01T00:00:00+00:00"
+    finally:
+        db.close()
+
+
+def _make_v2_db(path: Path) -> None:
+    """A schema-v2 database: branched history tables still present and a
+    snapshot recorded on branch main."""
+    _make_v1_db(path, split_cost="{1}{R} // {1}{U}")
+    conn = sqlite3.connect(path)
+    conn.execute("ALTER TABLE cards ADD COLUMN face_stats TEXT")
+    conn.execute("PRAGMA user_version = 2")
+    conn.commit()
+    conn.close()
+
+
+def test_v2_branch_tables_are_dropped_and_history_still_lists(tmp_path: Path) -> None:
+    path = tmp_path / "v2.db"
+    _make_v2_db(path)
+    db = Database(path)
+    try:
+        db.initialize()
+        conn = db.connect()
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert "snapshots" in _tables(conn)
+        assert _tables(conn) & {"branches", "deck_heads"} == set()
+        vcs = VersionControlService(SnapshotRepository(db), "/burn.deck")
+        assert [(s.id, s.description) for s in vcs.get_log()] == [("s1", "first")]
         assert CardRepository(db).get_last_sync() == "2026-10-01T00:00:00+00:00"
     finally:
         db.close()
