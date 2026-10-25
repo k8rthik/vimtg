@@ -368,6 +368,65 @@ def _zone_count(entries: tuple[DeckEntry, ...]) -> str:
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
+@click.option(
+    "--collection", "collection_arg", default=None, type=click.Path(),
+    help="Collection CSV export (default: the `collection` setting).",
+)
+def missing(path: str, collection_arg: str | None) -> None:
+    """Print the cards the collection lacks for this deck as 'N Card Name'
+    lines (mainboard, a blank line, sideboard), ready for a store's
+    mass-entry box, with the cost to complete on stderr."""
+    from vimtg.config.settings import load_settings
+    from vimtg.domain.collection import (
+        CollectionError,
+        missing_list,
+        ownership,
+        summarize_ownership,
+    )
+    from vimtg.editor.config_options import currency_symbol_for
+    from vimtg.services.collection_service import collection_path, load_collection
+
+    settings = load_settings()
+    setting = collection_arg or settings.collection.strip()
+    if not setting:
+        click.echo(
+            "No collection configured: pass --collection file.csv, or load one "
+            "with :collection in the editor",
+            err=True,
+        )
+        sys.exit(1)
+    try:
+        collection = load_collection(collection_path(setting))
+    except CollectionError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+
+    card_repo = _try_card_repo()
+    service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
+    file_path = Path(path)
+    _text, deck = service.open_deck(file_path)
+    resolved = _resolve(card_repo, deck, ())
+    owns = ownership(deck, collection)
+    lines = missing_list(owns, resolved or {})
+    if not lines:
+        click.echo(f"Nothing missing: the collection covers {file_path.name}", err=True)
+        return
+    click.echo(lines, nl=False)
+    source = settings.price_source
+    summary = summarize_ownership(owns, resolved or {}, source)
+    if resolved is None:
+        total = "unknown (no card database; run vimtg sync)"
+    elif summary.cost_to_complete is None:
+        total = f"unknown (no {source} prices)"
+    else:
+        total = f"{currency_symbol_for(source)}{summary.cost_to_complete:.2f} ({source})"
+        if summary.unpriced_unique:
+            total += f", {summary.unpriced_unique} unpriced"
+    click.echo(f"Total to complete: {total}", err=True)
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True))
 @click.option("--markdown", is_flag=True, help="Print the guide as Markdown")
 def guide(path: str, markdown: bool) -> None:
     """Print the deck's sideboard plans (VS: blocks)."""
