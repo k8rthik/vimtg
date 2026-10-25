@@ -63,21 +63,21 @@ SPECIAL_KEYS = frozenset(
      "ctrl_o", "tab"}
 )
 MULTI_KEY_STARTERS = frozenset(
-    {"g", "[", "]", "m", "'", "t", "q", "@", "z", "Z", "ctrl_w", "space"}
+    {"g", "[", "]", "m", "'", "q", "@", "z", "Z", "ctrl_w", "space"}
 )
 # The Space key arrives as " "; as a prefix it is named, like ctrl_w
 _SPACE = "space"
 # How a pending named prefix shows in the status line (vim's showcmd)
 _SHOWCMD = {"ctrl_w": "^W", _SPACE: "<Space>"}
-_TAG_SUB_KEYS = frozenset({"a", "r", "t", "f", "l", "c", "n", "p"})
 # g{c,C,l} — category set/clear and layout toggle (gg stays a motion);
 # gh history overlay, g? cheat sheet
 _G_SUB_KEYS = frozenset({"c", "C", "l", "h", "?", "v"})
 # Ctrl-W {v,s} split, {w,W,h,j,k,l} focus, {c,q} close, o only — vim's
 # window commands
 _WINDOW_SUB_KEYS = frozenset({"v", "s", "w", "W", "h", "j", "k", "l", "c", "q", "o"})
-# <Space>{a,r,h} — the leader: analytics pane, EDHREC pane, sample hand
-_LEADER_SUB_KEYS = frozenset({"a", "r", "h"})
+# <Space>{a,r,h,f} — the leader: analytics pane, EDHREC pane, sample
+# hand, view filter
+_LEADER_SUB_KEYS = frozenset({"a", "r", "h", "f"})
 # z{s,m,d,c,p} — zone moves; z{i,o} — board in/out of the sideboard plan.
 # m{a-z} is marks only.
 _ZONE_SUB_KEYS = frozenset({"s", "m", "d", "c", "p", "i", "o"})
@@ -337,11 +337,6 @@ class KeyMap:
                 return KeyResult.COMPLETE, action
             # g{c,C,l} — category operations and layout toggle; gh — history overlay
             if self._multi_key_prefix == "g" and key in _G_SUB_KEYS:
-                action = ParsedAction("special", full_key, count, self._register)
-                self.reset()
-                return KeyResult.COMPLETE, action
-            # t{a,r,t,f,l,c,n,p} — tag operations
-            if self._multi_key_prefix == "t" and key in _TAG_SUB_KEYS:
                 action = ParsedAction("special", full_key, count, self._register)
                 self.reset()
                 return KeyResult.COMPLETE, action

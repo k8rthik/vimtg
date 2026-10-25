@@ -1,4 +1,4 @@
-"""Tag commands: :tag, :untag, :tags, :dtag, :duntag, :filter, :retag.
+"""Deck tag commands (:dtag, :duntag) and the :filter view filter.
 
 TUI-agnostic: zero Textual imports.
 """
@@ -11,22 +11,14 @@ from vimtg.domain.tags import (
 from vimtg.domain.tags import (
     matches_filter,
     parse_tag_filter,
-    tag_lines,
 )
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
-    command_line_range,
 )
 from vimtg.editor.cursor import Cursor
-from vimtg.editor.tag_ops import (
-    add_tags_in_range,
-    clear_tags_in_range,
-    remove_tags_in_range,
-    tag_summary,
-)
 
 
 def _validate_tag_names(raw: str) -> tuple[list[str], str | None]:
@@ -38,93 +30,6 @@ def _validate_tag_names(raw: str) -> tuple[list[str], str | None]:
         if not _TAG_NAME_RE.match(name):
             return [], f"Invalid tag: '{name}' (letters, digits, hyphens; 1-32 chars)"
     return names, None
-
-
-def _card_range(
-    buf: Buffer, cursor: Cursor, cmd: ParsedCommand,
-) -> tuple[int, int]:
-    """Resolve the line range for a tag command.
-
-    No range → cursor line only. Range → start..end inclusive. A reversed
-    range (e.g. ``:5,2``) is normalized so start <= end, matching vim.
-    """
-    return command_line_range(cmd, buf.line_count(), (cursor.row, cursor.row))
-
-
-def cmd_tag(
-    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:tag name [name2...] — add tag(s) to card(s)."""
-    names, err = _validate_tag_names(cmd.args)
-    if err:
-        ctx.fail(err)
-        return buf, cursor
-
-    start, end = _card_range(buf, cursor, cmd)
-    buf, count = add_tags_in_range(buf, start, end, names)
-
-    if count == 0:
-        ctx.message = "No card lines in range"
-    else:
-        tag_str = " ".join(f"#{n}" for n in names)
-        ctx.message = f"Tagged {count} card(s) with {tag_str}"
-        ctx.modified = True
-    return buf, cursor
-
-
-def cmd_untag(
-    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:untag name — remove tag. :untag! — remove ALL tags."""
-    start, end = _card_range(buf, cursor, cmd)
-
-    if cmd.bang:
-        buf, count = clear_tags_in_range(buf, start, end)
-        ctx.message = f"Cleared tags from {count} card(s)" if count else "No tagged cards in range"
-        if count:
-            ctx.modified = True
-        return buf, cursor
-
-    names, err = _validate_tag_names(cmd.args)
-    if err:
-        ctx.fail(err)
-        return buf, cursor
-
-    buf, count = remove_tags_in_range(buf, start, end, names)
-
-    if count == 0:
-        ctx.message = "No matching tags found"
-    else:
-        ctx.message = f"Removed {count} tag(s)"
-        ctx.modified = True
-    return buf, cursor
-
-
-def cmd_tags(
-    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:tags — list all tags. :tags name — list cards with tag."""
-    if cmd.args.strip():
-        # List cards with a specific tag
-        tag = cmd.args.strip().lstrip("#").lower()
-        matches: list[str] = []
-        for line in range(buf.line_count()):
-            if tag in buf.tags_at(line):
-                name = buf.card_name_at(line)
-                if name:
-                    matches.append(name)
-        if matches:
-            ctx.show_listing(f"#{tag}", matches, f"#{tag}: {', '.join(matches)}")
-        else:
-            ctx.message = f"No cards with tag #{tag}"
-        return buf, cursor
-
-    counts = buf.tag_counts()
-    if counts:
-        ctx.show_listing("Tags", tag_lines(counts), tag_summary(buf))
-    else:
-        ctx.message = tag_summary(buf)
-    return buf, cursor
 
 
 def cmd_dtag(
@@ -234,49 +139,8 @@ def filter_status_message(visible: int, total: int) -> str:
     return f"Filter: {visible}/{total} cards match (:filter! clears)"
 
 
-def cmd_retag(
-    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:retag /old/new/ — rename a tag across the entire deck."""
-    args = cmd.args.strip()
-    if not args or args[0] != "/":
-        ctx.fail("Usage: :retag /old-tag/new-tag/")
-        return buf, cursor
-
-    parts = args[1:].rstrip("/").split("/")
-    if len(parts) != 2:
-        ctx.fail("Usage: :retag /old-tag/new-tag/")
-        return buf, cursor
-
-    old_tag = parts[0].lower()
-    new_tag = parts[1].lower()
-
-    if not _TAG_NAME_RE.match(old_tag) or not _TAG_NAME_RE.match(new_tag):
-        ctx.fail("Invalid tag name")
-        return buf, cursor
-
-    count = 0
-    for line in range(buf.line_count()):
-        tags = buf.tags_at(line)
-        if old_tag in tags:
-            new_tags = (tags - {old_tag}) | {new_tag}
-            buf = buf.set_tags(line, new_tags)
-            count += 1
-
-    if count == 0:
-        ctx.message = f"No cards with tag #{old_tag}"
-    else:
-        ctx.message = f"Renamed #{old_tag} → #{new_tag} on {count} card(s)"
-        ctx.modified = True
-    return buf, cursor
-
-
 def register_tag_commands(registry: CommandRegistry) -> None:
-    """Register all tag-related ex commands."""
-    registry.register("tag", cmd_tag)
-    registry.register("untag", cmd_untag)
-    registry.register("tags", cmd_tags)
+    """Register the deck-tag and filter ex commands."""
     registry.register("dtag", cmd_dtag)
     registry.register("duntag", cmd_duntag)
     registry.register("filter", cmd_filter)
-    registry.register("retag", cmd_retag)

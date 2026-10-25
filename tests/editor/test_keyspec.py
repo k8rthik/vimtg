@@ -13,7 +13,6 @@ from vimtg.editor.keymap import (
     _G_SUB_KEYS,
     _LEADER_SUB_KEYS,
     _QUIT_SUB_KEYS,
-    _TAG_SUB_KEYS,
     _WINDOW_SUB_KEYS,
     _ZONE_SUB_KEYS,
     KEY_ALIASES,
@@ -87,8 +86,6 @@ class TestSpecMatchesKeymap:
             assert prefix in PREFIX_TITLES, prefix
         for sub in _G_SUB_KEYS:
             assert f"g{sub}" in declared
-        for sub in _TAG_SUB_KEYS:
-            assert f"t{sub}" in declared
         for sub in _WINDOW_SUB_KEYS:
             assert f"ctrl_w {sub}" in declared
         for sub in _LEADER_SUB_KEYS:

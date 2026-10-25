@@ -27,7 +27,7 @@ from vimtg.domain.categories import (
 )
 from vimtg.domain.deck_lines import parse_zone_header, split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
-from vimtg.domain.tags import TagFilter, tag_lines
+from vimtg.domain.tags import TagFilter
 from vimtg.domain.validation import commander_refusal
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.card_insert import (
@@ -106,7 +106,6 @@ from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowComm
 from vimtg.editor.tag_ops import (
     add_tags_in_range,
     remove_tags_in_range,
-    tag_summary,
     toggle_tag_in_range,
 )
 from vimtg.services.history_service import HistoryService
@@ -792,6 +791,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             )
     elif key in WINDOW_KEYS:
         return WINDOW_KEYS[key]
+    elif key == "space f":
+        return _open_filter_prompt(state)
     elif key in LEADER_KEYS:
         return LEADER_KEYS[key]
     elif key in ("gc", "gC", "gl"):
@@ -805,8 +806,6 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key in ("ZZ", "ZQ"):
         # Vim's ZZ / ZQ are exactly :x / :q! (ZZ writes only when modified)
         return HandlerResult(run_ex_command="x" if key == "ZZ" else "q!")
-    elif key.startswith("t") and len(key) == 2:
-        return _handle_tag_action(state, key[1])
     elif key == "A":
         return _handle_comment_action(state)
     elif key == "K":
@@ -1040,7 +1039,8 @@ WINDOW_KEYS: dict[str, HandlerResult] = {
     "ctrl_w o": HandlerResult(window=WindowCommand.ONLY),
 }
 
-# <Space>{key}: the leader. The panes toggle; the hand is an overlay.
+# <Space>{key}: the leader. The panes toggle; the hand is an overlay;
+# Space f (the filter prompt) needs the state, see _open_filter_prompt.
 LEADER_KEYS: dict[str, HandlerResult] = {
     "space a": HandlerResult(toggle_pane="analytics"),
     "space r": HandlerResult(toggle_pane="edhrec"),
@@ -1166,60 +1166,12 @@ def _toggle_layout(state: EditorState) -> HandlerResult:
     )
 
 
-def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
-    """Dispatch tag sub-key: a(dd), r(emove), t(oggle), f(ilter), l(ist), c(lear), n/p (jump)."""
-    tag_prompts = {
-        "a": "tag add: ",
-        "r": "tag remove: ",
-        "t": "tag toggle: ",
-        "f": "filter: ",
-    }
-    if sub_key in tag_prompts:
-        state.tag_input_action = sub_key
-        state.insert_submode = InsertSubmode.TAG_INPUT
-        return HandlerResult(
-            enter_tag_input=True,
-            tag_prompt=tag_prompts[sub_key],
-        )
-    if sub_key == "l":
-        counts = state.buffer.tag_counts()
-        return HandlerResult(
-            command_message=tag_summary(state.buffer),
-            listing=Listing("Tags", tuple(tag_lines(counts))) if counts else None,
-        )
-    if sub_key == "c":
-        # Clear all tags from cursor card
-        if state.buffer.is_card_line(state.cursor.row) and state.buffer.tags_at(state.cursor.row):
-            state.buffer = state.buffer.set_tags(state.cursor.row, frozenset())
-            state.modified = True
-            state.history.record(state.buffer, "clear tags")
-            state.dot_repeat.record(RepeatableAction("tag", operator="c"))
-            return HandlerResult(command_message="Tags cleared")
-        return HandlerResult(command_message="No tags to clear")
-    if sub_key == "n":
-        return _jump_to_tagged(state, forward=True)
-    if sub_key == "p":
-        return _jump_to_tagged(state, forward=False)
-    return HandlerResult()
-
-
-def _jump_to_tagged(state: EditorState, forward: bool) -> HandlerResult:
-    """Jump to next/prev card sharing a tag with the current card."""
-    current_tags = state.buffer.tags_at(state.cursor.row)
-    if not current_tags:
-        return HandlerResult(command_message="No tags on current card")
-
-    line_count = state.buffer.line_count()
-    if forward:
-        rng = range(state.cursor.row + 1, line_count)
-    else:
-        rng = range(state.cursor.row - 1, -1, -1)
-
-    for i in rng:
-        if state.buffer.is_card_line(i) and (state.buffer.tags_at(i) & current_tags):
-            state.cursor = state.cursor.move_to(i, 0)
-            return HandlerResult()
-    return HandlerResult(command_message="No more tagged matches")
+def _open_filter_prompt(state: EditorState) -> HandlerResult:
+    """Space f: prompt for a view filter expression (Enter on an empty
+    prompt clears the filter, as :filter does)."""
+    state.tag_input_action = "f"
+    state.insert_submode = InsertSubmode.TAG_INPUT
+    return HandlerResult(enter_tag_input=True, tag_prompt="filter: ")
 
 
 def handle_tag_input_special(state: EditorState, action: ParsedAction) -> HandlerResult:
@@ -1640,8 +1592,6 @@ def _replay(
         else:
             discard_pending_insert(state)
         state.dot_repeat.record(replace(last, quantity=quantity))
-    elif kind == "tag" and op == "c":
-        _handle_tag_action(state, "c")
     elif kind in ("tag", "category") and last.text is not None:
         state.tag_input_action = op or "category"
         _apply_tag_input(state, last.text)

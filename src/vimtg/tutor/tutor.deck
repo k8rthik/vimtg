@@ -118,12 +118,12 @@
 // The list opens in a window over the deck: q closes it.
 
 // ------------------------------------------------------------
-// Lesson 10: TAGS AND CATEGORIES
+// Lesson 10: CATEGORIES AND FILTERS
 // ------------------------------------------------------------
-// ta    add a #tag to the card      tf   filter the view by tag
-// gc    set the card's @category (Tab completes)
-// Try it: on Searing Blaze press ta, type burn, Enter. Then tf,
-// burn, Enter to show only #burn cards. tf, Enter clears it.
+// gc       set the card's @category (Tab completes)
+// Space f  filter the view by category (an empty filter clears)
+// Try it: on Searing Blaze press gc, type burn, Enter. Then Space f,
+// burn, Enter to show only @burn cards. Space f, Enter clears it.
 4 Searing Blaze
 
 // ------------------------------------------------------------

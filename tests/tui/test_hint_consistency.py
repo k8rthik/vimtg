@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from vimtg.editor.help_text import HELP_OVERVIEW
 from vimtg.editor.keymap import (
-    _TAG_SUB_KEYS,
     MULTI_KEY_STARTERS,
     KeyMap,
     KeyResult,
@@ -34,10 +33,6 @@ class TestWhichKeyMatchesKeymap:
     def test_multi_key_starters_have_hints(self) -> None:
         missing = [k for k in MULTI_KEY_STARTERS if k not in PENDING_HINTS]
         assert missing == []
-
-    def test_tag_subkeys_all_hinted(self) -> None:
-        hinted = {key[1] for key, _ in PENDING_HINTS["t"]}
-        assert hinted == set(_TAG_SUB_KEYS)
 
 
 class TestHelpMatchesMotions:

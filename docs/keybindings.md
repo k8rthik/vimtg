@@ -18,9 +18,10 @@ which screen is open:
    editor `?` is vim's backward search, so help there is `F1` or `:help`
    and the cheat sheet is `g?`. In the help window `F1` switches a topic
    to the overview.
-4. **Separated editor prefixes.** Each prefix has one job: `g` go, `t`
-   tags, `Ctrl-W` windows, `Space` the leader (panes), `z` zones, `m`
-   marks, `'` jump to mark, `q`/`@` macros, `"` registers, `[`/`]` jumps.
+4. **Separated editor prefixes.** Each prefix has one job: `g` go,
+   `Ctrl-W` windows, `Space` the leader (panes and the filter), `z`
+   zones, `m` marks, `'` jump to mark, `q`/`@` macros, `"` registers,
+   `[`/`]` jumps.
 5. **One source of truth.** The editor keys are declared in
    `src/vimtg/editor/keyspec.py`; which-key, the in-app help overview,
    and the drift tests read that table. Screen hint bars render from
@@ -146,7 +147,7 @@ checks nothing.
 | `zi` / `zo` | Board every selected card in / out of the active plan |
 | `p` / `P` | Replace the selection with the register's lines (`3p`: three times). `p` leaves the replaced lines in the unnamed register, so the next `p` puts them; `P` leaves every register as it was |
 | `o` | Jump to the other end of the selection |
-| `gc` / `gC`, `ta` / `tr` / `tt` | Category and tag prompts apply to the whole selection |
+| `gc` / `gC` | The category prompt applies to the whole selection |
 | `Esc` | Exit visual mode |
 
 Each of these ends the selection and is one undo step. Motions extend
@@ -161,16 +162,6 @@ the selection; other keys act on the cursor line.
 | `gl` | Toggle layout: group by card type / by category |
 
 `gg` (top), `gv` (reselect), `gh` (history overlay), and `g?` (cheat sheet) share the prefix.
-
-### Tags (`t` prefix)
-
-| Key | Action |
-|-----|--------|
-| `ta` / `tr` / `tt` | Add / remove / toggle a tag (prompts) |
-| `tf` | Filter the view by a tag expression (`core+flex`, `core|flex`, `-flex`) |
-| `tl` | List card tags with counts (with none, names the deck's own `// Tags:`) |
-| `tc` | Clear the card's tags |
-| `tn` / `tp` | Next / previous card sharing a tag with the cursor |
 
 ### Windows (`Ctrl-W` prefix)
 
@@ -191,6 +182,7 @@ vim's window commands, over the editor and its one pane:
 | `Space a` | Toggle the live **a**nalytics pane (`:analytics`) |
 | `Space r` | Toggle EDHREC **r**ecommendations for the commander (`:edhrec`) |
 | `Space h` | Sample **h**and: draw an opening seven and goldfish (`:hand`) |
+| `Space f` | **F**ilter the view by a category expression (`:filter`); `Enter` on an empty prompt clears it |
 
 `Space a` and `Space r` close their pane when it is the one open, and
 otherwise replace any other pane. Space does nothing else in normal
@@ -221,9 +213,8 @@ the full help, and `q`/`Esc` close it.
 | Prefix | Namespace | Keys |
 |--------|-----------|------|
 | `g` | go | `gg` `gv` `gc` `gC` `gl` `gh` `g?` |
-| `t` | tags | `ta` `tr` `tt` `tf` `tl` `tc` `tn` `tp` |
 | `Ctrl-W` | window | `v` `s` `w` `W` `h` `j` `k` `l` `c` `q` `o` |
-| `Space` | leader | `a` `r` `h` |
+| `Space` | leader | `a` `r` `h` `f` |
 | `z` | zones & scroll | `zs` `zm` `zd` `zc` `zp` `zo` `zi`, `zz` `zt` `zb` |
 | `m` / `'` | marks | `m{a-z}` `'{a-z}` |
 | `q` / `@` | macros | `q{a-z}` `q` `@{a-z}` `@@` `@:` |

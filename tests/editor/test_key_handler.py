@@ -331,37 +331,16 @@ class TestCountedSpecials:
         assert hr.replay_keys == ("+", "+", "+")
 
 
-# ── tag actions via normal special (t<x>) ──────────────────────────
+# ── the filter prompt (Space f) ────────────────────────────────────
 
 
-class TestTagActions:
-    def test_tag_list_empty(self) -> None:
-        st = _state()
-        hr = handle_normal_special(st, _act("tl"))
-        assert "No tags" in hr.command_message
-
-    def test_tag_list_names_deck_tags_when_no_card_has_one(self) -> None:
-        """tl lists card tags; `// Tags:` tags the deck. With only deck
-        tags, say which they are and where they are set."""
-        st = _state("// Deck: Goblins\n// Tags: goblins, tokens\n\n4 Goblin Guide\n")
-        hr = handle_normal_special(st, _act("tl"))
-        assert hr.command_message == "No card tags (deck tags: goblins, tokens; see :dtag)"
-
-    def test_tag_clear_no_tags(self) -> None:
+class TestFilterPrompt:
+    def test_space_f_opens_the_filter_prompt(self) -> None:
         st = _state(row=1)
-        hr = handle_normal_special(st, _act("tc"))
-        assert "No tags to clear" in hr.command_message
-
-    def test_tag_input_enter_prompt(self) -> None:
-        st = _state(row=1)
-        hr = handle_normal_special(st, _act("ta"))
+        hr = handle_normal_special(st, _act("space f"))
         assert hr.enter_tag_input is True
+        assert hr.tag_prompt == "filter: "
         assert st.insert_submode == InsertSubmode.TAG_INPUT
-
-    def test_jump_to_tagged_no_tags(self) -> None:
-        st = _state(row=1)
-        hr = handle_normal_special(st, _act("tn"))
-        assert "No tags on current card" in hr.command_message
 
 
 # ── handle_tag_input_special / _apply_tag_input ────────────────────

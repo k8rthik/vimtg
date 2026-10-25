@@ -246,7 +246,7 @@ def _goto_range(cmd: ParsedCommand, buffer: Buffer, cursor: Cursor) -> Cursor:
 
 @dataclass(frozen=True)
 class Listing:
-    """Output of a listing command (:reg, :marks, :tags, :validate ...),
+    """Output of a listing command (:reg, :marks, :categories, :validate ...),
     one entry per line. Its one-line form is the message; the TUI shows
     that when it fits on the command line, else `lines` in a pager
     titled `title`, as vim's more-prompt does."""

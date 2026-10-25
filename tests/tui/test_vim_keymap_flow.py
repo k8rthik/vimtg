@@ -498,7 +498,7 @@ class TestReselectAndRepeatEx:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(("way_out", "end_row"), [
-        ("ta core<CR>", 6), (":<Esc>", 6), ("i<Esc>", 6),
+        ("gc core<CR>", 6), (":<Esc>", 6), ("i<Esc>", 6),
         # a search is a motion: as in vim it extends the selection to the match
         ("/Mountain<CR>", 15),
     ])

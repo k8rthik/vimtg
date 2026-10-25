@@ -88,3 +88,8 @@ class TestUnknownCommand:
         state = _state()
         assert _ex(state, "frobnicate now") == "E492: Not an editor command: frobnicate now"
         assert _ex(state, "nope!") == "E492: Not an editor command: nope!"
+
+    @pytest.mark.parametrize("line", ["tag core", "untag core", "tags", "retag /a/b/"])
+    def test_card_tag_commands_are_gone(self, line: str) -> None:
+        state = _state()
+        assert _ex(state, line) == f"E492: Not an editor command: {line}"

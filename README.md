@@ -186,7 +186,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Operators**: `d`, `y`, `c` compose with motions and double up as `dd`, `yy`, `cc`. Counts multiply (`2d3j` is six lines). `j`/`k`/`G`/`gg` are linewise (`dj`/`dk` use raw line arithmetic; `d8G` stops at line 8, `dG` runs to the end); `w`/`b`/`{`/`}`/`[[`/`]]` are exclusive as in vim, so `dw` deletes one card and `d}` stops at the end of the section. `c` deletes and opens card search. `x` deletes the card under the cursor. `p`/`P` put below/above; `3p` puts three copies.
 - **Quantity**: `+`/`-` adjust the count (`10+`, `3-`). `-` at zero deletes the line. Both preserve zone prefixes, plan signs, `@category`, `#tags`, and comments.
 - **Line editing**: `i` edits the current line in place. On a `// Key:` metadata line the prefix is locked and only the value is editable. On `// Format:` the value ghost-completes from the known formats and warns when you confirm an unknown one. `A` adds or edits the card's inline comment.
-- **Visual mode**: `v`/`V` select, `d`/`y`/`c`/`x` act on the range, `+`/`-` and the `z` zone and plan keys act on every card in it (one undo step), `o` swaps the selection ends. Category and tag prompts honour the visual range.
+- **Visual mode**: `v`/`V` select, `d`/`y`/`c`/`x` act on the range, `+`/`-` and the `z` zone and plan keys act on every card in it (one undo step), `o` swaps the selection ends. The category prompt honours the visual range.
 - **Registers**: `"a`–`"z` named, `"A`–`"Z` append, unnamed, yank register `0`, delete history shifted through `1`–`9`, black hole `"_`, and the clipboard register `"+`/`"*` (yanks and deletes also copy to the system clipboard via OSC52).
 - **Marks**: `m{a-z}` set, `'{a-z}` jump, all 26 letters. Marks shift correctly through inserts, deletes, puts, and zone moves. `Ctrl-O` / `Ctrl-I` walk vim's jumplist and `''` returns to before the latest jump.
 - **Macros**: `q{a-z}` record, `q` stop, `@{a-z}` play, `@@` replay last, `3@a` plays three times, `@:` repeats the last ex command. Playback re-feeds keys through the full pipeline.
@@ -354,7 +354,7 @@ Help, `:messages`, `:config`, `:hand`, and the history overlay all open as the s
 
 ## Keybindings
 
-Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`; `Ctrl-C` is `Esc` and never quits), one help vocabulary (`F1` everywhere; `?` on screens other than the editor, where it is backward search), one job per editor prefix (`g` go, `t` tags, `Ctrl-W` windows, `Space` the leader, `z` zones and scrolling, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
+Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary (`j`/`k`, `gg`/`G`, `Home`/`End`, `Ctrl-D`/`Ctrl-U`, wheel), one dismissal vocabulary (`q`/`Esc`; `Ctrl-C` is `Esc` and never quits), one help vocabulary (`F1` everywhere; `?` on screens other than the editor, where it is backward search), one job per editor prefix (`g` go, `Ctrl-W` windows, `Space` the leader, `z` zones and scrolling, `m` marks), and one key spec that which-key, the help overview, and the drift tests all read. Full reference: [docs/keybindings.md](https://github.com/k8rthik/vimtg/blob/main/docs/keybindings.md).
 
 <details>
 <summary><strong>Modes and navigation</strong></summary>
@@ -404,20 +404,18 @@ Normal mode unless stated. Five rules hold everywhere: one navigation vocabulary
 </details>
 
 <details>
-<summary><strong>Categories, tags, splits</strong></summary>
+<summary><strong>Categories, filters, splits</strong></summary>
 
 | Key | Action |
 |-----|--------|
 | `gc` / `gC` | Set / clear category (Tab completes) |
 | `gl` | Toggle type / category layout |
-| `ta` `tr` `tt` `tc` | Add / remove / toggle / clear tags |
-| `tf` / `tl` | Filter by expression / list tags |
-| `tn` / `tp` | Next / previous card sharing a tag |
 | `gh` | Toggle the history overlay |
 | `Ctrl-W v` / `Ctrl-W s` | Vertical / horizontal split (prompts for a deck) |
 | `Ctrl-W w` / `Ctrl-W c` | Switch focus / close pane (`Ctrl-W h`/`j`/`k`/`l` focus by direction, `Ctrl-W o` only) |
 | `Space r` / `Space a` | Toggle the EDHREC pane / analytics pane |
 | `Space h` | Sample hand / goldfish overlay |
+| `Space f` | Filter the view by category (empty clears) |
 | `F1` / `g?` | Full help / cheat sheet |
 | `ZZ` / `ZQ` | Save if there are changes, then quit (`:x`) / quit discarding changes (`:q!`) |
 
@@ -439,7 +437,7 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 | `:g/pat/cmd`, `:v/pat/cmd`, `:g!` | Run `d`, `p`, `y [x]`, or `s/pat/rep/` on matching / non-matching cards in any zone |
 | `:find pat`, `:search query` | Jump to card / open database search |
 | `:cat name`, `:cat!`, `:categories`, `:layout [type\|category]` | Categories and layout |
-| `:tag`, `:untag`, `:untag!`, `:tags`, `:filter expr`, `:filter!`, `:retag /a/b/`, `:dtag`, `:duntag` | Tags |
+| `:filter expr`, `:filter!`, `:dtag`, `:duntag` | View filter and deck tags |
 | `:plan [name]`, `:plan!`, `:plans` | Sideboard plans |
 | `:export fmt [file]`, `:import [file\|url]`, `:clipboard [fmt]` | Formats: arena, mtgo, dek, moxfield, archidekt, vimtg, guide; bare `:import` reads the clipboard |
 | `:sync`, `:sync!` | Download card data in the background (`!` re-downloads) |
@@ -477,7 +475,7 @@ Notes, warnings and errors go to stderr; a command's own output (the deck, the v
 
 Known limitations; none block normal use.
 
-- **No text objects and no till-motion** (`t` is the tag prefix): the cursor moves by card line, not by character.
+- **No text objects and no till-motion** (`t` is unbound): the cursor moves by card line, not by character.
 - **`:g`/`:v` run `d`, `p`, `y`, and `s///` only.** `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, and `+N`/`-N` offsets are not supported ([details](https://github.com/k8rthik/vimtg/blob/main/docs/commands.md)).
 - **History stats need the card database.** Without a synced database the Stats panel shows no deltas.
 - **`theme`** has a single value and cycling it does nothing.
