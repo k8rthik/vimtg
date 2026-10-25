@@ -330,7 +330,6 @@ Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed value
 | `confirm_quit` | bool (`confirmquit`) | on | Require `:q!` when modified |
 | `auto_snapshot` | bool | on | Commit to the VCS on `:w` |
 | `auto_sync_cards` | bool (`autosync`) | on | Background card download when missing or stale |
-| `theme` | dark | dark | Colour theme (only one exists) |
 
 Where things live (XDG-aware): card database plus deck snapshots in `~/.local/share/vimtg/cards.db`; config and the category history in `~/.config/vimtg/`; Scryfall bulk files and the EDHREC cache in `~/.cache/vimtg/`. Deck files are ordinary files wherever you keep them; there is no managed deck directory.
 
@@ -466,7 +465,6 @@ Known limitations; none block normal use.
 - **No text objects and no till-motion** (`t` is unbound): the cursor moves by card line, not by character.
 - **`:g`/`:v` run `d`, `p`, `y`, and `s///` only.** `:normal`, `:j[oin]`, `:>`/`:<`, `:r[ead]`, and `+N`/`-N` offsets are not supported ([details](https://github.com/k8rthik/vimtg/blob/main/docs/commands.md)).
 - **History stats need the card database.** Without a synced database the Stats panel shows no deltas.
-- **`theme`** has a single value and cycling it does nothing.
 - **`:set` persists.** Unlike vim, it saves to `config.toml` at once; there is no session-only setting.
 - Argument completion covers `:layout`, `:sort`, `:filter`, and `:category` only. `:validate` takes no argument (it reads `// Format:`, which already completes formats on `i`).
 

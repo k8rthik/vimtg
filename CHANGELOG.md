@@ -55,6 +55,9 @@ from 1.0.0 onward.
 
 ### Removed
 
+- The `theme` setting (one value, cycling it did nothing). A
+  `config.toml` that still says `theme = "dark"` loads as before; the
+  key is ignored like any other unknown key.
 - The read-only second deck view. `:vsplit`/`:vsp`/`:vs`,
   `:split`/`:sp`/`:hsplit` and `:only` answer E492, and `Ctrl-W v`/`s`,
   `W`, `h`/`j`/`k`/`l`, `c`/`q`/`o` are unbound. The one side pane hosts

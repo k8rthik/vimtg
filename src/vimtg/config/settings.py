@@ -16,7 +16,7 @@ VALID_FORMATS = frozenset({
 # editor.sort_keys.SORT_FIELDS (kept literal here so config stays
 # import-light and dependency-free).
 VALID_SORT_ORDERS = frozenset({
-    "name", "qty", "cmc", "type", "color", "tag", "category",
+    "name", "qty", "cmc", "type", "color", "category",
     "power", "toughness", "rarity", "price",
 })
 
@@ -24,7 +24,6 @@ VALID_SORT_ORDERS = frozenset({
 @dataclass(frozen=True)
 class Settings:
     # Display
-    theme: str = "dark"
     show_line_numbers: bool = True
     show_which_key: bool = True
     auto_expand: bool = True
@@ -106,7 +105,6 @@ def load_settings_checked() -> tuple[Settings, str | None]:
         return default
 
     settings = Settings(
-        theme=_get("theme", str),  # type: ignore[arg-type]
         show_line_numbers=_get("show_line_numbers", bool),  # type: ignore[arg-type]
         show_which_key=_get("show_which_key", bool),  # type: ignore[arg-type]
         auto_expand=_get("auto_expand", bool),  # type: ignore[arg-type]

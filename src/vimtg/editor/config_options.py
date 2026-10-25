@@ -114,10 +114,6 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
         "Download card data in background when missing or stale",
         "bool", group="Editor",
     ),
-    ConfigOption(
-        "theme", "Theme", "Color theme",
-        "choice", ("dark",), group="Display",
-    ),
 )
 
 _OPTIONS_BY_KEY: dict[str, ConfigOption] = {o.key: o for o in CONFIG_OPTIONS}
