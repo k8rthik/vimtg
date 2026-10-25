@@ -252,7 +252,7 @@ The same keys edit the `/` and `?` search prompts. `:` and search keep
 separate histories (200 entries each, duplicates collapsed), saved in
 `~/.local/state/vimtg/cmdline_history.json` so they survive restarts.
 
-Completion is fuzzy: `:so` matches `sort`, `:st` matches `sort` and `stats`.
+Completion is fuzzy: `:so` matches `sort`, `:sa` matches `saveas` and `sync`.
 After a space it completes the argument: `:layout ` offers `type` / `category`,
 `:sort c` offers `category`, `cmc`, `color`, `:filter ramp|dr` completes a
 deck category after the last `+`, `|`, or `-`, and `:cat dr` completes a

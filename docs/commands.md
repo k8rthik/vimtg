@@ -20,9 +20,6 @@ more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
 | `:w! [file]` | Save even over an existing file or outside changes |
 | `:q` | Quit. Errors if there are unsaved changes (E37). With a split pane open it closes the pane instead (the other window, as in vim), from the editor or the pane |
 | `:q!` | Quit, discarding changes (with a pane open: close the pane) |
-| `:qa[!]` | Quit vimtg even with a pane open (also `:qall`, `:quitall`); `!` discards changes |
-| `:wa` | Write the deck if it has changes (also `:wall`) |
-| `:wqa` / `:xa` | Write the deck if it has changes, then quit vimtg (also `:wqall`, `:xall`) |
 | `:wq` | Save and quit (with a pane open: save and close the pane). `:wq file` writes the copy, then quits only when the deck itself has no unsaved changes (E37 otherwise; `:wq!` quits anyway) |
 | `:x` | Save if there are unsaved changes, then quit (also `ZZ`, `:xit`, `:exit`); with a pane open it closes the pane. A deck with no changes is not rewritten |
 | `:saveas file` | Write the deck to `file` and edit that file from now on (alias `:sav`). `:saveas!` overwrites an existing file |
@@ -37,17 +34,12 @@ more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
 
 | Command | Description |
 |---------|-------------|
-| `:sort [field]` | Sort the current section. Fields: `name`, `cmc`, `type`, `color`, `qty`, `tag`, `category`, `power`, `toughness`, `rarity`, `price`. No field uses the `sort_order` setting (default `cmc`). `:sort!` reverses |
+| `:sort [field]` | Sort the current section. Fields: `name`, `cmc`, `type`, `color`, `qty`, `category`, `power`, `toughness`, `rarity`, `price`. No field uses the `sort_order` setting (default `cmc`). `:sort!` reverses |
 | `:%sort name` | Sort the entire deck alphabetically |
 | `:s/pat/rep/[flags]` | Substitute. `pat` is a regular expression compiled exactly like `/` and `:g` (case-insensitive); an empty `pat` reuses the last search. In `rep`, `&` (or `\0`) is the whole match, `\1`-`\9` are groups, `\&` is a literal `&`. Flags: `g` (every match on a line), `I` (match case), `i` (ignore case, the default). `\/` puts a literal delimiter in either part. `.` repeats the last `:s` on the cursor line |
 | `:%s/Bolt/Helix/g` | Substitute across the deck |
 | `:[range]g/pattern/cmd` | Run `cmd` on every card line in the range (the whole deck by default; `'<,'>` from visual mode) matching `pattern`, in any zone (mainboard, sideboard, maybeboard, command zone, companion). Headers, comments, metadata, and plan entries never match. `cmd` is one of `d` (delete), `p` (list the matches), `y [x]` (yank into register `x`; `"A` appends), `s/pat/rep/[flags]` (substitute; an empty `pat` is the `:g` pattern) |
 | `:v/pattern/cmd`, `:g!/pattern/cmd` | Inverse: run on every card line **not** matching |
-| `:[range]d [x] [n]` | Delete lines (default: the cursor line) into register `x`. A number is a count, as in vim: `:d 3` deletes three lines from the cursor, `:5d a 2` lines 5-6 into `a`; with a range the count starts at its last line |
-| `:[range]y [x] [n]` | Yank lines into register `x`, with the same count |
-| `:[range]m {n}` | Move lines below line `n` (`0` = to the top, `$` = to the end, `.` = the cursor line, `+1` / `-2` relative to it, `'a` a mark) |
-| `:[range]t {n}` | Copy lines below line `n` (also `:co`, `:copy`) |
-| `:undo` / `:redo` | One undo / redo step (also `:u`, `:red`) |
 | `:reg [x...]` | Show what the registers hold (also `:registers`, `:di`) |
 | `:marks` | Show the marks with their line numbers |
 
@@ -61,22 +53,12 @@ Examples:
 :%s/Mountain/Plains/g    swap every Mountain for Plains
 :%s/^(\d+) (.*)$/\2 x\1/ rewrite "4 Bolt" as "Bolt x4"
 :1,20sort cmc            sort lines 1–20 by mana cost
-:5,8m0                   move lines 5–8 to the top
-:'a,'bd                  delete from mark a through mark b
-:m+1 / :m-2              move the line down one / up one
-:t-1                     copy the line above itself
 ```
 
 Not supported, because the deck is line-oriented or the feature has no
-deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, and `:r[ead]`.
-
-## Search & navigation
-
-| Command | Description |
-|---------|-------------|
-| `:noh` | Accepted for the vim habit (also `:nohlsearch`); vimtg draws no search highlight to clear |
-| `:find pattern` | Jump to the next card matching `pattern` (also `/`; `?` searches backward; `n` / `N` repeat in the same / opposite direction) |
-| `:search [query]` | Open the card database search overlay, like `o`, with `query` typed in ([syntax](search.md)); an empty search says "No matches", or `No matches legal in modern (3 more in other formats)` when the deck's format filtered the matches out; `Enter` on it closes the search with that message |
+deck meaning: `:normal`, `:j[oin]`, `:>`/`:<`, and `:r[ead]`. Line
+edits are normal-mode keys (`dd`, `yy`, `p`, `u`, `Ctrl-R`), so `:d`,
+`:y`, `:m`, `:t`, `:undo` and `:redo` are not commands either.
 
 ## Categories & layout
 
@@ -187,7 +169,6 @@ records the restore as a new snapshot on top of the history.
 
 | Command | Description |
 |---------|-------------|
-| `:stats` | Print a one-line summary on the command line: card count, average CMC, cards per type, and the total price with its source, e.g. `$12.34 (usd)`. Without card data it counts the card lines in each zone. For the curve, colors, and mana base, use `:analytics` |
 | `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency. The same report as `vimtg validate`: without card data it says legality was skipped (run `:sync`), and a Commander deck also gets its Game Changer count and estimated bracket |
 | `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Space a`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
 | `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Space h`): see below |

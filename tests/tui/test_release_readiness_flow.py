@@ -11,12 +11,9 @@ import pytest
 from vimtg.config.paths import config_dir, db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.domain.card import Card
-from vimtg.editor.modes import Mode
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.help_screen import HelpScreen
 from vimtg.tui.screens.main_screen import MainScreen
-from vimtg.tui.widgets.command_line import CommandLine
-from vimtg.tui.widgets.search_results import SearchResults
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures" / "scryfall_real_shape.json"
 
@@ -57,66 +54,6 @@ async def _messages_body(pilot, app: VimTGApp) -> str:  # type: ignore[no-untype
     await _ex(pilot, app, "messages")
     assert isinstance(app.screen, HelpScreen)
     return str(app.screen.query_one("#help-body").render())
-
-
-# ── :search ──────────────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_search_command_opens_overlay_with_query(seeded_db, tmp_path: Path) -> None:
-    """Documented in README, docs/commands.md and docs/search.md, but
-    used to fail as an unknown command."""
-    app = VimTGApp(deck_path=_deck(tmp_path))
-    async with app.run_test() as pilot:
-        await _ex(pilot, app, "search t:creature -c:w")
-        screen = _main(app)
-        assert screen._state.mode_mgr.current == Mode.INSERT
-        cl = screen.query_one("#command-line", CommandLine)
-        assert cl.text == "t:creature -c:w"
-        sr = screen.query_one("#search-results", SearchResults)
-        assert sr.display is True
-        assert "Thrasios, Triton Hero" in {c.name for c in sr.results}
-
-        # Enter adds the selected card, as with o
-        chosen = sr.get_selected()
-        assert chosen is not None
-        await pilot.press("enter")
-        await pilot.pause()
-        assert chosen.name in screen._state.buffer.to_text()
-        assert screen._state.mode_mgr.current == Mode.NORMAL
-
-
-@pytest.mark.asyncio
-async def test_search_ignores_a_remapped_o(seeded_db, tmp_path: Path) -> None:
-    app = VimTGApp(deck_path=_deck(tmp_path))
-    async with app.run_test() as pilot:
-        await _ex(pilot, app, "map o dd")
-        await _ex(pilot, app, "search bolt")
-        screen = _main(app)
-        assert screen._state.mode_mgr.current == Mode.INSERT
-        assert "Lightning Bolt" in screen._state.buffer.to_text()
-
-
-@pytest.mark.asyncio
-async def test_no_matches_says_so(seeded_db, tmp_path: Path) -> None:
-    """A query matching nothing used to hide the overlay silently."""
-    app = VimTGApp(deck_path=_deck(tmp_path))
-    async with app.run_test() as pilot:
-        await _ex(pilot, app, "search zzzznotacard")
-        sr = _main(app).query_one("#search-results", SearchResults)
-        assert sr.display is True
-        assert sr.results == []
-        assert "No matches" in str(sr.render())
-
-        # Results replace the notice again
-        for _ in "zzzznotacard":
-            await pilot.press("backspace")
-        for ch in "bolt":
-            await pilot.press(ch)
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        assert sr.results
-        assert "No matches" not in str(sr.render())
 
 
 # ── :messages records pop-up notices ─────────────────────────────

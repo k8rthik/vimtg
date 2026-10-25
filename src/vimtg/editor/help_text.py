@@ -32,26 +32,18 @@ _COMMANDS = """
 COMMANDS
   :w            Save deck
   :q            Quit (:q! force); with a pane open, close the pane
-  :qa / :wqa    Quit / save and quit, pane or not (:xa, :wa write)
   :wq           Save and quit
   :x / ZZ       Save if changed, then quit
   :saveas file  Write to file and edit it from now on
   :home         Return to greeter (:home! discards changes)
   :recover      Load the crash-recovery copy (:recover! discards it)
-  :sort [field] Sort by cmc/name/qty/type/color/tag/category/
+  :sort [field] Sort by cmc/name/qty/type/color/category/
                 power/toughness/rarity/price (default: sort_order)
   :{n}          Go to line n
   :e[!] [file]  Edit another deck (:e! reloads, dropping changes)
   :s/pat/rep/g  Substitute (regex; & and \\1 in rep)
   :g/pat/cmd    Run d, p, y [x], or s/// on matching cards
-  :d/:y [x] [n] Delete / yank lines (range, or n lines) into
-                register x
-  :m {n} :t {n} Move / copy lines below line n
-  :undo :redo   One undo / redo step
   :reg :marks   Show registers / marks
-  :find pattern Jump to matching card
-  :search [q]   Open card search (as o) with query q
-  :stats        One-line deck summary (:analytics has more)
   :validate     Check format legality (uses // Format:)
   :hand [seed]  Sample hand / goldfish (draw, mulligan; Space h)
   :cat name     Set card category (:cat! clears)
@@ -121,8 +113,8 @@ COMMAND_HELP: dict[str, str] = {
     "q": (
         ":q        Quit (:q! force quit with unsaved changes)\n"
         "\n"
-        "With a split pane open, :q (and :wq, :x, ZZ, ZQ) close the pane,\n"
-        "the other window, as in vim. :qa quits vimtg whatever is open."
+        "With a pane open, :q (and :wq, :x, ZZ, ZQ) close the pane, the\n"
+        "other window, as in vim; :q again quits vimtg."
     ),
     "wq": ":wq      Save and quit",
     "x": ":x       Save if there are changes, then quit (ZZ)",
@@ -144,7 +136,7 @@ COMMAND_HELP: dict[str, str] = {
     "sort": (
         ":sort [field]  Sort cards in current section\n"
         "\n"
-        "Fields: name, qty, cmc, type, color, tag, category,\n"
+        "Fields: name, qty, cmc, type, color, category,\n"
         "power, toughness, rarity, price\n"
         "Without a field, the sort_order setting decides (default cmc)\n"
         ":sort!  reverse order\n"
@@ -212,31 +204,8 @@ COMMAND_HELP: dict[str, str] = {
         "greeter's n does; the first :w names the file after // Deck:.\n"
         "Refuses with unsaved changes (E37); :enew! discards them."
     ),
-    "delete": (
-        ":[range]d [x] [n]  Delete lines into register x (default: unnamed)\n"
-        "\n"
-        "A number is a count: :d 3 deletes three lines from the cursor,\n"
-        ":5d a 2 deletes lines 5-6 into register a"
-    ),
-    "yank": ":[range]y [x] [n]  Yank lines into register x (n: a count, as :d)",
-    "move": ":[range]m {n}  Move lines below line n (0 = top, $ = end, . = cursor,\n"
-            "               +1 / -2 relative: :m+1 moves the line down one)",
-    "copy": ":[range]t {n}  Copy lines below line n (also :co, :copy)",
-    "undo": ":undo / :redo  One undo / redo step (also u / Ctrl-R)",
     "registers": ":reg [x...]  Show register contents (also :registers, :di)",
     "marks": ":marks  Show marks with their line numbers",
-    "find": (
-        ":find pattern  Jump to next card matching pattern\n"
-        "\n"
-        "n / N repeat the last pattern forward / backward"
-    ),
-    "search": (
-        ":search [query]  Open the card database search overlay\n"
-        "\n"
-        "Works like o: the chosen card is added below the cursor, in the\n"
-        "cursor's zone. The query is pre-filled and uses the Scryfall-style\n"
-        "syntax (t:creature c:g mv<=3 ...); see docs/search.md."
-    ),
     "export": (
         ":export format [file]  Export deck "
         "(arena/mtgo/dek/moxfield/archidekt/vimtg/guide)\n"
@@ -374,13 +343,6 @@ COMMAND_HELP: dict[str, str] = {
         ":checkpoint name  Commit the current state and tag it\n"
         "\n"
         "Shorthand for :commit followed by tagging the new snapshot."
-    ),
-    "stats": (
-        ":stats  One-line deck summary on the command line\n"
-        "\n"
-        "Card count, average CMC, cards per type, and the total price\n"
-        "with its source. Without card data it counts the card lines in\n"
-        "each zone. :analytics shows the curve, colors, and mana base."
     ),
     "validate": (
         ":validate  Check deck legality for its format\n"

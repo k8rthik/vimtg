@@ -51,20 +51,20 @@ async def test_tab_does_not_resurrect_previous_completion(tmp_path: Path) -> Non
     async with app.run_test() as pilot:
         screen = _screen(app)
         cl = screen.query_one("#command-line", CommandLine)
-        # Build a completion state for "st", abandon it
-        for ch in ":st":
+        # Build a completion state for "so", abandon it
+        for ch in ":so":
             await pilot.press(ch)
         await pilot.press("escape")
-        # Ctrl-W v prefills 'vsplit ' — Tab must not replace it with 'stats'
+        # Ctrl-W v prefills 'vsplit ' — Tab must not replace it with 'sort'
         await pilot.press("ctrl+w", "v")
         assert cl.text == "vsplit "
         await pilot.press("tab")
-        assert not cl.text.startswith("stats")
+        assert not cl.text.startswith("sort")
         await pilot.press("escape")
         # A fresh ':' + Tab must not accept the stale completion either
         await pilot.press(":")
         await pilot.press("tab")
-        assert cl.text != "stats"
+        assert cl.text != "sort"
 
 
 @pytest.mark.asyncio

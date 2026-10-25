@@ -203,7 +203,7 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 - **Auto-sync**: the TUI checks on launch and hourly, and syncs on a worker thread when the database is missing or older than seven days. A toast reports success or failure, and search and lint light up retroactively once data arrives. Disable with `:set noautosync` or the `VIMTG_NO_AUTOSYNC` environment variable.
 - **`:sync`** (`:sync!` to re-download) runs the same background sync on demand; editing continues and the status line shows its progress. The status line always says what card data you have: `card data as of <date>` (highlighted once older than seven days), or `no card data - :sync to download` while there is none. Offline, card search says so instead of showing an empty list, and `vimtg validate` adds an informational note when the data is more than a week old. Sync errors explain themselves: offline, a proxy refusing or wanting credentials, TLS interception.
 - **Damaged database**: on launch (and on `vimtg sync`) the database gets an integrity check. A damaged file never blocks the editor: it is copied byte for byte to `cards.db.corrupt-<timestamp>`, a fresh database is built with every deck snapshot that can still be read, and a warning says how much history came back and where the backup is. Card data is then re-downloaded with `:sync`.
-- **Query syntax**: Scryfall-style, shared by the overlay, `:search`, and `vimtg search`. Bare words prefix-match card names (any face); `!"Exact Name"`; `t:`, `o:` (with `/regex/`), `kw:`, `m:`; `c:`/`id:` with colour letters or names (`c:boros`, `id<=esper`) and `= != < <= > >=`; `mv`, `pow`, `tou`, `usd`/`eur`/`tix` comparisons; `r:`, `set:`, `f:`/`banned:`/`restricted:`; `is:commander`, `is:dfc`/`mdfc`/`split`/`adventure`; `-` negation, `or`, and parentheses. Unknown keys and bad values are reported by name. Full reference: [docs/search.md](https://github.com/k8rthik/vimtg/blob/main/docs/search.md).
+- **Query syntax**: Scryfall-style, shared by the overlay and `vimtg search`. Bare words prefix-match card names (any face); `!"Exact Name"`; `t:`, `o:` (with `/regex/`), `kw:`, `m:`; `c:`/`id:` with colour letters or names (`c:boros`, `id<=esper`) and `= != < <= > >=`; `mv`, `pow`, `tou`, `usd`/`eur`/`tix` comparisons; `r:`, `set:`, `f:`/`banned:`/`restricted:`; `is:commander`, `is:dfc`/`mdfc`/`split`/`adventure`; `-` negation, `or`, and parentheses. Unknown keys and bad values are reported by name. Full reference: [docs/search.md](https://github.com/k8rthik/vimtg/blob/main/docs/search.md).
 - **Format filtering**: in the editor, search results are filtered to cards legal or restricted in the deck's declared format when that format is known, before `search_limit` is applied. When the filter leaves nothing, the overlay says so: `No matches legal in modern (3 more in other formats)`, and `Enter` there closes the search with that message.
 - **Card model**: name, mana cost, CMC, type line, oracle text, colours, colour identity, P/T, set, rarity, five price sources (USD, USD foil, EUR, EUR foil, tix), legalities, layout, keywords. Transform and modal DFCs use the front face (search also reads the back face's rules text); split and adventure cards join both faces.
 
@@ -242,10 +242,10 @@ One `@category` purpose label per card (`@ramp`, `@draw`, `@wincon`); names are 
 
 Most commands take a vim range: `%`, `5,10`, `.`, `$`, or a mark pair (`'a,'b`).
 
-- `:sort [field]` sorts the current section (or range) by `name`, `qty`, `cmc`, `type`, `color`, `tag`, `category`, `power`, `toughness`, `rarity`, or `price`. Entries are sorted within each zone so a range spanning zones never rezones a line. `:sort!` reverses. Missing card data falls back to name order.
+- `:sort [field]` sorts the current section (or range) by `name`, `qty`, `cmc`, `type`, `color`, `category`, `power`, `toughness`, `rarity`, or `price`. Entries are sorted within each zone so a range spanning zones never rezones a line. `:sort!` reverses. Missing card data falls back to name order.
 - `:s/pat/rep/[gI]` substitutes a regex across the range (`:%s/Bolt/Helix/g`), case-insensitive unless `I`.
 - `:g/pattern/cmd` and `:v/pattern/cmd` run `cmd` on matching or non-matching card lines in every zone: mainboard, sideboard, maybeboard, command zone, and companion, block or prefix style. `cmd` is `d` (delete), `p` (list the matches), `y [x]` (yank into register `x`), or `s/pat/rep/` (substitute). The pattern sees the whole line, so `:g/^SB:/d` or `:v/@ramp/d` work. Headers, comments, metadata, and sideboard-plan entries never match.
-- `:find pattern` (also `/`) jumps to the next matching card, case-insensitive regex, wrapping. `n`/`N` repeat it forward/backward.
+- `/pattern` jumps to the next matching card, case-insensitive regex, wrapping (`?` searches backward). `n`/`N` repeat it forward/backward.
 
 ### Format-aware validation and live lint
 
@@ -268,10 +268,9 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 
 ### Analytics
 
-- `:stats` prints a one-line summary on the command line: card count, average CMC, cards per type, and total price, labelled with its price source (`$123.45 (usd)`; `:set price_source=eur` switches it). For the curve, colour pips, and mana base, use `:analytics`.
 - `:analytics` (or `Space a`) opens a live pane that recomputes on every edit: **curve** bar chart (0 to 7+), **types**, **zones**, **categories** (when used), **mana base** with per-colour pips, sources versus needed (Karsten-style requirement scaled to deck size), a `✓`/`✗ need N more` verdict and a suggested land count, **commander bracket** (Commander decks: Game Changers and an estimated bracket), and **draws**: exact hypergeometric odds of two lands in the opener, three land drops by turn 3, and a cursor-following line giving the opener and by-turn-3 odds for the card under the cursor. With a plan active the whole pane shows the post-board deck.
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
-- `vimtg info deck.deck` prints the deck's name, its format (the `default_format` setting when the deck names none), the card count of every zone in use (commander, companion, mainboard, sideboard, maybeboard) and, with card data, the same summary line as `:stats`.
+- `vimtg info deck.deck` prints the deck's name, its format (the `default_format` setting when the deck names none), the card count of every zone in use (commander, companion, mainboard, sideboard, maybeboard) and, with card data, a one-line summary: card count, average CMC, cards per type, and total price labelled with its price source (`$123.45 (usd)`; the `price_source` setting switches it).
 
 ### Sample hand
 
@@ -423,19 +422,18 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 
 | Command | Description |
 |---------|-------------|
-| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:qa`, `:wa`, `:wqa`/`:xa`, `:e[!] [file]`, `:enew[!]`, `:{n}`, `:home`, `:recover` | File and navigation (`:enew` opens a new unnamed deck and its wizard; `:w file` writes a copy and keeps editing this deck, as in vim, and `:saveas file` switches to it; a deck with no file yet is named after its `// Deck:` line, or takes the `:w file` name; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:q` with a pane open closes the pane, `:qa` quits regardless; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
-| `:[range]d [x]`, `:[range]y [x]`, `:[range]m {n}`, `:[range]t {n}` (`:co`), `:undo`, `:redo`, `:reg`, `:marks` | Line commands, as in vim |
+| `:w [file]`, `:w!`, `:q`, `:q!`, `:wq`, `:x`, `:e[!] [file]`, `:enew[!]`, `:{n}`, `:home`, `:recover` | File and navigation (`:enew` opens a new unnamed deck and its wizard; `:w file` writes a copy and keeps editing this deck, as in vim, and `:saveas file` switches to it; a deck with no file yet is named after its `// Deck:` line, or takes the `:w file` name; overwriting another file or outside changes needs `:w!`; `:e file` opens another deck and `:e!` reloads this one, dropping changes; `:q` with a pane open closes the pane; `:12` goes to line 12; `:recover` loads the crash-recovery copy) |
+| `:reg`, `:marks` | Show registers / marks |
 | `:sort [field]`, `:sort!` | Sort section or range |
 | `:s/pat/rep/[gI]` | Substitute (regex like `/`, case-insensitive unless `I`; `&` and `\1` in the replacement) |
 | `:g/pat/cmd`, `:v/pat/cmd`, `:g!` | Run `d`, `p`, `y [x]`, or `s/pat/rep/` on matching / non-matching cards in any zone |
-| `:find pat`, `:search query` | Jump to card / open database search |
 | `:cat name`, `:cat!`, `:categories`, `:layout [type\|category]` | Categories and layout |
 | `:filter expr`, `:filter!`, `:dtag`, `:duntag` | View filter and deck tags |
 | `:plan [name]`, `:plan!`, `:plans` | Sideboard plans |
 | `:export fmt [file]`, `:import [file\|url]`, `:clipboard [fmt]` | Formats: arena, mtgo, dek, moxfield, archidekt, vimtg, guide; bare `:import` reads the clipboard |
 | `:sync`, `:sync!` | Download card data in the background (`!` re-downloads) |
 | `:vsplit`, `:split`, `:close`, `:edhrec [type]`, `:analytics` | Panes |
-| `:stats`, `:validate`, `:hand [seed=N]` | Analytics, legality, sample hand |
+| `:validate`, `:hand [seed=N]` | Legality, sample hand |
 | `:history` (or `gh`), `:commit msg`, `:checkpoint name` | Version control |
 | `:set [key=value]`, `:config`, `:map`, `:unmap` | Configuration |
 | `:help [command]` | Help |
@@ -455,7 +453,7 @@ vimtg sync [--force]                   # download or refresh the card database
 vimtg tutor                            # the lesson deck, in an offline sandbox
 vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices follow price_source/show_prices
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
-vimtg info deck.deck                   # zones, format, and the :stats line
+vimtg info deck.deck                   # zones, format, and a stats line
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing out.txt

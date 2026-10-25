@@ -1069,8 +1069,6 @@ class MainScreen(Screen[None]):
             self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)
         if hr.ui_request:
             self._handle_ui_request(hr.ui_request)
-        if hr.search_open is not None:
-            self._open_card_search(hr.search_open)
         if hr.edit_file is not None:
             self._replace_editor(lambda open_deck: open_deck(hr.edit_file))
         if hr.new_buffer is not None:
@@ -1117,12 +1115,6 @@ class MainScreen(Screen[None]):
         from vimtg.tui.screens.help_screen import HelpScreen
 
         self.app.push_screen(HelpScreen(body=text, title=listing.title))
-
-    def _open_card_search(self, query: str) -> None:
-        """:search — open the card search exactly as `o` does (ignoring any
-        :map of o), then type the query into it."""
-        for key in ("o", *query):
-            self._process_key(key, resolve=False)
 
     def _handle_ui_request(self, request: str) -> None:
         """:messages, :tips and :Tutor — screen-level requests with no

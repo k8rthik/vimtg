@@ -14,17 +14,12 @@ from typing import Any
 
 from vimtg.domain.card import Color, Rarity
 from vimtg.domain.card_types import TYPE_ORDER, primary_type
-from vimtg.domain.deck_lines import (
-    parse_card_line,
-    parse_card_parts,
-    split_inline_comment,
-)
-from vimtg.domain.tags import parse_inline_tags
+from vimtg.domain.deck_lines import parse_card_line, parse_card_parts
 from vimtg.editor.buffer import BufferLine
 
 # Every field :sort (and the sort_order setting) accepts
 SORT_FIELDS = frozenset({
-    "name", "qty", "cmc", "type", "color", "tag", "category",
+    "name", "qty", "cmc", "type", "color", "category",
     "power", "toughness", "rarity", "price",
 })
 
@@ -94,14 +89,6 @@ def extract_sort_key(
             else str(colors[0])
         )
         return (_COLOR_ORDER.get(color_val, 98), fallback)
-
-    if sort_field == "tag":
-        # '#word' inside an inline comment is prose, not a tag
-        tags = parse_inline_tags(split_inline_comment(text)[0])
-        if not tags:
-            return (1, fallback)  # untagged cards sort after tagged
-        first_tag = sorted(tags)[0]
-        return (0, first_tag + "|" + fallback)
 
     if sort_field == "category":
         category = card_line.category if card_line else ""

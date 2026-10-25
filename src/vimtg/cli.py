@@ -308,7 +308,7 @@ def validate(path: str, strict: bool) -> None:
 @click.argument("path", type=click.Path(exists=True))
 def info(path: str) -> None:
     """Show deck summary: name, format, every zone's card count, and
-    (with card data) the :stats line."""
+    (with card data) a one-line stats summary."""
     from vimtg.config.settings import load_settings
     from vimtg.data.deck_repository import missing_quantity_lines
     from vimtg.domain.analytics import stats_summary

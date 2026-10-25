@@ -50,7 +50,7 @@ async def test_registers_that_overflow_open_the_pager(tmp_path: Path) -> None:
     async with app.run_test(size=(60, 30)) as pilot:
         await pilot.pause()
         for row, register in zip(range(5, 11), "abcdef", strict=True):
-            await _ex(app, pilot, f"{row}y {register}")
+            await _ex(app, pilot, f"{row}g/./y {register}")
         await _ex(app, pilot, "registers")
         body = _pager_body(app)
         assert "Registers" in str(app.screen.window.border_title)
@@ -67,7 +67,7 @@ async def test_output_that_fits_stays_on_the_command_line(tmp_path: Path) -> Non
     app = VimTGApp(deck_path=_deck(tmp_path))
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        await _ex(app, pilot, "5y a")
+        await _ex(app, pilot, "5g/./y a")
         await _ex(app, pilot, "registers a")
         assert app.screen is _main(app)
         cl = _main(app).query_one("#command-line", CommandLine)

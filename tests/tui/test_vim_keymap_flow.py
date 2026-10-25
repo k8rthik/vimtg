@@ -538,7 +538,7 @@ class TestReselectAndRepeatEx:
             scr = _screen(app)
             _feed(scr, "@:")
             assert "E30" in _message(scr)
-            _feed(scr, "6G :d<CR> @:")
+            _feed(scr, "6G :.g/./d<CR> @:")
             assert _cards(scr)[0] == "2 Eidolon of the Great Revel"
             _feed(scr, "10G @@")
             assert "4 Searing Blaze" not in _cards(scr)
@@ -638,15 +638,6 @@ class TestQuitClosesWindows:
             _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w:q<CR>")
             assert scr._split_pane is None and app.is_running
             _feed(scr, ":q<CR>")
-            await pilot.pause()
-            assert not app.is_running
-
-    @pytest.mark.asyncio
-    async def test_qa_quits_with_a_pane_open(self, tmp_path: Path) -> None:
-        app = VimTGApp(deck_path=_deck(tmp_path))
-        async with app.run_test(size=SIZE) as pilot:
-            await pilot.pause()
-            _feed(_screen(app), f":vsplit<Space>{_other(tmp_path)}<CR>:qa<CR>")
             await pilot.pause()
             assert not app.is_running
 

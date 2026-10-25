@@ -402,10 +402,10 @@ class TestHandleCommand:
         assert hr.command_message == "E492: Not an editor command: boguscmd"
         assert hr.error
 
-    def test_search_mode_converts_to_find(self) -> None:
+    def test_search_mode_submit_runs_the_search(self) -> None:
         st = _state()
         st.mode_mgr.transition(Mode.SEARCH)
-        # :find with no card repo simply returns a message; just ensure no crash.
+        # / with no card repo simply returns a message; just ensure no crash.
         hr = handle_command(
             st, _act("enter", text="bolt", action_type="command_submit"), _registry(), None
         )

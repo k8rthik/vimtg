@@ -278,7 +278,6 @@ class HandlerResult:
     ui_request: str = ""  # screen-level view (:messages, :tips)
     # :q! / :e! / :home! dropped unsaved changes on purpose
     discard_changes: bool = False
-    search_open: str | None = None  # :search — open the card search overlay
     # A listing's lines; command_message is its one-line form (see Listing)
     listing: Listing | None = None
     # :enew / :import — open this unnamed buffer in place of the deck
@@ -610,10 +609,6 @@ def handle_command(
         state.buffer, state.cursor = registry.execute(cmd, state.buffer, state.cursor, ctx)
         if not cmd.name and cmd.cmd_range is not None:
             note_jump(state, origin)  # :{n}
-        if cmd.name in ("find", "f") and cmd.args and not ctx.error:
-            state.last_find = cmd.args
-            state.last_find_label = ""
-            state.last_find_backward = False
         if ctx.registers is not None:
             state.registers = ctx.registers
         if ctx.marks is not None:
@@ -633,11 +628,6 @@ def handle_command(
             state.modified = True
         elif ctx.file_saved:
             state.modified = ctx.modified
-        if ctx.undo_request:
-            step = state.history.undo if ctx.undo_request == "undo" else state.history.redo
-            restored = step()
-            if restored is not None:
-                restore_buffer(state, restored)
         if ctx.file_saved:
             state.clean_text = state.buffer.to_text()
         state.disk_stamp = ctx.disk_stamp
@@ -677,7 +667,6 @@ def handle_command(
             edit_file=ctx.edit_path,
             ui_request=ctx.ui_request,
             discard_changes=ctx.discard_requested,
-            search_open=ctx.search_open,
             listing=ctx.listing,
             new_buffer=ctx.new_buffer,
             import_force=ctx.import_force,

@@ -56,6 +56,15 @@ from 1.0.0 onward.
 
 ### Removed
 
+- Ex commands that only mirrored a normal-mode key or a second entry
+  point answer E492: `:d`/`:delete`, `:y`/`:yank`, `:m`/`:move`,
+  `:t`/`:co`/`:copy`, `:undo`/`:u`, `:redo`/`:red` (use `dd`, `yy`, `p`,
+  `u`, `Ctrl-R`; `:g/pat/d` and `:g/pat/y` still work), `:find`/`:f`
+  (use `/`), `:search` (use `o`), `:noh`/`:nohlsearch`, `:qa`/`:qall`/
+  `:quitall`, `:wa`/`:wall`, `:wqa`/`:wqall`/`:xa`/`:xall` (one buffer:
+  `:q`, `:w`, `:wq`, `:x` are enough), and `:stats` (`vimtg info` still
+  prints the same line; `:analytics` has more). `:sort tag` and the
+  `tag` value of `sort_order` are gone with the card tag UI.
 - Card tags are no longer edited in vimtg: the `t` prefix (`ta` `tr` `tt`
   `tf` `tl` `tc` `tn` `tp`) is unbound and `:tag`, `:untag`, `:tags` and
   `:retag` answer E492. A card's one label is its `@category` (`gc`,

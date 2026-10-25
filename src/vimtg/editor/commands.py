@@ -325,8 +325,6 @@ class EditorContext:
     marks: Any = None
     # The last / ? * # pattern — :s// and :g// reuse it
     last_pattern: str = ""
-    # :undo / :redo — the session steps its history once ("undo"/"redo")
-    undo_request: str = ""
     # :e — the deck to open in place of this one
     edit_path: Path | None = None
     # :q! / :e! / :home! threw unsaved changes away on purpose: the
@@ -336,8 +334,6 @@ class EditorContext:
     recovery_id: str | None = None
     # Screen-level view with no buffer change (":messages", ":tips")
     ui_request: str = ""
-    # :search — open the card search overlay with this query (None = no)
-    search_open: str | None = None
     # A listing's lines; `message` holds its one-line form
     listing: Listing | None = None
     # :enew / :import — the unnamed buffer to open in place of this one

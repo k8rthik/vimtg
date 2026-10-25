@@ -84,7 +84,7 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
     ConfigOption(
         "sort_order", "Sort Order", "Default order for :sort and :layout",
         "choice", (
-            "cmc", "name", "qty", "type", "color", "tag", "category",
+            "cmc", "name", "qty", "type", "color", "category",
             "power", "toughness", "rarity", "price",
         ),
         group="Editor",
