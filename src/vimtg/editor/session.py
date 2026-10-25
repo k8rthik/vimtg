@@ -103,11 +103,6 @@ from vimtg.editor.registers import (
 )
 from vimtg.editor.sort_keys import SORT_FIELDS
 from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowCommand
-from vimtg.editor.tag_ops import (
-    add_tags_in_range,
-    remove_tags_in_range,
-    toggle_tag_in_range,
-)
 from vimtg.services.history_service import HistoryService
 
 if TYPE_CHECKING:
@@ -1222,11 +1217,9 @@ def handle_tag_input_special(state: EditorState, action: ParsedAction) -> Handle
 
 
 def _apply_tag_input(state: EditorState, text: str) -> str:
-    """Apply the tag action from tag-input mode."""
+    """Apply the prompt's action: set a category or set the view filter."""
     action = state.tag_input_action
-    tag = text.lstrip("#").lower()
-
-    if not tag:
+    if not text.lstrip("#@"):
         return ""
 
     row = state.cursor.row
@@ -1238,38 +1231,12 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
         state.end_selection()
     else:
         start = end = row
-    if action in ("a", "r", "t", "category"):
-        # '.' re-applies the same tag/category, over as many lines
+    if action == "category":
+        # '.' re-applies the same category, over as many lines
         state.dot_repeat.record(RepeatableAction(
-            "category" if action == "category" else "tag",
-            operator=action, text=text,
+            "category", operator=action, text=text,
             lines=end - start + 1 if end > start else 0,
         ))
-
-    if action == "a":
-        state.buffer, count = add_tags_in_range(state.buffer, start, end, [tag])
-        if count:
-            state.modified = True
-            state.history.record(state.buffer, f"tag add #{tag}")
-        return f"Tagged {count} card(s) with #{tag}" if count else "No card lines"
-
-    if action == "r":
-        state.buffer, count = remove_tags_in_range(state.buffer, start, end, [tag])
-        if count:
-            state.modified = True
-            state.history.record(state.buffer, f"tag remove #{tag}")
-        return f"Removed #{tag} from {count} card(s)" if count else f"No cards with #{tag}"
-
-    if action == "t":
-        state.buffer, added, removed = toggle_tag_in_range(
-            state.buffer, start, end, tag
-        )
-        if added or removed:
-            state.modified = True
-            state.history.record(state.buffer, f"tag toggle #{tag}")
-        return f"#{tag}: +{added} -{removed}"
-
-    if action == "category":
         name = text.lstrip("@").lower()
         if not CATEGORY_NAME_RE.match(name):
             return (
@@ -1592,8 +1559,8 @@ def _replay(
         else:
             discard_pending_insert(state)
         state.dot_repeat.record(replace(last, quantity=quantity))
-    elif kind in ("tag", "category") and last.text is not None:
-        state.tag_input_action = op or "category"
+    elif kind == "category" and last.text is not None:
+        state.tag_input_action = "category"
         _apply_tag_input(state, last.text)
         state.tag_input_action = ""
     elif kind == "category":

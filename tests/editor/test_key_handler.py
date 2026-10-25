@@ -343,30 +343,10 @@ class TestFilterPrompt:
         assert st.insert_submode == InsertSubmode.TAG_INPUT
 
 
-# ── handle_tag_input_special / _apply_tag_input ────────────────────
+# ── handle_tag_input_special: the filter and category prompts ──────
 
 
 class TestTagInput:
-    def test_add_tag_via_input(self) -> None:
-        st = _state(row=1)
-        st.tag_input_action = "a"
-        hr = handle_tag_input_special(st, _act("enter", text="core"))
-        assert hr.exit_to_normal is True
-        assert "core" in st.buffer.tags_at(1)
-        assert "Tagged 1" in hr.command_message
-
-    def test_toggle_tag_via_input(self) -> None:
-        st = _state(row=1)
-        st.tag_input_action = "t"
-        handle_tag_input_special(st, _act("enter", text="flex"))
-        assert "flex" in st.buffer.tags_at(1)
-
-    def test_remove_tag_via_input(self) -> None:
-        st = _state("4 Goblin Guide  #core\n", row=0)
-        st.tag_input_action = "r"
-        handle_tag_input_special(st, _act("enter", text="core"))
-        assert "core" not in st.buffer.tags_at(0)
-
     def test_filter_via_input(self) -> None:
         st = _state("4 Goblin Guide  #core\n4 Lava Spike\n", row=0)
         st.tag_input_action = "f"
@@ -385,7 +365,7 @@ class TestTagInput:
 
     def test_empty_enter_exits(self) -> None:
         st = _state(row=1)
-        st.tag_input_action = "a"
+        st.tag_input_action = "category"
         hr = handle_tag_input_special(st, _act("enter", text=""))
         assert hr.exit_to_normal is True
         assert st.insert_submode == InsertSubmode.CARD_SEARCH

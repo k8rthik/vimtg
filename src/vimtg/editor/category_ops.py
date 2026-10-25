@@ -1,7 +1,6 @@
-"""Range-based category mutations shared by :category and the gc/gC keys.
-
-Mirrors tag_ops so the ex-command and key-input paths never carry
-separate copies of these loops.
+"""Range-based category mutations shared by :category and the gc/gC keys,
+so the ex-command and key-input paths never carry separate copies of
+these loops.
 
 TUI-agnostic: no Textual imports.
 """

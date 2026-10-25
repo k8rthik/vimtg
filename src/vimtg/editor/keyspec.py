@@ -187,7 +187,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        EDITING, label="Ctrl-A/X"),
     _b(".", "Repeat the last change", EDITING, quick="Editing", brief="repeat last",
        note="Every edit repeats: operators (c with the card it added), o/O with "
-            "their card, p, +/-, x, zone and plan moves, tags, categories, "
+            "their card, p, +/-, x, zone and plan moves, categories, "
             "comments, i, and :s; a visual change repeats on as many lines"),
     _b(("u", "ctrl_r"), "Undo / redo", EDITING, label="u / Ctrl-R", quick="Commands",
        brief="undo/redo"),

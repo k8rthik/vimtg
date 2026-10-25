@@ -467,16 +467,6 @@ class Buffer:
         base, _ = split_inline_comment(self._lines[line].text)
         return self.set_line(line, base + format_inline_comment(comment))
 
-    def add_tag(self, line: int, tag: str) -> Buffer:
-        """Return new Buffer with tag added to the card at line."""
-        existing = self.tags_at(line)
-        return self.set_tags(line, existing | {tag.lower()})
-
-    def remove_tag(self, line: int, tag: str) -> Buffer:
-        """Return new Buffer with tag removed from the card at line."""
-        existing = self.tags_at(line)
-        return self.set_tags(line, existing - {tag.lower()})
-
     # ── Category operations ──────────────────────────────────────────
 
     def category_at(self, line: int) -> str:
@@ -526,13 +516,6 @@ class Buffer:
             if cat:
                 counts[cat] = counts.get(cat, 0) + 1
         return counts
-
-    def all_tags(self) -> frozenset[str]:
-        """Collect all unique tags across every card line in the buffer."""
-        tags: set[str] = set()
-        for i in range(self.line_count()):
-            tags.update(self.tags_at(i))
-        return frozenset(tags)
 
     def tag_counts(self) -> dict[str, int]:
         """Count how many card lines carry each tag across the buffer."""
