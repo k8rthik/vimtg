@@ -260,7 +260,7 @@ class TestHistoryKeys:
             await pilot.pause()
             overlay = app.screen
             assert isinstance(overlay, HistoryScreen)
-            await pilot.press("2", "t")
+            await pilot.press("1", "t")
             assert "Snapshots panel" in overlay._cl.message
             await pilot.press("question_mark")
             await pilot.pause()

@@ -7,9 +7,8 @@ from datetime import datetime
 from rich.text import Text
 
 from vimtg.domain.deck_diff import StatsDelta
-from vimtg.domain.vcs import VCSBranch, VCSSnapshot
+from vimtg.domain.vcs import VCSSnapshot
 from vimtg.services.deck_diff_service import DeckDiffService
-from vimtg.tui.widgets.branches_panel import BranchesPanel
 from vimtg.tui.widgets.diff_panel import DiffPanel
 from vimtg.tui.widgets.scroll_panel import ScrollablePanel
 from vimtg.tui.widgets.snapshots_panel import SnapshotsPanel
@@ -205,22 +204,6 @@ class TestSnapshotsPanelHeight:
         assert sp.scroll_pos == 0
         assert "snap 0" in sp.render().plain
 
-    def test_only_merged_in_snapshots_are_labelled(self) -> None:
-        # A branch created from main inherits main's commits; they are not
-        # foreign. Only ids off the first-parent chain get a label.
-        sp = SnapshotsPanel()
-        inherited, merged_in = _snap(0, branch="main"), _snap(1, branch="budget")
-        sp.snapshots = [inherited, merged_in]
-        sp.mainline_ids = frozenset({inherited.id})
-        plain = sp.render().plain
-        assert "[budget]" in plain
-        assert "[main]" not in plain
-
-    def test_no_labels_without_mainline(self) -> None:
-        sp = SnapshotsPanel()
-        sp.snapshots = [_snap(0, branch="main"), _snap(1, branch="budget")]
-        assert "[" not in sp.render().plain.split("\n", 2)[2]
-
     def test_wheel_drags_selection_only_when_needed(self) -> None:
         sp = SnapshotsPanel()
         sp.snapshots = [_snap(i) for i in range(40)]
@@ -230,37 +213,6 @@ class TestSnapshotsPanelHeight:
         sp.select_by(2)  # selected 3, still visible in window 1..4
         sp.wheel(-1)
         assert sp.scroll_pos == 0 and sp.selected == 3
-
-
-def _branch(name: str) -> VCSBranch:
-    return VCSBranch(
-        name=name, deck_path="/d.deck", tip_id="abc",
-        created_at=datetime(2026, 1, 1, 12, 0, 0),
-    )
-
-
-class TestBranchesPanelWindow:
-    def test_selection_scrolls_into_view(self) -> None:
-        bp = BranchesPanel()
-        bp.branches = [_branch(f"b{i:02d}") for i in range(12)]
-        bp.default_viewport = 6  # 4 visible
-        assert "b04" not in bp.render().plain
-        bp.select_last()
-        assert bp.selected == 11
-        assert "b11" in bp.render().plain
-        bp.select_first()
-        assert bp.scroll_pos == 0
-        bp.select_by(0)
-        assert "b00" in bp.render().plain
-
-    def test_clamp_after_delete(self) -> None:
-        bp = BranchesPanel()
-        bp.branches = [_branch(f"b{i}") for i in range(9)]
-        bp.default_viewport = 5
-        bp.select_last()
-        bp.branches = [_branch("b0")]
-        bp.clamp_selection()
-        assert bp.selected == 0 and bp.scroll_pos == 0
 
 
 class TestWorkingCopyPanel:

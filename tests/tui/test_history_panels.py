@@ -1,31 +1,11 @@
-"""Tests for BranchesPanel and SnapshotsPanel render output."""
+"""Tests for SnapshotsPanel render output."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from vimtg.domain.vcs import VCSBranch, VCSSnapshot
-from vimtg.tui.theme import COLORS
-from vimtg.tui.widgets.branches_panel import BranchesPanel
+from vimtg.domain.vcs import VCSSnapshot
 from vimtg.tui.widgets.snapshots_panel import SnapshotsPanel
-
-
-def _styles_at(label: str, text) -> str:
-    start = text.plain.index(label)
-    styles: list[str] = []
-    for span in text.spans:
-        if span.start <= start < span.end:
-            styles.append(str(span.style))
-    return " ".join(styles)
-
-
-def _branch(name: str, deck_path: str = "/d.deck") -> VCSBranch:
-    return VCSBranch(
-        name=name,
-        deck_path=deck_path,
-        tip_id="abc1234",
-        created_at=datetime(2026, 1, 1, 12, 0, 0),
-    )
 
 
 def _snapshot(
@@ -41,62 +21,6 @@ def _snapshot(
         branch="main",
         tag=tag,
     )
-
-
-# ── BranchesPanel ──────────────────────────────────────────────────
-
-
-class TestBranchesPanel:
-    def test_empty_state_shows_message(self) -> None:
-        p = BranchesPanel()
-        assert "(no branches)" in p.render().plain
-
-    def test_branch_count_in_header(self) -> None:
-        p = BranchesPanel()
-        p.branches = [_branch("main"), _branch("dev")]
-        plain = p.render().plain
-        assert "(2)" in plain
-        assert "main" in plain
-        assert "dev" in plain
-
-    def test_current_branch_marked_with_asterisk(self) -> None:
-        p = BranchesPanel()
-        p.branches = [_branch("main"), _branch("dev")]
-        p.current_branch = "main"
-        plain = p.render().plain
-        # The current-branch line should have " * " prefix; the other should not
-        lines = [ln for ln in plain.split("\n") if "main" in ln or "dev" in ln]
-        main_line = next(ln for ln in lines if "main" in ln)
-        dev_line = next(ln for ln in lines if "dev" in ln)
-        assert "*" in main_line
-        assert "*" not in dev_line
-
-    def test_current_branch_styled_green(self) -> None:
-        p = BranchesPanel()
-        p.branches = [_branch("main")]
-        p.current_branch = "main"
-        p.focused_panel = False  # selected styling only applies when focused
-        text = p.render()
-        assert COLORS["mana_green"] in _styles_at("main", text)
-
-    def test_selected_only_styled_when_focused(self) -> None:
-        p = BranchesPanel()
-        p.branches = [_branch("main"), _branch("dev")]
-        p.current_branch = "main"
-        p.selected = 1
-        p.focused_panel = False
-        text = p.render()
-        # When unfocused, the selected branch should NOT get the cursor_bg
-        assert COLORS["cursor_bg"] not in _styles_at("dev", text)
-
-    def test_selected_highlighted_when_focused(self) -> None:
-        p = BranchesPanel()
-        p.branches = [_branch("main"), _branch("dev")]
-        p.current_branch = "main"
-        p.selected = 1
-        p.focused_panel = True
-        text = p.render()
-        assert COLORS["cursor_bg"] in _styles_at("dev", text)
 
 
 # ── SnapshotsPanel ─────────────────────────────────────────────────

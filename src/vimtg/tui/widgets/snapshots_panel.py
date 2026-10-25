@@ -35,9 +35,6 @@ class SnapshotsPanel(Static):
     selected: reactive[int] = reactive(0)
     focused_panel: reactive[bool] = reactive(False)
     scroll_pos: reactive[int] = reactive(0)
-    # Ids on the current branch's first-parent chain; anything else was
-    # merged in and is labelled with the branch it came from.
-    mainline_ids: reactive[frozenset[str]] = reactive(frozenset)
 
     @property
     def max_visible(self) -> int:
@@ -64,8 +61,8 @@ class SnapshotsPanel(Static):
     def _render_entry(self, snap: VCSSnapshot, selected: bool) -> Text:
         is_selected = selected and self.focused_panel
         width = self.size.width
-        # Narrow panels keep the merge/branch/tag decorations and shorten
-        # the timestamp to the time alone before anything is truncated.
+        # Narrow panels keep the tag and shorten the timestamp to the
+        # time alone before anything is truncated.
         t = self._header_row(snap, is_selected, "%b %d %H:%M")
         if width > 0 and t.cell_len > width:
             t = self._header_row(snap, is_selected, "%H:%M")
@@ -90,10 +87,6 @@ class SnapshotsPanel(Static):
             t.append("   ", style="")
             t.append(short_hash, style=f"{COLORS['mana_blue']}")
         t.append(f" {snap.timestamp.strftime(ts_fmt)}", style="dim")
-        if snap.merge_parent_id:
-            t.append(" ⇄ merge", style=f"dim {COLORS['mana_blue']}")
-        if self.mainline_ids and snap.id not in self.mainline_ids:
-            t.append(f" [{snap.branch}]", style=f"dim {COLORS['category']}")
         if snap.tag:
             t.append(f" ({snap.tag})", style=f"bold {COLORS['sideboard']}")
         return t
@@ -121,7 +114,7 @@ class SnapshotsPanel(Static):
 
     def clamp_selection(self) -> None:
         """Keep selection and scroll valid after the list shrinks or the
-        panel is resized (branch delete, rebase, terminal resize)."""
+        panel is resized."""
         self.select_by(0)
 
     def _adjust_scroll(self) -> None:

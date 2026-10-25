@@ -33,7 +33,6 @@ def make_history_screen(
     current_state: str = STATE_CURRENT,
     price_source: str = "usd",
     diff_service: DeckDiffService | None = None,
-    on_apply_state: Callable[[str, str], None] | None = None,
 ) -> HistoryScreen:
     return HistoryScreen(
         vcs_service=vcs,
@@ -42,5 +41,4 @@ def make_history_screen(
         deck_name="Burn",
         on_restore=on_restore,
         price_source=price_source,
-        on_apply_state=on_apply_state,
     )

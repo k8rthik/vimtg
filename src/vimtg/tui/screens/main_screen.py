@@ -1003,9 +1003,8 @@ class MainScreen(Screen[None]):
             # The deck is safely on disk: its crash copy is obsolete
             self._drop_recovery()
             self._tips_until_write = False
-            # Only an actual save auto-snapshots — every ex command carries
-            # file_path, and committing on each one would defeat the
-            # uncommitted-changes guard on merge/rebase/switch.
+            # Only an actual save auto-snapshots; every ex command carries
+            # file_path.
             self._vcs_auto_snapshot()
         if hr.discard_changes:
             self._discarded = True
@@ -1722,23 +1721,17 @@ class MainScreen(Screen[None]):
             deck_name=self.file_path.name if self.file_path else "(new)",
             on_restore=self._on_restore,
             price_source=self._state.settings.price_source,
-            on_apply_state=self._on_vcs_state,
         ))
 
     def _on_restore(self, deck_state: str) -> None:
-        """Callback from HistoryScreen when user restores a snapshot."""
-        self._on_vcs_state(deck_state, "restore from VCS")
-
-    def _on_vcs_state(self, deck_state: str, reason: str) -> None:
-        """Adopt a VCS result (restore, merge, rebase, switch, cherry-pick)
-        into the editor. The cursor keeps its row, clamped to the new
-        buffer, and the undo entry is labelled with `reason`."""
+        """HistoryScreen restored a snapshot: load it into the editor. The
+        cursor keeps its row, clamped to the new buffer."""
         self._state.buffer = Buffer.from_text(deck_state)
         row = min(self._state.cursor.row, max(0, self._state.buffer.line_count() - 1))
         self._state.cursor = Cursor(row=row)
         clean = self._state.clean_text
         self._state.modified = clean is None or self._state.buffer.to_text() != clean
-        self._state.history.record(self._state.buffer, reason)
+        self._state.history.record(self._state.buffer, "restore from VCS")
         if self.card_repo:
             self._state.resolved_cards = resolve_cards(
                 self._state.buffer, self.card_repo,

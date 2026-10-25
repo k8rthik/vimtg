@@ -3,9 +3,9 @@
 A lazy.nvim-style floating window: a bordered box centred over whatever
 screen is below, which stays visible, dimmed, behind it. The border
 title names the view and the bottom border lists its close keys, so
-History, Help, `:messages`, the settings, the merge resolver, and the
-sample hand all open and close the same way. A floating view opened
-from another (`?` inside History) floats above both.
+History, Help, `:messages`, the settings, and the sample hand all open
+and close the same way. A floating view opened from another (`?` inside
+History) floats above both.
 
 Subclasses yield their content from `compose_window`; it lands inside
 the window container (`#<WINDOW_ID>`), laid out vertically.

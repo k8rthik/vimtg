@@ -9,9 +9,7 @@ from pathlib import Path
 
 import pytest
 from textual.app import App
-from textual.screen import Screen
 
-from tests.tui.test_merge_screen import _make_screen, _Recorder
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.floating import FloatingScreen
 from vimtg.tui.screens.help_screen import HelpScreen
@@ -84,22 +82,3 @@ async def test_help_from_history_floats_above_history(tmp_path: Path) -> None:
         await pilot.pause()
         assert isinstance(app.screen, HistoryScreen)
 
-
-class _Host(App[None]):
-    def __init__(self, screen: Screen[None]) -> None:
-        super().__init__()
-        self._target = screen
-
-    def on_mount(self) -> None:
-        self.push_screen(self._target)
-
-
-@pytest.mark.asyncio
-async def test_merge_screen_is_a_titled_floating_window() -> None:
-    screen = _make_screen(_Recorder())
-    app = _Host(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        assert isinstance(app.screen, FloatingScreen)
-        assert "Merge" in str(screen.window.border_title)
-        assert "abort" in str(screen.window.border_subtitle)
