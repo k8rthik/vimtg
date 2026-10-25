@@ -97,7 +97,14 @@ from 1.0.0 onward.
   on stdout (`{"schema": "vimtg.validation/1", "file", "format", "ok",
   "legality_checked", "problems": [{"line", "level", "message",
   "code"}], "bracket"}`); notes stay on stderr and the exit codes are
-  unchanged, so a git hook or CI job can read it with `jq`.
+  unchanged, so a git hook or CI job can read it with `jq`. `vimtg info
+  --json` (`vimtg.info/1`: name, format and where it came from, every
+  zone's card and unique counts, stats with card data), `vimtg search
+  --json` (`vimtg.search/1`: each card's name, mana cost and value, type
+  line, colours, colour identity, set, rarity, rules text, every price
+  and the formats it is legal in) and `vimtg missing --json`
+  (`vimtg.missing/1`: each short entry's zone, needed, owned, missing and
+  price, plus the totals) do the same.
 - Collection awareness, offline, from a CSV export. `:collection
   path.csv` loads a ManaBox, Moxfield, Archidekt, or Deckbox export (or
   any CSV with a name and a count column), sums copies across printings,

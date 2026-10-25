@@ -7,14 +7,14 @@ import re
 import sqlite3
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import click
 import httpx
 from click.shell_completion import CompletionItem
 
 from vimtg import __version__
-from vimtg.cli_json import dumps, validation_doc
+from vimtg.cli_json import dumps, info_doc, missing_doc, search_doc, validation_doc
 from vimtg.config.paths import cache_dir, db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
@@ -26,10 +26,15 @@ from vimtg.services.import_export_service import FORMAT_NAMES, IMPORT_FORMAT_NAM
 from vimtg.services.search_service import TAGS_NOT_SYNCED, SearchService, SearchSyntaxError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from vimtg.domain.card import Card
     from vimtg.domain.deck import Deck, DeckEntry
     from vimtg.domain.deck_lines import MissingQuantityLine
     from vimtg.domain.validation import ValidationReport
+
+
+F = TypeVar("F", bound="Callable[..., Any]")
 
 
 def _make_service() -> DeckService:
@@ -235,6 +240,15 @@ def _no_card_db_note() -> str:
     return note
 
 
+def _json_option(schema: str) -> Callable[[F], F]:
+    """The --json flag: one JSON document (`schema`) on stdout instead
+    of the text output; notes stay on stderr."""
+    return click.option(
+        "--json", "as_json", is_flag=True,
+        help=f"Print one JSON document (schema {schema}) instead of text.",
+    )
+
+
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
 @click.option(
@@ -243,10 +257,7 @@ def _no_card_db_note() -> str:
     help="Exit non-zero on warnings too (e.g. unknown card names); "
     "requires a card database.",
 )
-@click.option(
-    "--json", "as_json", is_flag=True,
-    help="Print the report as one JSON document (schema vimtg.validation/1).",
-)
+@_json_option("vimtg.validation/1")
 def validate(path: str, strict: bool, as_json: bool) -> None:
     """Validate a deck file (format-aware when a card database exists).
 
@@ -316,14 +327,14 @@ def _echo_problems(name: str, text: str, report: ValidationReport) -> None:
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True))
-def info(path: str) -> None:
+@_json_option("vimtg.info/1")
+def info(path: str, as_json: bool) -> None:
     """Show deck summary: name, format, every zone's card count, and
     (with card data) a one-line stats summary."""
     from vimtg.config.settings import load_settings
     from vimtg.data.deck_repository import missing_quantity_lines
-    from vimtg.domain.analytics import stats_summary
+    from vimtg.domain.analytics import compute_stats
     from vimtg.domain.validation import missing_quantity_warnings
-    from vimtg.editor.config_options import currency_symbol_for
 
     card_repo = _try_card_repo()
     service = DeckService(deck_repo=DeckRepository(), card_repo=card_repo)
@@ -333,10 +344,38 @@ def info(path: str) -> None:
     missing = missing_quantity_lines(text)
     resolved = _resolve(card_repo, deck, missing)
 
-    fmt = deck.metadata.format.strip() or "(none)"
-    if not deck.metadata.format.strip() and settings.default_format:
-        fmt = f"{settings.default_format} (default_format)"
-    rows = [("Deck", deck.metadata.name or "(unnamed)"), ("Format", fmt)]
+    own_fmt = deck.metadata.format.strip()
+    fmt = own_fmt or settings.default_format
+    fmt_source = "deck" if own_fmt else "default_format" if fmt else ""
+    if as_json:
+        stats = (
+            compute_stats(deck, resolved, settings.price_source)
+            if resolved is not None else None
+        )
+        click.echo(dumps(info_doc(path, deck, fmt, fmt_source, stats)))
+    else:
+        _echo_info(deck, fmt, fmt_source, resolved, settings.price_source)
+    for warning in missing_quantity_warnings(missing, resolved):
+        click.echo(
+            f"{file_path.name}:{warning.line_number}: warning: {warning.message}", err=True
+        )
+
+
+def _echo_info(
+    deck: Deck,
+    fmt: str,
+    fmt_source: str,
+    resolved: dict[str, Card] | None,
+    price_source: str,
+) -> None:
+    """The text summary: one aligned `Label:  value` row each."""
+    from vimtg.domain.analytics import stats_summary
+    from vimtg.editor.config_options import currency_symbol_for
+
+    shown = fmt or "(none)"
+    if fmt and fmt_source == "default_format":
+        shown = f"{fmt} (default_format)"
+    rows = [("Deck", deck.metadata.name or "(unnamed)"), ("Format", shown)]
     for label, entries, always in (
         ("Commander", deck.commanders(), False),
         ("Companion", deck.companions(), False),
@@ -347,16 +386,10 @@ def info(path: str) -> None:
         if entries or always:
             rows.append((label, _zone_count(entries)))
     if resolved is not None:
-        source = settings.price_source
-        rows.append(
-            ("Stats", stats_summary(deck, resolved, source, currency_symbol_for(source)))
-        )
+        symbol = currency_symbol_for(price_source)
+        rows.append(("Stats", stats_summary(deck, resolved, price_source, symbol)))
     for label, value in rows:
         click.echo(f"{label + ':':<12}{value}")
-    for warning in missing_quantity_warnings(missing, resolved):
-        click.echo(
-            f"{file_path.name}:{warning.line_number}: warning: {warning.message}", err=True
-        )
 
 
 def _resolve(
@@ -384,7 +417,8 @@ def _zone_count(entries: tuple[DeckEntry, ...]) -> str:
     "--collection", "collection_arg", default=None, type=click.Path(),
     help="Collection CSV export (default: the `collection` setting).",
 )
-def missing(path: str, collection_arg: str | None) -> None:
+@_json_option("vimtg.missing/1")
+def missing(path: str, collection_arg: str | None, as_json: bool) -> None:
     """Print the cards the collection lacks for this deck as 'N Card Name'
     lines (mainboard, a blank line, sideboard), ready for a store's
     mass-entry box, with the cost to complete on stderr."""
@@ -407,8 +441,9 @@ def missing(path: str, collection_arg: str | None) -> None:
             err=True,
         )
         sys.exit(1)
+    csv_path = collection_path(setting)
     try:
-        collection = load_collection(collection_path(setting))
+        collection = load_collection(csv_path)
     except CollectionError as exc:
         click.echo(str(exc), err=True)
         sys.exit(1)
@@ -419,13 +454,18 @@ def missing(path: str, collection_arg: str | None) -> None:
     _text, deck = service.open_deck(file_path)
     resolved = _resolve(card_repo, deck, ())
     owns = ownership(deck, collection)
+    source = settings.price_source
+    summary = summarize_ownership(owns, resolved or {}, source)
+    if as_json:
+        click.echo(dumps(missing_doc(path, str(csv_path), owns, resolved or {}, summary)))
+        if resolved is None:
+            click.echo(f"({_no_card_db_note()} — prices unknown; run 'vimtg sync')", err=True)
+        return
     lines = missing_list(owns, resolved or {})
     if not lines:
         click.echo(f"Nothing missing: the collection covers {file_path.name}", err=True)
         return
     click.echo(lines, nl=False)
-    source = settings.price_source
-    summary = summarize_ownership(owns, resolved or {}, source)
     if resolved is None:
         total = "unknown (no card database; run vimtg sync)"
     elif summary.cost_to_complete is None:
@@ -566,7 +606,8 @@ _EMPTY_TERM = re.compile(r"(?:^|(?<=[\s(-]))([A-Za-z]+(?:!=|<=|>=|:|=|<|>))(?=$|
 @click.option(
     "--limit", "-n", default=20, type=click.IntRange(min=1), help="Max results"
 )
-def search(query: tuple[str, ...], limit: int) -> None:
+@_json_option("vimtg.search/1")
+def search(query: tuple[str, ...], limit: int, as_json: bool) -> None:
     """Search for cards with Scryfall-style syntax, for example
     'vimtg search t:creature c:r mv<=2'. Put '--' before a query that
     starts with '-': 'vimtg search -- -t:land c:boros'."""
@@ -593,6 +634,9 @@ def search(query: tuple[str, ...], limit: int) -> None:
         click.echo(
             f"note: {TAGS_NOT_SYNCED}; run `vimtg sync` to download them", err=True
         )
+    if as_json:
+        click.echo(dumps(search_doc(text, results)))
+        return
     if not results:
         click.echo("No cards found.")
         return
