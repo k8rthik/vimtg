@@ -258,6 +258,9 @@ class MainScreen(Screen[None]):
         self._card_status: tuple[str, bool] = ("", False)
         # Ask for name/format when this opens a deck that is still blank
         self._prompt_new_deck = prompt_new_deck
+        # The `collection` setting value the editor state's collection
+        # came from; a saved setting that differs triggers a reload
+        self._collection_setting = ""
         # The tips panel was closed (Esc) for this session
         self._tips_closed = False
         # Action type of the last completed key ("motion", ...); an
@@ -303,7 +306,10 @@ class MainScreen(Screen[None]):
                 self._state.buffer, self.card_repo,
             )
         self._card_status = self._initial_card_status()
+        collection_warning = self._load_configured_collection()
         self._sync_widgets()
+        if collection_warning:
+            self.query_one("#command-line", CommandLine).set_message(collection_warning)
         if (
             self._offer_recovery
             and self.file_path is not None
@@ -1563,8 +1569,36 @@ class MainScreen(Screen[None]):
             on_save=self._on_settings_saved,
         ))
 
+    def _load_configured_collection(self) -> str:
+        """Load the `collection` setting's CSV into the editor state (cached
+        by path and mtime, so an unchanged file costs a stat). Returns the
+        warning to show when the file cannot be used; the deck stays
+        usable without a collection either way."""
+        from vimtg.domain.collection import CollectionError
+        from vimtg.services.collection_service import collection_path, load_collection
+
+        s = self._state
+        setting = s.settings.collection.strip()
+        self._collection_setting = setting
+        if not setting:
+            s.collection = None
+            return ""
+        try:
+            s.collection = load_collection(collection_path(setting))
+        except CollectionError as exc:
+            s.collection = None
+            return f"Collection not loaded: {exc}"
+        return ""
+
     def _on_settings_saved(self, new_settings: Settings) -> None:
         self._state.settings = new_settings
+        # :collection and :set both land here; a path already loaded is
+        # served from the mtime cache, so reloading is idempotent
+        collection_warning = (
+            self._load_configured_collection()
+            if new_settings.collection.strip() != self._collection_setting
+            else ""
+        )
         from vimtg.config.settings_writer import SettingsWriteError
         from vimtg.tui.app import VimTGApp
         app = self.app
@@ -1579,6 +1613,8 @@ class MainScreen(Screen[None]):
         if error:
             cl.set_message(error, error=True)
             self.notify(error, title="Settings", severity="error", timeout=10)
+        elif collection_warning:
+            cl.set_message(collection_warning)
         else:
             cl.set_message("Settings saved")
 

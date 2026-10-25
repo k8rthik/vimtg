@@ -41,6 +41,8 @@ class Settings:
     auto_snapshot: bool = True
     # Sync
     auto_sync_cards: bool = True
+    # Collection: path of the owned-cards CSV export ('' = none)
+    collection: str = ""
 
 
 def validate_settings(settings: Settings) -> list[str]:
@@ -117,6 +119,7 @@ def load_settings_checked() -> tuple[Settings, str | None]:
         sort_order=_get("sort_order", str),  # type: ignore[arg-type]
         auto_snapshot=_get("auto_snapshot", bool),  # type: ignore[arg-type]
         auto_sync_cards=_get("auto_sync_cards", bool),  # type: ignore[arg-type]
+        collection=_get("collection", str),  # type: ignore[arg-type]
     )
 
     # Replace out-of-range values with defaults, field by field

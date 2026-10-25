@@ -46,7 +46,7 @@ class ConfigOption:
     key: str
     display_name: str
     description: str
-    option_type: str  # "bool" | "choice" | "int"
+    option_type: str  # "bool" | "choice" | "int" | "str"
     choices: tuple[str, ...] = ()
     min_val: int | None = None
     max_val: int | None = None
@@ -114,6 +114,11 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
         "Download card data in background when missing or stale",
         "bool", group="Editor",
     ),
+    # Collection
+    ConfigOption(
+        "collection", "Collection", "Owned-cards CSV export (set with :collection)",
+        "str", group="Collection",
+    ),
 )
 
 _OPTIONS_BY_KEY: dict[str, ConfigOption] = {o.key: o for o in CONFIG_OPTIONS}
@@ -161,6 +166,9 @@ def apply_setting(settings: Settings, key: str, value: str) -> Settings:
         if value not in opt.choices:
             valid = ", ".join(opt.choices)
             raise ValueError(f"{key} must be one of: {valid}")
+        return _replace_field(settings, key, value)
+
+    if opt.option_type == "str":
         return _replace_field(settings, key, value)
 
     if opt.option_type == "int":
