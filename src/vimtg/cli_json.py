@@ -166,7 +166,7 @@ class CardJson(TypedDict):
     type_line: str
     colors: list[str]
     color_identity: list[str]
-    set: str
+    set: str | None
     rarity: str
     oracle_text: str
     prices: PricesJson
@@ -192,7 +192,7 @@ def _card(card: Card) -> CardJson:
         "type_line": card.type_line,
         "colors": [c.value for c in card.colors],
         "color_identity": [c.value for c in card.color_identity],
-        "set": card.set_code,
+        "set": card.set_code or None,
         "rarity": card.rarity.value,
         "oracle_text": card.full_oracle_text or card.oracle_text,
         "prices": {

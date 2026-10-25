@@ -316,3 +316,14 @@ def test_missing_json_nothing_missing(
     doc = _doc(result)
     assert doc["cards"] == []
     assert doc["totals"]["missing"] == 0
+
+
+def test_search_json_unknown_set_is_null() -> None:
+    from vimtg.cli_json import search_doc
+
+    card = Card.from_scryfall(
+        {"id": "x", "name": "Goblin Token Maker", "type_line": "Creature — Goblin"}
+    )
+    (doc,) = search_doc("goblin", [card])["cards"]
+    assert doc["set"] is None
+    assert doc["prices"]["usd"] is None
