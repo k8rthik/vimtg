@@ -1,6 +1,6 @@
 # Greeter, tutor, and CLI
 
-`vimtg` with no arguments opens a greeter: new deck, file list, import, sync, recent decks, the tutor, help, and a small `:` command line. `vimtg tutor` opens a vimtutor-style lesson deck in a throwaway sandbox of its own. Shell subcommands validate, summarize, convert, search, and draw hands without opening the TUI.
+`vimtg` with no arguments opens a greeter: new deck, file list, import, sync, recent decks, the tutor, help, and a small `:` command line. `vimtg tutor` opens a vimtutor-style lesson deck in a throwaway sandbox of its own. Shell subcommands validate, summarize, diff, convert, search, and draw hands without opening the TUI.
 
 ## Sub-features
 
@@ -11,6 +11,8 @@
 - `cli-convert` converts between `.deck` and other formats (`--to mtgo|arena|moxfield|archidekt|dek|mtga`).
 - `cli-info` summarizes zones, format, and stats.
 - `cli-search` searches the card database with the editor's syntax, `otag:` included, and notes when the oracle tags were never synced.
+- `cli-diff` compares two decks card by card and exits like `diff(1)`: `0` same cards, `1` different, `2` unreadable.
+- `cli-json` is `--json` on `validate`, `info`, `search`, `missing` and `diff`: one JSON document on stdout with a `schema` key such as `vimtg.validation/1`, notes still on stderr.
 
 ## How to get to it (user POV)
 
@@ -32,6 +34,10 @@ Preconditions:
 - **CLI convert.** `$V cli convert burn.deck --to arena` prints Arena lines such as `4 Lightning Bolt` and a `Sideboard` block, exit `0`.
 - **CLI info.** `$V cli info burn.deck` prints the zone counts (60 main, 7 side), format `modern`, and a `Stats:` row.
 - **CLI search by oracle tag.** `$V cli search otag:ramp` prints Sol Ring, Arcane Signet, Mind Stone, Fire Diamond, Thought Vessel, Commander's Sphere, Mana Echoes and Skirk Prospector, exit `0`. `$V cli search -- -otag:ramp t:artifact` prints the other artifacts (Skullclamp, Coat of Arms, ...) and no Sol Ring. In a `VV_TAGS=0` sandbox, `$V cli search otag:ramp` prints `No cards found.` on stdout and `note: oracle tags not synced; run \`vimtg sync\` to download them` on stderr, exit `0`; its `00-sync.txt` ends with `Oracle tags skipped:` and the proxy error.
+
+- **CLI diff.** `cp` the sandbox's `burn.deck` to `burn2.deck` in `sandbox/decks`, `sed -i '' 's/^4 Lava Spike/3 Lava Spike/' burn2.deck`, then `$V cli diff burn.deck burn2.deck` prints `Mainboard:`, `  ~ Lava Spike  4 → 3` and a `Stats: 67 → 66 cards | Avg CMC 1.89 → 1.92` line, exit `1`. `$V cli diff burn.deck burn.deck` prints nothing, exit `0`.
+- **CLI JSON.** `$V cli validate burn.deck --json` and `$V cli search --json t:goblin`: `python3 -m json.tool evidence/NN-cli.out` parses each, and the `schema` key names the shape. A failing command leaves `NN-cli.out` empty.
+- **No colour.** The CLI styles nothing: `NO_COLOR=1 $V cli validate burn.deck`, then `grep -c $'\x1b' evidence/NN-cli.out` prints `0`. To check a real terminal, run the checkout's `.venv/bin/vimtg` under `script -q <file>` after `eval "$($V env)"`; a bare `vimtg` on `PATH` may be an older install.
 
 ## Gotchas
 

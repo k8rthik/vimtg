@@ -5,7 +5,7 @@ description: Drive the real vimtg TUI (and its CLI) in an isolated, offline sand
 
 # Verify vimtg
 
-vimtg is a vim-style terminal editor for Magic: The Gathering decklists (Python, Textual). Users touch two surfaces: the **TUI** (`vimtg`, `vimtg deck.deck`, `vimtg tutor`) and the **CLI** subcommands (`vimtg validate|info|convert|search|hand|guide|sync|new`). This skill drives both through `scripts/vv`, a bash helper that owns one sandbox and one tmux server per run.
+vimtg is a vim-style terminal editor for Magic: The Gathering decklists (Python, Textual). Users touch two surfaces: the **TUI** (`vimtg`, `vimtg deck.deck`, `vimtg tutor`) and the **CLI** subcommands (`vimtg validate|info|diff|missing|convert|search|hand|guide|sync|new`). This skill drives both through `scripts/vv`, a bash helper that owns one sandbox and one tmux server per run.
 
 Unit and pilot tests live in `tests/` (`uv run pytest`). They are not proof that a user can do something. This skill is: real binary, real terminal, real keystrokes, captured screens and files.
 

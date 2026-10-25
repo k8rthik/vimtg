@@ -101,6 +101,10 @@ from 1.0.0 onward.
   a deck cannot be read, like `diff(1)`; `-` reads one side from stdin
   (`git show HEAD:burn.deck | vimtg diff - burn.deck`), and `--json`
   prints a `vimtg.diff/1` document.
+- The README's CLI section lists the exit codes (`0` success, `1` a
+  failed check or an error, `2` a usage error or, for `diff`, an
+  unreadable deck) and says the CLI prints no colour, so pipes and
+  `NO_COLOR=1` get plain text; a test pins that.
 - `--json` on `vimtg validate` prints the report as one JSON document
   on stdout (`{"schema": "vimtg.validation/1", "file", "format", "ok",
   "legality_checked", "problems": [{"line", "level", "message",

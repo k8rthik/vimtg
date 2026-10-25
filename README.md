@@ -474,7 +474,17 @@ Notes, warnings and errors go to stderr; a command's own output (the deck, the v
 
 `vimtg diff` prints one line per changed card, grouped Mainboard, Sideboard, then any other zone, worded like the history overlay's Diff panel: `+ 2 Eidolon of the Great Revel`, `- 1 Skullcrack`, `~ Lava Spike  3 → 4`, and `⇄ Goblin Guide  main → sideboard` for a card that changed zone. It compares cards only: two files whose cards match exit `0` even when their comments, metadata or sideboard plans differ (a note on stderr says so). In git, `git difftool -y -x 'vimtg diff' HEAD~1 -- burn.deck` runs it on a past revision.
 
-`--json` on `validate`, `info`, `search`, `missing` and `diff` prints exactly one JSON document on stdout and nothing else there. Each names its shape in a `schema` key (`vimtg.validation/1`, `vimtg.info/1`, `vimtg.search/1`, `vimtg.missing/1`, `vimtg.diff/1`), so a script can branch on it; keys are snake_case, zones are `commander`, `companion`, `main`, `sideboard` and `maybeboard`, and a missing value (no price, no format, no card data) is `null`. The exit code is the same as without `--json`.
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. `validate`: the deck is valid. `diff`: the decks hold the same cards. |
+| `1` | `validate`: the deck has errors (with `--strict`, warnings too). `diff`: the decks differ. Any command: an error it explains on stderr, such as no card database for `search` or an unreadable collection for `missing`. |
+| `2` | A usage error: an unknown option, a missing argument, a file that does not exist. `diff`: a deck that cannot be read. |
+
+The CLI prints no colour, so a pipe, a log file or `NO_COLOR=1` always gets plain text.
+
+`--json` on `validate`, `info`, `search`, `missing` and `diff` prints exactly one JSON document on stdout and nothing else there. Each names its shape in a `schema` key (`vimtg.validation/1`, `vimtg.info/1`, `vimtg.search/1`, `vimtg.missing/1`, `vimtg.diff/1`), so a script can branch on it; keys are snake_case, zones are `commander`, `companion`, `main`, `sideboard` and `maybeboard`, and a missing value (no price, no format, no card data) is `null`. The exit code is the same as without `--json`, and a command that fails prints nothing on stdout.
 
 ## Known gaps
 
