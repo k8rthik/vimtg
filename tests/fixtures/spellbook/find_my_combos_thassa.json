@@ -1,0 +1,595 @@
+{
+ "count": null,
+ "next": null,
+ "previous": null,
+ "results": {
+  "identity": "UB",
+  "included": [
+   {
+    "id": "742-1295",
+    "of": [
+     {
+      "id": 355
+     }
+    ],
+    "salt": 3.39,
+    "uses": [
+     {
+      "card": {
+       "id": 742,
+       "name": "Demonic Consultation",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "9a1412db-45ad-46ea-8f12-a85d203113d8",
+       "typeLine": "Instant",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 1295,
+       "name": "Thassa's Oracle",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "1de1b591-a73f-4974-b507-8c63e07a0868",
+       "typeLine": "Creature — Merfolk Wizard",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "26.73",
+     "cardmarket": "22.51",
+     "cardkingdom": "33.48"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "UB",
+    "includes": [
+     {
+      "id": 355
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 88,
+       "name": "Exile your library",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 2,
+       "name": "Win the game",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": false,
+     "predh": false,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": false,
+     "pauperCommanderMain": false
+    },
+    "popularity": 149825,
+    "bracketTag": "R",
+    "description": "Cast Demonic Consultation by paying {B}, naming Thassa's Oracle and thus exiling your library due to you not having a card named Thassa's Oracle in your library.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield, causing you to win the game.",
+    "manaNeeded": "{U}{U}{B}",
+    "variantCount": 1,
+    "saltVoteCount": 28,
+    "manaValueNeeded": 3,
+    "easyPrerequisites": "",
+    "notablePrerequisites": ""
+   }
+  ],
+  "includedByChangingCommanders": [],
+  "almostIncluded": [
+   {
+    "id": "513-5034--46",
+    "of": [
+     {
+      "id": 26516
+     }
+    ],
+    "salt": 1.91,
+    "uses": [
+     {
+      "card": {
+       "id": 513,
+       "name": "Hullbreaker Horror",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "d4a84e78-d9b9-4c67-8a4b-4329e65f0f15",
+       "typeLine": "Creature — Kraken Horror",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 5034,
+       "name": "Sol Ring",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "6ad8011d-3471-4369-9d68-b264cc027487",
+       "typeLine": "Artifact",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "7.27",
+     "cardmarket": "5.25",
+     "cardkingdom": "12.78"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "U",
+    "includes": [
+     {
+      "id": 26516
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 11,
+       "name": "Infinite colorless mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [
+     {
+      "quantity": 1,
+      "template": {
+       "id": 46,
+       "name": "Permanent Castable for {C}",
+       "scryfallApi": "https://api.scryfall.com/cards/search?q=%28mv%3C%3D1+%28mana%3D%7B0%7D+or+mana%3D%7B1%7D+or+mana%3D%7BC%7D%29+is%3Apermanent%29+legal%3Acommander",
+       "scryfallQuery": "mv<=1 (mana={0} or mana={1} or mana={C}) is:permanent"
+      },
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "legalities": {
+     "brawl": false,
+     "predh": false,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": false,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": false,
+     "pauperCommanderMain": false
+    },
+    "popularity": 362890,
+    "bracketTag": "E",
+    "description": "Activate Sol Ring by tapping it, adding {C} {C}.\nCast the permanent that can be cast using {C} by paying its mana cost.\nHullbreaker Horror triggers, returning Sol Ring from the battlefield to your hand.\nCast Sol Ring by paying {1}. \nHullbreaker Horror triggers, returning the permanent cast in step 2 from the battlefield to your hand.\nRepeat.\nIf the permanent can be cast by paying {0}, this combo nets infinite colorless mana.",
+    "manaNeeded": "",
+    "variantCount": 1,
+    "saltVoteCount": 44,
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": ""
+   },
+   {
+    "id": "1295-3093",
+    "of": [
+     {
+      "id": 1776
+     }
+    ],
+    "salt": 3.45,
+    "uses": [
+     {
+      "card": {
+       "id": 3093,
+       "name": "Tainted Pact",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "1a85ba2b-ae10-4917-954a-7709b75a9740",
+       "typeLine": "Instant",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 1295,
+       "name": "Thassa's Oracle",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "1de1b591-a73f-4974-b507-8c63e07a0868",
+       "typeLine": "Creature — Merfolk Wizard",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "50.96",
+     "cardmarket": "29.19",
+     "cardkingdom": "62.98"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "UB",
+    "includes": [
+     {
+      "id": 1776
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 2,
+       "name": "Win the game",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": false,
+     "predh": false,
+     "legacy": true,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 131835,
+    "bracketTag": "R",
+    "description": "Cast Tainted Pact by paying {1}{B}, exiling your library.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield, causing you to win the game.",
+    "manaNeeded": "{1}{U}{U}{B}",
+    "variantCount": 3,
+    "saltVoteCount": 22,
+    "manaValueNeeded": 4,
+    "easyPrerequisites": "No two cards in library share a name.",
+    "notablePrerequisites": ""
+   },
+   {
+    "id": "542-5034",
+    "of": [
+     {
+      "id": 1895
+     }
+    ],
+    "salt": null,
+    "uses": [
+     {
+      "card": {
+       "id": 542,
+       "name": "Tidespout Tyrant",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "331b44e4-cf08-44f4-8afd-a7374e5dc5ed",
+       "typeLine": "Creature — Djinn",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 5034,
+       "name": "Sol Ring",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "6ad8011d-3471-4369-9d68-b264cc027487",
+       "typeLine": "Artifact",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "2.76",
+     "cardmarket": "1.79",
+     "cardkingdom": "5.28"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "U",
+    "includes": [
+     {
+      "id": 29370
+     },
+     {
+      "id": 1895
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 11,
+       "name": "Infinite colorless mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": false,
+     "predh": true,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": false,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": false,
+     "pauperCommanderMain": false
+    },
+    "popularity": 37734,
+    "bracketTag": "S",
+    "description": "Cast Sol Ring by paying its mana cost.\nTidespout Tyrant triggers, returning a nontoken permanent that can be cast using {C} from the battlefield to your hand.\nActivate Sol Ring by tapping it, adding {C}{C}.\nCast the nontoken permanent returned in step 2 by paying its mana cost.\nTidespout Tyrant triggers, returning Sol Ring from the battlefield to your hand.\nRepeat.",
+    "manaNeeded": "{1}",
+    "variantCount": 6,
+    "saltVoteCount": 1,
+    "manaValueNeeded": 1,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "You control a nontoken permanent that can be cast using {C}."
+   }
+  ],
+  "almostIncludedByAddingColors": [
+   {
+    "id": "1295-4400",
+    "of": [
+     {
+      "id": 4052
+     }
+    ],
+    "salt": null,
+    "uses": [
+     {
+      "card": {
+       "id": 4400,
+       "name": "Hermit Druid",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "16f6438d-2a29-41cb-bf0c-4d02bd66112b",
+       "typeLine": "Creature — Human Druid",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 1295,
+       "name": "Thassa's Oracle",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "1de1b591-a73f-4974-b507-8c63e07a0868",
+       "typeLine": "Creature — Merfolk Wizard",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "30.27",
+     "cardmarket": "21.81",
+     "cardkingdom": "36.98"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "GU",
+    "includes": [
+     {
+      "id": 4052
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 2,
+       "name": "Win the game",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": false,
+     "predh": false,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": false,
+     "pauperCommanderMain": false
+    },
+    "popularity": 10382,
+    "bracketTag": "S",
+    "description": "Activate Hermit Druid by paying {G} and tapping it, reveal cards from the top of your library and then putting them into your graveyard.\nCast Thassa's Oracle by paying {U}{U}.\nThassa's Oracle enters the battlefield, winning you the game.",
+    "manaNeeded": "{G}{U}{U}",
+    "variantCount": 1,
+    "saltVoteCount": 3,
+    "manaValueNeeded": 3,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "Hermit Druid does not have summoning sickness.\nYou have no basic lands in library."
+   }
+  ],
+  "almostIncludedByChangingCommanders": [],
+  "almostIncludedByAddingColorsAndChangingCommanders": []
+ }
+}
