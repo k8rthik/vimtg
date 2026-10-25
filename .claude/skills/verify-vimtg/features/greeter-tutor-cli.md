@@ -10,6 +10,7 @@
 - `cli-validate` prints legality problems and exits non-zero on errors.
 - `cli-convert` converts between `.deck` and other formats (`--to mtgo|arena|moxfield|archidekt|dek|mtga`).
 - `cli-info` summarizes zones, format, and stats.
+- `cli-search` searches the card database with the editor's syntax, `otag:` included, and notes when the oracle tags were never synced.
 
 ## How to get to it (user POV)
 
@@ -30,10 +31,11 @@ Preconditions:
 - **CLI validate.** `$V cli validate burn.deck` prints `ok (modern)` with exit `0`. After an edit that makes 5 copies and `:w`, it prints `burn.deck:<line>: error: Lightning Bolt: 5 copies (max 4 copies in modern)` with exit `1`.
 - **CLI convert.** `$V cli convert burn.deck --to arena` prints Arena lines such as `4 Lightning Bolt` and a `Sideboard` block, exit `0`.
 - **CLI info.** `$V cli info burn.deck` prints the zone counts (60 main, 7 side), format `modern`, and a `Stats:` row.
+- **CLI search by oracle tag.** `$V cli search otag:ramp` prints Sol Ring, Arcane Signet, Mind Stone, Fire Diamond, Thought Vessel, Commander's Sphere, Mana Echoes and Skirk Prospector, exit `0`. `$V cli search -- -otag:ramp t:artifact` prints the other artifacts (Skullclamp, Coat of Arms, ...) and no Sol Ring. In a `VV_TAGS=0` sandbox, `$V cli search otag:ramp` prints `No cards found.` on stdout and `note: oracle tags not synced; run \`vimtg sync\` to download them` on stderr, exit `0`; its `00-sync.txt` ends with `Oracle tags skipped:` and the proxy error.
 
 ## Gotchas
 
 - The greeter has no `Esc` action on its menu, and `Ctrl-C` only says to press `q`.
 - Inside the tutor, its own sandbox replaces the run's XDG dirs for that process: a `:w` there writes to a temp dir that is deleted when the tutor exits. Prove tutor edits on screen, not on disk.
-- `vimtg sync` and deck URL import need the network: report them as not verified here. `$V cli sync` would only reload the sandbox cache.
+- `vimtg sync` and deck URL import need the network: report them as not verified here. `$V cli sync` would only reload the sandbox cache (cards and tags).
 - CLI notes and errors go to stderr (`NN-cli.err`), command output to stdout (`NN-cli.out`).

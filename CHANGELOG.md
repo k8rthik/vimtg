@@ -93,6 +93,16 @@ from 1.0.0 onward.
 
 ### Added
 
+- `otag:` (also `oracletag:`, `function:`) searches by Scryfall oracle
+  tag, offline: `otag:ramp`, `otag:removal`, `otag:tutor`,
+  `otag:card-advantage`. `vimtg sync`, `:sync` and the background
+  auto-sync download Scryfall's `oracle_tags` bulk file (about 6 MB)
+  after the cards and store each card's tags with their ancestors, so
+  `otag:removal` finds `removal-burn` cards as on Scryfall; aliases such
+  as `otag:acceleration` resolve to their tag. If the tags download
+  fails the cards still load and the sync says the tags were skipped.
+  On a database synced before this release an `otag:` search says
+  `oracle tags not synced` until the next sync.
 - `vimtg tutor`, a vimtutor-style tutorial: fourteen short lessons in a
   deck you edit as you read, from moving around to sideboard plans and
   version history. It runs in a throwaway sandbox with a bundled card set

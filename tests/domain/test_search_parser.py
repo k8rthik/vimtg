@@ -320,3 +320,14 @@ class TestOracleTags:
         assert node is not None and uses_tags(node)
         plain = parse_search("t:artifact c:r")
         assert plain is not None and not uses_tags(plain)
+
+
+class TestDocsNameEveryKey:
+    def test_search_doc_mentions_each_accepted_key(self) -> None:
+        from pathlib import Path
+
+        from vimtg.domain.search import _KEYS
+
+        doc = (Path(__file__).parent.parent.parent / "docs" / "search.md").read_text()
+        missing = [key for key in _KEYS if f"`{key}`" not in doc and f"`{key}:`" not in doc]
+        assert missing == []

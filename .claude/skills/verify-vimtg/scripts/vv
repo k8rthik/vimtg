@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # vv: drive the real vimtg binary in an isolated, offline sandbox.
 #
-#   vv sandbox [RUN_ID]        create .verify/runs/RUN_ID (default: timestamp), load cards, seed decks
+#   vv sandbox [RUN_ID]        create .verify/runs/RUN_ID (default: timestamp), load cards and oracle tags, seed decks
+#                              VV_TAGS=0 leaves the tags out: the sync then fails to fetch them (dead proxy) and skips them
 #   vv doctor                  read-only health check of the current run
 #   vv tui start [ARGS...]     start `vimtg ARGS` in this run's tmux server (cwd = the run's decks dir)
 #   vv wait TEXT [SECONDS]     wait until TEXT is on screen (default 10s); exit 1 on timeout
@@ -61,7 +62,9 @@ cmd_sandbox() {
   ln -sfn "$dir" "$ROOT/.verify/current"
   # Offline card data: the README demo set (Commander goblins) plus the
   # tutor bundle (modern burn, real legalities). A fresh oracle_cards.jsonl
-  # in the cache is what `vimtg sync` loads instead of downloading.
+  # in the cache is what `vimtg sync` loads instead of downloading, and a
+  # fresh oracle_tags.jsonl.gz (real Scryfall tag records, taggings on the
+  # demo cards) does the same for the otag: tags.
   uv run --project "$ROOT" --frozen python - "$ROOT" "$dir/sandbox/cache/vimtg/oracle_cards.jsonl" <<'PY'
 import gzip, json, sys
 from pathlib import Path
@@ -74,8 +77,17 @@ if bundle.exists():
 out.write_text("".join(json.dumps(c) + "\n" for c in cards.values()))
 print(f"cards: {len(cards)}")
 PY
+  local sync_env=""
+  if [ "${VV_TAGS:-1}" = 0 ]; then
+    # No tags cache: the sync tries to download them. A proxy on a closed
+    # loopback port refuses at once, so the run stays offline and the
+    # sync takes its "tags skipped" path.
+    sync_env="HTTPS_PROXY=http://127.0.0.1:9 ALL_PROXY=http://127.0.0.1:9"
+  else
+    gzip -c "$SKILL/fixtures/oracle_tags.jsonl" > "$dir/sandbox/cache/vimtg/oracle_tags.jsonl.gz"
+  fi
   cp "$ROOT/docs/demo/krenko.deck" "$SKILL/fixtures/burn.deck" "$dir/sandbox/decks/"
-  with_env sh -c "$(vimtg_cmd) sync" > "$dir/evidence/00-sync.txt" 2>&1 \
+  with_env sh -c "$sync_env $(vimtg_cmd) sync" > "$dir/evidence/00-sync.txt" 2>&1 \
     || { cat "$dir/evidence/00-sync.txt"; die "card load failed"; }
   echo "run: $dir"
 }
@@ -85,13 +97,17 @@ cmd_doctor() {
   echo "run:      $dir"
   echo "version:  $(with_env sh -c "$(vimtg_cmd) --version" 2>&1)"
   echo "source:   $(git -C "$ROOT" log -1 --format='%h %s')"
-  local cards
-  cards="$(with_env sh -c "uv run --project '$ROOT' --frozen python -c '
+  local counts cards tags
+  counts="$(with_env sh -c "uv run --project '$ROOT' --frozen python -c '
 from vimtg.config.paths import db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.database import Database
-db = Database(db_path()); db.initialize(); print(CardRepository(db).count()); db.close()'" 2>/dev/null || echo 0)"
+from vimtg.data.tag_repository import TagRepository
+db = Database(db_path()); db.initialize()
+print(CardRepository(db).count(), TagRepository(db).count()); db.close()'" 2>/dev/null || echo "0 0")"
+  cards="${counts% *}" tags="${counts#* }"
   echo "cards:    $cards"
+  echo "tags:     $tags (card, tag) rows"
   [ "$cards" -gt 0 ] || { echo "FAIL: sandbox card database is empty"; ok=0; }
   case "$(with_env sh -c 'echo $XDG_DATA_HOME')" in
     "$dir"/*) echo "isolated: yes (XDG dirs inside the run)";;

@@ -100,6 +100,7 @@ from vimtg.services.recovery import (
     pending_recovery,
     write_recovery,
 )
+from vimtg.services.search_service import TAGS_NOT_SYNCED
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.screens.new_deck import NewDeckInfo, NewDeckScreen
@@ -128,6 +129,7 @@ _GENERIC_HINT = GENERIC_HINT
 _CARD_HINT = "+/- quantity  |  dd delete  |  yy yank  |  p paste  |  : command"
 _PLAN_HINT = "+/- copies  |  dd delete  |  o add card  |  zi/zo on a deck card boards it"
 OFFLINE_SEARCH_NOTICE = "Card database not downloaded (offline?), :sync to retry"
+TAGS_SEARCH_NOTICE = f"{TAGS_NOT_SYNCED.capitalize()}, :sync to download them"
 NO_MATCHES = "No matches"
 # Ctrl-C with nothing to cancel, as vim says it
 EXIT_HINT = "Type :q and press Enter to exit vimtg"
@@ -1722,7 +1724,9 @@ class MainScreen(Screen[None]):
                 )
                 return
             notice = NO_MATCHES
-            if elsewhere and rules is not None:
+            if not results and self.search_service.tags_unsynced(query):
+                notice = TAGS_SEARCH_NOTICE
+            elif elsewhere and rules is not None:
                 more = f"{len(elsewhere)}{'+' if len(elsewhere) >= limit else ''}"
                 notice = f"No matches legal in {rules.name} ({more} more in other formats)"
             self.app.call_from_thread(

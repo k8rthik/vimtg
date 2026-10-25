@@ -2,30 +2,16 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import pytest
 
+from tests.tag_support import load_fixture_tags
 from vimtg.data.card_repository import CardRepository
-from vimtg.data.tag_repository import TagRepository
-from vimtg.domain.oracle_tags import OracleTag
 from vimtg.services.search_service import SearchService
-
-FIXTURE = Path(__file__).parent.parent / "fixtures" / "scryfall_oracle_tags.jsonl"
-
-
-def _load_tags(repo: CardRepository) -> None:
-    lines = FIXTURE.read_text(encoding="utf-8").splitlines()
-    TagRepository(repo.database).replace_all(
-        [OracleTag.from_scryfall(json.loads(line)) for line in lines if line.strip()],
-        synced_at="2026-10-25T00:00:00+00:00",
-    )
 
 
 @pytest.fixture
 def tagged(real_shape_repo: CardRepository) -> SearchService:
-    _load_tags(real_shape_repo)
+    load_fixture_tags(real_shape_repo)
     return SearchService(card_repo=real_shape_repo)
 
 

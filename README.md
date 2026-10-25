@@ -48,7 +48,7 @@ A 60-second tour, from an empty directory to a saved deck:
 
 ```bash
 vimtg tutor                     # optional: a 15-minute hands-on lesson deck, works offline
-vimtg sync                      # one-time: download Scryfall card data (~25 MB)
+vimtg sync                      # one-time: download Scryfall card data (~25 MB) and oracle tags (~6 MB)
 vimtg new "Burn" -f modern      # scaffold Burn.deck in the current directory
 vimtg Burn.deck                 # open it in the editor
 ```
@@ -74,7 +74,7 @@ vimtg works offline once card data is downloaded. It makes **no telemetry, analy
 
 | When | Where | What |
 |---|---|---|
-| `vimtg sync`, the greeter's `[s]`, or the TUI's background auto-sync (on launch and hourly, only when card data is missing or more than seven days old) | `api.scryfall.com`, `data.scryfall.io` | The public `oracle_cards` bulk file (card text, legalities, prices). Turn auto-sync off with `:set noautosync` or `VIMTG_NO_AUTOSYNC=1`. |
+| `vimtg sync`, the greeter's `[s]`, or the TUI's background auto-sync (on launch and hourly, only when card data is missing or more than seven days old) | `api.scryfall.com`, `data.scryfall.io` | The public `oracle_cards` bulk file (card text, legalities, prices; ~25 MB) and the `oracle_tags` bulk file (Scryfall's `otag:` tags; ~6 MB). Turn auto-sync off with `:set noautosync` or `VIMTG_NO_AUTOSYNC=1`. |
 | You open the EDHREC pane (`Space r` / `:edhrec`) on a Commander deck | `json.edhrec.com` | Recommendations for your commander's name. Cached for seven days (offline, an older cached page is shown and says how old it is); disable with `VIMTG_NO_EDHREC=1`. |
 | You import a deck URL (`:import <url>` or the greeter's `[i]`) | The site in the URL: Moxfield, Archidekt, ManaBox, Deckstats, TappedOut, or MTGGoldfish | That one public deck. |
 
@@ -199,11 +199,12 @@ The editor engine has no dependency on Textual. Keys flow through a translator, 
 ### Card database and search
 
 - **Offline Scryfall data**: `vimtg sync` downloads the `oracle_cards` bulk file, streams it into SQLite, and builds an FTS5 index over name, type line, and oracle text. Tokens, emblems, and art-series cards are skipped. Downloads are content-length checked and written atomically; a corrupt cache is deleted and reported. Each sync replaces the card table in one transaction, so a card Scryfall re-keys or drops never lingers as a stale duplicate; deck history is never touched.
+- **Oracle tags**: after the cards, the same sync downloads Scryfall's `oracle_tags` file (about 4,600 tags such as `ramp`, `removal`, `tutor`, `card-advantage`, with their hierarchy and aliases) and stores every card's tags with their ancestors, so `otag:removal` finds `removal-burn` cards as it does on Scryfall. If the tags download fails the cards still load and the sync says the tags were skipped; an `otag:` search on a database without tags says `oracle tags not synced`.
 - **Card names**: cards resolve by full name or any face, so `Fable of the Mirror-Breaker`, `Stomp`, `Fire/Ice`, `lightning bolt`, and `Lim-Dul's Vault` all find their card in lint, validation, stats, export, and the inline card details.
 - **Auto-sync**: the TUI checks on launch and hourly, and syncs on a worker thread when the database is missing or older than seven days. A toast reports success or failure, and search and lint light up retroactively once data arrives. Disable with `:set noautosync` or the `VIMTG_NO_AUTOSYNC` environment variable.
 - **`:sync`** (`:sync!` to re-download) runs the same background sync on demand; editing continues and the status line shows its progress. The status line always says what card data you have: `card data as of <date>` (highlighted once older than seven days), or `no card data - :sync to download` while there is none. Offline, card search says so instead of showing an empty list, and `vimtg validate` adds an informational note when the data is more than a week old. Sync errors explain themselves: offline, a proxy refusing or wanting credentials, TLS interception.
 - **Damaged database**: on launch (and on `vimtg sync`) the database gets an integrity check. A damaged file never blocks the editor: it is copied byte for byte to `cards.db.corrupt-<timestamp>`, a fresh database is built with every deck snapshot that can still be read, and a warning says how much history came back and where the backup is. Card data is then re-downloaded with `:sync`.
-- **Query syntax**: Scryfall-style, shared by the overlay and `vimtg search`. Bare words prefix-match card names (any face); `!"Exact Name"`; `t:`, `o:` (with `/regex/`), `kw:`, `m:`; `c:`/`id:` with colour letters or names (`c:boros`, `id<=esper`) and `= != < <= > >=`; `mv`, `pow`, `tou`, `usd`/`eur`/`tix` comparisons; `r:`, `set:`, `f:`/`banned:`/`restricted:`; `is:commander`, `is:dfc`/`mdfc`/`split`/`adventure`; `-` negation, `or`, and parentheses. Unknown keys and bad values are reported by name. Full reference: [docs/search.md](https://github.com/k8rthik/vimtg/blob/main/docs/search.md).
+- **Query syntax**: Scryfall-style, shared by the overlay and `vimtg search`. Bare words prefix-match card names (any face); `!"Exact Name"`; `t:`, `o:` (with `/regex/`), `kw:`, `m:`; `c:`/`id:` with colour letters or names (`c:boros`, `id<=esper`) and `= != < <= > >=`; `mv`, `pow`, `tou`, `usd`/`eur`/`tix` comparisons; `r:`, `set:`, `f:`/`banned:`/`restricted:`; `is:commander`, `is:dfc`/`mdfc`/`split`/`adventure`; `otag:` (Scryfall oracle tags: `otag:ramp`, `otag:removal`, `otag:tutor`); `-` negation, `or`, and parentheses. Unknown keys and bad values are reported by name. Full reference: [docs/search.md](https://github.com/k8rthik/vimtg/blob/main/docs/search.md).
 - **Format filtering**: in the editor, search results are filtered to cards legal or restricted in the deck's declared format when that format is known, before `search_limit` is applied. When the filter leaves nothing, the overlay says so: `No matches legal in modern (3 more in other formats)`, and `Enter` there closes the search with that message.
 - **Card model**: name, mana cost, CMC, type line, oracle text, colours, colour identity, P/T, set, rarity, five price sources (USD, USD foil, EUR, EUR foil, tix), legalities, layout, keywords. Transform and modal DFCs use the front face (search also reads the back face's rules text); split and adventure cards join both faces.
 
@@ -447,6 +448,7 @@ vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shel
 vimtg sync [--force]                   # download or refresh the card database
 vimtg tutor                            # the lesson deck, in an offline sandbox
 vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices follow price_source/show_prices
+vimtg search otag:ramp c:g             # Scryfall oracle tags work offline too
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
 vimtg info deck.deck                   # zones, format, and a stats line
 vimtg guide deck.deck [--markdown]     # sideboard plans

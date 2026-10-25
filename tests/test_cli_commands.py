@@ -204,6 +204,31 @@ def test_search_without_card_data_says_to_sync(
     assert "no card database (run 'vimtg sync' first)" in result.output
 
 
+def test_search_otag_without_synced_tags_notes_it(
+    runner: CliRunner, real_shape_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: real_shape_repo)
+    result = runner.invoke(main, ["search", "otag:ramp"])
+    assert result.exit_code == 0, result.output
+    assert "No cards found." in result.output
+    assert "note: oracle tags not synced; run `vimtg sync`" in result.output
+
+
+def test_search_otag_finds_cards_by_tag(
+    runner: CliRunner, real_shape_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.tag_support import load_fixture_tags
+
+    load_fixture_tags(real_shape_repo)
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: real_shape_repo)
+    result = runner.invoke(main, ["search", "otag:ramp"])
+    assert result.exit_code == 0, result.output
+    assert "Sol Ring" in result.output
+    assert "note:" not in result.output
+    result = runner.invoke(main, ["search", "--", "-otag:ramp", "t:artifact"])
+    assert "Aether Vial" in result.output and "Sol Ring" not in result.output
+
+
 def _write_config(text: str) -> None:
     from vimtg.config.paths import config_dir
 

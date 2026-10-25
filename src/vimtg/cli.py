@@ -22,7 +22,7 @@ from vimtg.data.file_io import atomic_write_text
 from vimtg.data.scryfall_sync import ScryfallSync, card_data_note, describe_sync_error
 from vimtg.services.deck_service import DeckService, editor_line_numbers
 from vimtg.services.import_export_service import FORMAT_NAMES, IMPORT_FORMAT_NAMES
-from vimtg.services.search_service import SearchService, SearchSyntaxError
+from vimtg.services.search_service import TAGS_NOT_SYNCED, SearchService, SearchSyntaxError
 
 if TYPE_CHECKING:
     from vimtg.domain.card import Card
@@ -518,6 +518,10 @@ def search(query: tuple[str, ...], limit: int) -> None:
     except SearchSyntaxError as exc:
         raise click.ClickException(str(exc)) from exc
 
+    if service.tags_unsynced(text):
+        click.echo(
+            f"note: {TAGS_NOT_SYNCED}; run `vimtg sync` to download them", err=True
+        )
     if not results:
         click.echo("No cards found.")
         return
