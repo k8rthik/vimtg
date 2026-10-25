@@ -443,7 +443,6 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 ```bash
 vimtg                                  # greeter
 vimtg burn.deck                        # open a deck (vim-style); a new path is created on :w
-vimtg edit [file]                      # same, explicit
 vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shell-completes formats; --force overwrites)
 vimtg sync [--force]                   # download or refresh the card database
 vimtg tutor                            # the lesson deck, in an offline sandbox

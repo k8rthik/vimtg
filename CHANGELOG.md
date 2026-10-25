@@ -55,6 +55,8 @@ from 1.0.0 onward.
 
 ### Removed
 
+- The `vimtg edit` subcommand, identical to `vimtg <file>`; `vimtg`
+  alone opens the greeter and `vimtg deck.deck` the deck, as before.
 - The `theme` setting (one value, cycling it did nothing). A
   `config.toml` that still says `theme = "dark"` loads as before; the
   key is ignored like any other unknown key.

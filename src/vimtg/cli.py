@@ -76,7 +76,7 @@ class _DeckFileGroup(click.Group):
     """Vim-style invocation: `vimtg burn.deck` opens the editor.
 
     A first token that is not a subcommand but is an existing file (or
-    ends in .deck — a new deck to be created on :w) routes to `edit`.
+    ends in .deck — a new deck to be created on :w) opens that deck.
     Anything else still errors as an unknown command.
     """
 
@@ -88,9 +88,7 @@ class _DeckFileGroup(click.Group):
         except click.UsageError:
             token = args[0]
             if Path(token).is_file() or token.endswith(".deck"):
-                cmd = self.get_command(ctx, "edit")
-                assert cmd is not None
-                return "edit", cmd, args
+                return _open_deck.name, _open_deck, args
             raise
 
     def invoke(self, ctx: click.Context) -> Any:
@@ -645,10 +643,10 @@ def tutor() -> None:
     _follow_into_tutor(LAUNCH_TUTOR)
 
 
-@main.command()
-@click.argument("path", type=click.Path(), required=False)
-def edit(path: str | None = None) -> None:
-    """Open deck in TUI editor."""
+@click.command(hidden=True)
+@click.argument("path", type=click.Path())
+def _open_deck(path: str) -> None:
+    """`vimtg deck.deck`: open the deck in the editor (not a subcommand)."""
     _launch_editor(path)
 
 
