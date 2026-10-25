@@ -24,7 +24,7 @@ from vimtg.editor.commands import CommandRegistry
 
 _RANGE_PATTERN = re.compile(r"^([^a-zA-Z_]*)(.*)$")
 # The argument term being completed: after the last space, '+' or '|'
-# (tag-filter operators), past any leading '-' / '#' / '@' sigils.
+# (:filter operators), past any leading '-' / '#' / '@' sigils.
 _ARG_TERM = re.compile(r"^(.*[\s+|])?([-#@]*)([^\s+|]*)$", re.DOTALL)
 
 # Canonical command name -> argument candidates, in preference order

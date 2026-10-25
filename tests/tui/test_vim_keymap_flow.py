@@ -246,7 +246,7 @@ class TestFocusedPaneKeys:
             _feed(scr, f":vsplit<Space>{_other(tmp_path)}<CR><C-w>w g?")
             assert scr.query_one("#help-panel", HelpPanel).display
             _feed(scr, "<Esc><C-w>w 6G gc")
-            assert scr._state.tag_input_action == "category"
+            assert scr._state.prompt_action == "category"
 
     @pytest.mark.asyncio
     async def test_gh_in_the_edhrec_pane_is_history_not_a_tab(

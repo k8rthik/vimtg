@@ -1,10 +1,9 @@
-"""Tests for the deck tag commands :dtag and :duntag, and :filter."""
+"""Tests for the deck tag commands :dtag and :duntag."""
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.tag_cmds import (
     cmd_dtag,
     cmd_duntag,
-    cmd_filter,
 )
 from vimtg.editor.commands import CommandRange, EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
@@ -78,26 +77,3 @@ class TestCmdDuntag:
             assert after is before
             assert ctx.modified is False
             assert "No such deck tag: #aggro" in ctx.message
-
-
-class TestCmdFilter:
-    def test_filter_counts(self):
-        buf = _buf("4 Goblin Guide  #core\n4 Lightning Bolt  #flex\n4 Lava Spike\n")
-        ctx = _ctx()
-        buf, _ = cmd_filter(buf, Cursor(0, 0), _cmd("filter", "core"), ctx)
-        assert "1/3" in ctx.message
-
-    def test_filter_bang_clears(self):
-        ctx = _ctx()
-        buf = _buf("4 Goblin Guide\n")
-        buf, _ = cmd_filter(buf, Cursor(0, 0), _cmd("filter", bang=True), ctx)
-        assert "cleared" in ctx.message.lower()
-
-    def test_filter_no_args_clears(self):
-        """Bare :filter clears the filter — as documented in :help filter."""
-        ctx = _ctx()
-        buf = _buf("4 Goblin Guide\n")
-        buf, _ = cmd_filter(buf, Cursor(0, 0), _cmd("filter"), ctx)
-        assert ctx.tag_filter_set
-        assert ctx.tag_filter is None
-        assert "cleared" in ctx.message.lower()

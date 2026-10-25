@@ -5,11 +5,14 @@ from __future__ import annotations
 from vimtg.domain.categories import (
     PRESET_CATEGORIES,
     UNCATEGORIZED_LABEL,
+    CategoryFilter,
     complete_category,
     completion_candidates,
     format_category_header,
     format_category_summary,
     format_inline_category,
+    matches_category,
+    parse_category_filter,
     parse_category_header,
     parse_inline_category,
     strip_inline_category,
@@ -161,3 +164,46 @@ class TestCompletion:
 
 def test_uncategorized_label_is_stable() -> None:
     assert UNCATEGORIZED_LABEL == "Uncategorized"
+
+
+class TestParseCategoryFilter:
+    def test_single_name(self) -> None:
+        assert parse_category_filter("ramp") == CategoryFilter(include=frozenset({"ramp"}))
+
+    def test_or_and_not(self) -> None:
+        filt = parse_category_filter("ramp|draw -removal")
+        assert filt.any_of == frozenset({"ramp", "draw"})
+        assert filt.exclude == frozenset({"removal"})
+        assert filt.include == frozenset()
+
+    def test_and_joins_names(self) -> None:
+        assert parse_category_filter("ramp+core").include == frozenset({"ramp", "core"})
+
+    def test_at_sigil_and_case_are_ignored(self) -> None:
+        assert parse_category_filter("@RAMP -@Draw") == parse_category_filter("ramp -draw")
+
+
+class TestMatchesCategory:
+    def test_include_wants_that_category(self) -> None:
+        filt = parse_category_filter("ramp")
+        assert matches_category("ramp", filt) is True
+        assert matches_category("draw", filt) is False
+        assert matches_category("", filt) is False
+
+    def test_exclude_passes_everything_else(self) -> None:
+        filt = parse_category_filter("-removal")
+        assert matches_category("removal", filt) is False
+        assert matches_category("ramp", filt) is True
+        assert matches_category("", filt) is True
+
+    def test_or_takes_either(self) -> None:
+        filt = parse_category_filter("ramp|draw")
+        assert matches_category("draw", filt) is True
+        assert matches_category("wincon", filt) is False
+
+    def test_and_of_two_names_matches_no_single_category(self) -> None:
+        assert matches_category("ramp", parse_category_filter("ramp+draw")) is False
+
+    def test_empty_filter_matches_all(self) -> None:
+        assert matches_category("", CategoryFilter()) is True
+        assert matches_category("ramp", CategoryFilter()) is True

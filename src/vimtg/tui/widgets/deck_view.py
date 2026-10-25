@@ -12,9 +12,10 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from vimtg.domain.card import Card
-from vimtg.domain.tags import TagFilter, matches_filter
+from vimtg.domain.categories import CategoryFilter
 from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer
+from vimtg.editor.category_ops import filter_hides
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.header_counts import HeaderCount, header_counts
 from vimtg.tui.deck_renderer import render_line
@@ -56,7 +57,7 @@ class DeckView(Static):
     show_prices: reactive[bool] = reactive(True)
     show_line_numbers: reactive[bool] = reactive(True)
     auto_expand: reactive[bool] = reactive(True)
-    tag_filter: reactive[TagFilter | None] = reactive(None)
+    category_filter: reactive[CategoryFilter | None] = reactive(None)
     line_errors: reactive[dict[int, ValidationError]] = reactive(dict)
     # Row -> -N/+N of the active sideboard plan (editor.plan_ops.row_deltas)
     plan_deltas: reactive[dict[int, int]] = reactive(dict)
@@ -112,11 +113,7 @@ class DeckView(Static):
 
     def _render_buffer_line(self, i: int, counts: dict[int, HeaderCount]) -> list[Text]:
         assert self.buffer is not None
-        dimmed = (
-            self.tag_filter is not None
-            and self.buffer.is_card_line(i)
-            and not matches_filter(self.buffer.tags_at(i), self.tag_filter)
-        )
+        dimmed = filter_hides(self.buffer, i, self.category_filter)
         return render_line(
             i, self.buffer, self.cursor.row, self.resolved_cards,
             show_line_numbers=self.show_line_numbers,
@@ -237,8 +234,8 @@ class DeckView(Static):
     ) -> None:
         self.refresh()
 
-    def watch_tag_filter(
-        self, _old: TagFilter | None, _new: TagFilter | None
+    def watch_category_filter(
+        self, _old: CategoryFilter | None, _new: CategoryFilter | None
     ) -> None:
         self.refresh()
 

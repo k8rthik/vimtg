@@ -126,7 +126,7 @@ Responses are cached for 7 days under the XDG cache directory.
 
 | Command | Description |
 |---------|-------------|
-| `:filter expr` | Filter the view to cards matching the tag expression |
+| `:filter expr` | Dim every card whose `@category` fails the expression; `:filter!` or a bare `:filter` clears (also `Space f`) |
 | `:dtag name...` | Add deck-level tags to the `// Tags:` metadata line, creating the line when the deck has none |
 | `:duntag name...` | Remove deck-level tags from the `// Tags:` line. The emptied line stays, so `i` can refill it |
 
@@ -138,8 +138,9 @@ term  := factor ('+' factor)*
 factor := '-'? IDENT
 ```
 
-So `core+staple-removal` means `(core AND staple) AND NOT removal`, while
-`core|staple` is `core OR staple`. An empty expression clears the filter.
+So `ramp|draw` is `ramp OR draw` and `ramp -removal` is `ramp AND NOT
+removal`. A card has one category, so `ramp+draw` (AND) matches nothing.
+An empty expression clears the filter.
 
 ## Import / export
 

@@ -295,10 +295,10 @@ class EditorContext:
     resolved_cards: dict[str, Card] | None = None
     card_repo: CardRepository | None = None
     history: HistoryService | None = None
-    # Tag-filter request: tag_filter_set marks that the handler changed
-    # the filter (to a TagFilter, or to None to clear it)
-    tag_filter: Any = None
-    tag_filter_set: bool = False
+    # View-filter request: category_filter_set marks that the handler
+    # changed the filter (to a CategoryFilter, or to None to clear it)
+    category_filter: Any = None
+    category_filter_set: bool = False
     remapper: Any = None  # KeyRemapper — :map/:unmap mutate it
     # A split pane is open beside the editor: :q / :wq / :x close it
     # (the window) instead of quitting

@@ -1,4 +1,4 @@
-"""Category commands: :category (:cat), :categories, :layout.
+"""Category commands: :category (:cat), :categories, :layout, :filter.
 
 TUI-agnostic: zero Textual imports.
 """
@@ -9,10 +9,13 @@ from vimtg.config.category_history import record_category
 from vimtg.domain.categories import (
     CATEGORY_NAME_RE,
     format_category_summary,
+    parse_category_filter,
 )
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.category_ops import (
     clear_category_in_range,
+    count_filter_matches,
+    filter_status_message,
     set_category_in_range,
 )
 from vimtg.editor.commands import (
@@ -117,6 +120,22 @@ def cmd_categories(
     return buf, cursor
 
 
+def cmd_filter(
+    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
+) -> tuple[Buffer, Cursor]:
+    """:filter expr — dim cards whose category fails expr. :filter! or a
+    bare :filter clears."""
+    expr = cmd.args.strip()
+    ctx.category_filter_set = True
+    if cmd.bang or not expr:
+        ctx.category_filter = None
+        ctx.message = "Filter cleared"
+        return buf, cursor
+    ctx.category_filter = parse_category_filter(expr)
+    ctx.message = filter_status_message(*count_filter_matches(buf, ctx.category_filter))
+    return buf, cursor
+
+
 def apply_layout(
     buf: Buffer, cursor: Cursor, mode: str, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
@@ -161,3 +180,4 @@ def register_category_commands(registry: CommandRegistry) -> None:
     registry.register("category", cmd_category, aliases=["cat"])
     registry.register("categories", cmd_categories, aliases=["cats"])
     registry.register("layout", cmd_layout)
+    registry.register("filter", cmd_filter)

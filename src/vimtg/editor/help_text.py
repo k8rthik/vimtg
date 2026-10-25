@@ -58,7 +58,7 @@ COMMANDS
   :categories   List categories with counts
   :layout       Toggle type/category layout
   :dtag/:duntag Add/remove deck-level tags
-  :filter expr  Filter view by tag (+ AND, | OR, - NOT)
+  :filter expr  Filter view by category (| OR, - NOT; Space f)
   :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/vimtg/guide)
   :plan name    Activate a sideboard plan (creates its VS: block)
   :plans        List the plans with their -out +in totals
@@ -300,14 +300,16 @@ COMMAND_HELP: dict[str, str] = {
         "The status line shows how old the card data is."
     ),
     "filter": (
-        ":filter expr  Highlight cards matching a tag expression\n"
-        "(non-matching cards are dimmed)\n"
+        ":filter expr  Show the cards whose @category matches expr\n"
+        "(the others are dimmed). Space f opens the same prompt.\n"
         "\n"
-        ":filter core              cards tagged #core\n"
-        ":filter core+staple       AND (both tags)\n"
-        ":filter flex|budget       OR (either tag)\n"
-        ":filter core-removal      AND NOT\n"
-        ":filter / :filter!        clear filter"
+        ":filter ramp              cards in @ramp\n"
+        ":filter ramp|draw         OR (either category)\n"
+        ":filter -removal          NOT (every card but @removal)\n"
+        ":filter ramp -removal     AND NOT\n"
+        ":filter / :filter!        clear filter\n"
+        "\n"
+        "Tab completes a category from the deck, most used first."
     ),
     "dtag": (
         ":dtag name...  Add deck-level tags to the // Tags: metadata line\n"

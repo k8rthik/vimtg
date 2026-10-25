@@ -6,11 +6,14 @@ import pytest
 
 from vimtg.config.settings import Settings
 from vimtg.domain.card import Card
+from vimtg.domain.categories import parse_category_filter
 from vimtg.editor.buffer import Buffer
+from vimtg.editor.category_ops import filter_hides
 from vimtg.editor.command_handlers import register_all_commands
 from vimtg.editor.command_handlers.category_cmds import (
     cmd_categories,
     cmd_category,
+    cmd_filter,
     cmd_layout,
 )
 from vimtg.editor.commands import (
@@ -26,7 +29,7 @@ from vimtg.editor.registers import RegisterStore
 from vimtg.editor.session import (
     EditorState,
     handle_normal_special,
-    handle_tag_input_special,
+    handle_prompt_special,
 )
 from vimtg.services.history_service import HistoryService
 
@@ -225,15 +228,15 @@ class TestGKeyFlow:
     def test_gc_enters_category_input(self) -> None:
         state = _state("4 Cultivate  @ramp\n4 Opt\n")
         hr = handle_normal_special(state, ParsedAction("special", "gc"))
-        assert hr.enter_tag_input
-        assert hr.tag_prompt == "category: "
-        assert state.tag_input_action == "category"
+        assert hr.enter_prompt
+        assert hr.prompt_label == "category: "
+        assert state.prompt_action == "category"
         assert "ramp" in state.category_candidates
 
     def test_category_input_ghost_completion(self) -> None:
         state = _state("4 Cultivate\n")
         handle_normal_special(state, ParsedAction("special", "gc"))
-        hr = handle_tag_input_special(
+        hr = handle_prompt_special(
             state, ParsedAction("special", "char", text="ra")
         )
         assert hr.command_ghost == "ramp"
@@ -241,7 +244,7 @@ class TestGKeyFlow:
     def test_category_input_tab_accepts_ghost(self) -> None:
         state = _state("4 Cultivate\n")
         handle_normal_special(state, ParsedAction("special", "gc"))
-        hr = handle_tag_input_special(
+        hr = handle_prompt_special(
             state, ParsedAction("special", "tab", text="ra")
         )
         assert hr.command_accept == "ramp"
@@ -249,7 +252,7 @@ class TestGKeyFlow:
     def test_category_input_enter_applies(self) -> None:
         state = _state("4 Cultivate\n")
         handle_normal_special(state, ParsedAction("special", "gc"))
-        hr = handle_tag_input_special(
+        hr = handle_prompt_special(
             state, ParsedAction("special", "enter", text="ramp")
         )
         assert state.buffer.category_at(0) == "ramp"
@@ -261,7 +264,7 @@ class TestGKeyFlow:
         state.visual_anchor = 0
         state.cursor = state.cursor.move_to(1, 0)
         handle_normal_special(state, ParsedAction("special", "gc"))
-        handle_tag_input_special(
+        handle_prompt_special(
             state, ParsedAction("special", "enter", text="ramp")
         )
         assert state.buffer.category_at(0) == "ramp"
@@ -270,7 +273,7 @@ class TestGKeyFlow:
     def test_category_input_invalid_name_errors(self) -> None:
         state = _state("4 Cultivate\n")
         handle_normal_special(state, ParsedAction("special", "gc"))
-        hr = handle_tag_input_special(
+        hr = handle_prompt_special(
             state, ParsedAction("special", "enter", text="!!bad!!")
         )
         assert hr.command_message.startswith("E:")
@@ -375,7 +378,7 @@ class TestCategoryEditsRefile:
         state = _state(self.DECK)
         state.cursor = state.cursor.move_to(2, 0)
         handle_normal_special(state, ParsedAction("special", "gc"))
-        handle_tag_input_special(
+        handle_prompt_special(
             state, ParsedAction("special", "enter", text="draw")
         )
         lines = state.buffer.to_text().splitlines()
@@ -386,7 +389,7 @@ class TestCategoryEditsRefile:
         state = _state(self.DECK)
         state.cursor = state.cursor.move_to(2, 0)
         handle_normal_special(state, ParsedAction("special", "gc"))
-        handle_tag_input_special(
+        handle_prompt_special(
             state, ParsedAction("special", "enter", text="cantrip")
         )
         lines = state.buffer.to_text().splitlines()
@@ -403,7 +406,7 @@ class TestCategoryEditsRefile:
         state = _state(self.DECK)
         state.cursor = state.cursor.move_to(2, 0)
         handle_normal_special(state, ParsedAction("special", "gc"))
-        handle_tag_input_special(
+        handle_prompt_special(
             state, ParsedAction("special", "enter", text="draw")
         )
         handle_normal_special(state, ParsedAction("special", "u"))
@@ -413,7 +416,75 @@ class TestCategoryEditsRefile:
         state = _state("// Sorceries\n1 Ponder\n1 Opt\n")
         state.cursor = state.cursor.move_to(2, 0)
         handle_normal_special(state, ParsedAction("special", "gc"))
-        handle_tag_input_special(
+        handle_prompt_special(
             state, ParsedAction("special", "enter", text="draw")
         )
         assert state.buffer.to_text() == "// Sorceries\n1 Ponder\n1 Opt  @draw\n"
+
+
+FILTER_DECK = (
+    "// Creatures\n"
+    "4 Cultivate  @ramp\n"
+    "4 Llanowar Elves  @ramp  #core\n"
+    "2 Swords to Plowshares  @removal\n"
+    "1 Craterhoof Behemoth  @wincon\n"
+    "4 Forest\n"
+)
+
+
+def _hidden_rows(buf: Buffer, ctx: EditorContext) -> list[int]:
+    return [i for i in range(buf.line_count()) if filter_hides(buf, i, ctx.category_filter)]
+
+
+class TestCmdFilter:
+    def test_expression_hides_the_other_categories(self) -> None:
+        buf = Buffer.from_text(FILTER_DECK)
+        ctx = _ctx()
+        cmd_filter(buf, Cursor(0), ParsedCommand(name="filter", args="ramp -removal"), ctx)
+        assert ctx.category_filter_set
+        assert _hidden_rows(buf, ctx) == [3, 4, 5]
+        assert ctx.message == "Filter: 2/5 cards match (:filter! clears)"
+
+    def test_or_and_not(self) -> None:
+        buf = Buffer.from_text(FILTER_DECK)
+        ctx = _ctx()
+        cmd_filter(buf, Cursor(0), ParsedCommand(name="filter", args="ramp|wincon"), ctx)
+        assert _hidden_rows(buf, ctx) == [3, 5]
+        ctx = _ctx()
+        cmd_filter(buf, Cursor(0), ParsedCommand(name="filter", args="-ramp"), ctx)
+        assert _hidden_rows(buf, ctx) == [1, 2]
+
+    def test_headers_are_never_hidden(self) -> None:
+        buf = Buffer.from_text(FILTER_DECK)
+        ctx = _ctx()
+        cmd_filter(buf, Cursor(0), ParsedCommand(name="filter", args="nothing-here"), ctx)
+        assert 0 not in _hidden_rows(buf, ctx)
+        assert ctx.message == "Filter: 0/5 cards match (:filter! clears)"
+
+    @pytest.mark.parametrize("cmd", [
+        ParsedCommand(name="filter", args=""), ParsedCommand(name="filter", bang=True),
+    ])
+    def test_bare_and_bang_clear(self, cmd: ParsedCommand) -> None:
+        buf = Buffer.from_text(FILTER_DECK)
+        ctx = _ctx()
+        cmd_filter(buf, Cursor(0), cmd, ctx)
+        assert ctx.category_filter_set
+        assert ctx.category_filter is None
+        assert ctx.message == "Filter cleared"
+        assert _hidden_rows(buf, ctx) == []
+
+    def test_filter_is_registered_and_reaches_the_state(self) -> None:
+        state = _state(FILTER_DECK)
+        registry = CommandRegistry()
+        register_all_commands(registry)
+        from vimtg.editor.session import handle_command
+        hr = handle_command(
+            state, ParsedAction("command_submit", "enter", text="filter ramp"), registry, None,
+        )
+        assert hr.command_message == "Filter: 2/5 cards match (:filter! clears)"
+        assert state.category_filter == parse_category_filter("ramp")
+        hr = handle_command(
+            state, ParsedAction("command_submit", "enter", text="filter"), registry, None,
+        )
+        assert hr.command_message == "Filter cleared"
+        assert state.category_filter is None
