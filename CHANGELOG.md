@@ -145,6 +145,11 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- The card search overlay's one-line messages (`No matches`, an unknown
+  search key, the offline and oracle-tags notices) were drawn under the
+  command line and never reached the screen. The overlay now sits above
+  it.
+
 - `gv` brings back a selection however visual mode ended: `i`, `/`, a
   tag or category prompt, and `:` as well as `Esc` and an operator.
 - `:q` and `:home` refuse unsaved changes with vim's `E37: No write since

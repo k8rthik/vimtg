@@ -112,6 +112,7 @@ class SearchResults(Static):
         if end < count:
             t.append(marker_below(count - end) + "\n", style=_DIM)
 
+        t.rstrip()  # no trailing blank line: the overlay is exactly its rows
         return t
 
     def select_next(self) -> None:

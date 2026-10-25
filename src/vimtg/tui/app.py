@@ -84,7 +84,9 @@ class VimTGApp(App[None]):
     #deck-view {{ width: 1fr; height: 1fr; }}
     #edhrec-panel {{ width: 1fr; height: 1fr; }}
     #analytics-panel {{ width: 1fr; height: 1fr; }}
-    #search-results {{ height: auto; max-height: 50%; dock: bottom; }}
+    /* Every bottom dock shares the same edge; the margin keeps the
+       overlay above the command line instead of under it. */
+    #search-results {{ height: auto; max-height: 50%; dock: bottom; margin-bottom: 1; }}
     #help-panel {{ height: auto; max-height: 60%; dock: bottom; }}
     #tips-panel {{ height: auto; dock: bottom; background: {COLORS['cursor_bg']}; }}
     #which-key {{ height: auto; max-height: 6; dock: bottom; }}
