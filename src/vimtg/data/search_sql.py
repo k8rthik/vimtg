@@ -29,6 +29,7 @@ from vimtg.domain.search import (
     RarityMatch,
     SearchOrder,
     SetMatch,
+    TagMatch,
     TextMatch,
 )
 
@@ -220,6 +221,14 @@ class _Compiler:
             return f"(COALESCE(json_extract(c.legalities, {path}), '') {status})"
         if isinstance(node, IsMatch):
             return f"({_IS_SQL[node.flag]})"
+        if isinstance(node, TagMatch):
+            # card_tags already holds every ancestor of a card's tags;
+            # an alias is looked up in the same subquery
+            return (
+                "EXISTS (SELECT 1 FROM card_tags ct WHERE ct.oracle_id = c.oracle_id "
+                f"AND ct.slug IN ({self.bind(node.slug)}, "
+                f"(SELECT a.slug FROM tag_aliases a WHERE a.alias = {self.bind(node.slug)})))"
+            )
         raise TypeError(f"unknown search node {node!r}")  # pragma: no cover
 
     def _text(self, node: TextMatch) -> str:

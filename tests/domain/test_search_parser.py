@@ -18,9 +18,11 @@ from vimtg.domain.search import (
     RarityMatch,
     SearchSyntaxError,
     SetMatch,
+    TagMatch,
     TextMatch,
     parse_search,
     ranking_words,
+    uses_tags,
 )
 
 R, G, W, U, B = Color.RED, Color.GREEN, Color.WHITE, Color.BLUE, Color.BLACK
@@ -288,3 +290,33 @@ class TestHostileQueriesAreSyntaxErrors:
 
         assert parse_search("c:99999999999999999999") == ColorMatch("colors", "=", count=6)
         assert parse_search("c:3") == ColorMatch("colors", "=", count=3)
+
+
+class TestOracleTags:
+    @pytest.mark.parametrize("key", ["otag", "oracletag", "function", "OTAG"])
+    def test_keys_lowercase_the_slug(self, key: str) -> None:
+        assert parse_search(f"{key}:Ramp") == TagMatch("ramp")
+
+    def test_spaces_in_a_quoted_tag_become_hyphens(self) -> None:
+        assert parse_search('otag:"mana ramp"') == TagMatch("mana-ramp")
+
+    def test_negation_and_or(self) -> None:
+        assert parse_search("-otag:ramp") == Not(TagMatch("ramp"))
+        assert parse_search("otag:ramp or otag:removal") == Or(
+            (TagMatch("ramp"), TagMatch("removal"))
+        )
+
+    def test_regex_and_comparisons_are_refused(self) -> None:
+        with pytest.raises(SearchSyntaxError, match="does not accept a /regex/"):
+            parse_search("otag:/ramp/")
+        with pytest.raises(SearchSyntaxError, match="only supports ':'"):
+            parse_search("otag>ramp")
+
+    def test_unfinished_tag_is_tolerated(self) -> None:
+        assert parse_search("otag:") is None
+
+    def test_uses_tags_finds_a_tag_anywhere_in_the_tree(self) -> None:
+        node = parse_search("t:artifact -(otag:ramp or c:r)")
+        assert node is not None and uses_tags(node)
+        plain = parse_search("t:artifact c:r")
+        assert plain is not None and not uses_tags(plain)
