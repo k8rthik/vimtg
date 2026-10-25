@@ -86,7 +86,8 @@ PY
   else
     gzip -c "$SKILL/fixtures/oracle_tags.jsonl" > "$dir/sandbox/cache/vimtg/oracle_tags.jsonl.gz"
   fi
-  cp "$ROOT/docs/demo/krenko.deck" "$SKILL/fixtures/burn.deck" "$dir/sandbox/decks/"
+  cp "$ROOT/docs/demo/krenko.deck" "$SKILL/fixtures/burn.deck" \
+    "$SKILL/fixtures/collection.csv" "$dir/sandbox/decks/"
   with_env sh -c "$sync_env $(vimtg_cmd) sync" > "$dir/evidence/00-sync.txt" 2>&1 \
     || { cat "$dir/evidence/00-sync.txt"; die "card load failed"; }
   echo "run: $dir"

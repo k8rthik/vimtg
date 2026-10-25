@@ -103,6 +103,7 @@ The rest of this page is a full feature tour.
   - [Format-aware validation and live lint](#format-aware-validation-and-live-lint)
   - [Sideboard plans](#sideboard-plans)
   - [Analytics](#analytics)
+  - [Collection](#collection)
   - [Sample hand](#sample-hand)
   - [The side pane and EDHREC](#the-side-pane-and-edhrec)
   - [Import, export, and clipboard](#import-export-and-clipboard)
@@ -273,6 +274,12 @@ A plan is a `VS: <matchup>` block of `-N Card` (out of the mainboard) and `+N Ca
 - The commander counts toward totals, curve and pips. Modal double-faced spells with a land back count as spells, not lands. Sources come from the mana a land produces plus the lands it can fetch; hybrid and Phyrexian symbols count as pips. [docs/analytics.md](https://github.com/k8rthik/vimtg/blob/main/docs/analytics.md) has the details, and explains why the bracket estimate is only a heuristic.
 - `vimtg info deck.deck` prints the deck's name, its format (the `default_format` setting when the deck names none), the card count of every zone in use (commander, companion, mainboard, sideboard, maybeboard) and, with card data, a one-line summary: card count, average CMC, cards per type, and total price labelled with its price source (`$123.45 (usd)`; the `price_source` setting switches it).
 
+### Collection
+
+- `:collection path.csv` loads your collection from a ManaBox, Moxfield, Archidekt, or Deckbox export, or any CSV with a name column and a count column (headers matched case-insensitively). Copies are summed across printings; vimtg does not track printings. The path is saved to the `collection` setting and reloaded on every deck open when the file changed; a missing or unreadable file shows one warning and leaves the deck usable. Bare `:collection` reports `Collection: N cards (M unique) from file`; `:collection!` forgets it.
+- With a collection loaded, a card line you cannot cover gets a dim `○` in the gutter (a lint `✗` or `!` wins the one cell), the inline card detail ends with `owned 2 of 4` or `not owned`, and the analytics pane gains a **collection** block: `Owned 54/60`, `Missing 6 (4 unique)`, `To complete $12.30` in your `price_source` (plus `, 2 unpriced` when some missing cards have no price). Mainboard and sideboard both count; the same card in both shares one owned pool, allotted to the mainboard first.
+- `:export missing [file]` writes the missing cards as `N Card Name` lines, mainboard then a blank line then sideboard, which pastes into any store's mass-entry box; with no file it goes to the clipboard. `vimtg missing deck.deck [--collection file.csv]` prints the same list on stdout and the total cost on stderr.
+
 ### Sample hand
 
 - `:hand` (alias `:goldfish`, key `Space h`) opens a goldfish overlay: it shuffles the main deck and draws an opening seven. Sideboard, maybeboard, commander and companion cards stay out of the library; for Commander the commander is shown in the command zone and the hand comes from the 99. With a sideboard plan active, the post-board deck is used.
@@ -331,6 +338,7 @@ Settings live in `~/.config/vimtg/config.toml` under `[editor]`; malformed value
 | `confirm_quit` | bool (`confirmquit`) | on | Require `:q!` when modified |
 | `auto_snapshot` | bool | on | Commit to the VCS on `:w` |
 | `auto_sync_cards` | bool (`autosync`) | on | Background card download when missing or stale |
+| `collection` | path | blank | Your collection CSV (ManaBox, Moxfield, Archidekt, Deckbox, or any name+count CSV), set with `:collection` and reloaded on deck open |
 
 Where things live (XDG-aware): card database plus deck snapshots in `~/.local/share/vimtg/cards.db`; config and the category history in `~/.config/vimtg/`; Scryfall bulk files and the EDHREC cache in `~/.cache/vimtg/`. Deck files are ordinary files wherever you keep them; there is no managed deck directory.
 
@@ -427,7 +435,8 @@ Type `:` to enter command mode. Full reference: [docs/commands.md](https://githu
 | `:cat name`, `:cat!`, `:categories`, `:layout [type\|category]` | Categories and layout |
 | `:filter expr`, `:filter!`, `:dtag`, `:duntag` | View filter and deck tags |
 | `:plan [name]`, `:plan!`, `:plans` | Sideboard plans |
-| `:export fmt [file]`, `:import [file\|url]`, `:clipboard [fmt]` | Formats: arena, mtgo, dek, moxfield, archidekt, vimtg, guide; bare `:import` reads the clipboard |
+| `:export fmt [file]`, `:import [file\|url]`, `:clipboard [fmt]` | Formats: arena, mtgo, dek, moxfield, archidekt, vimtg, guide; bare `:import` reads the clipboard; `:export missing` copies the cards your collection lacks |
+| `:collection [path]`, `:collection!` | Load, report, or forget your collection CSV |
 | `:sync`, `:sync!` | Download card data in the background (`!` re-downloads) |
 | `:analytics`, `:edhrec [type]`, `:close` | The side pane |
 | `:validate`, `:hand [seed=N]` | Legality, sample hand |
@@ -451,6 +460,7 @@ vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices f
 vimtg search otag:ramp c:g             # Scryfall oracle tags work offline too
 vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
 vimtg info deck.deck                   # zones, format, and a stats line
+vimtg missing deck.deck [--collection cards.csv]  # cards your collection lacks, store-pastable; total cost on stderr
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing out.txt
