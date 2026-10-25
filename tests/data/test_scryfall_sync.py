@@ -281,11 +281,15 @@ class TestSync:
             return dest
 
         with (
-            patch.object(syncer, "get_bulk_data_url", return_value="https://x/oracle.json"),
+            patch.object(
+                syncer, "get_bulk_data_url",
+                side_effect=lambda kind="oracle_cards": f"https://x/{kind}.json",
+            ),
             patch.object(syncer, "download", side_effect=fake_download),
         ):
             count = syncer.sync(force=False)
-        assert downloaded == ["https://x/oracle.json"]
+        # The cards are replaced first; the oracle tags follow
+        assert downloaded == ["https://x/oracle_cards.json", "https://x/oracle_tags.json"]
         assert count == 10
 
     def test_sync_progress_phases_reported(
@@ -738,3 +742,192 @@ class TestUnusableCaches:
         with pytest.raises(RuntimeError):
             syncer._load_items([])
         assert syncer._repo.count() == 1
+
+
+# --- Oracle tags: downloaded after the cards, loaded beside them ---
+
+TAGS_FIXTURE = FIXTURES_DIR / "scryfall_oracle_tags.jsonl"
+TAGS_URL = "https://data.scryfall.io/oracle-tags/oracle-tags-20261025.jsonl.gz"
+CARDS_URL = "https://data.scryfall.io/oracle-cards/oracle-cards-20261025.jsonl.gz"
+BOTH_MANIFEST = {
+    "data": [
+        {"type": "oracle_cards", "download_uri": None, "jsonl_download_uri": CARDS_URL},
+        {"type": "oracle_tags", "jsonl_download_uri": TAGS_URL},
+    ]
+}
+
+
+def _write_tags_cache(cache: Path) -> Path:
+    path = cache / "oracle_tags.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        f.write(TAGS_FIXTURE.read_text(encoding="utf-8"))
+    return path
+
+
+def _fresh_cards_cache(cache: Path, cards: list[dict[str, object]]) -> None:
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / "oracle_cards.json").write_text(json.dumps(cards), encoding="utf-8")
+
+
+def _url_by_kind(kind: str = "oracle_cards") -> str:
+    return {"oracle_cards": CARDS_URL, "oracle_tags": TAGS_URL}[kind]
+
+
+class TestOracleTagsSync:
+    def test_manifest_url_for_tags(self, syncer: ScryfallSync) -> None:
+        mock_response = MagicMock()
+        mock_response.json.return_value = BOTH_MANIFEST
+        mock_response.raise_for_status = MagicMock()
+        with patch("vimtg.data.scryfall_sync.httpx.get", return_value=mock_response):
+            assert syncer.get_bulk_data_url("oracle_tags") == TAGS_URL
+            assert syncer.get_bulk_data_url() == CARDS_URL
+
+    def test_fresh_caches_load_cards_and_tags(
+        self,
+        card_repo: CardRepository,
+        tmp_path: Path,
+        real_shape_cards: list[dict[str, object]],
+    ) -> None:
+        from vimtg.data.tag_repository import TagRepository
+
+        cache = tmp_path / "cache"
+        _fresh_cards_cache(cache, real_shape_cards)
+        _write_tags_cache(cache)
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+        phases: list[str] = []
+        assert syncer.sync(progress=lambda p, c, t: phases.append(p)) == len(real_shape_cards)
+        assert syncer.tags_loaded == 10
+        assert syncer.tags_error is None
+        tags = TagRepository(card_repo.database)
+        assert tags.count() == 16
+        assert tags.get_last_sync() is not None
+        assert "parse_tags" in phases and "download_tags" not in phases
+
+    def test_tags_download_when_only_the_cards_cache_is_fresh(
+        self,
+        card_repo: CardRepository,
+        tmp_path: Path,
+        real_shape_cards: list[dict[str, object]],
+    ) -> None:
+        from vimtg.data.tag_repository import TagRepository
+
+        cache = tmp_path / "cache"
+        _fresh_cards_cache(cache, real_shape_cards)
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+        downloaded: list[tuple[str, str]] = []
+
+        def fake_download(url: str, dest: Path, progress: object = None) -> Path:
+            downloaded.append((url, dest.name))
+            with gzip.open(dest, "wt", encoding="utf-8") as f:
+                f.write(TAGS_FIXTURE.read_text(encoding="utf-8"))
+            return dest
+
+        phases: list[str] = []
+        with (
+            patch.object(syncer, "get_bulk_data_url", side_effect=_url_by_kind),
+            patch.object(syncer, "download", side_effect=fake_download),
+        ):
+            syncer.sync(progress=lambda p, c, t: phases.append(p))
+        assert downloaded == [(TAGS_URL, "oracle_tags.jsonl.gz")]
+        assert "download_tags" in phases and "download" not in phases
+        assert syncer.tags_loaded == 10
+        assert TagRepository(card_repo.database).count() == 16
+
+    def test_force_redownloads_tags_too(
+        self,
+        card_repo: CardRepository,
+        tmp_path: Path,
+        real_shape_cards: list[dict[str, object]],
+    ) -> None:
+        cache = tmp_path / "cache"
+        _fresh_cards_cache(cache, real_shape_cards)
+        _write_tags_cache(cache)
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+        downloaded: list[str] = []
+
+        def fake_download(url: str, dest: Path, progress: object = None) -> Path:
+            downloaded.append(url)
+            if url == CARDS_URL:
+                with gzip.open(dest, "wt", encoding="utf-8") as f:
+                    f.write("".join(json.dumps(c) + "\n" for c in real_shape_cards))
+            else:
+                with gzip.open(dest, "wt", encoding="utf-8") as f:
+                    f.write(TAGS_FIXTURE.read_text(encoding="utf-8"))
+            return dest
+
+        with (
+            patch.object(syncer, "get_bulk_data_url", side_effect=_url_by_kind),
+            patch.object(syncer, "download", side_effect=fake_download),
+        ):
+            syncer.sync(force=True)
+        assert downloaded == [CARDS_URL, TAGS_URL]
+        assert syncer.tags_loaded == 10
+
+    def test_tags_download_failure_keeps_cards_and_the_old_tags(
+        self,
+        card_repo: CardRepository,
+        tmp_path: Path,
+        real_shape_cards: list[dict[str, object]],
+    ) -> None:
+        from vimtg.data.tag_repository import TagRepository
+        from vimtg.domain.oracle_tags import OracleTag
+
+        tags = TagRepository(card_repo.database)
+        rhystic_study = "11110012-0a0b-4c0d-8e0f-000000000012"
+        tags.replace_all(
+            [OracleTag(id="t", slug="rhystic", oracle_ids=(rhystic_study,))],
+            synced_at="2026-10-01T00:00:00+00:00",
+        )
+        cache = tmp_path / "cache"
+        _fresh_cards_cache(cache, real_shape_cards)
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+
+        def offline(kind: str = "oracle_cards") -> str:
+            raise httpx.ConnectError(
+                "Network is unreachable", request=httpx.Request("GET", "https://x"),
+            )
+
+        with patch.object(syncer, "get_bulk_data_url", side_effect=offline):
+            count = syncer.sync()
+        assert count == len(real_shape_cards)
+        assert card_repo.count() == len(real_shape_cards)
+        assert isinstance(syncer.tags_error, httpx.ConnectError)
+        assert syncer.tags_loaded is None
+        # The tags from the last good sync are still there
+        assert tags.count() == 1
+        assert tags.get_last_sync() == "2026-10-01T00:00:00+00:00"
+
+    def test_corrupt_tags_cache_is_deleted_and_reported(
+        self,
+        card_repo: CardRepository,
+        tmp_path: Path,
+        real_shape_cards: list[dict[str, object]],
+    ) -> None:
+        cache = tmp_path / "cache"
+        _fresh_cards_cache(cache, real_shape_cards)
+        bad = cache / "oracle_tags.jsonl.gz"
+        bad.write_bytes(b"not gzip")
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+        assert syncer.sync() == len(real_shape_cards)
+        assert isinstance(syncer.tags_error, RuntimeError)
+        assert "oracle tags" in str(syncer.tags_error)
+        assert not bad.exists()
+
+    def test_empty_tags_file_is_refused(
+        self,
+        card_repo: CardRepository,
+        tmp_path: Path,
+        real_shape_cards: list[dict[str, object]],
+    ) -> None:
+        from vimtg.data.tag_repository import TagRepository
+
+        cache = tmp_path / "cache"
+        _fresh_cards_cache(cache, real_shape_cards)
+        empty = cache / "oracle_tags.jsonl.gz"
+        with gzip.open(empty, "wt", encoding="utf-8") as f:
+            f.write("\n")
+        syncer = ScryfallSync(card_repo=card_repo, cache_dir=cache)
+        syncer.sync()
+        assert isinstance(syncer.tags_error, RuntimeError)
+        assert not empty.exists()
+        assert not TagRepository(card_repo.database).has_tags()

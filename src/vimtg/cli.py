@@ -457,11 +457,14 @@ def _sync(db: Database, force: bool) -> None:
     syncer = ScryfallSync(card_repo=CardRepository(db), cache_dir=cache_dir())
 
     def _progress(phase: str, current: int, total: int) -> None:
-        if phase == "download" and total > 0:
+        if total <= 0:
+            return
+        what = " tags" if phase.endswith("_tags") else ""
+        if phase.startswith("download"):
             pct = current * 100 // total
-            click.echo(f"\rDownloading... {pct}%", nl=False, err=True)
-        elif phase == "parse" and total > 0:
-            click.echo(f"\rParsing... {current}/{total}", nl=False, err=True)
+            click.echo(f"\rDownloading{what}... {pct}%", nl=False, err=True)
+        else:
+            click.echo(f"\rParsing{what}... {current}/{total}", nl=False, err=True)
 
     try:
         count = syncer.sync(force=force, progress=_progress)
@@ -471,7 +474,12 @@ def _sync(db: Database, force: bool) -> None:
             f"Sync failed: {describe_sync_error(exc)}"
         ) from exc
     click.echo(err=True)  # end the in-place progress line
-    click.echo(f"Synced {count} cards")
+    tags = f", {syncer.tags_loaded} oracle tags" if syncer.tags_loaded else ""
+    click.echo(f"Synced {count} cards{tags}")
+    if syncer.tags_error is not None:
+        click.echo(
+            f"Oracle tags skipped: {describe_sync_error(syncer.tags_error)}", err=True
+        )
     if syncer.last_skipped:
         click.echo(f"Skipped {syncer.last_skipped} cards that failed to parse", err=True)
 

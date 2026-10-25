@@ -5,6 +5,11 @@ via ``download_uri``; the feed now serves gzipped JSONL (one card per
 line) via ``jsonl_download_uri``. Both shapes are supported: the
 manifest decides what gets downloaded, and the cache file's extension
 decides how it is parsed.
+
+A sync loads two files: ``oracle_cards`` (the cards) and then
+``oracle_tags`` (Scryfall's ``otag:`` hierarchy, ~6 MB). The tags are
+optional: when their download or parse fails the cards still load and
+the failure is reported through :attr:`ScryfallSync.tags_error`.
 """
 
 import gzip
@@ -22,7 +27,9 @@ import httpx
 from vimtg import __version__
 from vimtg.data.card_repository import CardRepository
 from vimtg.data.network_errors import describe_network_error
+from vimtg.data.tag_repository import TagRepository
 from vimtg.domain.card import Card
+from vimtg.domain.oracle_tags import OracleTag
 
 BULK_DATA_URL = "https://api.scryfall.com/bulk-data"
 USER_AGENT = f"vimtg/{__version__}"
@@ -44,8 +51,11 @@ PROGRESS_INTERVAL = 5000
 # Known cache file names, newest format first. Old installs may still
 # hold a fresh oracle_cards.json — it stays parseable.
 CACHE_FILENAMES = ("oracle_cards.jsonl.gz", "oracle_cards.jsonl", "oracle_cards.json")
+TAG_CACHE_FILENAMES = ("oracle_tags.jsonl.gz", "oracle_tags.jsonl")
 
 ProgressFn = Callable[[int, int], None]
+# (phase, current, total); the phases are "download" and "parse" for the
+# cards, "download_tags" and "parse_tags" for the oracle tags
 SyncProgressFn = Callable[[str, int, int], None]
 
 _sleep = time.sleep  # patched by tests
@@ -159,13 +169,24 @@ def sync_is_due(
 
 
 class ScryfallSync:
-    def __init__(self, card_repo: CardRepository, cache_dir: Path) -> None:
+    def __init__(
+        self,
+        card_repo: CardRepository,
+        cache_dir: Path,
+        tag_repo: TagRepository | None = None,
+    ) -> None:
         self._repo = card_repo
+        self._tags = tag_repo or TagRepository(card_repo.database)
         self._cache_dir = cache_dir
         self.last_skipped = 0  # cards that failed to parse in the last load
+        # Outcome of the oracle-tags half of the last sync(): the number
+        # of tags loaded, or why they were skipped
+        self.tags_loaded: int | None = None
+        self.tags_error: BaseException | None = None
 
-    def get_bulk_data_url(self) -> str:
-        """Fetch bulk-data manifest, return URL for oracle_cards.
+    def get_bulk_data_url(self, kind: str = "oracle_cards") -> str:
+        """Fetch the bulk-data manifest, return the URL of the ``kind``
+        entry (``oracle_cards`` or ``oracle_tags``).
 
         Prefers the legacy plain-JSON ``download_uri`` when present and
         falls back to ``jsonl_download_uri`` (the current feed shape).
@@ -178,15 +199,15 @@ class ScryfallSync:
         resp.raise_for_status()
         data = resp.json()
         for item in data.get("data", []):
-            if item.get("type") == "oracle_cards":
+            if item.get("type") == kind:
                 uri = item.get("download_uri") or item.get("jsonl_download_uri")
                 if uri:
                     return str(uri)
                 raise RuntimeError(
-                    "oracle_cards entry has no download URL — Scryfall "
+                    f"{kind} entry has no download URL — Scryfall "
                     "manifest format may have changed"
                 )
-        raise RuntimeError("oracle_cards bulk data not found")
+        raise RuntimeError(f"{kind} bulk data not found")
 
     def download(
         self,
@@ -319,13 +340,51 @@ class ScryfallSync:
             progress(total, total)
         return count
 
-    def _fresh_cache(self, force: bool) -> Path | None:
+    def parse_and_load_tags(
+        self,
+        path: Path,
+        progress: ProgressFn | None = None,
+    ) -> int:
+        """Parse an ``oracle_tags`` JSONL file and replace the tag tables.
+
+        Returns the number of tags. Raises RuntimeError (and deletes
+        the cache file) when it is corrupt or holds no tag, so the
+        next sync downloads it again instead of trusting it for a week.
+        """
+        try:
+            items = list(_iter_jsonl(path))
+        except (json.JSONDecodeError, gzip.BadGzipFile, EOFError, UnicodeDecodeError) as exc:
+            path.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"Corrupt oracle tags cache (deleted, retry sync): {exc}"
+            ) from exc
+        tags = [
+            OracleTag.from_scryfall(item)
+            for item in items
+            if isinstance(item, dict) and item.get("id") and item.get("slug")
+        ]
+        if not tags:
+            path.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"No oracle tags parsed from {len(items)} entries (cache "
+                "deleted, retry sync) — Scryfall feed format may have changed"
+            )
+        if progress:
+            progress(0, len(tags))
+        count = self._tags.replace_all(tags, synced_at=datetime.now(UTC).isoformat())
+        if progress:
+            progress(len(tags), len(tags))
+        return count
+
+    def _fresh_cache(
+        self, force: bool, names: tuple[str, ...] = CACHE_FILENAMES
+    ) -> Path | None:
         """The freshest usable cache file, or None when a download is due."""
         if force:
             return None
         candidates = [
             p
-            for p in (self._cache_dir / n for n in CACHE_FILENAMES)
+            for p in (self._cache_dir / n for n in names)
             if p.exists()
         ]
         if not candidates:
@@ -334,21 +393,52 @@ class ScryfallSync:
         age_days = (time.time() - newest.stat().st_mtime) / 86400
         return newest if age_days < MAX_AGE_DAYS else None
 
-    def _dest_for_url(self, url: str) -> Path:
+    def _dest_for_url(self, url: str, stem: str = "oracle_cards") -> Path:
         """Cache path matching the manifest URL's format."""
         base = url.split("?", 1)[0]
         if base.endswith(".jsonl.gz"):
-            return self._cache_dir / "oracle_cards.jsonl.gz"
+            return self._cache_dir / f"{stem}.jsonl.gz"
         if base.endswith(".jsonl"):
-            return self._cache_dir / "oracle_cards.jsonl"
-        return self._cache_dir / "oracle_cards.json"
+            return self._cache_dir / f"{stem}.jsonl"
+        return self._cache_dir / f"{stem}.json"
 
     def sync(
         self,
         force: bool = False,
         progress: SyncProgressFn | None = None,
     ) -> int:
-        """Full sync: download oracle_cards if needed, parse, load."""
+        """Full sync: the cards, then the oracle tags. Returns the card
+        count; the tags' outcome is in ``tags_loaded`` / ``tags_error``.
+
+        A failed tags download or parse never undoes the cards: they
+        are loaded first, and the tag tables keep their previous
+        contents until a good tags file replaces them.
+        """
+        count = self._sync_cards(force, progress)
+        self.tags_loaded = None
+        self.tags_error = None
+        try:
+            self.tags_loaded = self._sync_tags(force, progress)
+        except (httpx.HTTPError, RuntimeError, OSError, sqlite3.Error) as exc:
+            self.tags_error = exc
+        return count
+
+    def _sync_tags(self, force: bool, progress: SyncProgressFn | None) -> int:
+        cached = self._fresh_cache(force, TAG_CACHE_FILENAMES)
+        if cached is None:
+            if progress:
+                progress("download_tags", 0, 0)
+            url = self.get_bulk_data_url("oracle_tags")
+            cached = self.download(
+                url, self._dest_for_url(url, "oracle_tags"),
+                _wrap_progress(progress, "download_tags"),
+            )
+        if progress:
+            progress("parse_tags", 0, 0)
+        return self.parse_and_load_tags(cached, _wrap_progress(progress, "parse_tags"))
+
+    def _sync_cards(self, force: bool, progress: SyncProgressFn | None) -> int:
+        """Download oracle_cards if needed, parse, load."""
         cached = self._fresh_cache(force)
         if cached is not None:
             if progress:
