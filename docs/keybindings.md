@@ -59,7 +59,7 @@ Everything below is normal mode unless flagged otherwise.
 | `gg` / `G` | First / last line; `{n}G` or `{n}gg` goes to line `n` (`1G` is line 1; `:{n}` too) |
 | `w` / `b` | Next / previous card entry |
 | `{` / `}` | Previous / next section |
-| `[[` / `]]` | Previous / next section or plan header |
+| `[[` / `]]` | Previous / next section or plan header; zone block markers such as `DCK:` and `SB:` are not section headers, so they pass over them |
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up |
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
