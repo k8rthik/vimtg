@@ -85,6 +85,7 @@ as in vim, and never eat the next section's blank line or header:
 | `d{` | The cards above the cursor in its section |
 | `d]]` | Up to, not including, the next header |
 | `dG` / `d8G` | To the end of the deck / through line 8 |
+| `dj` / `d<C-d>` on the last line, `dk` / `d<C-u>` on the first | Nothing: a motion that cannot move takes no lines, writes no register and leaves no undo step |
 
 ### Editing
 

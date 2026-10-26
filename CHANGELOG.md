@@ -200,6 +200,9 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `d`, `y` or `c` with `Ctrl-D` on the last line (`Ctrl-U` on the first)
+  takes nothing, as `dj` / `dk` there already do; it used to take the
+  cursor line.
 - `Ctrl-D` / `Ctrl-U` move half the deck view's height, as vim does,
   and scroll the view with the cursor so it keeps its place on screen;
   they used to jump a fixed 15 lines and leave the view behind. A count
