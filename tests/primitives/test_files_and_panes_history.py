@@ -184,11 +184,6 @@ async def test_restoring_a_snapshot_loads_it_into_the_editor(tmp_path: Path) -> 
 
 
 @pytest.mark.primitive("gh", ":history")
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: gh R restore should record a new snapshot on top (History (3)); "
-    "the history still lists 2",
-)
 async def test_restoring_a_snapshot_records_the_restore_in_the_history(
     tmp_path: Path,
 ) -> None:

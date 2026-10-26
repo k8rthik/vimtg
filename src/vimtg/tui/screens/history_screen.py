@@ -542,7 +542,11 @@ class HistoryScreen(FloatingScreen[None]):
         if self._on_restore is None:
             self._cl.show_error("E: Restore unavailable in this view")
             return
-        self._on_restore(selected.deck_state)
+        restored = self._vcs.restore(selected.id)
+        if restored is None:
+            self._cl.show_error(f"E: Snapshot {selected.id[:7]} not found")
+            return
+        self._on_restore(restored.deck_state)
         self._close()
 
     # ── Action starters ───────────────────────────────────

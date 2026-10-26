@@ -442,6 +442,9 @@ from 1.0.0 onward.
 - `i` on a blank line inside a zone block (`DCK:`, `SB:` …) writes the
   typed line with the block's indentation, so the card stays in the block
   instead of closing it.
+- Restoring a snapshot from the history overlay (`gh`, `R`) records the
+  restore as a new snapshot on top of the history, as the docs say. It
+  used to load the snapshot into the editor and record nothing.
 
 ### Security
 
