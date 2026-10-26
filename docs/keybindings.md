@@ -75,7 +75,12 @@ Any motion takes a count: `10j`, `3w`, `2n`. The deck is line-oriented: there is
 
 As operator targets, `j`/`k`/`G`/`gg`/`Ctrl-D`/`Ctrl-U` are linewise and
 include the line they land on; `w`/`b`/`{`/`}`/`[[`/`]]` are exclusive,
-as in vim, and never eat the next section's blank line or header:
+as in vim, and take card lines. A section's header and blank line go
+only with every card under that header, so `2dw` across two sections
+leaves the second header in place and `d[[` never takes the header it
+lands on. A range stops at the edge of its zone block and never crosses
+`DCK:` or `SB:`. A range with no card in it (`dw` on a blank line)
+changes nothing:
 
 | Keys | Deletes |
 |------|---------|

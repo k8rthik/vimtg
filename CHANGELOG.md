@@ -200,6 +200,17 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Operators with `w`, `b`, `{`, `}`, `[[` and `]]` no longer cross a
+  zone marker: a counted `d}` or `2dw` at the end of the mainboard used
+  to delete `SB:` and file the sideboard cards into the mainboard. They
+  keep the header of any section they leave cards in (a counted `dw` or
+  `d{` used to refile the rest of that section under the header above),
+  `d[[` keeps the header it lands on, `d{` on a section's first card
+  deletes nothing, and `dw` on a blank line no longer puts the blank in
+  the register.
+- `[[` and `]]` pass over `DCK:` and `SB:` to the next section header,
+  and `}` on a section header moves to the next section instead of the
+  header's own first card.
 - The card search overlay's one-line messages (`No matches`, an unknown
   search key, the offline and oracle-tags notices) were drawn under the
   command line and never reached the screen. The overlay now sits above
