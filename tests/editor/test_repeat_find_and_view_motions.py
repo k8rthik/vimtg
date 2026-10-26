@@ -142,7 +142,7 @@ class TestRepeatFind:
 class TestViewMotionsInSession:
     def test_uses_view_window(self) -> None:
         st = _state(row=0)
-        st.view = ViewWindow(2, 6, (2, 6))
+        st.view = ViewWindow(2, 6, (2, 6), 5)
         handle_motion(st, ParsedAction("motion", "L"))
         assert st.cursor.row == 6
         handle_motion(st, ParsedAction("motion", "H"))
@@ -160,6 +160,6 @@ class TestViewMotionsInSession:
 
     def test_count(self) -> None:
         st = _state(row=0)
-        st.view = ViewWindow(0, 7, (0, 7))
+        st.view = ViewWindow(0, 7, (0, 7), 8)
         handle_motion(st, ParsedAction("motion", "L", 2))
         assert st.cursor.row == 6

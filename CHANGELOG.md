@@ -200,6 +200,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `Ctrl-D` / `Ctrl-U` move half the deck view's height, as vim does,
+  and scroll the view with the cursor so it keeps its place on screen;
+  they used to jump a fixed 15 lines and leave the view behind. A count
+  is lines (`3` `Ctrl-D` moves three) rather than a number of half pages.
 - `H` and `L` with a count go to that line of the screen, counted from
   the top or bottom of the deck view (`5H` is the fifth visible line),
   and `M` goes to the middle visible line; they used to count from

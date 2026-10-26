@@ -171,13 +171,13 @@ class DeckView(Static):
         return top, max(top, bottom)
 
     def view_window(self) -> ViewWindow | None:
-        """The rendered window and its cursor band, for H / M / L.
-        None before the first render."""
+        """The rendered window, its cursor band and the view's height,
+        for H / M / L and Ctrl-D / Ctrl-U. None before the first render."""
         band = self.cursor_band()
         if band is None or self._window is None:
             return None
         start, end = self._window
-        return ViewWindow(start, end - 1, band)
+        return ViewWindow(start, end - 1, band, self.size.height)
 
     def scroll_cursor_to(self, position: str) -> None:
         """zz / zt / zb: scroll so the cursor line sits at the "center",
@@ -196,9 +196,23 @@ class DeckView(Static):
             offset = row - viewport + 1 + _SCROLLOFF
         else:
             offset = row - viewport // 2
-        max_offset = total + _BOTTOM_PAD - viewport
-        self._scroll_offset = max(0, min(offset, max_offset))
+        self._scroll_offset = max(0, min(offset, self._max_offset()))
         self.refresh()
+
+    def scroll_by(self, delta: int) -> None:
+        """Ctrl-D / Ctrl-U: move the window `delta` rows, the distance
+        the editor moved the cursor, so the cursor keeps its screen
+        line. The next render still keeps the cursor inside the
+        scrolloff margin."""
+        if self.buffer is None:
+            return
+        self._scroll_offset = max(0, min(self._scroll_offset + delta, self._max_offset()))
+        self.refresh()
+
+    def _max_offset(self) -> int:
+        """The furthest the window scrolls: the bottom pad past the last line."""
+        assert self.buffer is not None
+        return max(0, self.buffer.line_count() + _BOTTOM_PAD - self.size.height)
 
     # ── Mouse wheel ──────────────────────────────────────────────
 

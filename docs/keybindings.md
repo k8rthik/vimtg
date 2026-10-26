@@ -61,7 +61,7 @@ Everything below is normal mode unless flagged otherwise.
 | `{` / `}` | Previous / next section |
 | `[[` / `]]` | Previous / next section or plan header |
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
-| `Ctrl-D` / `Ctrl-U` | Half page down / up |
+| `Ctrl-D` / `Ctrl-U` | Half page down / up: the cursor moves half the deck view's height and the view scrolls with it, so the cursor keeps its place on screen. A count is lines instead (`3` then `Ctrl-D` moves three), for that press only. On the last / first line nothing moves |
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
 | `Ctrl-O` / `Ctrl-I` | Back / forward through the jumplist (`Ctrl-I` arrives as `Tab`; a count moves that many). Jumps, as in vim: `G`, `gg`, `{n}G`, `:{n}`, `/`, `?`, `n`, `N`, `*`, `#`, `{`, `}`, `[[`, `]]`, `'a`, `H`, `M`, `L`, `''`, and an insert or zone move that files the card more than a line away (`o` auto-filing it into another section, `zs`). The list holds 100 places; rows do not follow later edits |
 | `''` | Back to where the latest jump left; again to come back |

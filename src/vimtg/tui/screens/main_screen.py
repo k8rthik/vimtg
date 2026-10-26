@@ -45,7 +45,7 @@ from vimtg.editor.cmdline_history import CommandHistory
 from vimtg.editor.command_completer import CommandCompleter
 from vimtg.editor.commands import CommandRegistry, Listing, NewBuffer
 from vimtg.editor.cursor import Cursor
-from vimtg.editor.keymap import VIEW_MOTIONS, KeyMap, KeyResult, ParsedAction
+from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.keymaps import is_named_key, load_remapper
 from vimtg.editor.layout import follow_line
 from vimtg.editor.lint import (
@@ -763,9 +763,9 @@ class MainScreen(Screen[None]):
         self._last_action_type = action.action_type
         s = self._state
         hr = None
+        if action.action_type in ("motion", "operator"):
+            s.view = self.query_one("#deck-view", DeckView).view_window()
         if action.action_type == "motion":
-            if action.action in VIEW_MOTIONS:
-                s.view = self.query_one("#deck-view", DeckView).view_window()
             hr = handle_motion(s, action)
         elif action.action_type == "operator":
             hr = handle_operator(s, action)
@@ -1063,6 +1063,8 @@ class MainScreen(Screen[None]):
             self._execute_ex(hr.run_ex_command)
         if hr.scroll_view:
             self.query_one("#deck-view", DeckView).scroll_cursor_to(hr.scroll_view)
+        if hr.scroll_lines:
+            self.query_one("#deck-view", DeckView).scroll_by(hr.scroll_lines)
         if hr.ui_request:
             self._handle_ui_request(hr.ui_request)
         if hr.edit_file is not None:

@@ -132,12 +132,15 @@ def motion_section_header_prev(cursor: Cursor, buffer: Buffer, count: int = 1) -
 
 
 def motion_half_page_down(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
-    new_row = min(cursor.row + 15 * count, buffer.line_count() - 1)
+    """Ctrl-D — `count` lines down; the session passes half the view
+    (ViewWindow.half_page) when no count was typed."""
+    new_row = min(cursor.row + count, buffer.line_count() - 1)
     return cursor.move_to(new_row, cursor.col)
 
 
 def motion_half_page_up(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
-    new_row = max(cursor.row - 15 * count, 0)
+    """Ctrl-U — `count` lines up, as motion_half_page_down."""
+    new_row = max(cursor.row - count, 0)
     return cursor.move_to(new_row, cursor.col)
 
 
@@ -157,20 +160,27 @@ def _nearest_non_blank(buffer: Buffer, row: int, top: int, bottom: int, step: in
 @dataclass(frozen=True)
 class ViewWindow:
     """What the deck view shows: buffer rows `top`..`bottom` (inclusive)
-    on screen, and the `band` of rows the cursor can occupy without
+    on screen, the `band` of rows the cursor can occupy without
     scrolling (the window minus the scrolloff margin, except where it
-    meets the buffer's ends). H / M / L count within the window and
-    then land inside the band, as vim adjusts them for 'scrolloff'."""
+    meets the buffer's ends), and the view's `height` in screen rows.
+    H / M / L count within the window and then land inside the band, as
+    vim adjusts them for 'scrolloff'."""
 
     top: int
     bottom: int
     band: tuple[int, int]
+    height: int
+
+    @property
+    def half_page(self) -> int:
+        """Lines Ctrl-D / Ctrl-U move without a count (vim's 'scroll')."""
+        return max(1, self.height // 2)
 
     @staticmethod
     def whole(buffer: Buffer) -> ViewWindow:
         """No view known: the whole buffer counts as visible."""
         last = max(0, buffer.line_count() - 1)
-        return ViewWindow(0, last, (0, last))
+        return ViewWindow(0, last, (0, last), buffer.line_count())
 
 
 def _clamp_band(buffer: Buffer, band: tuple[int, int]) -> tuple[int, int]:
@@ -210,6 +220,8 @@ def motion_view_bottom(
 
 
 MotionFn = Callable[[Cursor, Buffer, int], Cursor]
+HALF_PAGE_MOTIONS = frozenset({"ctrl_d", "ctrl_u"})
+
 # View motions also take what the deck view shows
 ViewMotionFn = Callable[[Cursor, Buffer, ViewWindow, int], Cursor]
 

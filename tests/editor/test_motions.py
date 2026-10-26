@@ -176,18 +176,17 @@ class TestSectionMotions:
 
 
 class TestHalfPageMotions:
+    """The count is lines; the session passes half the view when none is typed."""
+
     def test_half_page_down(self) -> None:
         buf = _buf()
-        c = Cursor(row=0)
-        result = motion_half_page_down(c, buf)
-        # Should move 15 but clamp to buffer size
-        assert result.row == min(15, buf.line_count() - 1)
+        assert motion_half_page_down(Cursor(row=0), buf, 5).row == 5
+        assert motion_half_page_down(Cursor(row=10), buf, 5).row == buf.line_count() - 1
 
     def test_half_page_up(self) -> None:
         buf = _buf()
-        c = Cursor(row=10)
-        result = motion_half_page_up(c, buf)
-        assert result.row == 0  # 10 - 15 = clamped to 0
+        assert motion_half_page_up(Cursor(row=10), buf, 4).row == 6
+        assert motion_half_page_up(Cursor(row=3), buf, 5).row == 0
 
 
 class TestMotionRegistry:
@@ -208,7 +207,7 @@ class TestMotionRegistry:
 
 def _view(top: int, bottom: int) -> ViewWindow:
     """A window whose cursor band is the whole window, as at the buffer's ends."""
-    return ViewWindow(top, bottom, (top, bottom))
+    return ViewWindow(top, bottom, (top, bottom), bottom - top + 1)
 
 
 class TestViewMotions:
