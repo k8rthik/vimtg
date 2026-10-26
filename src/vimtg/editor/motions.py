@@ -74,6 +74,8 @@ def motion_prev_card(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
 def motion_next_section(cursor: Cursor, buffer: Buffer, count: int = 1) -> Cursor:
     """Jump to the first card of the next section (past blank/comment gap)."""
     pos = cursor.row
+    if is_section_header(buffer, pos) and pos < buffer.line_count() - 1:
+        pos += 1  # a header opens the section below it: start inside it
     for _ in range(count):
         # Skip current section's card lines
         while pos < buffer.line_count() - 1 and buffer.is_card_line(pos):

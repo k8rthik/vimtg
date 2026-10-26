@@ -421,10 +421,6 @@ async def test_close_brace_moves_to_the_next_section(tmp_path: Path) -> None:
 
 
 @pytest.mark.primitive("}")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: } on the // Instant header should move to the next section (// Land, "
-    "row 15 or 16); it stops on Lightning Bolt (row 12), inside the header's own section"
-))
 async def test_close_brace_from_a_header_moves_past_its_section(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         goto(ed, INSTANT_HDR)
