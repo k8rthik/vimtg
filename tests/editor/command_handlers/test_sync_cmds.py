@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers import register_all_commands
-from vimtg.editor.command_handlers.sync_cmds import cmd_sync
-from vimtg.editor.commands import CommandRegistry, EditorContext, ParsedCommand, parse_command
+from vimtg.editor.commands import CommandRegistry, EditorContext, parse_command
 from vimtg.editor.cursor import Cursor
 
 
@@ -29,10 +28,13 @@ def test_sync_bang_forces() -> None:
 
 
 def test_sync_rejects_arguments() -> None:
+    registry = CommandRegistry()
+    register_all_commands(registry)
     ctx = EditorContext()
     buffer = Buffer.from_text("")
-    out, _ = cmd_sync(buffer, Cursor(), ParsedCommand(name="sync", args="now"), ctx)
+    out, _ = registry.execute(parse_command("sync now", 0, 1), buffer, Cursor(), ctx)
     assert ctx.error
+    assert ctx.message == "E488: Trailing characters: now"
     assert ctx.card_sync == ""
     assert out is buffer
 

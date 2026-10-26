@@ -266,8 +266,8 @@ def register_buffer_commands(registry: CommandRegistry) -> None:
     """Register :w, :saveas, :q, :wq, :x, :home, :recover."""
     registry.register("w", cmd_write, aliases=["write"])
     registry.register("saveas", cmd_saveas, aliases=["sav"])
-    registry.register("q", cmd_quit, aliases=["quit"])
+    registry.register("q", cmd_quit, aliases=["quit"], takes_args=False)
     registry.register("wq", cmd_write_quit)
     registry.register("x", cmd_xit, aliases=["xit", "exit"])
-    registry.register("home", cmd_home, aliases=["greeter"])
-    registry.register("recover", cmd_recover)
+    registry.register("home", cmd_home, aliases=["greeter"], takes_args=False)
+    registry.register("recover", cmd_recover, takes_args=False)

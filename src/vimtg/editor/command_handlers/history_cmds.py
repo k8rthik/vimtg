@@ -62,6 +62,6 @@ def cmd_checkpoint(
 
 def register_history_commands(registry: CommandRegistry) -> None:
     """Register :history, :log, :commit, :checkpoint."""
-    registry.register("history", cmd_history, aliases=["log", "hist"])
+    registry.register("history", cmd_history, aliases=["log", "hist"], takes_args=False)
     registry.register("commit", cmd_commit, aliases=["ci"])
     registry.register("checkpoint", cmd_checkpoint, aliases=["cp"])

@@ -89,4 +89,4 @@ def register_help_commands(registry: CommandRegistry) -> None:
     registry.register("help", partial(cmd_help, registry=registry), aliases=["h"])
     registry.register("messages", cmd_messages, aliases=["mes"])
     registry.register("tips", cmd_tips)
-    registry.register("tutor", cmd_tutor, aliases=["Tutor"])
+    registry.register("tutor", cmd_tutor, aliases=["Tutor"], takes_args=False)

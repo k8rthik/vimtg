@@ -90,4 +90,4 @@ def cmd_plans(
 
 def register_plan_commands(registry: CommandRegistry) -> None:
     registry.register("plan", cmd_plan)
-    registry.register("plans", cmd_plans)
+    registry.register("plans", cmd_plans, takes_args=False)
