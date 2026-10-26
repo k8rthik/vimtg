@@ -59,7 +59,7 @@ Everything below is normal mode unless flagged otherwise.
 | `gg` / `G` | First / last line; `{n}G` or `{n}gg` goes to line `n` (`1G` is line 1; `:{n}` too) |
 | `w` / `b` | Next / previous card entry |
 | `{` / `}` | Previous / next section |
-| `[[` / `]]` | Previous / next section or plan header |
+| `[[` / `]]` | Previous / next section or plan header; zone block markers such as `DCK:` and `SB:` are not section headers, so they pass over them |
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
 | `Ctrl-D` / `Ctrl-U` | Half page down / up: the cursor moves half the deck view's height and the view scrolls with it, so the cursor keeps its place on screen. A count is lines instead (`3` then `Ctrl-D` moves three), for that press only. On the last / first line nothing moves |
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
@@ -75,7 +75,12 @@ Any motion takes a count: `10j`, `3w`, `2n`. The deck is line-oriented: there is
 
 As operator targets, `j`/`k`/`G`/`gg`/`Ctrl-D`/`Ctrl-U` are linewise and
 include the line they land on; `w`/`b`/`{`/`}`/`[[`/`]]` are exclusive,
-as in vim, and never eat the next section's blank line or header:
+as in vim, and take card lines. A section's header and blank line go
+only with every card under that header, so `2dw` across two sections
+leaves the second header in place and `d[[` never takes the header it
+lands on. A range stops at the edge of its zone block and never crosses
+`DCK:` or `SB:`. A range with no card in it (`dw` on a blank line)
+changes nothing:
 
 | Keys | Deletes |
 |------|---------|

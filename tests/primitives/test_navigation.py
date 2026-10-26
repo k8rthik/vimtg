@@ -421,10 +421,6 @@ async def test_close_brace_moves_to_the_next_section(tmp_path: Path) -> None:
 
 
 @pytest.mark.primitive("}")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: } on the // Instant header should move to the next section (// Land, "
-    "row 15 or 16); it stops on Lightning Bolt (row 12), inside the header's own section"
-))
 async def test_close_brace_from_a_header_moves_past_its_section(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         goto(ed, INSTANT_HDR)
@@ -552,10 +548,6 @@ async def test_close_brackets_past_the_last_header_goes_to_the_last_line(tmp_pat
 
 
 @pytest.mark.primitive("]]")
-@pytest.mark.xfail(strict=True, reason=(
-    "DOC: deck-format.md calls DCK: a deck block header, not a section header, "
-    "so ]] from the metadata should reach // Creature (row 6); it stops on DCK: (row 4)"
-))
 async def test_close_brackets_from_metadata_skips_the_dck_marker(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("]]")
@@ -616,10 +608,6 @@ async def test_open_brackets_before_the_first_header_goes_to_the_first_line(
 
 
 @pytest.mark.primitive("[[")
-@pytest.mark.xfail(strict=True, reason=(
-    "DOC: deck-format.md calls SB: a deck block header, not a section header, "
-    "so [[ from the sideboard card should reach // Land (row 15); it stops on SB: (row 19)"
-))
 async def test_open_brackets_from_the_sideboard_skips_the_sb_marker(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("G [[")

@@ -99,6 +99,21 @@ class TestOperatorRanges:
         assert "DCK:" in result.buffer.to_text()
         assert len(result.registers.get('"').content) == 2
 
+    def test_exclusive_ranges_stop_at_a_prefix_style_sideboard(self):
+        buf = Buffer.from_text(
+            "// Lands\n14 Mountain\n4 Arid Mesa\n\n"
+            "// Sideboard\nSB: 3 Rest in Peace\nSB: 2 Kor Firewalker\n"
+        )
+        for motion, row, count, taken in (
+            ("w", 2, 2, ("4 Arid Mesa",)),
+            ("}", 2, 2, ("4 Arid Mesa",)),
+            ("b", 5, 1, ()),
+            ("{", 5, 1, ()),
+        ):
+            result = execute_operator("d", motion, Cursor(row=row), buf, count, RegisterStore())
+            assert result.registers.get('"').content == taken, motion
+            assert "SB: 3 Rest in Peace" in result.buffer.to_text(), motion
+
     def test_counted_paste_does_not_interleave(self):
         state = _state("1 Anchor\n")
         state.registers = state.registers.set_unnamed(
