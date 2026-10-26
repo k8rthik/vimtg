@@ -102,6 +102,6 @@ def cmd_analytics(
 
 def register_split_commands(registry: CommandRegistry) -> None:
     """Register the pane ex commands: :close, :edhrec, :analytics."""
-    registry.register("close", cmd_close)
+    registry.register("close", cmd_close, takes_args=False)
     registry.register("edhrec", cmd_edhrec, aliases=["rec"])
-    registry.register("analytics", cmd_analytics, aliases=["ana"])
+    registry.register("analytics", cmd_analytics, aliases=["ana"], takes_args=False)

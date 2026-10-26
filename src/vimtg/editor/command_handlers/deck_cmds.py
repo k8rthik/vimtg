@@ -64,4 +64,4 @@ def cmd_validate(
 
 def register_deck_commands(registry: CommandRegistry) -> None:
     """Register the :validate command."""
-    registry.register("validate", cmd_validate, aliases=["val"])
+    registry.register("validate", cmd_validate, aliases=["val"], takes_args=False)

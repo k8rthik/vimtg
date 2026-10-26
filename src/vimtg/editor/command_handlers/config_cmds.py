@@ -151,6 +151,8 @@ def cmd_unmap(
 
 def register_config_commands(registry: CommandRegistry) -> None:
     registry.register("set", cmd_set)
-    registry.register("config", cmd_config, aliases=["settings", "preferences"])
+    registry.register(
+        "config", cmd_config, aliases=["settings", "preferences"], takes_args=False,
+    )
     registry.register("map", cmd_map)
     registry.register("unmap", cmd_unmap)

@@ -12,6 +12,10 @@ key) prints on the command line when its output fits on one line, and
 otherwise opens it in a floating pager, one entry per line, as vim's
 more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
 
+A command that takes no argument (`:q`, `:home`, `:close`, `:validate`,
+`:sync` and the like) refuses one with vim's `E488: Trailing characters`
+and does nothing: `:q junk` does not quit.
+
 ## File
 
 | Command | Description |

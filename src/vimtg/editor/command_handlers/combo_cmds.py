@@ -17,9 +17,6 @@ def cmd_combos(
     buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
     """:combos — the deck's combos and those one card away."""
-    if cmd.args.strip():
-        ctx.fail(f"Invalid argument: {cmd.args.strip()} (:combos takes none)")
-        return buf, cursor
     query = deck_query(parse_deck_text(buf.to_text()))
     if not query.main and not query.commanders:
         ctx.fail("No cards in the deck to look up")
@@ -30,4 +27,4 @@ def cmd_combos(
 
 def register_combo_commands(registry: CommandRegistry) -> None:
     """Register :combos."""
-    registry.register("combos", cmd_combos, aliases=["combo"])
+    registry.register("combos", cmd_combos, aliases=["combo"], takes_args=False)

@@ -200,6 +200,11 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- A command that takes no argument refuses one with vim's `E488:
+  Trailing characters: junk` and does nothing. `:q junk` used to quit,
+  and `:tutor`, `:home`, `:enew`, `:history`, `:config`, `:validate`,
+  `:analytics`, `:close`, `:recover`, `:marks` and `:plans` ran as if
+  the argument were not there. `:combos` and `:sync` give the same E488.
 - The card search overlay's one-line messages (`No matches`, an unknown
   search key, the offline and oracle-tags notices) were drawn under the
   command line and never reached the screen. The overlay now sits above
