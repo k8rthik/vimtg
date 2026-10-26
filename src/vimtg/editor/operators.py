@@ -16,6 +16,7 @@ from vimtg.domain.deck_lines import (
     MAX_QUANTITY,
     format_inline_comment,
     is_bare_card_line,
+    is_block_marker,
     parse_zone_header,
     zone_running_context,
 )
@@ -64,6 +65,22 @@ def _trim_end(buffer: Buffer, start: int, end: int) -> int:
     while end > start and not _is_entry(buffer, end):
         end -= 1
     return end
+
+
+def _block_bounds(buffer: Buffer, row: int) -> tuple[int, int]:
+    """First and last row of the block around `row`, between its block
+    markers. An exclusive range never crosses one: deleting SB: would
+    move every sideboard card into the mainboard."""
+    lo, hi = 0, buffer.line_count() - 1
+    for i in range(row, -1, -1):
+        if is_block_marker(buffer.get_line(i).text):
+            lo = i + 1
+            break
+    for i in range(row + 1, hi + 1):
+        if is_block_marker(buffer.get_line(i).text):
+            hi = i - 1
+            break
+    return lo, hi
 
 
 def _range_w(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
@@ -200,7 +217,10 @@ def resolve_line_range(
         return (max(cursor.row - count, 0), cursor.row)
     exclusive = _EXCLUSIVE_RANGES.get(motion)
     if exclusive is not None:
-        return exclusive(buffer, cursor.row, count)
+        start, end = exclusive(buffer, cursor.row, count)
+        lo, hi = _block_bounds(buffer, cursor.row)
+        start = max(start, lo)
+        return start, _trim_end(buffer, start, min(end, hi))
     motion_fn = MOTION_REGISTRY.get(motion)
     if motion_fn is None:
         return (cursor.row, cursor.row)
