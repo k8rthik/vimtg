@@ -65,11 +65,6 @@ async def test_space_f_prompt_takes_the_same_grammar(
 
 
 @pytest.mark.primitive(":filter")
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: '-' binds to one name in the documented grammar, so -burn|threats "
-    "is (NOT burn) OR threats and dims only the burn cards; it dims burn and threats",
-)
 async def test_filter_negation_binds_tighter_than_or(tmp_path: Path) -> None:
     async with editor(tmp_path, CAT_DECK) as ed:
         ed.press(":filter<Space>-burn|threats<CR>")

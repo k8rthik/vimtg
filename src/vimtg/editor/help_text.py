@@ -305,6 +305,7 @@ COMMAND_HELP: dict[str, str] = {
         ":filter ramp|draw         OR (either category)\n"
         ":filter -removal          NOT (every card but @removal)\n"
         ":filter ramp -removal     AND NOT\n"
+        ":filter -burn|threats     - binds to one name: (NOT burn) OR threats\n"
         ":filter / :filter!        clear filter\n"
         "\n"
         "Tab completes a category from the deck, most used first."

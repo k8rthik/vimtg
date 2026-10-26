@@ -83,13 +83,16 @@ In-group card order follows the `sort_order` setting
 Filter expression grammar:
 
 ```
-expr  := term ('|' term)*
-term  := factor ('+' factor)*
+filter := expr (' ' expr)*
+expr   := term ('|' term)*
+term   := factor ('+' factor)*
 factor := '-'? IDENT
 ```
 
 So `ramp|draw` is `ramp OR draw` and `ramp -removal` is `ramp AND NOT
-removal`. A card has one category, so `ramp+draw` (AND) matches nothing.
+removal`: spaces join whole expressions with AND. `-` binds to the one
+name after it, so `-burn|threats` is `(NOT burn) OR threats`. A card has
+one category, so `ramp+draw` (AND) matches nothing.
 An empty expression clears the filter.
 
 ## The side pane & EDHREC

@@ -435,6 +435,8 @@ from 1.0.0 onward.
 - `gl gl` on a category-grouped deck gives the same text back: going from
   the type layout to the category layout puts the categories in name
   order instead of the order the type groups happened to list them.
+- `:filter -burn|threats` follows the documented grammar, where `-` binds
+  to one name: it means (NOT burn) OR threats. It used to negate both names.
 
 ### Security
 
