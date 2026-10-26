@@ -803,12 +803,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             row = min(mark.row, state.buffer.line_count() - 1)
             state.cursor = state.cursor.move_to(row, 0)
             note_jump(state, origin)
-        elif key == "''":
-            return HandlerResult(command_message="E20: Mark not set", error=True)
         else:
-            return HandlerResult(
-                command_message=f"Mark '{mark_name}' not set",
-            )
+            return HandlerResult(command_message="E20: Mark not set", error=True)
     elif key in WINDOW_KEYS:
         return WINDOW_KEYS[key]
     elif key == "space f":

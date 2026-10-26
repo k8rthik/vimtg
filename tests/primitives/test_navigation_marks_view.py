@@ -508,10 +508,6 @@ async def test_jumping_to_an_unset_mark_does_not_move(tmp_path: Path) -> None:
 
 
 @pytest.mark.primitive("'{a-z}")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: 'q on an unset mark should be an error (vim's E20, as '' already is); "
-    "it shows a plain message \"Mark 'q' not set\""
-))
 async def test_jumping_to_an_unset_mark_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("'q")

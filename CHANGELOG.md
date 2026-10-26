@@ -200,6 +200,8 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- Jumping to an unset mark (`'q`) is vim's `E20: Mark not set` error, as
+  `''` already was, instead of a plain message.
 - `d`, `y` or `c` with `Ctrl-D` on the last line (`Ctrl-U` on the first)
   takes nothing, as `dj` / `dk` there already do; it used to take the
   cursor line.
