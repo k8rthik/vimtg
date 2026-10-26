@@ -155,9 +155,7 @@ def _range_section_backward(buffer: Buffer, row: int, count: int) -> tuple[int, 
     the cursor line itself is not included, as in vim."""
     pos = row
     for i in range(count):
-        if i == 0 and _is_entry(buffer, pos) and _is_entry(buffer, pos - 1):
-            pass  # mid-section: back to this section's first card
-        else:
+        if i > 0 or not _is_entry(buffer, pos):
             prev = pos - 1
             while prev >= 0 and not _is_entry(buffer, prev):
                 prev -= 1

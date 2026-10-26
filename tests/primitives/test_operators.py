@@ -267,10 +267,7 @@ LBRACE: list[Case | Keeps] = [
     Case("{", 13, (12,)),
     Case("{", 17, (16,)),  # last mainboard card
     Case("{", 7, ()),  # first card of the deck's first section
-    Case("{", 12, (), bug=(  # first card of a later section
-        "DOC: keybindings says d{ takes the cards above the cursor in its "
-        "section, none here; it deletes the whole // Creature section above"
-    )),
+    Case("{", 12, ()),  # first card of a later section: none above in it
     Case("{", 20, ()),  # sideboard's first card: nothing above in SB:
     Case("{", 0, ()),  # deck top
     Case("{", 13, (7, 8, 9, 12), count=2, gone=(6, 7, 8, 9, 10, 12)),

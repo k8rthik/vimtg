@@ -95,7 +95,7 @@ class TestOperatorRanges:
             ("}", 5, 2, (5, 9)),
             ("}", 9, 1, (9, 9)),
             ("{", 6, 1, (5, 5)),        # cards above in the section
-            ("{", 5, 1, (1, 2)),        # at the start: the previous section
+            ("{", 5, 1, (5, 4)),        # first card: none above in its section
             ("{", 1, 1, (1, 0)),
             ("]]", 1, 1, (1, 2)),       # up to the next header, minus the blank
             ("]]", 9, 1, (9, 9)),
