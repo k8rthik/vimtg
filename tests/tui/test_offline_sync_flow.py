@@ -419,6 +419,7 @@ async def test_clipboard_falls_back_to_textual_osc52(
         assert not cl.error
 
 
+@pytest.mark.real_clipboard
 @pytest.mark.asyncio
 async def test_clipboard_native_tool_is_confirmed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
