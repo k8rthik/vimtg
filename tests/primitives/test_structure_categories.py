@@ -139,11 +139,6 @@ async def test_gc_with_an_invalid_name_leaves_the_text_unchanged(tmp_path: Path)
 
 
 @pytest.mark.primitive("gc")
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: gc with an invalid name shows 'E: Invalid category' but not as an "
-    "error (is_error False); :category x! flags the same message as an error",
-)
 async def test_gc_with_an_invalid_name_reports_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press(f"{G_GOBLIN} gc x!y<CR>")

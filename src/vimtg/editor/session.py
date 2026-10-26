@@ -60,6 +60,7 @@ from vimtg.editor.commands import (
     NewBuffer,
     ParsedCommand,
     RangeError,
+    is_error_message,
     parse_command,
 )
 from vimtg.editor.cursor import Cursor
@@ -1184,6 +1185,7 @@ def handle_prompt_special(state: EditorState, action: ParsedAction) -> HandlerRe
         return HandlerResult(
             exit_to_normal=True,
             command_message=result,
+            error=is_error_message(result),
         )
 
     if key == "enter":

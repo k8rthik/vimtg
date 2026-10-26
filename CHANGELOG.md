@@ -430,6 +430,8 @@ from 1.0.0 onward.
   register name.
 - `p` with a count (`3p`) leaves the cursor on the first new line, as
   vim does, instead of the last. `P` and visual `p` already did.
+- `gc` with an invalid name shows `E: Invalid category` as an error, the
+  way `:category` does.
 
 ### Security
 
