@@ -174,10 +174,6 @@ async def test_scroll_keys_work_with_card_details_expanded(tmp_path: Path, key: 
 
 
 @pytest.mark.primitive("ctrl_d")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: Ctrl-D should move half the visible view (11 rows -> 5 lines, 50 -> 55); "
-    "it always moves 15 lines (50 -> 65)"
-))
 async def test_ctrl_d_moves_the_cursor_down_half_the_view(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -187,10 +183,6 @@ async def test_ctrl_d_moves_the_cursor_down_half_the_view(tmp_path: Path) -> Non
 
 
 @pytest.mark.primitive("ctrl_d")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: Ctrl-D should scroll the view with the cursor, keeping its screen line "
-    "(6th of 11); the cursor jumps 15 lines and the view only follows it to the margin"
-))
 async def test_ctrl_d_scrolls_the_view_with_the_cursor(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -223,10 +215,6 @@ async def test_ctrl_d_near_the_end_stops_on_the_last_line(tmp_path: Path) -> Non
 
 
 @pytest.mark.primitive("ctrl_u")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: Ctrl-U should move half the visible view (11 rows -> 5 lines, 50 -> 45); "
-    "it always moves 15 lines (50 -> 35)"
-))
 async def test_ctrl_u_moves_the_cursor_up_half_the_view(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -259,9 +247,9 @@ async def test_ctrl_u_near_the_top_stops_on_the_first_line(tmp_path: Path) -> No
 @pytest.mark.primitive("ctrl_d", "ctrl_u")
 async def test_half_pages_on_the_canonical_deck_reach_both_ends(tmp_path: Path) -> None:
     async with editor(tmp_path, size=SMALL) as ed:
-        await press(ed, "<C-d> <C-d> <C-d>")
+        await press(ed, "<C-d> <C-d> <C-d> <C-d>")
         assert ed.row == LAST
-        await press(ed, "<C-u> <C-u> <C-u>")
+        await press(ed, "<C-u> <C-u> <C-u> <C-u>")
         assert ed.row == 0
         unchanged(ed)
 
@@ -339,10 +327,6 @@ async def test_count_big_h_at_the_top_of_the_deck_is_that_visible_line(tmp_path:
 
 
 @pytest.mark.primitive("H")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: 5H on a view showing rows 45-55 should go to the fifth visible line "
-    "(row 49); it counts from inside the scrolloff margin and lands on row 52"
-))
 async def test_count_big_h_on_a_scrolled_view_is_that_visible_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -354,10 +338,6 @@ async def test_count_big_h_on_a_scrolled_view_is_that_visible_line(tmp_path: Pat
 
 
 @pytest.mark.primitive("L")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: 5L on a view showing rows 45-55 should go to the fifth line from the "
-    "bottom (row 51); it counts from inside the scrolloff margin and lands on row 48"
-))
 async def test_count_big_l_on_a_scrolled_view_is_that_line_from_the_bottom(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -383,10 +363,6 @@ async def test_counts_larger_than_the_view_stop_inside_scrolloff(tmp_path: Path)
 
 
 @pytest.mark.primitive("M")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: M with rows 0-10 on screen should go to the middle visible line (row 5); "
-    "it takes the middle of the scrolloff band (row 3, blank) and lands on row 4"
-))
 async def test_big_m_at_the_top_of_the_deck_goes_to_the_middle_visible_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -532,10 +508,6 @@ async def test_jumping_to_an_unset_mark_does_not_move(tmp_path: Path) -> None:
 
 
 @pytest.mark.primitive("'{a-z}")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: 'q on an unset mark should be an error (vim's E20, as '' already is); "
-    "it shows a plain message \"Mark 'q' not set\""
-))
 async def test_jumping_to_an_unset_mark_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("'q")

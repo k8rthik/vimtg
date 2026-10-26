@@ -24,12 +24,6 @@ from tests.primitives.harness import editor
 from tests.primitives.test_operators import Case, finish_change, params, rows, run
 from vimtg.editor.modes import Mode
 
-CANNOT_MOVE = (
-    "DOC: {op} on the {where} line, where {motion} cannot move, takes that "
-    "line; dj/dk there take nothing (vim fails a motion that cannot move), "
-    "the docs are silent for half-page targets"
-)
-
 J: list[Case] = [
     Case("j", 7, (7, 8)),
     Case("j", 7, rows(7, 9), count=2, gone=rows(6, 10)),
@@ -84,13 +78,13 @@ CTRL_D: list[Case] = [
     Case("<C-d>", 14, rows(14, 20)),  # a blank line, to the end
     Case("<C-d>", 13, rows(13, 20)),  # last card of a section
     Case("<C-d>", 11, rows(11, 20), tidy=True),  # a header
-    Case("<C-d>", 20, (), bug=CANNOT_MOVE.format(op="d<C-d>", where="last", motion="Ctrl-D")),
+    Case("<C-d>", 20, ()),  # deck bottom: Ctrl-D cannot move
 ]
 
 CTRL_U: list[Case] = [
     Case("<C-u>", 1, (0, 1)),
     Case("<C-u>", 2, rows(0, 2)),
-    Case("<C-u>", 0, (), bug=CANNOT_MOVE.format(op="d<C-u>", where="first", motion="Ctrl-U")),
+    Case("<C-u>", 0, ()),  # deck top: Ctrl-U cannot move
 ]
 
 

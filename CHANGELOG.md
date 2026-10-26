@@ -205,6 +205,19 @@ from 1.0.0 onward.
   and `:tutor`, `:home`, `:enew`, `:history`, `:config`, `:validate`,
   `:analytics`, `:close`, `:recover`, `:marks` and `:plans` ran as if
   the argument were not there. `:combos` and `:sync` give the same E488.
+- Jumping to an unset mark (`'q`) is vim's `E20: Mark not set` error, as
+  `''` already was, instead of a plain message.
+- `d`, `y` or `c` with `Ctrl-D` on the last line (`Ctrl-U` on the first)
+  takes nothing, as `dj` / `dk` there already do; it used to take the
+  cursor line.
+- `Ctrl-D` / `Ctrl-U` move half the deck view's height, as vim does,
+  and scroll the view with the cursor so it keeps its place on screen;
+  they used to jump a fixed 15 lines and leave the view behind. A count
+  is lines (`3` `Ctrl-D` moves three) rather than a number of half pages.
+- `H` and `L` with a count go to that line of the screen, counted from
+  the top or bottom of the deck view (`5H` is the fifth visible line),
+  and `M` goes to the middle visible line; they used to count from
+  inside the scrolloff margin.
 - The card search overlay's one-line messages (`No matches`, an unknown
   search key, the offline and oracle-tags notices) were drawn under the
   command line and never reached the screen. The overlay now sits above

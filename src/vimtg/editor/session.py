@@ -84,8 +84,10 @@ from vimtg.editor.macros import MacroRecorder
 from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.motions import (
+    HALF_PAGE_MOTIONS,
     MOTION_REGISTRY,
     VIEW_MOTIONS,
+    ViewWindow,
     motion_goto_line,
 )
 from vimtg.editor.operators import (
@@ -194,10 +196,10 @@ class EditorState:
     # The owned-cards collection the deck view and analytics compare
     # against; None until the configured CSV loads or :collection runs
     collection: Collection | None = None
-    # Inclusive (top, bottom) buffer rows the cursor can occupy without
-    # scrolling the deck view — set by the TUI before H / M / L. None
+    # What the deck view shows — set by the TUI before each motion or
+    # operator, for H / M / L and Ctrl-D / Ctrl-U. None
     # means no view is known and the whole buffer counts as visible.
-    view_band: tuple[int, int] | None = None
+    view: ViewWindow | None = None
     # Text of the buffer as last loaded or written; None when unknown.
     # Undo/redo compare against it so returning to it is unmodified.
     clean_text: str | None = None
@@ -281,6 +283,8 @@ class HandlerResult:
     plan_changed: bool = False  # active plan or its entries changed
     # zz / zt / zb: put the cursor line at the view's "center"/"top"/"bottom"
     scroll_view: str = ""
+    # Ctrl-D / Ctrl-U: scroll the view this many rows along with the cursor
+    scroll_lines: int = 0
     # Replace the command-line text (history recall); None leaves it
     command_replace: str | None = None
     # :e — open this deck in place of the current one
@@ -333,15 +337,34 @@ def _motion(state: EditorState, action: ParsedAction) -> HandlerResult:
     if action.action == "G" and action.count >= 1:
         state.cursor = motion_goto_line(state.cursor, state.buffer, action.count)
         return HandlerResult()
+    if action.action in HALF_PAGE_MOTIONS:
+        return _half_page(state, action)
     view_fn = VIEW_MOTIONS.get(action.action)
     if view_fn:
-        band = state.view_band or (0, state.buffer.line_count() - 1)
-        state.cursor = view_fn(state.cursor, state.buffer, band, count)
+        view = state.view or ViewWindow.whole(state.buffer)
+        state.cursor = view_fn(state.cursor, state.buffer, view, count)
         return HandlerResult()
     motion_fn = MOTION_REGISTRY.get(action.action)
     if motion_fn:
         state.cursor = motion_fn(state.cursor, state.buffer, count)
     return HandlerResult()
+
+
+def _half_page_lines(state: EditorState, count: int) -> int:
+    """How far Ctrl-D / Ctrl-U go: a typed count, else half the view."""
+    return count or (state.view or ViewWindow.whole(state.buffer)).half_page
+
+
+def _half_page(state: EditorState, action: ParsedAction) -> HandlerResult:
+    """Ctrl-D / Ctrl-U: the cursor moves, and the view scrolls the same
+    distance so the cursor keeps its screen line. A cursor that cannot
+    move (Ctrl-D on the last line) scrolls nothing."""
+    lines = _half_page_lines(state, action.count)
+    origin = state.cursor.row
+    state.cursor = MOTION_REGISTRY[action.action](state.cursor, state.buffer, lines)
+    if state.cursor.row == origin:
+        return HandlerResult()
+    return HandlerResult(scroll_lines=lines if state.cursor.row > origin else -lines)
 
 
 def _take_selection(state: EditorState) -> tuple[int, int] | None:
@@ -402,7 +425,12 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
         affected = (start, end)
     else:
         # G keeps a raw 0 ("no count": dG to the end, d8G to line 8)
-        count = action.count if action.motion == "G" else (action.count or 1)
+        if action.motion == "G":
+            count = action.count
+        elif action.motion in HALF_PAGE_MOTIONS:
+            count = _half_page_lines(state, action.count)
+        else:
+            count = action.count or 1
         affected = resolve_line_range(
             action.action, action.motion, state.cursor, state.buffer, count,
         )
@@ -785,12 +813,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             row = min(mark.row, state.buffer.line_count() - 1)
             state.cursor = state.cursor.move_to(row, 0)
             note_jump(state, origin)
-        elif key == "''":
-            return HandlerResult(command_message="E20: Mark not set", error=True)
         else:
-            return HandlerResult(
-                command_message=f"Mark '{mark_name}' not set",
-            )
+            return HandlerResult(command_message="E20: Mark not set", error=True)
     elif key in WINDOW_KEYS:
         return WINDOW_KEYS[key]
     elif key == "space f":

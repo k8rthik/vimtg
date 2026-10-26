@@ -26,6 +26,7 @@ from vimtg.editor.cursor import Cursor
 if TYPE_CHECKING:
     from vimtg.editor.placement import PlacementPolicy
 from vimtg.editor.motions import (
+    HALF_PAGE_MOTIONS,
     MOTION_REGISTRY,
     motion_goto_line,
     motion_last_line,
@@ -188,8 +189,9 @@ def resolve_line_range(
     # j/k operate on raw lines (vim: dj = exactly two lines). The
     # cursor motions skip blanks, which would silently widen the range
     # across a blank onto the next section or zone-block header.
-    # A motion that cannot move at all fails, as in vim: dj on the last
-    # line (dk on the first) deletes nothing, not the line itself.
+    # A motion that cannot move at all fails, as in vim: dj or d<C-d>
+    # on the last line (dk or d<C-u> on the first) deletes nothing, not
+    # the line itself.
     if motion == "j":
         if cursor.row >= buffer.line_count() - 1:
             return (cursor.row, cursor.row - 1)
@@ -205,6 +207,8 @@ def resolve_line_range(
     if motion_fn is None:
         return (cursor.row, cursor.row)
     target = motion_fn(cursor, buffer, count)
+    if motion in HALF_PAGE_MOTIONS and target.row == cursor.row:
+        return (cursor.row, cursor.row - 1)
     start = min(cursor.row, target.row)
     end = max(cursor.row, target.row)
     return (start, end)

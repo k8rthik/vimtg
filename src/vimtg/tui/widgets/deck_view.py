@@ -19,6 +19,7 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.category_ops import filter_hides
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.header_counts import HeaderCount, header_counts
+from vimtg.editor.motions import ViewWindow
 from vimtg.tui.deck_renderer import render_line
 from vimtg.tui.widgets.scrolling import (
     WHEEL_LINES,
@@ -169,6 +170,15 @@ class DeckView(Static):
         bottom = end - 1 if end >= total else end - 1 - margin
         return top, max(top, bottom)
 
+    def view_window(self) -> ViewWindow | None:
+        """The rendered window, its cursor band and the view's height,
+        for H / M / L and Ctrl-D / Ctrl-U. None before the first render."""
+        band = self.cursor_band()
+        if band is None or self._window is None:
+            return None
+        start, end = self._window
+        return ViewWindow(start, end - 1, band, self.size.height)
+
     def scroll_cursor_to(self, position: str) -> None:
         """zz / zt / zb: scroll so the cursor line sits at the "center",
         "top", or "bottom" of the view (scrolloff kept, as in vim). The
@@ -186,9 +196,23 @@ class DeckView(Static):
             offset = row - viewport + 1 + _SCROLLOFF
         else:
             offset = row - viewport // 2
-        max_offset = total + _BOTTOM_PAD - viewport
-        self._scroll_offset = max(0, min(offset, max_offset))
+        self._scroll_offset = max(0, min(offset, self._max_offset()))
         self.refresh()
+
+    def scroll_by(self, delta: int) -> None:
+        """Ctrl-D / Ctrl-U: move the window `delta` rows, the distance
+        the editor moved the cursor, so the cursor keeps its screen
+        line. The next render still keeps the cursor inside the
+        scrolloff margin."""
+        if self.buffer is None:
+            return
+        self._scroll_offset = max(0, min(self._scroll_offset + delta, self._max_offset()))
+        self.refresh()
+
+    def _max_offset(self) -> int:
+        """The furthest the window scrolls: the bottom pad past the last line."""
+        assert self.buffer is not None
+        return max(0, self.buffer.line_count() + _BOTTOM_PAD - self.size.height)
 
     # ── Mouse wheel ──────────────────────────────────────────────
 
