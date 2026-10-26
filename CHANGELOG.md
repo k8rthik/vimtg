@@ -432,6 +432,9 @@ from 1.0.0 onward.
   vim does, instead of the last. `P` and visual `p` already did.
 - `gc` with an invalid name shows `E: Invalid category` as an error, the
   way `:category` does.
+- `gl gl` on a category-grouped deck gives the same text back: going from
+  the type layout to the category layout puts the categories in name
+  order instead of the order the type groups happened to list them.
 
 ### Security
 

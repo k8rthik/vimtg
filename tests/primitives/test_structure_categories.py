@@ -242,11 +242,6 @@ async def test_gl_twice_round_trips_a_canonical_type_layout(tmp_path: Path) -> N
 
 
 @pytest.mark.primitive("gl")
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: gl gl on a canonical category deck reorders the groups "
-    "(@burn, @threats -> @threats, @burn); toggling should be lossless",
-)
 async def test_gl_twice_round_trips_a_canonical_category_layout(tmp_path: Path) -> None:
     async with editor(tmp_path, CAT_DECK) as ed:
         ed.press("gl gl")

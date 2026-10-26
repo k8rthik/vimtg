@@ -73,7 +73,7 @@ keeps its `@category` token, so toggling back and forth is lossless.
 | `:category!` | Clear the category from the line/range; in a category-grouped deck the card moves to `// Uncategorized` |
 | `:categories` (alias `:cats`) | List categories with counts; `:categories name` lists that category's cards |
 | `:layout type` | Regroup mainboard by card type (`// Creatures`, …) |
-| `:layout category` | Regroup by category (`// @ramp`, …); uncategorized cards group last |
+| `:layout category` | Regroup by category (`// @ramp`, …); uncategorized cards group last. From the type layout the categories come in name order, so `gl gl` gives a category deck back unchanged; a flat or category-grouped deck keeps its own category order |
 | `:layout` | Toggle between the two (also the `gl` key) |
 | `:filter expr` | Dim every card whose `@category` fails the expression and suppress its expansion; `:filter!` or a bare `:filter` clears. `Space f` opens the same prompt. `Tab` completes the deck's categories, most used first |
 
