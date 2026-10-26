@@ -27,7 +27,12 @@ from vimtg.domain.categories import (
     completion_candidates,
     parse_category_filter,
 )
-from vimtg.domain.deck_lines import parse_zone_header, split_metadata_prefix, zone_context_at
+from vimtg.domain.deck_lines import (
+    parse_zone_header,
+    split_metadata_prefix,
+    zone_context_at,
+    zone_running_context,
+)
 from vimtg.domain.formats import get_format_rules, known_formats
 from vimtg.domain.validation import commander_refusal
 from vimtg.editor.buffer import Buffer, LineType
@@ -105,6 +110,7 @@ from vimtg.editor.registers import (
     RegisterStore,
     is_clipboard_register,
 )
+from vimtg.editor.sections import matched_indent
 from vimtg.editor.sort_keys import SORT_FIELDS
 from vimtg.editor.splits import EdhrecOpen
 from vimtg.services.history_service import HistoryService
@@ -440,7 +446,8 @@ def _line_edit_prefix(buffer: Buffer, row: int) -> str:
     """The part of a line `i` keeps locked: the whole '// Key: ' prefix
     of a metadata line, the '// ' marker of a comment, the indentation
     of a line inside a zone or plan block (deleting it would silently
-    rezone the line and every line beneath it), else nothing."""
+    rezone the line and every line beneath it; a blank line there takes
+    the block's indentation), else nothing."""
     line_text = buffer.get_line(row).text
     meta = split_metadata_prefix(line_text)
     if meta is not None:
@@ -453,6 +460,8 @@ def _line_edit_prefix(buffer: Buffer, row: int) -> str:
             idx += 1
         return line_text[:idx]
     texts = [bl.text for bl in buffer.get_lines()]
+    if not line_text.strip():
+        return matched_indent(buffer, row) if zone_running_context(texts, row) else ""
     if zone_context_at(texts, row) is not None:
         return line_text[: len(line_text) - len(line_text.lstrip())]
     return ""

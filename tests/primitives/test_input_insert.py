@@ -107,14 +107,6 @@ async def test_i_renames_a_section_header_in_place(tmp_path: Path) -> None:
 
 
 @pytest.mark.primitive("i", "insert:type")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG: i on a blank line inside the DCK: block, typing '1 Lava Spike', should "
-        "keep the card in the block ('    1 Lava Spike'); it writes it unindented, "
-        "which closes the block"
-    ),
-)
 @pytest.mark.asyncio
 async def test_i_on_a_blank_line_in_a_block_keeps_the_card_in_it(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:

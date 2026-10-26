@@ -39,7 +39,7 @@ Everything below is normal mode unless flagged otherwise.
 
 | Key | Action |
 |-----|--------|
-| `i` | Edit the current line in place. On `// Key:` metadata lines only the value is editable; the `// Format:` value Tab-completes known formats. A line inside a zone block (`DCK:`, `CMD:`, `SB:` …) or a `VS:` plan keeps its indentation locked (Backspace and `Ctrl-U` stop at it, and `.` keeps it), so the card stays in the block; a bare zone header (`DCK:`) cannot be edited (E21) |
+| `i` | Edit the current line in place. On `// Key:` metadata lines only the value is editable; the `// Format:` value Tab-completes known formats. A line inside a zone block (`DCK:`, `CMD:`, `SB:` …) or a `VS:` plan keeps its indentation locked (Backspace and `Ctrl-U` stop at it, and `.` keeps it), so the card stays in the block. A blank line inside a block takes the block's indentation; a bare zone header (`DCK:`) cannot be edited (E21) |
 | `A` | Add or edit the card's inline comment (`// …`); confirming empty text removes it |
 | `o` / `O` | Add a card below / above: opens card search. The card joins the zone under the cursor (inside a `CMD:`/`SB:` block it lands there; in the mainboard it auto-files by type). A count sets copies: `4o` adds four. Inside a `VS:` plan block it writes a signed plan line |
 | `v` / `V` | Visual / visual-line selection |
