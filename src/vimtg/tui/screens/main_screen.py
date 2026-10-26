@@ -765,7 +765,7 @@ class MainScreen(Screen[None]):
         hr = None
         if action.action_type == "motion":
             if action.action in VIEW_MOTIONS:
-                s.view_band = self.query_one("#deck-view", DeckView).cursor_band()
+                s.view = self.query_one("#deck-view", DeckView).view_window()
             hr = handle_motion(s, action)
         elif action.action_type == "operator":
             hr = handle_operator(s, action)

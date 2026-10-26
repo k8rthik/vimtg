@@ -339,10 +339,6 @@ async def test_count_big_h_at_the_top_of_the_deck_is_that_visible_line(tmp_path:
 
 
 @pytest.mark.primitive("H")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: 5H on a view showing rows 45-55 should go to the fifth visible line "
-    "(row 49); it counts from inside the scrolloff margin and lands on row 52"
-))
 async def test_count_big_h_on_a_scrolled_view_is_that_visible_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -354,10 +350,6 @@ async def test_count_big_h_on_a_scrolled_view_is_that_visible_line(tmp_path: Pat
 
 
 @pytest.mark.primitive("L")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: 5L on a view showing rows 45-55 should go to the fifth line from the "
-    "bottom (row 51); it counts from inside the scrolloff margin and lands on row 48"
-))
 async def test_count_big_l_on_a_scrolled_view_is_that_line_from_the_bottom(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
@@ -383,10 +375,6 @@ async def test_counts_larger_than_the_view_stop_inside_scrolloff(tmp_path: Path)
 
 
 @pytest.mark.primitive("M")
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: M with rows 0-10 on screen should go to the middle visible line (row 5); "
-    "it takes the middle of the scrolloff band (row 3, blank) and lands on row 4"
-))
 async def test_big_m_at_the_top_of_the_deck_goes_to_the_middle_visible_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:

@@ -7,6 +7,7 @@ TUI-agnostic: no Textual imports.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from vimtg.editor.buffer import HEADER_LINE_TYPES, Buffer, LineType
 from vimtg.editor.cursor import Cursor
@@ -153,42 +154,64 @@ def _nearest_non_blank(buffer: Buffer, row: int, top: int, bottom: int, step: in
     return row
 
 
+@dataclass(frozen=True)
+class ViewWindow:
+    """What the deck view shows: buffer rows `top`..`bottom` (inclusive)
+    on screen, and the `band` of rows the cursor can occupy without
+    scrolling (the window minus the scrolloff margin, except where it
+    meets the buffer's ends). H / M / L count within the window and
+    then land inside the band, as vim adjusts them for 'scrolloff'."""
+
+    top: int
+    bottom: int
+    band: tuple[int, int]
+
+    @staticmethod
+    def whole(buffer: Buffer) -> ViewWindow:
+        """No view known: the whole buffer counts as visible."""
+        last = max(0, buffer.line_count() - 1)
+        return ViewWindow(0, last, (0, last))
+
+
 def _clamp_band(buffer: Buffer, band: tuple[int, int]) -> tuple[int, int]:
     last = max(0, buffer.line_count() - 1)
     top = max(0, min(band[0], last))
     return top, max(top, min(band[1], last))
 
 
-def motion_view_top(
-    cursor: Cursor, buffer: Buffer, band: tuple[int, int], count: int = 1,
+def _view_motion(
+    cursor: Cursor, buffer: Buffer, view: ViewWindow, row: int, step: int,
 ) -> Cursor:
-    """H — the count-th line from the top of the visible band."""
-    top, bottom = _clamp_band(buffer, band)
-    row = min(top + count - 1, bottom)
-    return cursor.move_to(_nearest_non_blank(buffer, row, top, bottom, 1), 0)
+    """Go to `row` of the window, moved into the band and off blanks."""
+    top, bottom = _clamp_band(buffer, view.band)
+    row = max(top, min(row, bottom))
+    return cursor.move_to(_nearest_non_blank(buffer, row, top, bottom, step), 0)
+
+
+def motion_view_top(
+    cursor: Cursor, buffer: Buffer, view: ViewWindow, count: int = 1,
+) -> Cursor:
+    """H — the count-th line from the top of the window."""
+    return _view_motion(cursor, buffer, view, view.top + count - 1, 1)
 
 
 def motion_view_middle(
-    cursor: Cursor, buffer: Buffer, band: tuple[int, int], count: int = 1,
+    cursor: Cursor, buffer: Buffer, view: ViewWindow, count: int = 1,
 ) -> Cursor:
-    """M — the middle line of the visible band."""
-    top, bottom = _clamp_band(buffer, band)
-    row = (top + bottom) // 2
-    return cursor.move_to(_nearest_non_blank(buffer, row, top, bottom, 1), 0)
+    """M — the middle line of the window."""
+    return _view_motion(cursor, buffer, view, (view.top + view.bottom) // 2, 1)
 
 
 def motion_view_bottom(
-    cursor: Cursor, buffer: Buffer, band: tuple[int, int], count: int = 1,
+    cursor: Cursor, buffer: Buffer, view: ViewWindow, count: int = 1,
 ) -> Cursor:
-    """L — the count-th line from the bottom of the visible band."""
-    top, bottom = _clamp_band(buffer, band)
-    row = max(bottom - (count - 1), top)
-    return cursor.move_to(_nearest_non_blank(buffer, row, top, bottom, -1), 0)
+    """L — the count-th line from the bottom of the window."""
+    return _view_motion(cursor, buffer, view, view.bottom - (count - 1), -1)
 
 
 MotionFn = Callable[[Cursor, Buffer, int], Cursor]
-# View motions also take the (top, bottom) rows the deck view shows
-ViewMotionFn = Callable[[Cursor, Buffer, tuple[int, int], int], Cursor]
+# View motions also take what the deck view shows
+ViewMotionFn = Callable[[Cursor, Buffer, ViewWindow, int], Cursor]
 
 MOTION_REGISTRY: dict[str, MotionFn] = {
     "j": motion_down,

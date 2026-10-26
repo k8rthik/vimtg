@@ -8,6 +8,7 @@ from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import ParsedAction
 from vimtg.editor.modes import Mode, ModeManager
+from vimtg.editor.motions import ViewWindow
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.session import (
     EditorState,
@@ -139,9 +140,9 @@ class TestRepeatFind:
 
 
 class TestViewMotionsInSession:
-    def test_uses_view_band(self) -> None:
+    def test_uses_view_window(self) -> None:
         st = _state(row=0)
-        st.view_band = (2, 6)
+        st.view = ViewWindow(2, 6, (2, 6))
         handle_motion(st, ParsedAction("motion", "L"))
         assert st.cursor.row == 6
         handle_motion(st, ParsedAction("motion", "H"))
@@ -159,6 +160,6 @@ class TestViewMotionsInSession:
 
     def test_count(self) -> None:
         st = _state(row=0)
-        st.view_band = (0, 7)
+        st.view = ViewWindow(0, 7, (0, 7))
         handle_motion(st, ParsedAction("motion", "L", 2))
         assert st.cursor.row == 6

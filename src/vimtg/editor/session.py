@@ -80,6 +80,7 @@ from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.motions import (
     MOTION_REGISTRY,
     VIEW_MOTIONS,
+    ViewWindow,
     motion_goto_line,
 )
 from vimtg.editor.operators import (
@@ -187,10 +188,9 @@ class EditorState:
     # The owned-cards collection the deck view and analytics compare
     # against; None until the configured CSV loads or :collection runs
     collection: Collection | None = None
-    # Inclusive (top, bottom) buffer rows the cursor can occupy without
-    # scrolling the deck view — set by the TUI before H / M / L. None
+    # What the deck view shows — set by the TUI before H / M / L. None
     # means no view is known and the whole buffer counts as visible.
-    view_band: tuple[int, int] | None = None
+    view: ViewWindow | None = None
     # Text of the buffer as last loaded or written; None when unknown.
     # Undo/redo compare against it so returning to it is unmodified.
     clean_text: str | None = None
@@ -328,8 +328,8 @@ def _motion(state: EditorState, action: ParsedAction) -> HandlerResult:
         return HandlerResult()
     view_fn = VIEW_MOTIONS.get(action.action)
     if view_fn:
-        band = state.view_band or (0, state.buffer.line_count() - 1)
-        state.cursor = view_fn(state.cursor, state.buffer, band, count)
+        view = state.view or ViewWindow.whole(state.buffer)
+        state.cursor = view_fn(state.cursor, state.buffer, view, count)
         return HandlerResult()
     motion_fn = MOTION_REGISTRY.get(action.action)
     if motion_fn:

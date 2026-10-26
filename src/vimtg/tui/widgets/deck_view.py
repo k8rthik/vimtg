@@ -19,6 +19,7 @@ from vimtg.editor.buffer import Buffer
 from vimtg.editor.category_ops import filter_hides
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.header_counts import HeaderCount, header_counts
+from vimtg.editor.motions import ViewWindow
 from vimtg.tui.deck_renderer import render_line
 from vimtg.tui.widgets.scrolling import (
     WHEEL_LINES,
@@ -168,6 +169,15 @@ class DeckView(Static):
         top = start if start == 0 else start + margin
         bottom = end - 1 if end >= total else end - 1 - margin
         return top, max(top, bottom)
+
+    def view_window(self) -> ViewWindow | None:
+        """The rendered window and its cursor band, for H / M / L.
+        None before the first render."""
+        band = self.cursor_band()
+        if band is None or self._window is None:
+            return None
+        start, end = self._window
+        return ViewWindow(start, end - 1, band)
 
     def scroll_cursor_to(self, position: str) -> None:
         """zz / zt / zb: scroll so the cursor line sits at the "center",

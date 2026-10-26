@@ -200,6 +200,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `H` and `L` with a count go to that line of the screen, counted from
+  the top or bottom of the deck view (`5H` is the fifth visible line),
+  and `M` goes to the middle visible line; they used to count from
+  inside the scrolloff margin.
 - The card search overlay's one-line messages (`No matches`, an unknown
   search key, the offline and oracle-tags notices) were drawn under the
   command line and never reached the screen. The overlay now sits above
