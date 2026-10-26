@@ -109,13 +109,19 @@ def substitute_lines(
     *,
     every: bool,
 ) -> tuple[Buffer, int]:
-    """Apply the substitute on `rows`; returns (buffer, substitutions)."""
+    """Apply the substitute on `rows`; returns (buffer, substitutions).
+
+    A card line's block indentation is layout, not content: the pattern
+    sees the line without it (so ^4 matches '    4 Lightning Bolt') and
+    the result keeps it. Other lines are matched whole."""
     expand = vim_replacement(replacement)
     count = 0
     for i in rows:
-        line = buffer.get_line(i)
-        new_text, n = regex.subn(expand, line.text, count=0 if every else 1)
-        if n > 0 and new_text != line.text:
+        text = buffer.get_line(i).text
+        indent = text[: len(text) - len(text.lstrip())] if buffer.is_card_line(i) else ""
+        body, n = regex.subn(expand, text[len(indent):], count=0 if every else 1)
+        new_text = indent + body
+        if n > 0 and new_text != text:
             buffer = buffer.set_line(i, new_text)
         count += n
     return buffer, count

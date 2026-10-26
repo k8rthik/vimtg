@@ -445,6 +445,9 @@ from 1.0.0 onward.
 - Restoring a snapshot from the history overlay (`gh`, `R`) records the
   restore as a new snapshot on top of the history, as the docs say. It
   used to load the snapshot into the editor and record nothing.
+- `:s` matches a card line without its zone-block indentation and writes
+  the result back with it, so the docs' `:g/@ramp/s/^4/3/` works on a
+  `DCK:` block deck. `^4` used to miss every indented card.
 
 ### Security
 
