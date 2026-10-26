@@ -22,10 +22,10 @@ from vimtg.editor.commands import (
 from vimtg.editor.cursor import Cursor
 from vimtg.services.clipboard import read_clipboard
 from vimtg.services.deck_service import saved_text
+from vimtg.services.export_targets import DeckFormat
 from vimtg.services.import_export_service import (
     FORMAT_NAMES,
     PRIMARY_FORMAT_NAMES,
-    DeckFormat,
     ImportExportService,
     format_list,
 )

@@ -732,7 +732,8 @@ def _convert_text(
     """The converted deck text (see convert); `in_path` is None when
     `source` is a deck URL."""
     from vimtg.services import deck_sources
-    from vimtg.services.import_export_service import DeckFormat, ImportExportService
+    from vimtg.services.export_targets import DeckFormat
+    from vimtg.services.import_export_service import ImportExportService
 
     service = ImportExportService(
         card_repo=CardRepository(card_db) if card_db is not None else None
