@@ -14,8 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.primitives.harness import DECK, FIXTURES, Ed, editor
-from tests.primitives.test_files_and_panes_helpers import (
+from tests.primitives.files_and_panes_helpers import (
     ex,
     in_editor,
     keys,
@@ -23,6 +22,7 @@ from tests.primitives.test_files_and_panes_helpers import (
     settle,
     shown,
 )
+from tests.primitives.harness import DECK, FIXTURES, Ed, editor
 from vimtg.config.paths import config_dir
 
 pytestmark = pytest.mark.asyncio

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from tests.primitives.harness import DECK, editor
-from tests.primitives.test_structure_support import CAT_DECK, card_signature, zone
+from tests.primitives.structure_support import CAT_DECK, card_signature, zone
 from vimtg.data.deck_repository import parse_deck_text
 
 pytestmark = pytest.mark.asyncio

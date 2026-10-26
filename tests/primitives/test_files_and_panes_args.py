@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from tests.primitives.harness import DECK, Ed, editor
-from tests.primitives.test_files_and_panes_helpers import (
+from tests.primitives.files_and_panes_helpers import (
     app_ended,
     ex,
     in_editor,
     keys,
 )
+from tests.primitives.harness import DECK, Ed, editor
 
 pytestmark = pytest.mark.asyncio
 

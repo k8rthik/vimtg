@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from tests.primitives.harness import editor
-from tests.primitives.test_structure_support import (
+from tests.primitives.structure_support import (
     CAT_DECK,
     dimmed_cards,
     dimmed_rows,

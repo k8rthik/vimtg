@@ -13,14 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from tests.primitives.harness import DECK, editor
-from tests.primitives.test_files_and_panes_helpers import (
+from tests.primitives.files_and_panes_helpers import (
     app_ended,
     ex,
     in_editor,
     keys,
     settle,
 )
+from tests.primitives.harness import DECK, editor
 from vimtg.tui.screens.greeter import GreeterScreen
 
 pytestmark = pytest.mark.asyncio

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from tests.primitives.harness import DECK, editor
-from tests.primitives.test_structure_support import (
+from tests.primitives.structure_support import (
     BOLT_ROW,
     CONTROL_ROW,
     FIRE_ICE_ROW,

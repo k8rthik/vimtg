@@ -16,14 +16,14 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import FakeClipboard
-from tests.primitives.harness import DECK, Ed, editor
-from tests.primitives.test_files_and_panes_helpers import (
+from tests.primitives.files_and_panes_helpers import (
     LEGAL_MODERN,
     ex,
     in_editor,
     settle,
     shown,
 )
+from tests.primitives.harness import DECK, Ed, editor
 from vimtg.config.paths import config_dir
 
 pytestmark = pytest.mark.asyncio
@@ -436,7 +436,7 @@ async def test_validate_without_card_data_says_legality_was_skipped(tmp_path: Pa
 
 @pytest.mark.primitive(":validate")
 async def test_validate_a_commander_deck_estimates_its_bracket(tmp_path: Path) -> None:
-    from tests.primitives.test_files_and_panes_helpers import COMMANDER_DECK
+    from tests.primitives.files_and_panes_helpers import COMMANDER_DECK
 
     async with editor(tmp_path, COMMANDER_DECK) as ed:
         ed.press(ex("validate"))
