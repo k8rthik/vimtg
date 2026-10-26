@@ -8,6 +8,7 @@ TUI-agnostic: no Textual imports.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -59,6 +60,13 @@ class MarkStore:
             else:
                 new._marks[name] = mark
         return new
+
+    def update_for_delete_rows(self, rows: Iterable[int]) -> MarkStore:
+        """update_for_delete for rows that need not be contiguous."""
+        store = self
+        for row in sorted(set(rows), reverse=True):
+            store = store.update_for_delete(row, row)
+        return store
 
     def items(self) -> tuple[tuple[str, Mark], ...]:
         """(name, mark) pairs in name order, for :marks."""

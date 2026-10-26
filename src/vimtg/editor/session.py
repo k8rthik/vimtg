@@ -89,7 +89,6 @@ from vimtg.editor.operators import (
     increment_quantity,
     move_to_zone,
     put_lines,
-    resolve_line_range,
     store_lines,
 )
 from vimtg.editor.placement import PlacementPolicy, reconcile_category_sections
@@ -392,13 +391,9 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
             op + op, None, state.cursor.move_to(start, 0),
             state.buffer, lines, state.registers, action.register,
         )
-        affected = (start, end)
     else:
         # G keeps a raw 0 ("no count": dG to the end, d8G to line 8)
         count = action.count if action.motion == "G" else (action.count or 1)
-        affected = resolve_line_range(
-            action.action, action.motion, state.cursor, state.buffer, count,
-        )
         repeat = RepeatableAction(
             "operator", operator=action.action,
             motion=action.motion, count=count,
@@ -411,7 +406,7 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
     changed = result.buffer is not state.buffer
     stored = result.registers is not state.registers
     if result.buffer.line_count() < state.buffer.line_count():
-        state.marks = state.marks.update_for_delete(*affected)
+        state.marks = state.marks.update_for_delete_rows(result.rows)
     state.buffer = result.buffer
     state.cursor = result.cursor
     state.registers = result.registers
@@ -1557,14 +1552,13 @@ def _replay(
 def _replay_operator(state: EditorState, last: RepeatableAction, count: int) -> None:
     """'.' after d/c + motion (and c with the card it inserted)."""
     op = last.operator or ""
-    affected = resolve_line_range(op, last.motion, state.cursor, state.buffer, count)
     result = execute_operator(
         op, last.motion, state.cursor, state.buffer,
         count, state.registers, last.register,
     )
     # Deletes must shift marks exactly like the live operator did
     if result.buffer.line_count() < state.buffer.line_count():
-        state.marks = state.marks.update_for_delete(*affected)
+        state.marks = state.marks.update_for_delete_rows(result.rows)
     if result.registers is not state.registers:
         state.registers = result.registers
         _mirror_clipboard(state, last.register)

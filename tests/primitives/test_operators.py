@@ -216,17 +216,6 @@ async def run(tmp_path: Path, op: str, case: Case | Keeps, seq: str) -> None:
 
 
 ALL_CARDS = CARD_ROWS
-INTERIOR = (
-    "BUG: a counted exclusive range deletes the // Instant header between "
-    "its cards and refiles Fire // Ice under // Creature; expected only the "
-    "cards to go, the header to stay"
-)
-
-BLANK_TAKEN = (
-    "BUG: from the blank before // Instant the range is that blank, which "
-    "lands in the register (the deck's tidying puts it back); expected an "
-    "empty range"
-)
 
 W: list[Case | Keeps] = [
     Case("w", 7, (7,)),
@@ -237,8 +226,8 @@ W: list[Case | Keeps] = [
     Case("w", 17, (17,), count=2),  # never on into the sideboard
     Case("w", 20, (20,)),  # last card of the deck
     Case("w", 20, (20,), count=3),  # fewer cards left: through the last
-    Case("w", 9, (9, 12), count=2, bug=INTERIOR),
-    Case("w", 10, (), bug=BLANK_TAKEN),  # blank before // Instant
+    Case("w", 9, (9, 12), count=2),
+    Case("w", 10, ()),  # blank before // Instant
     Keeps("w", 6, ALL_CARDS, (4, 19)),  # a header: no card goes
     Keeps("w", 0, ALL_CARDS, (4, 6, 19)),  # the metadata: no card goes
 ]
@@ -254,7 +243,7 @@ B: list[Case | Keeps] = [
     Case("b", 20, ()),  # sideboard's first card: never back across SB:
     Case("b", 7, ()),  # first card: nothing above
     Case("b", 0, ()),  # deck top
-    Case("b", 13, (9, 12), count=2, bug=INTERIOR),
+    Case("b", 13, (9, 12), count=2),
 ]
 
 RBRACE: list[Case | Keeps] = [
@@ -284,7 +273,7 @@ LBRACE: list[Case | Keeps] = [
     )),
     Case("{", 20, ()),  # sideboard's first card: nothing above in SB:
     Case("{", 0, ()),  # deck top
-    Case("{", 13, (7, 8, 9, 12), count=2, gone=(6, 7, 8, 9, 10, 12), bug=INTERIOR),
+    Case("{", 13, (7, 8, 9, 12), count=2, gone=(6, 7, 8, 9, 10, 12)),
     Keeps("{", 15, (7, 8, 9, 16, 17, 20), (4, 6, 15, 19)),  # from a header
     Keeps("{", 14, (7, 8, 9, 16, 17, 20), (4, 6, 15, 19)),  # from a blank
 ]
@@ -298,29 +287,19 @@ RBRACKET: list[Case | Keeps] = [
     Case("]]", 20, (20,)),  # deck bottom
     Case("]]", 7, rows(7, 13), count=2, gone=rows(6, 14)),
     Case("]]", 12, rows(12, 17), count=2, gone=rows(11, 18)),
-    Case("]]", 10, (), bug=BLANK_TAKEN),  # the blank before a header
+    Case("]]", 10, ()),  # the blank before a header
     Keeps("]]", 6, (12, 13, 16, 17, 20), (4, 11, 15, 19), lost=(7, 8, 9)),  # header
     Keeps("]]", 0, ALL_CARDS, (4, 6, 11, 15, 19)),  # deck top
 ]
 
-OWN_HEADER = (
-    "DOC: d[[ takes the section header it lands on (cards left header-less); "
-    "the brief says exclusive motions never delete a header, the doc only "
-    "protects the next section's"
-)
-
 LBRACKET: list[Case | Keeps] = [
-    Case("[[", 9, (7, 8), bug=OWN_HEADER),
-    Case("[[", 13, (12,), bug=OWN_HEADER),
-    Case("[[", 17, (16,), bug=OWN_HEADER),  # last mainboard card
-    Case("[[", 7, (), bug=OWN_HEADER),  # first card: only its header above
-    Case("[[", 14, (12, 13), gone=rows(11, 14), bug=OWN_HEADER),  # blank
-    Case("[[", 15, (12, 13), gone=rows(11, 14), bug=OWN_HEADER),  # header
-    Case("[[", 13, (7, 8, 9, 12), count=2, gone=(6, 7, 8, 9, 10, 12), bug=(
-        "BUG: 2d[[ on Fire // Ice deletes // Creature through Lightning Bolt, "
-        "the // Instant header too, leaving Fire // Ice under no header; "
-        "expected // Instant to stay"
-    )),
+    Case("[[", 9, (7, 8)),
+    Case("[[", 13, (12,)),
+    Case("[[", 17, (16,)),  # last mainboard card
+    Case("[[", 7, ()),  # first card: only its header above
+    Case("[[", 14, (12, 13), gone=rows(11, 14)),  # blank
+    Case("[[", 15, (12, 13), gone=rows(11, 14)),  # header
+    Case("[[", 13, (7, 8, 9, 12), count=2, gone=(6, 7, 8, 9, 10, 12)),
     Case("[[", 20, ()),  # sideboard card: never back into DCK:
     Case("[[", 0, ()),  # deck top
 ]

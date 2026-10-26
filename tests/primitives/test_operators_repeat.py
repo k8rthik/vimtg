@@ -16,7 +16,7 @@ import pytest
 from textual.pilot import Pilot
 
 from tests.primitives.harness import DECK, Ed, editor
-from tests.primitives.test_operators import LINES, OWN_HEADER, rows, text_without
+from tests.primitives.test_operators import LINES, rows, text_without
 from vimtg.editor.modes import Mode
 
 BOLT = "    4 Lightning Bolt"
@@ -43,7 +43,7 @@ REPEATS = [
     Repeat("}", 8, (8, 9), 17, (8, 9, 17)),
     Repeat("{", 9, (7, 8), 17, (7, 8, 16)),
     Repeat("]]", 8, (8, 9), 13, (8, 9, 13)),
-    Repeat("[[", 9, (7, 8), 17, (7, 8, 16), bug=OWN_HEADER),
+    Repeat("[[", 9, (7, 8), 17, (7, 8, 16)),
     Repeat("j", 7, (7, 8), 16, (7, 8, *rows(15, 18))),
     Repeat("k", 8, (7, 8), 17, (7, 8, *rows(15, 18))),
     Repeat("G", 17, rows(17, 20), 13, rows(13, 20)),
