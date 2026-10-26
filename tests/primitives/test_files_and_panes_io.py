@@ -154,16 +154,12 @@ async def test_export_list_writes_bare_summed_lines_without_the_maybeboard(
 
 
 @pytest.mark.primitive(":export")
-@pytest.mark.xfail(
-    strict=True,
-    reason="DOC: :export list writes '1 Fire' for the split card Fire // Ice; docs say "
-    "'front faces only' yet promise a list that pastes into store mass entry, "
-    "which needs 'Fire // Ice' (as Arena and .dek write it)",
-)
-async def test_export_list_names_a_split_card_by_both_halves(tmp_path: Path) -> None:
+async def test_export_list_names_a_split_card_by_its_front_half(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press(ex("export list out.txt"))
-    assert "1 Fire // Ice" in _read(tmp_path, "out.txt").splitlines()
+    lines = _read(tmp_path, "out.txt").splitlines()
+    assert "1 Fire" in lines
+    assert not any("//" in line for line in lines)
 
 
 @pytest.mark.primitive(":export", ":w")

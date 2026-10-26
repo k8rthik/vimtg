@@ -406,7 +406,7 @@ async def test_count_p_puts_that_many_copies(tmp_path: Path) -> None:
 @pytest.mark.primitive("p")
 @pytest.mark.xfail(
     strict=True,
-    reason="DOC: 3p leaves the cursor on the last put line (row 15); vim leaves it "
+    reason="BUG: 3p leaves the cursor on the last put line (row 15); vim leaves it "
     "on the first (row 13) and the docs do not say",
 )
 async def test_count_p_leaves_the_cursor_on_the_first_new_line(tmp_path: Path) -> None:

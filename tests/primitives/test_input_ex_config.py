@@ -124,20 +124,13 @@ async def test_map_applies_only_where_a_command_starts(tmp_path: Path) -> None:
 
 
 @pytest.mark.primitive(":map")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DOC: keybindings.md Remapping says both that a mapping applies only where a "
-        "command starts (s leaves \"s alone) and that it rewrites its key everywhere, "
-        "including \"s; the editor does the former"
-    ),
-)
 @pytest.mark.asyncio
-async def test_map_rewrites_the_key_inside_a_register_name(tmp_path: Path) -> None:
+async def test_map_leaves_the_key_alone_inside_a_register_name(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ex(ed, "map a b")
         ed.press('8G "ayy')
-        assert [line.strip() for line in ed.register("b")] == ["4 Goblin Guide"]
+        assert [line.strip() for line in ed.register("a")] == ["4 Goblin Guide"]
+        assert ed.register("b") == ()
 
 
 @pytest.mark.primitive(":map")

@@ -347,9 +347,9 @@ async def test_g_s_docs_example_on_an_unindented_deck(tmp_path: Path) -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "DOC: commands.md's ':g/@ramp/s/^4/3/' example cuts @ramp cards to 3, but in a "
+        "BUG: commands.md's ':g/@ramp/s/^4/3/' example cuts @ramp cards to 3, but in a "
         "DCK: block deck (the default style) ^4 never matches the indented line, "
-        "so nothing changes"
+        "so nothing changes; :s should match a card line without its block indentation"
     ),
 )
 @pytest.mark.asyncio

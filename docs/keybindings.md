@@ -347,8 +347,6 @@ vim, a mapping applies only where a command starts: mapping `s` leaves
 `~/.config/vimtg/config.toml`, per mode (`normal`, `insert`, `visual`,
 `command`). `;`, `,`, and `Ctrl-S` are unbound and free to map.
 
-A mapping rewrites its key everywhere you type it, including as the
-second key of a sequence. Mapping `s`, for example, also changes `zs`
-and the mark, register, and macro names `ms`, `'s`, `"s`, `qs`, and
-`@s`. Every letter is a mark, register, and macro name, so mapping any
-letter has the same effect.
+A mapping never touches the second key of a sequence, so mark,
+register, and macro names keep their meaning: after `:map s j`, `ms`,
+`'s`, `"s`, `qs`, and `@s` still name mark, register, and macro `s`.
