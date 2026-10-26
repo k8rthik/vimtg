@@ -22,7 +22,13 @@ from vimtg.domain.deck_lines import (
     zone_running_context,
 )
 from vimtg.domain.tags import format_inline_tags
-from vimtg.editor.buffer import HEADER_LINE_TYPES, ZONE_TAG_TYPES, Buffer, LineType
+from vimtg.editor.buffer import (
+    HEADER_LINE_TYPES,
+    ZONE_TAG_TYPES,
+    Buffer,
+    LineType,
+    insertion_zone,
+)
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.section_model import parse_sections, section_at
 
@@ -62,17 +68,24 @@ def _is_entry(buffer: Buffer, row: int) -> bool:
     )
 
 
-def _block_bounds(buffer: Buffer, row: int) -> tuple[int, int]:
-    """First and last row of the block around `row`, between its block
-    markers. An exclusive range never crosses one: deleting SB: would
-    move every sideboard card into the mainboard."""
+def _zone_bounds(buffer: Buffer, row: int) -> tuple[int, int]:
+    """First and last row of the zone around `row`. An exclusive range
+    never crosses a block marker (deleting SB: would move every
+    sideboard card into the mainboard) nor reaches a card of another
+    zone ('SB: 3 Rest in Peace' under a '// Sideboard' header)."""
+    zone = buffer.get_line(row).line_type if _is_entry(buffer, row) else insertion_zone(buffer, row)
+
+    def wall(i: int) -> bool:
+        line = buffer.get_line(i)
+        return is_block_marker(line.text) or (_is_entry(buffer, i) and line.line_type != zone)
+
     lo, hi = 0, buffer.line_count() - 1
     for i in range(row, -1, -1):
-        if is_block_marker(buffer.get_line(i).text):
+        if wall(i):
             lo = i + 1
             break
     for i in range(row + 1, hi + 1):
-        if is_block_marker(buffer.get_line(i).text):
+        if wall(i):
             hi = i - 1
             break
     return lo, hi
@@ -84,8 +97,8 @@ def _exclusive_rows(
     """The rows an exclusive motion acts on within [start, end]: its
     entries, plus the blank and header between two of them only when
     the range empties the section that header opens. Nothing outside
-    the cursor's block; no entries, no range."""
-    lo, hi = _block_bounds(buffer, cursor_row)
+    the cursor's zone; no entries, no range."""
+    lo, hi = _zone_bounds(buffer, cursor_row)
     entries = [r for r in range(max(start, lo), min(end, hi) + 1) if _is_entry(buffer, r)]
     taken = set(entries)
     sections = parse_sections(buffer)
