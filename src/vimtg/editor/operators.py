@@ -257,12 +257,16 @@ def store_lines(
     is_delete: bool,
 ) -> RegisterStore:
     """File yanked/deleted lines vim-style: into the named register and
-    the unnamed one (plus "0 or the "1-"9 delete history). The black
-    hole register "_ swallows them and leaves every register untouched."""
+    the unnamed one, plus the "1-"9 delete history for a delete. "0 holds
+    only the last yank made without a register name. The black hole
+    register "_ swallows them and leaves every register untouched."""
     if register_name == BLACK_HOLE:
         return registers
     reg_name = register_name or '"'
-    return registers.set(reg_name, lines).set_unnamed(lines, is_delete=is_delete)
+    stored = registers.set(reg_name, lines)
+    if is_delete or reg_name == '"':
+        return stored.set_unnamed(lines, is_delete=is_delete)
+    return stored.set('"', lines)
 
 
 def _yank(

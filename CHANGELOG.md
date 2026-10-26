@@ -425,6 +425,9 @@ from 1.0.0 onward.
 - CLI notes go to stderr like the errors already did: `vimtg validate`'s
   card-data notes and its `--strict` error, and `vimtg sync`'s progress
   and skipped-card count. The command's own output stays on stdout.
+- A yank into a named register (`"ayy`) no longer overwrites the yank
+  register `"0`. As in vim, `"0` holds the last yank made without a
+  register name.
 
 ### Security
 

@@ -78,10 +78,6 @@ async def test_a_named_yank_also_sets_the_unnamed_register(tmp_path: Path) -> No
 
 
 @pytest.mark.primitive('"{a-z}')
-@pytest.mark.xfail(
-    strict=True,
-    reason='BUG: "ayy also overwrites the yank register "0; vim keeps "0 for unnamed yanks',
-)
 async def test_a_named_yank_leaves_the_yank_register_alone(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press('9G yy 8G "ayy')
