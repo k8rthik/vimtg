@@ -480,11 +480,6 @@ async def test_zi_without_a_plan_is_refused(tmp_path: Path) -> None:
 
 
 @pytest.mark.primitive("visual:zc")
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: visual zc of non-legendary cards should say why they can't lead the deck "
-    "(as zc does); it says only 'Moved 2 card(s) to commander'",
-)
 async def test_zc_says_why_a_selected_card_cannot_be_commander(tmp_path: Path) -> None:
     async with editor(tmp_path, COMMANDER) as ed:
         ed.press("8G Vj zc")

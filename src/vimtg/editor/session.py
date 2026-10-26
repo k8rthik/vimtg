@@ -1266,19 +1266,23 @@ def _placement_policy(state: EditorState) -> PlacementPolicy:
     )
 
 
-def _commander_warning(state: EditorState, row: int) -> str:
-    """Why the card zc just put at `row` can't be the deck's commander
-    ('' when it can, or its card or format is unknown)."""
-    name = state.buffer.card_name_at(row)
-    card = state.resolved_cards.get(name) if name else None
-    if name is None or card is None:
-        return ""
+def _commander_warning(state: EditorState, names: list[str]) -> str:
+    """Why the cards zc just moved can't lead the deck ('' when they all
+    can, or the cards or the format are unknown). Two refusals are both
+    spelled out; past that the first is, and the rest are counted."""
     deck = parse_deck_text(state.buffer.to_text())
     fmt = (deck.metadata.format or state.settings.default_format).strip().lower()
     rules = get_format_rules(fmt) if fmt else None
     if rules is None:
         return ""
-    return commander_refusal(name, card, rules.name) or ""
+    refusals = [
+        refusal for name in names
+        if (card := state.resolved_cards.get(name)) is not None
+        and (refusal := commander_refusal(name, card, rules.name))
+    ]
+    if len(refusals) <= 2:
+        return "; ".join(refusals)
+    return f"{refusals[0]}; {len(refusals) - 1} more can't be your commander either"
 
 
 def _zone_refusal(state: EditorState, target: LineType) -> tuple[str, bool]:
@@ -1326,11 +1330,13 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
             if state.buffer.is_card_line(r)
         ]
     moved = 0
+    moved_names: list[str] = []
     first_message = ""
     first_error = False
     origin = state.cursor
     for i, row in enumerate(rows):
         state.cursor = state.cursor.move_to(row, 0)
+        name = state.buffer.card_name_at(row)
         result = move_to_zone(
             state.buffer, state.cursor, target, count,
             policy=_placement_policy(state),
@@ -1340,6 +1346,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
         if not result.moved:
             continue
         moved += 1
+        if name:
+            moved_names.append(name)
         if result.deleted_row is not None:
             state.marks = state.marks.update_for_delete(
                 result.deleted_row, result.deleted_row
@@ -1378,8 +1386,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
         first_message if selection is None
         else f"Moved {moved} card(s) to {ZONE_LABELS[target]}"
     )
-    if target == LineType.COMMANDER_ENTRY and selection is None:
-        warning = _commander_warning(state, state.cursor.row)
+    if target == LineType.COMMANDER_ENTRY:
+        warning = _commander_warning(state, moved_names)
     if warning:
         message = f"{message} — warning: {warning}"
     return HandlerResult(command_message=message, exit_to_normal=selection is not None)

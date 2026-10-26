@@ -437,6 +437,8 @@ from 1.0.0 onward.
   order instead of the order the type groups happened to list them.
 - `:filter -burn|threats` follows the documented grammar, where `-` binds
   to one name: it means (NOT burn) OR threats. It used to negate both names.
+- Visual `zc` says why a selected card can't lead the deck ("Goblin Guide
+  is not legendary and can't be your commander"), as `zc` on one card does.
 
 ### Security
 

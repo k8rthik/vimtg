@@ -117,7 +117,9 @@ is checked: `zc` is refused outside commander formats, which have no
 command zone, and `zs` in a format without a sideboard (commander)
 moves the card but warns. `zc` of a card that cannot lead the deck
 moves it and says why ("Goblin King is not legendary and can't be your
-commander"), as the gutter's ✗ then does. An unknown or missing format
+commander"), as the gutter's ✗ then does. A visual `zc` says it for
+each such card in the selection; past two cards it names the first and
+counts the rest. An unknown or missing format
 checks nothing.
 `zz`/`zt`/`zb` scroll the view, as in vim.
 
