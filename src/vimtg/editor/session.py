@@ -859,10 +859,6 @@ def _put(state: EditorState, key: str, count: int, register: str | None) -> bool
     inserted = state.buffer.line_count() - before
     if inserted <= 0:
         return False
-    if key == "p":
-        # p leaves the cursor on the last pasted row; P stays on the
-        # top of the stack it put above the line
-        state.cursor = state.cursor.move_to(first_insert_row + inserted - 1, 0)
     state.marks = state.marks.update_for_insert(first_insert_row, inserted)
     state.modified = True
     state.history.record(state.buffer, "put" if key == "p" else "put above")

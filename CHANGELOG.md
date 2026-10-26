@@ -428,6 +428,8 @@ from 1.0.0 onward.
 - A yank into a named register (`"ayy`) no longer overwrites the yank
   register `"0`. As in vim, `"0` holds the last yank made without a
   register name.
+- `p` with a count (`3p`) leaves the cursor on the first new line, as
+  vim does, instead of the last. `P` and visual `p` already did.
 
 ### Security
 

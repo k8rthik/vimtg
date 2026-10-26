@@ -94,7 +94,7 @@ as in vim, and never eat the next section's blank line or header:
 | `S` / `C` / `D` / `Y` | The linewise capitals: `S` and `C` are `cc`, `D` is `dd`, `Y` is `yy` (decks have no columns). Counts, registers and `.` work as with the doubled operator: `"a3Y` yanks three lines into `a` |
 | `d` `y` `c` + motion | Operators compose with a motion: `dw` deletes this card entry, `d}` to the end of the section, `y5G` through line 5. Counts multiply: `2d3j` |
 | `x` | Delete the card under the cursor (into the register); card lines only. A count deletes that many consecutive card lines as one change (`3x`, then one `u`) |
-| `p` / `P` | Paste below / above; `3p` pastes three copies |
+| `p` / `P` | Paste below / above; `3p` pastes three copies. The cursor lands on the first new line, as in vim |
 | `+` / `-` | Increment / decrement quantity; `-` at 0 deletes the line. Both keep zone prefixes, plan signs, `@category`, `#tags`, and comments |
 | `Ctrl-A` / `Ctrl-X` | vim's names for `+` / `-`: counts, visual mode and `.` work the same |
 | `.` | Repeat the last change (a count overrides the recorded one). Every edit repeats: operators, `c` together with the card it added, `o`/`O` with their card and copies, `p`/`P`, `+`/`-`, `x`, zone and plan moves, categories, comments, `i`, and `:s` (on the cursor line). A change made on a visual selection repeats on as many lines from the cursor |

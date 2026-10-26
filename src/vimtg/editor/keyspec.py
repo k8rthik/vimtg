@@ -180,7 +180,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        note="w b { } [[ ]] are exclusive: dw deletes this card, d} stops at "
             "the end of the section. j k G gg take whole lines"),
     _b("x", "Delete the card under the cursor (into the register)", EDITING),
-    _b(("p", "P"), "Paste below / above", EDITING, quick="Editing", brief="paste below/above"),
+    _b(("p", "P"), "Paste below / above", EDITING, quick="Editing", brief="paste below/above",
+       note="3p pastes three copies; the cursor lands on the first new line"),
     _b(("+", "-"), "Increment / decrement quantity (- at 0 deletes)", EDITING,
        quick="Editing", brief="inc/dec quantity"),
     _b(("ctrl_a", "ctrl_x"), "Increment / decrement quantity (vim's names for + / -)",
