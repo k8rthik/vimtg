@@ -102,17 +102,15 @@ class ExportIssue:
     message: str
     cards: tuple[str, ...] = ()
 
-    def text(self) -> str:
-        """The message with its cards, a long list cut to the first two
-        ('Not on MTG Arena: Goblin Guide, Sol Ring and 3 more')."""
+    def text(self, named: int | None = 2) -> str:
+        """The message with its cards, a list longer than `named` cut to
+        that many ('Not on MTG Arena: Goblin Guide, Sol Ring and 3
+        more'); None names every card."""
         if not self.cards:
             return self.message
-        shown = ", ".join(self.cards[:_NAMED])
-        rest = len(self.cards) - _NAMED
+        shown = ", ".join(self.cards[:named])
+        rest = len(self.cards) - len(self.cards[:named])
         return f"{self.message}: {shown}" + (f" and {rest} more" if rest > 0 else "")
-
-
-_NAMED = 2  # cards an issue's text names before counting the rest
 
 
 # A destination check: the deck about to be exported and its card data

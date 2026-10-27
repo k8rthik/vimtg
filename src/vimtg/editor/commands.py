@@ -313,6 +313,10 @@ class EditorContext:
     # performs the copy and words the result (clipboard_label names it)
     clipboard_text: str | None = None
     clipboard_label: str = ""
+    # Appended to the copy's message ("; 1 warning (see :messages)")
+    clipboard_note: str = ""
+    # (is_error, text) lines for :messages only, logged before `message`
+    logged: list[tuple[bool, str]] = field(default_factory=list)
     card_sync: str = ""  # :sync request — "sync", or "force" for :sync!
     # Active sideboard plan: seeded from editor state; active_plan_set
     # marks that the handler changed it (to a name, or None to clear)

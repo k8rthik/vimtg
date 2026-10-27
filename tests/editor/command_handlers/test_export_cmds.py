@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from vimtg.data.card_repository import CardRepository
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.export_cmds import cmd_clipboard, cmd_export, cmd_import
 from vimtg.editor.commands import EditorContext, NewBuffer, ParsedCommand
@@ -480,3 +482,49 @@ class TestExportMissing:
         assert ctx.error is False
         assert ctx.clipboard_text is None
         assert ctx.message == "Nothing missing: the collection covers this deck"
+
+
+class TestExportChecks:
+    """Card data decides how much the checks can say (see export_targets)."""
+
+    def _export(self, ctx: EditorContext, args: str) -> None:
+        cmd_export(
+            Buffer.from_text(_deck_text()), Cursor(), ParsedCommand(name="export", args=args), ctx
+        )
+
+    def test_without_a_card_database_checks_are_limited_but_the_export_is_written(
+        self, tmp_path: Path
+    ) -> None:
+        ctx = EditorContext()
+        self._export(ctx, f"arena {tmp_path / 'out.txt'}")
+        assert ctx.error is False
+        assert ctx.message.endswith("; 1 warning (see :messages)")
+        assert [error for error, _ in ctx.logged] == [False]
+        assert "limited" in ctx.logged[0][1]
+        assert (tmp_path / "out.txt").is_file()
+
+    def test_an_empty_card_database_counts_as_none(
+        self, tmp_path: Path, db_factory: Any
+    ) -> None:
+        ctx = EditorContext(card_repo=CardRepository(db_factory()))
+        self._export(ctx, "mtgo")
+        assert ["limited" in text for _, text in ctx.logged] == [True]
+
+    def test_unknown_cards_in_a_synced_database_are_named(
+        self, real_shape_repo: CardRepository
+    ) -> None:
+        ctx = EditorContext(card_repo=real_shape_repo, resolved_cards={})
+        self._export(ctx, "moxfield")
+        assert ctx.clipboard_note == "; 1 warning (see :messages)"
+        assert "Counterspell" in ctx.logged[0][1]
+
+    def test_an_error_lists_every_issue_in_messages_and_writes_nothing(self) -> None:
+        ctx = EditorContext()
+        cmd_export(
+            Buffer.from_text("// Deck: Empty\n"), Cursor(),
+            ParsedCommand(name="export", args="arena"), ctx,
+        )
+        assert ctx.error is True
+        assert ctx.message == "E: No cards to export (:export! arena overrides)"
+        assert [error for error, _ in ctx.logged] == [True, False]
+        assert ctx.clipboard_text is None

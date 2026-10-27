@@ -536,12 +536,13 @@ class MainScreen(Screen[None]):
 
         return key
 
-    def _copy_to_clipboard(self, text: str, label: str) -> None:
+    def _copy_to_clipboard(self, text: str, label: str, note: str) -> None:
         """Copy via a native clipboard tool, else OSC 52 through Textual
-        (never raw bytes on stdout while Textual owns the terminal)."""
+        (never raw bytes on stdout while Textual owns the terminal);
+        `note` follows a successful copy's message."""
         result = copy_to_clipboard(text, osc52=self.app.copy_to_clipboard)
         message, error = copy_message(result, label)
-        self.show_message(message, error=error)
+        self.show_message(message if error else message + note, error=error)
 
     # ── Key dispatch ─────────────────────────────────────────────
 
@@ -985,6 +986,8 @@ class MainScreen(Screen[None]):
         if hr.enter_visual:
             s.mode_mgr.transition(hr.enter_visual)
             self.keymap.set_mode(hr.enter_visual)
+        if hr.logged:
+            self.query_one("#command-line", CommandLine).history.extend(hr.logged)
         if hr.command_message and hr.listing is not None:
             self._show_listing(hr.listing, hr.command_message, error=hr.error)
         elif hr.command_message:
@@ -1052,7 +1055,7 @@ class MainScreen(Screen[None]):
         if hr.import_url:
             self._start_url_import(hr.import_url, force=hr.import_force)
         if hr.clipboard_text is not None:
-            self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label)
+            self._copy_to_clipboard(hr.clipboard_text, hr.clipboard_label, hr.clipboard_note)
         if hr.card_sync:
             self._start_card_sync(force=hr.card_sync == "force")
         if hr.focus_other_window:
