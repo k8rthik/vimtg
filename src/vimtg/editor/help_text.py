@@ -53,7 +53,7 @@ COMMANDS
   :layout       Toggle type/category layout
   :dtag/:duntag Add/remove deck-level tags
   :filter expr  Filter view by category (| OR, - NOT; Space f)
-  :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/list/vimtg/guide)
+  :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/list/mpc/...)
   :plan name    Activate a sideboard plan (creates its VS: block)
   :plans        List the plans with their -out +in totals
   :import src   Import deck from a file (auto-detects format) or a
@@ -211,16 +211,25 @@ COMMAND_HELP: dict[str, str] = {
     "marks": ":marks  Show marks with their line numbers",
     "export": (
         ":export format [file]  Export deck "
-        "(arena/mtgo/dek/moxfield/archidekt/list/vimtg/guide/missing)\n"
+        "(arena/mtgo/dek/moxfield/archidekt/list/mpc/tcgplayer/vimtg/\n"
+        "guide/missing)\n"
         "\n"
         "No file: the export is copied to the clipboard. An existing\n"
         "file needs :export! to overwrite; the open deck's own file is\n"
         "never overwritten.\n"
         "\n"
-        "list (also mpc, tcgplayer) writes bare 'N Card Name' lines,\n"
+        "Each destination checks the deck first. An error blocks the\n"
+        "write (:export! writes anyway): arena refuses cards not on\n"
+        "MTG Arena, mpc refuses '@' in a name, guide needs a VS: plan,\n"
+        "and no card list may be empty. Warnings never block: unknown\n"
+        "card names, and mtgo/dek cards with no tix price. :messages\n"
+        "lists every issue.\n"
+        "\n"
+        "list, mpc and tcgplayer write bare 'N Card Name' lines,\n"
         "commander to sideboard with no headers, front faces only, and\n"
         "a card in two zones summed: it pastes into MPC Autofill and a\n"
         "store's mass-entry box (TCGplayer, Card Kingdom, Mana Pool).\n"
+        "mpc also reports the card count.\n"
         "\n"
         "guide writes the sideboard plans (VS: blocks) as a Markdown\n"
         "guide — one section per matchup with OUT and IN lines.\n"
@@ -282,8 +291,9 @@ COMMAND_HELP: dict[str, str] = {
     "clipboard": (
         ":clipboard [format]  Copy deck to the system clipboard\n"
         "\n"
-        "Default format is arena. mtgo, dek, moxfield, archidekt, list,\n"
-        "vimtg, and guide also work, as with :export.\n"
+        "Default format is arena. Every :export format works, with the\n"
+        "same checks: an error blocks the copy (:export! fmt copies\n"
+        "anyway).\n"
         "Uses pbcopy, wl-copy, xclip, xsel or clip.exe when available\n"
         "(confirmed copy); otherwise asks the terminal via OSC 52, which\n"
         "cannot be confirmed (iTerm2, kitty, Alacritty, Wezterm and\n"

@@ -671,9 +671,9 @@ def search(query: tuple[str, ...], limit: int, as_json: bool) -> None:
     type=click.Choice(tuple(FORMAT_NAMES)),
     required=True,
     help=(
-        "Target format (mtga = arena; list = bare card lines for MPC "
-        "Autofill and stores, also mpc or tcgplayer; guide = sideboard "
-        "plans as Markdown)"
+        "Target format (mtga = arena; list, mpc, tcgplayer = bare card "
+        "lines for MPC Autofill and stores; guide = sideboard plans as "
+        "Markdown). Its export checks run first"
     ),
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path (- for stdout)")

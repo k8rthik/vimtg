@@ -93,6 +93,19 @@ from 1.0.0 onward.
 
 ### Added
 
+- Export checks: `:export`, `:clipboard` and `vimtg convert` check the
+  deck for its destination before writing it. `arena` refuses cards not
+  on MTG Arena (Timeless legality `not_legal`), `mpc` refuses `@` in a
+  card name, `guide` refuses a deck with no sideboard plans, and every
+  card list refuses an empty export. Warnings cover card names the card
+  database does not know and `mtgo`/`dek` cards with no tix price. An
+  error blocks the write and lists every issue in `:messages`;
+  `:export!` and `vimtg convert --force` write anyway. `vimtg convert`
+  prints issues on stderr and exits 1 on an error, and `-o -` writes to
+  stdout. `mpc` and `tcgplayer` are destinations of their own instead
+  of aliases of `list`, and `mpc` reports the card count. The [export
+  checks table](docs/commands.md#export-checks) says how each
+  destination writes card names.
 - Combos through [Commander Spellbook](https://commanderspellbook.com):
   `:combos` (alias `:combo`, key `Space c`) opens a `Combos — <deck>`
   overlay listing the combos the deck holds ("In this deck") and those
