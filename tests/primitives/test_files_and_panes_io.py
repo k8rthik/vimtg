@@ -291,7 +291,7 @@ def _logged(ed: Ed) -> list[str]:
 async def test_export_arena_refuses_a_card_not_on_arena(tmp_path: Path) -> None:
     _seed_timeless()
     async with editor(tmp_path, cards=False) as ed:
-        ed.press(ex("export arena out.txt"))
+        ed.ex("export arena out.txt")
         assert ed.is_error is True
         assert "Goblin Guide" in ed.message
         assert any("Not on MTG Arena" in line and "Goblin Guide" in line for line in _logged(ed))
@@ -302,7 +302,7 @@ async def test_export_arena_refuses_a_card_not_on_arena(tmp_path: Path) -> None:
 async def test_export_bang_writes_arena_despite_the_error(tmp_path: Path) -> None:
     _seed_timeless()
     async with editor(tmp_path, cards=False) as ed:
-        ed.press(ex("export! arena out.txt"))
+        ed.ex("export! arena out.txt")
         assert ed.is_error is False
         assert "1 error" in ed.message and ":messages" in ed.message
     assert "4 Goblin Guide" in _read(tmp_path, "out.txt").splitlines()
@@ -314,7 +314,7 @@ async def test_clipboard_arena_refuses_a_card_not_on_arena(
 ) -> None:
     _seed_timeless()
     async with editor(tmp_path, cards=False) as ed:
-        ed.press(ex("clipboard arena"))
+        ed.ex("clipboard arena")
         assert ed.is_error is True
         assert "Goblin Guide" in ed.message
     assert clipboard.text is None
@@ -324,7 +324,7 @@ async def test_clipboard_arena_refuses_a_card_not_on_arena(
 async def test_export_arena_on_arena_cards_writes_with_no_note(tmp_path: Path) -> None:
     _seed_timeless(frozenset())
     async with editor(tmp_path, cards=False) as ed:
-        ed.press(ex("export arena out.txt"))
+        ed.ex("export arena out.txt")
         assert ed.is_error is False
         assert ed.message == "Exported arena to out.txt"
 
@@ -332,7 +332,7 @@ async def test_export_arena_on_arena_cards_writes_with_no_note(tmp_path: Path) -
 @pytest.mark.primitive(":export")
 async def test_export_warnings_never_block_and_are_counted(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:  # sample cards carry no Timeless legality
-        ed.press(ex("export arena out.txt"))
+        ed.ex("export arena out.txt")
         assert ed.is_error is False
         assert ed.message == "Exported arena to out.txt; 1 warning (see :messages)"
         assert any("Arena availability unknown" in line for line in _logged(ed))
@@ -343,7 +343,7 @@ async def test_export_warnings_never_block_and_are_counted(tmp_path: Path) -> No
 async def test_export_mpc_refuses_an_at_sign_in_a_name(tmp_path: Path) -> None:
     deck = "// Deck: Proxies\n\nDCK:\n    4 Lightning Bolt\n    1 Foo@Bar\n"
     async with editor(tmp_path, deck) as ed:
-        ed.press(ex("export mpc out.txt"))
+        ed.ex("export mpc out.txt")
         assert ed.is_error is True
         assert "Foo@Bar" in ed.message
     assert not (tmp_path / "out.txt").exists()
@@ -352,7 +352,7 @@ async def test_export_mpc_refuses_an_at_sign_in_a_name(tmp_path: Path) -> None:
 @pytest.mark.primitive(":export")
 async def test_export_mpc_reports_the_card_count(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export mpc out.txt"))
+        ed.ex("export mpc out.txt")
         assert ed.is_error is False
         assert ed.message == "Exported mpc to out.txt (36 cards)"
 
@@ -362,7 +362,7 @@ async def test_clipboard_mpc_reports_the_card_count(
     tmp_path: Path, clipboard: FakeClipboard
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("clipboard mpc"))
+        ed.ex("clipboard mpc")
         assert ed.is_error is False
         assert ed.message.endswith("(36 cards)")
     assert clipboard.text is not None
