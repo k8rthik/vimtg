@@ -13,14 +13,11 @@ stops)" while one records.
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
 
 from tests.primitives.harness import DECK, Ed, editor
-from vimtg.tui.widgets.search_results import SearchResults
-from vimtg.tui.widgets.status_line import StatusLine
 
 pytestmark = pytest.mark.asyncio
 
@@ -44,24 +41,6 @@ FLAT_CARDS = FLAT.splitlines()[4:]
 
 def without(*rows: int) -> str:
     return "".join(text for i, text in enumerate(L) if i not in rows)
-
-
-def status(ed: Ed) -> str:
-    return ed.screen.query_one("#status-line", StatusLine).render().plain
-
-
-async def pick(ed: Ed, query: str) -> None:
-    """Type `query` into the open card search, wait for the search
-    worker's results, and confirm the top one with Enter."""
-    ed.press(query)
-    results = ed.screen.query_one("#search-results", SearchResults)
-    for _ in range(500):
-        await ed.app.workers.wait_for_complete()
-        await asyncio.sleep(0.01)
-        if results.results:
-            break
-    assert results.results, f"card search for {query!r} found nothing"
-    ed.press("<CR>")
 
 
 def copies(ed: Ed, name: str) -> int:
@@ -118,7 +97,7 @@ async def test_one_u_undoes_the_change_and_ctrl_r_redoes_it(
     async with editor(tmp_path) as ed:
         ed.press(keys)
         if query is not None:
-            await pick(ed, query)
+            await ed.pick(query)
         changed = ed.text
         assert changed != DECK
         ed.press("u")
@@ -358,7 +337,7 @@ async def test_dot_repeats_ctrl_x(tmp_path: Path) -> None:
 async def test_dot_repeats_cc_with_the_card_it_added(tmp_path: Path) -> None:
     async with editor(tmp_path, FLAT) as ed:
         ed.press("5G cc")
-        await pick(ed, "lava")
+        await ed.pick("lava")
         ed.press("/eidolon<CR> .")
         assert "2 Eidolon of the Great Revel" not in ed.cards
         assert "1 Goblin Guide" not in ed.cards
@@ -369,7 +348,7 @@ async def test_dot_repeats_cc_with_the_card_it_added(tmp_path: Path) -> None:
 async def test_dot_repeats_capital_s_with_the_card_it_added(tmp_path: Path) -> None:
     async with editor(tmp_path, FLAT) as ed:
         ed.press("5G S")
-        await pick(ed, "lava")
+        await ed.pick("lava")
         ed.press("/eidolon<CR> .")
         assert "2 Eidolon of the Great Revel" not in ed.cards
         assert copies(ed, "Lava Spike") == 2
@@ -414,7 +393,7 @@ async def test_dot_after_a_named_delete_files_into_the_same_register(
 async def test_recording_shows_in_the_status_line(tmp_path: Path) -> None:
     async with editor(tmp_path, FLAT) as ed:
         ed.press("qa")
-        assert "recording @a (q stops)" in status(ed)
+        assert "recording @a (q stops)" in ed.status
 
 
 @pytest.mark.primitive("q{a-z}")
@@ -429,7 +408,7 @@ async def test_recording_runs_the_keys_as_typed(tmp_path: Path) -> None:
 async def test_q_stops_recording(tmp_path: Path) -> None:
     async with editor(tmp_path, FLAT) as ed:
         ed.press("qa + q")
-        assert "recording" not in status(ed)
+        assert "recording" not in ed.status
 
 
 @pytest.mark.primitive("q")

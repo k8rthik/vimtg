@@ -9,14 +9,12 @@ silent. Rows are the 0-based rows of the canonical DECK (see harness).
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
 
 from tests.primitives.harness import DECK, Ed, editor
 from vimtg.editor.modes import Mode
-from vimtg.tui.widgets.search_results import SearchResults
 
 pytestmark = pytest.mark.asyncio
 
@@ -30,20 +28,6 @@ def line(row: int) -> str:
 
 def without(*rows: int) -> str:
     return "".join(text for i, text in enumerate(L) if i not in rows)
-
-
-async def pick(ed: Ed, query: str) -> None:
-    """Type `query` into the open card search, wait for the search
-    worker's results, and confirm the top one with Enter."""
-    ed.press(query)
-    results = ed.screen.query_one("#search-results", SearchResults)
-    for _ in range(500):
-        await ed.app.workers.wait_for_complete()
-        await asyncio.sleep(0.01)
-        if results.results:
-            break
-    assert results.results, f"card search for {query!r} found nothing"
-    ed.press("<CR>")
 
 
 def section_cards(ed: Ed, header: str) -> list[str]:
@@ -196,7 +180,7 @@ async def test_cc_deletes_the_line_and_opens_card_search(tmp_path: Path) -> None
 async def test_cc_replaces_the_card_with_the_one_picked(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("9G cc")
-        await pick(ed, "delver")
+        await ed.pick("delver")
         assert ed.mode is Mode.NORMAL
         creatures = section_cards(ed, "// Creature")
         assert "2 Eidolon of the Great Revel" not in creatures
@@ -225,7 +209,7 @@ async def test_cc_files_the_deleted_line_as_a_delete(tmp_path: Path) -> None:
 async def test_count_cc_changes_that_many_lines(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G 2cc")
-        await pick(ed, "delver")
+        await ed.pick("delver")
         creatures = section_cards(ed, "// Creature")
         assert "4 Goblin Guide" not in creatures
         assert "2 Eidolon of the Great Revel" not in creatures
@@ -239,7 +223,7 @@ async def test_capital_change_keys_work_like_cc(tmp_path: Path, key: str) -> Non
     async with editor(tmp_path) as ed:
         ed.press(f"9G {key}")
         assert ed.mode is Mode.INSERT
-        await pick(ed, "delver")
+        await ed.pick("delver")
         creatures = section_cards(ed, "// Creature")
         assert "2 Eidolon of the Great Revel" not in creatures
         assert any("Delver of Secrets" in card for card in creatures)

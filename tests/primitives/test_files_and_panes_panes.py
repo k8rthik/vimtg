@@ -15,8 +15,6 @@ import pytest
 
 from tests.primitives.files_and_panes_helpers import (
     COMMANDER_DECK,
-    ex,
-    settle,
     shown,
 )
 from tests.primitives.harness import DECK, Ed, editor
@@ -52,8 +50,8 @@ def _editor_has_focus(ed: Ed) -> bool:
 @pytest.mark.primitive(":analytics")
 async def test_analytics_opens_the_pane_and_keeps_focus_in_the_editor(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("analytics"))
-        await settle(ed)
+        ed.ex("analytics")
+        await ed.settle()
         assert _visible(ed, ANALYTICS)
         assert shown(ed, ANALYTICS).lstrip().startswith("ANALYTICS")
         assert "34 main" in shown(ed, ANALYTICS)
@@ -64,8 +62,8 @@ async def test_analytics_opens_the_pane_and_keeps_focus_in_the_editor(tmp_path: 
 @pytest.mark.primitive(":analytics")
 async def test_analytics_pane_follows_edits(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("analytics") + "8Gdd")
-        await settle(ed)
+        ed.ex("analytics").press("8Gdd")
+        await ed.settle()
         assert "30 main" in shown(ed, ANALYTICS)
 
 
@@ -73,10 +71,10 @@ async def test_analytics_pane_follows_edits(tmp_path: Path) -> None:
 async def test_space_a_toggles_the_analytics_pane(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("<Space>a")
-        await settle(ed)
+        await ed.settle()
         assert _visible(ed, ANALYTICS)
         ed.press("<Space>a")
-        await settle(ed)
+        await ed.settle()
         assert not _visible(ed, ANALYTICS)
         assert ed.text == DECK
 
@@ -85,10 +83,10 @@ async def test_space_a_toggles_the_analytics_pane(tmp_path: Path) -> None:
 async def test_space_a_replaces_the_edhrec_pane(tmp_path: Path) -> None:
     async with editor(tmp_path, COMMANDER_DECK) as ed:
         ed.press("<Space>r")
-        await settle(ed)
+        await ed.settle()
         assert _visible(ed, EDHREC)
         ed.press("<Esc><Space>a")
-        await settle(ed)
+        await ed.settle()
         assert _visible(ed, ANALYTICS)
         assert not _visible(ed, EDHREC)
 
@@ -100,8 +98,8 @@ async def test_space_a_replaces_the_edhrec_pane(tmp_path: Path) -> None:
 async def test_edhrec_opens_a_focused_pane_for_the_commander(tmp_path: Path) -> None:
     async with editor(tmp_path, COMMANDER_DECK) as ed:
         before = ed.text
-        ed.press(ex("edhrec"))
-        await settle(ed)
+        ed.ex("edhrec")
+        await ed.settle()
         assert _visible(ed, EDHREC)
         assert shown(ed, EDHREC).lstrip().startswith("EDHREC")
         assert "VIMTG_NO_EDHREC" in shown(ed, EDHREC)
@@ -115,8 +113,8 @@ async def test_edhrec_opens_a_focused_pane_for_the_commander(tmp_path: Path) -> 
 @pytest.mark.primitive(":edhrec")
 async def test_edhrec_accepts_a_card_type_tab(tmp_path: Path) -> None:
     async with editor(tmp_path, COMMANDER_DECK) as ed:
-        ed.press(ex("edhrec creatures"))
-        await settle(ed)
+        ed.ex("edhrec creatures")
+        await ed.settle()
         assert ed.is_error is False
         assert _visible(ed, EDHREC)
 
@@ -124,8 +122,8 @@ async def test_edhrec_accepts_a_card_type_tab(tmp_path: Path) -> None:
 @pytest.mark.primitive(":edhrec")
 async def test_edhrec_with_an_unknown_card_type_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path, COMMANDER_DECK) as ed:
-        ed.press(ex("edhrec goblins"))
-        await settle(ed)
+        ed.ex("edhrec goblins")
+        await ed.settle()
         assert ed.is_error is True
         assert not _visible(ed, EDHREC)
 
@@ -133,8 +131,8 @@ async def test_edhrec_with_an_unknown_card_type_is_an_error(tmp_path: Path) -> N
 @pytest.mark.primitive(":edhrec")
 async def test_edhrec_is_commander_only(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:  # // Format: modern
-        ed.press(ex("edhrec"))
-        await settle(ed)
+        ed.ex("edhrec")
+        await ed.settle()
         assert ed.is_error is True
         assert not _visible(ed, EDHREC)
         assert ed.text == DECK
@@ -144,8 +142,8 @@ async def test_edhrec_is_commander_only(tmp_path: Path) -> None:
 async def test_edhrec_without_a_cmd_line_is_an_error(tmp_path: Path) -> None:
     deck = "// Deck: Headless\n// Format: commander\n\nDCK:\n    1 Mountain\n"
     async with editor(tmp_path, deck) as ed:
-        ed.press(ex("edhrec"))
-        await settle(ed)
+        ed.ex("edhrec")
+        await ed.settle()
         assert ed.is_error is True
         assert not _visible(ed, EDHREC)
 
@@ -154,10 +152,10 @@ async def test_edhrec_without_a_cmd_line_is_an_error(tmp_path: Path) -> None:
 async def test_space_r_toggles_the_edhrec_pane(tmp_path: Path) -> None:
     async with editor(tmp_path, COMMANDER_DECK) as ed:
         ed.press("<Space>r")
-        await settle(ed)
+        await ed.settle()
         assert _visible(ed, EDHREC)
         ed.press("<Space>r")  # Space passes through the focused pane
-        await settle(ed)
+        await ed.settle()
         assert not _visible(ed, EDHREC)
 
 
@@ -165,7 +163,7 @@ async def test_space_r_toggles_the_edhrec_pane(tmp_path: Path) -> None:
 async def test_space_r_on_a_non_commander_deck_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("<Space>r")
-        await settle(ed)
+        await ed.settle()
         assert ed.is_error is True
         assert not _visible(ed, EDHREC)
 
@@ -174,11 +172,11 @@ async def test_space_r_on_a_non_commander_deck_is_an_error(tmp_path: Path) -> No
 
 
 @pytest.mark.primitive(":close")
-@pytest.mark.parametrize("opener", [ex("analytics"), "<Space>a"])
+@pytest.mark.parametrize("opener", [":analytics<CR>", "<Space>a"])
 async def test_close_closes_the_pane(tmp_path: Path, opener: str) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(opener + ex("close"))
-        await settle(ed)
+        ed.press(opener).ex("close")
+        await ed.settle()
         assert not _visible(ed, ANALYTICS)
         assert ed.is_error is False
         assert ed.text == DECK
@@ -187,15 +185,15 @@ async def test_close_closes_the_pane(tmp_path: Path, opener: str) -> None:
 @pytest.mark.primitive(":close")
 async def test_close_from_the_focused_edhrec_pane(tmp_path: Path) -> None:
     async with editor(tmp_path, COMMANDER_DECK) as ed:
-        ed.press(ex("edhrec") + ex("close"))  # ':' passes through the pane
-        await settle(ed)
+        ed.ex("edhrec").ex("close")  # ':' passes through the pane
+        await ed.settle()
         assert not _visible(ed, EDHREC)
 
 
 @pytest.mark.primitive(":close")
 async def test_close_with_no_pane_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("close"))
+        ed.ex("close")
         assert ed.is_error is True
         assert ed.text == DECK
 
@@ -206,8 +204,8 @@ async def test_close_with_no_pane_is_an_error(tmp_path: Path) -> None:
 @pytest.mark.primitive("ctrl_w w")
 async def test_ctrl_w_w_moves_focus_into_the_pane_and_back(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("analytics"))
-        await settle(ed)
+        ed.ex("analytics")
+        await ed.settle()
         assert _editor_has_focus(ed)
         ed.press("<C-w>w")
         assert not _editor_has_focus(ed)
@@ -220,7 +218,7 @@ async def test_ctrl_w_w_moves_focus_into_the_pane_and_back(tmp_path: Path) -> No
 @pytest.mark.primitive("ctrl_w w")
 async def test_esc_in_the_focused_pane_returns_to_the_editor(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("analytics") + "<C-w>w <Esc>")
+        ed.ex("analytics").press("<C-w>w <Esc>")
         assert _editor_has_focus(ed)
         assert _visible(ed, ANALYTICS)
 
@@ -228,7 +226,7 @@ async def test_esc_in_the_focused_pane_returns_to_the_editor(tmp_path: Path) -> 
 @pytest.mark.primitive("ctrl_w w")
 async def test_q_in_the_focused_pane_closes_it(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("analytics") + "<C-w>w q")
+        ed.ex("analytics").press("<C-w>w q")
         assert not _visible(ed, ANALYTICS)
         assert _editor_has_focus(ed)
         assert ed.text == DECK
@@ -245,13 +243,13 @@ async def test_ctrl_w_w_with_no_pane_says_so(tmp_path: Path) -> None:
 @pytest.mark.primitive("ctrl_w w", ":analytics")
 async def test_a_narrow_terminal_hides_the_pane_until_there_is_room(tmp_path: Path) -> None:
     async with editor(tmp_path, size=(50, 30)) as ed:
-        ed.press(ex("analytics"))
-        await settle(ed)
+        ed.ex("analytics")
+        await ed.settle()
         assert not _visible(ed, ANALYTICS)
         ed.press("<C-w>w")
         assert ed.is_error is True
         assert _editor_has_focus(ed)
-        pilot = await settle(ed)
-        await pilot.resize_terminal(120, 40)
-        await settle(ed)
+        await ed.settle()
+        await ed.pilot.resize_terminal(120, 40)
+        await ed.settle()
         assert _visible(ed, ANALYTICS)

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.primitives.harness import DECK, Ed, editor
+from tests.primitives.harness import DECK, editor
 from vimtg.editor.modes import Mode
 from vimtg.tui.widgets.command_line import CommandLine
 
@@ -23,14 +23,6 @@ ROWS = DECK.splitlines()
 def rows(*picked: int) -> tuple[str, ...]:
     """The canonical deck's lines at `picked`, as a register holds them."""
     return tuple(ROWS[r] for r in picked)
-
-
-def type_literally(ed: Ed, text: str) -> None:
-    """Feed each character of `text` as one key. Ed.press reads '<' as the
-    start of a key name, so it cannot spell the '<,'> range by hand."""
-    ed.press("")  # takes the crash net off, as every press does
-    for char in text:
-        ed.screen._process_key(char)
 
 
 def deck_without(*dropped: int) -> str:
@@ -335,8 +327,7 @@ async def test_colon_range_substitutes_only_inside_the_selection(tmp_path: Path)
 async def test_marks_from_an_escaped_selection_address_an_ex_range(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G Vj <Esc> G")
-        type_literally(ed, ":'<,'>g/e/d")
-        ed.press("<CR>")
+        ed.ex("'<,'>g/e/d")
         assert ed.text == deck_without(7, 8)
 
 

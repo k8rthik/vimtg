@@ -15,7 +15,6 @@ from tests.primitives.harness import DECK, Ed
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.domain.deck import DeckEntry, DeckSection
 from vimtg.tui.widgets.deck_view import DeckView
-from vimtg.tui.widgets.status_line import StatusLine
 
 # Rows of the canonical DECK (0-based; G takes row + 1).
 GOBLIN_ROW = 7  # 4 Goblin Guide
@@ -220,7 +219,3 @@ def dimmed_cards(ed: Ed, cards: tuple[str, ...]) -> set[str]:
     """Which of `cards` the deck view draws dimmed."""
     rows = dimmed_rows(ed)
     return {c for c in cards if any(c in r for r in rows)}
-
-
-def status(ed: Ed) -> str:
-    return ed.screen.query_one("#status-line", StatusLine).render().plain

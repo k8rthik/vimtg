@@ -13,9 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from textual.pilot import Pilot
 
-from tests.primitives.harness import DECK, Ed, editor
+from tests.primitives.harness import DECK, editor
 from tests.primitives.test_operators import LINES, rows, text_without
 from vimtg.editor.modes import Mode
 
@@ -63,14 +62,6 @@ def _params() -> list[object]:
     return out
 
 
-async def settle(ed: Ed) -> None:
-    """Let the card search worker deliver its results."""
-    pilot = Pilot(ed.app)
-    await pilot.pause()
-    await ed.app.workers.wait_for_complete()
-    await pilot.pause()
-
-
 def expected(gone: tuple[int, ...], bolts: int) -> str:
     return text_without(gone).replace(BOLT, f"    {4 + bolts} Lightning Bolt")
 
@@ -89,14 +80,14 @@ async def test_dot_repeats_operator_and_motion(tmp_path: Path, op: str, case: Re
         if op == "c":
             assert ed.mode is Mode.INSERT
             ed.press("lightning<Space>bolt")
-            await settle(ed)
+            await ed.settle()
             ed.press("<CR>")
         assert ed.mode is Mode.NORMAL
         once = expected(case.once, changes)
         assert ed.text == once
         kept = [row for row in range(len(LINES)) if row not in case.once]
         ed.press(f"{kept.index(case.second) + 1}G .")
-        await settle(ed)
+        await ed.settle()
         assert ed.mode is Mode.NORMAL
         assert ed.text == expected(case.twice, 2 * changes)
         ed.press("u")

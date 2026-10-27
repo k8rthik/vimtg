@@ -15,11 +15,8 @@ from pathlib import Path
 import pytest
 
 from tests.primitives.files_and_panes_helpers import (
-    ex,
     in_editor,
-    keys,
     overlay_title,
-    settle,
     shown,
 )
 from tests.primitives.harness import DECK, FIXTURES, Ed, editor
@@ -28,7 +25,7 @@ from vimtg.config.paths import config_dir
 pytestmark = pytest.mark.asyncio
 
 HELP_TITLE = "vimtg Help"
-CLOSE_KEYS = ["q", "escape"]
+CLOSE_KEYS = ["q", pytest.param("<Esc>", id="escape")]
 
 
 def _help_panel_open(ed: Ed) -> bool:
@@ -43,16 +40,16 @@ def _tips_shown(ed: Ed) -> bool:
 
 
 @pytest.mark.primitive(":help")
-@pytest.mark.parametrize("close", ["q", "escape", "question_mark"])
+@pytest.mark.parametrize("close", [*CLOSE_KEYS, pytest.param("?", id="question_mark")])
 async def test_help_opens_the_overview_and_closes_back_to_the_deck(
     tmp_path: Path, close: str
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("help"))
-        await settle(ed)
+        ed.ex("help")
+        await ed.settle()
         assert overlay_title(ed) == HELP_TITLE
         assert "GETTING STARTED" in shown(ed, "#help-body")
-        await keys(ed, close)
+        await ed.type(close)
         assert in_editor(ed)
         assert ed.text == DECK
 
@@ -60,8 +57,8 @@ async def test_help_opens_the_overview_and_closes_back_to_the_deck(
 @pytest.mark.primitive(":help")
 async def test_help_command_opens_that_commands_topic(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("help sort"))
-        await settle(ed)
+        ed.ex("help sort")
+        await ed.settle()
         assert overlay_title(ed) == f"{HELP_TITLE}: sort"
         assert ":sort" in shown(ed, "#help-body")
 
@@ -69,16 +66,16 @@ async def test_help_command_opens_that_commands_topic(tmp_path: Path) -> None:
 @pytest.mark.primitive(":help")
 async def test_help_an_alias_opens_its_commands_topic(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("help exp"))
-        await settle(ed)
+        ed.ex("help exp")
+        await ed.settle()
         assert overlay_title(ed) == f"{HELP_TITLE}: export"
 
 
 @pytest.mark.primitive(":help", "f1")
 async def test_f1_on_a_help_topic_switches_to_the_overview(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("help sort"))
-        await keys(ed, "f1")
+        ed.ex("help sort")
+        await ed.type("<F1>")
         assert overlay_title(ed) == HELP_TITLE
         assert "GETTING STARTED" in shown(ed, "#help-body")
 
@@ -86,8 +83,8 @@ async def test_f1_on_a_help_topic_switches_to_the_overview(tmp_path: Path) -> No
 @pytest.mark.primitive(":help")
 async def test_help_for_an_unknown_topic_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("help nosuchthing"))
-        await settle(ed)
+        ed.ex("help nosuchthing")
+        await ed.settle()
         assert in_editor(ed)
         assert ed.is_error is True
         assert ed.text == DECK
@@ -99,9 +96,9 @@ async def test_help_for_an_unknown_topic_is_an_error(tmp_path: Path) -> None:
 @pytest.mark.primitive("f1")
 async def test_f1_opens_the_help_overview_and_q_closes_it(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        await keys(ed, "f1")
+        await ed.type("<F1>")
         assert overlay_title(ed) == HELP_TITLE
-        await keys(ed, "q")
+        await ed.type("q")
         assert in_editor(ed)
         assert ed.text == DECK
 
@@ -110,14 +107,14 @@ async def test_f1_opens_the_help_overview_and_q_closes_it(tmp_path: Path) -> Non
 
 
 @pytest.mark.primitive("g?")
-@pytest.mark.parametrize("close", ["q", "escape", "question_mark"])
+@pytest.mark.parametrize("close", [*CLOSE_KEYS, pytest.param("?", id="question_mark")])
 async def test_g_question_opens_the_cheat_sheet_and_closes_it(
     tmp_path: Path, close: str
 ) -> None:
     async with editor(tmp_path) as ed:
-        await keys(ed, "g", "question_mark")
+        await ed.type("g?")
         assert _help_panel_open(ed)
-        await keys(ed, close)
+        await ed.type(close)
         assert not _help_panel_open(ed)
         assert in_editor(ed)
         assert ed.text == DECK
@@ -126,7 +123,7 @@ async def test_g_question_opens_the_cheat_sheet_and_closes_it(
 @pytest.mark.primitive("g?")
 async def test_g_question_twice_toggles_the_cheat_sheet_off(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        await keys(ed, "g", "question_mark", "g", "question_mark")
+        await ed.type("g?g?")
         assert not _help_panel_open(ed)
         assert ed.text == DECK
 
@@ -134,9 +131,9 @@ async def test_g_question_twice_toggles_the_cheat_sheet_off(tmp_path: Path) -> N
 @pytest.mark.primitive("g?", "f1")
 async def test_f1_trades_the_cheat_sheet_for_the_full_help(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        await keys(ed, "g", "question_mark", "f1")
+        await ed.type("g?<F1>")
         assert overlay_title(ed) == HELP_TITLE
-        await keys(ed, "q")
+        await ed.type("q")
         assert in_editor(ed)
         assert not _help_panel_open(ed)
 
@@ -144,7 +141,7 @@ async def test_f1_trades_the_cheat_sheet_for_the_full_help(tmp_path: Path) -> No
 @pytest.mark.primitive("g?")
 async def test_cheat_sheet_keys_never_edit_the_deck(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        await keys(ed, "g", "question_mark", "d", "d", "x")
+        await ed.type("g?ddx")
         assert _help_panel_open(ed)
         assert ed.text == DECK
 
@@ -158,10 +155,10 @@ EMPTY_NAMED = "// Deck: Empty\n// Format: modern\n"
 async def test_tips_shows_the_tips_panel_and_esc_hides_it(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         assert not _tips_shown(ed)  # a deck with cards, already written
-        ed.press(ex("tips"))
-        await settle(ed)
+        ed.ex("tips")
+        await ed.settle()
         assert _tips_shown(ed)
-        await keys(ed, "escape")
+        await ed.type("<Esc>")
         assert not _tips_shown(ed)
         assert ed.text == DECK
 
@@ -170,8 +167,8 @@ async def test_tips_shows_the_tips_panel_and_esc_hides_it(tmp_path: Path) -> Non
 async def test_tips_off_hides_them_under_empty_decks_for_good(tmp_path: Path) -> None:
     async with editor(tmp_path, EMPTY_NAMED) as ed:
         assert _tips_shown(ed)
-        ed.press(ex("tips off"))
-        await settle(ed)
+        ed.ex("tips off")
+        await ed.settle()
         assert not _tips_shown(ed)
     async with editor(tmp_path, EMPTY_NAMED) as ed:
         assert not _tips_shown(ed)
@@ -180,8 +177,8 @@ async def test_tips_off_hides_them_under_empty_decks_for_good(tmp_path: Path) ->
 @pytest.mark.primitive(":tips")
 async def test_tips_on_brings_them_back(tmp_path: Path) -> None:
     async with editor(tmp_path, EMPTY_NAMED) as ed:
-        ed.press(ex("tips off") + ex("tips on"))
-        await settle(ed)
+        ed.ex("tips off").ex("tips on")
+        await ed.settle()
         assert _tips_shown(ed)
     async with editor(tmp_path, EMPTY_NAMED) as ed:
         assert _tips_shown(ed)
@@ -190,7 +187,7 @@ async def test_tips_on_brings_them_back(tmp_path: Path) -> None:
 @pytest.mark.primitive(":tips")
 async def test_tips_with_an_unknown_argument_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("tips sometimes"))
+        ed.ex("tips sometimes")
         assert ed.is_error is True
         assert not _tips_shown(ed)
 
@@ -211,10 +208,10 @@ async def test_config_opens_the_settings_and_closes_back_to_the_deck(
     tmp_path: Path, close: str
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("config"))
-        await settle(ed)
+        ed.ex("config")
+        await ed.settle()
         assert overlay_title(ed) == "Settings"
-        await keys(ed, close)
+        await ed.type(close)
         assert in_editor(ed)
         assert ed.text == DECK
 
@@ -222,8 +219,8 @@ async def test_config_opens_the_settings_and_closes_back_to_the_deck(
 @pytest.mark.primitive(":config")
 async def test_config_s_saves_a_changed_setting_and_closes(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("config"))
-        await keys(ed, "l", "s")  # first row: price_source, usd -> usd_foil
+        ed.ex("config")
+        await ed.type("ls")  # first row: price_source, usd -> usd_foil
         assert in_editor(ed)
     assert _saved_config().get("price_source") == "usd_foil"
 
@@ -233,10 +230,10 @@ async def test_config_asks_once_more_before_closing_over_unsaved_changes(
     tmp_path: Path,
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("config"))
-        await keys(ed, "l", "q")
+        ed.ex("config")
+        await ed.type("lq")
         assert overlay_title(ed) == "Settings"
-        await keys(ed, "q")
+        await ed.type("q")
         assert in_editor(ed)
     assert _saved_config().get("price_source") != "usd_foil"
 
@@ -256,10 +253,10 @@ async def test_hand_opens_the_sample_hand_and_closes_back_to_the_deck(
     tmp_path: Path, close: str
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("hand"))
-        await settle(ed)
+        ed.ex("hand")
+        await ed.settle()
         assert overlay_title(ed) == "Sample hand"
-        await keys(ed, close)
+        await ed.type(close)
         assert in_editor(ed)
         assert ed.text == DECK
 
@@ -267,8 +264,8 @@ async def test_hand_opens_the_sample_hand_and_closes_back_to_the_deck(
 @pytest.mark.primitive(":hand")
 async def test_hand_draws_seven_from_the_main_deck_only(tmp_path: Path) -> None:
     async with editor(tmp_path, MAIN_ONLY_HAND) as ed:
-        ed.press(ex("hand"))
-        await settle(ed)
+        ed.ex("hand")
+        await ed.settle()
         body = shown(ed, "#hand-body")
         assert "Hand (7 cards" in body
         assert "Mountain" in body
@@ -278,20 +275,20 @@ async def test_hand_draws_seven_from_the_main_deck_only(tmp_path: Path) -> None:
 @pytest.mark.primitive(":hand")
 async def test_hand_n_draws_the_next_card(tmp_path: Path) -> None:
     async with editor(tmp_path, MAIN_ONLY_HAND) as ed:
-        ed.press(ex("hand"))
-        await keys(ed, "n")
+        ed.ex("hand")
+        await ed.type("n")
         assert "Hand (8 cards" in shown(ed, "#hand-body")
 
 
 @pytest.mark.primitive(":hand")
 async def test_hand_with_the_same_seed_deals_the_same_hand(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("hand seed=42"))
-        await settle(ed)
+        ed.ex("hand seed=42")
+        await ed.settle()
         first = shown(ed, "#hand-body")
-        await keys(ed, "q")
-        ed.press(ex("hand 42"))
-        await settle(ed)
+        await ed.type("q")
+        ed.ex("hand 42")
+        await ed.settle()
         assert shown(ed, "#hand-body") == first
         assert "seed=42" in first
 
@@ -300,8 +297,8 @@ async def test_hand_with_the_same_seed_deals_the_same_hand(tmp_path: Path) -> No
 @pytest.mark.parametrize("arg", ["seed=x", "draws=3"])
 async def test_hand_with_a_bad_seed_is_an_error(tmp_path: Path, arg: str) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex(f"hand {arg}"))
-        await settle(ed)
+        ed.ex(f"hand {arg}")
+        await ed.settle()
         assert in_editor(ed)
         assert ed.is_error is True
         assert ed.text == DECK
@@ -311,8 +308,8 @@ async def test_hand_with_a_bad_seed_is_an_error(tmp_path: Path, arg: str) -> Non
 async def test_hand_with_no_main_deck_is_an_error(tmp_path: Path) -> None:
     deck = "// Deck: Side\n// Format: modern\n\nSB:\n    2 Rest in Peace\n"
     async with editor(tmp_path, deck) as ed:
-        ed.press(ex("hand"))
-        await settle(ed)
+        ed.ex("hand")
+        await ed.settle()
         assert in_editor(ed)
         assert ed.is_error is True
 
@@ -321,10 +318,10 @@ async def test_hand_with_no_main_deck_is_an_error(tmp_path: Path) -> None:
 async def test_space_h_opens_the_sample_hand(tmp_path: Path) -> None:
     async with editor(tmp_path, MAIN_ONLY_HAND) as ed:
         ed.press("<Space>h")
-        await settle(ed)
+        await ed.settle()
         assert overlay_title(ed) == "Sample hand"
         assert "Hand (7 cards" in shown(ed, "#hand-body")
-        await keys(ed, "q")
+        await ed.type("q")
         assert in_editor(ed)
 
 
@@ -345,9 +342,9 @@ def recorded_spellbook(monkeypatch: pytest.MonkeyPatch) -> None:
 async def _combos(ed: Ed, opener: str) -> str:
     """Open the combos overlay, wait for the lookup, return its body."""
     ed.press(opener)
-    await settle(ed)
+    await ed.settle()
     await ed.app.workers.wait_for_complete()
-    await settle(ed)
+    await ed.settle()
     return shown(ed, "#combo-body")
 
 
@@ -359,13 +356,13 @@ async def test_combos_lists_held_and_one_away_combos_then_closes(
 ) -> None:
     async with editor(tmp_path, THORACLE) as ed:
         before = ed.text
-        body = await _combos(ed, ex("combos"))
+        body = await _combos(ed, ":combos<CR>")
         assert overlay_title(ed).startswith("Combos — ")
         held, _, away = body.partition("One card away")
         assert "In this deck" in held
         assert "Demonic Consultation" in held
         assert "Tainted Pact" in away
-        await keys(ed, close)
+        await ed.type(close)
         assert in_editor(ed)
         assert ed.text == before
 
@@ -375,8 +372,8 @@ async def test_combos_lists_held_and_one_away_combos_then_closes(
 async def test_combos_enter_on_a_one_away_combo_adds_the_missing_card(tmp_path: Path) -> None:
     async with editor(tmp_path, THORACLE) as ed:
         before = ed.text
-        await _combos(ed, ex("combos"))
-        await keys(ed, "j", "enter")  # the second row is the one-away combo
+        await _combos(ed, ":combos<CR>")
+        await ed.type("j<CR>")  # the second row is the one-away combo
         assert in_editor(ed)
         assert "1 Tainted Pact" in ed.cards
         ed.press("u")
@@ -389,17 +386,17 @@ async def test_combos_with_lookups_disabled_says_so(
 ) -> None:
     monkeypatch.setenv("VIMTG_NO_SPELLBOOK", "1")
     async with editor(tmp_path, THORACLE) as ed:
-        body = await _combos(ed, ex("combos"))
+        body = await _combos(ed, ":combos<CR>")
         assert "VIMTG_NO_SPELLBOOK" in body
-        await keys(ed, "q")
+        await ed.type("q")
         assert in_editor(ed)
 
 
 @pytest.mark.primitive(":combos")
 async def test_combos_with_an_argument_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("combos all"))
-        await settle(ed)
+        ed.ex("combos all")
+        await ed.settle()
         assert in_editor(ed)
         assert ed.is_error is True
 
@@ -407,8 +404,8 @@ async def test_combos_with_an_argument_is_an_error(tmp_path: Path) -> None:
 @pytest.mark.primitive(":combos")
 async def test_combos_of_a_deck_without_cards_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path, "// Deck: Empty\n// Format: modern\n") as ed:
-        ed.press(ex("combos"))
-        await settle(ed)
+        ed.ex("combos")
+        await ed.settle()
         assert in_editor(ed)
         assert ed.is_error is True
 
@@ -420,6 +417,6 @@ async def test_space_c_opens_the_combos_overlay(tmp_path: Path) -> None:
         body = await _combos(ed, "<Space>c")
         assert overlay_title(ed).startswith("Combos — ")
         assert "One card away" in body
-        await keys(ed, "q")
+        await ed.type("q")
         assert in_editor(ed)
 

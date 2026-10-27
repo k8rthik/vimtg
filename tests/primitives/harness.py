@@ -6,16 +6,36 @@ MainScreen._process_key, the same method a terminal keypress reaches, with
 the crash net disabled so an exception fails the test instead of being
 swallowed.
 
-Key notation for `press`: characters are keys, spaces only separate, and
-<Name> spells a named key, e.g. "3dd", "o lightning<CR>", ":w<CR>", "<C-r>".
+Key notation: characters are keys, spaces only separate, and <Name> spells
+a named key, e.g. "3dd", "o lightning<CR>", ":w<CR>", "<C-r>". <lt> is a
+literal '<' and <Space> a literal space, as vim spells them. `Ed.ex` types
+an ex command as written, spaces and '<' included.
+
+Two ways to send keys:
+- `Ed.press` (sync) reaches the editor's key path and nothing above it.
+  Use it for editing, motions, ex commands: anything the editor handles.
+- `Ed.type` (async) sends the same notation as terminal key events through
+  Textual's Pilot, so MainScreen.on_key runs: it clears the last message,
+  opens help on F1, closes the tips on Esc, and every key typed into a
+  floating overlay or caught by an app binding goes this way too. It
+  renders after every key, as a terminal does.
+- `Ed.press_chunks` (async) is `press` with a render after each
+  space-separated chunk, for cases that read the view between keys.
+
+Card search and other workers run off the key path: `await ed.settle()`
+before reading what they deliver, or `await ed.pick(query)` to type a
+search and confirm its top result.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+from textual.pilot import Pilot
 
 from vimtg.config.paths import db_path
 from vimtg.data.card_repository import CardRepository
@@ -25,6 +45,8 @@ from vimtg.editor.modes import Mode
 from vimtg.tui.app import VimTGApp
 from vimtg.tui.screens.main_screen import MainScreen
 from vimtg.tui.widgets.command_line import CommandLine
+from vimtg.tui.widgets.search_results import SearchResults
+from vimtg.tui.widgets.status_line import StatusLine
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -63,10 +85,10 @@ DECK = (
 NAMED_KEYS = {
     "<CR>": "enter", "<Esc>": "escape", "<BS>": "backspace", "<Tab>": "tab",
     "<S-Tab>": "shift_tab", "<Up>": "up", "<Down>": "down", "<Left>": "left",
-    "<Right>": "right", "<Space>": " ", "<F1>": "f1",
+    "<Right>": "right", "<Space>": " ", "<lt>": "<", "<F1>": "f1",
     "<C-a>": "ctrl_a", "<C-b>": "ctrl_b", "<C-d>": "ctrl_d", "<C-e>": "ctrl_e",
-    "<C-o>": "ctrl_o", "<C-r>": "ctrl_r", "<C-u>": "ctrl_u", "<C-w>": "ctrl_w",
-    "<C-x>": "ctrl_x",
+    "<C-o>": "ctrl_o", "<C-r>": "ctrl_r", "<C-s>": "ctrl_s", "<C-u>": "ctrl_u",
+    "<C-w>": "ctrl_w", "<C-x>": "ctrl_x",
 }
 
 
@@ -89,6 +111,15 @@ def keys(seq: str) -> list[str]:
     return out
 
 
+def _textual_key(key: str) -> str:
+    """A canonical key as Pilot.press spells it: 'ctrl_r' -> 'ctrl+r'."""
+    if key == " ":
+        return "space"
+    if key.startswith(("ctrl_", "shift_")):
+        return key.replace("_", "+", 1)
+    return key
+
+
 def seed_cards() -> None:
     """Load the sample cards into the database the app opens."""
     db = Database(db_path())
@@ -109,9 +140,10 @@ def _reraise(exc: Exception) -> None:
 class Ed:
     """One open editor. Read state through the properties, act with press."""
 
-    def __init__(self, app: VimTGApp, path: Path) -> None:
+    def __init__(self, app: VimTGApp, path: Path, pilot: Pilot[object]) -> None:
         self.app = app
         self.path = path
+        self.pilot = pilot
 
     @property
     def screen(self) -> MainScreen:
@@ -125,6 +157,45 @@ class Ed:
         for key in keys(seq):
             screen._process_key(key)
         return self
+
+    def ex(self, command: str) -> Ed:
+        """Type ':' + command + Enter, every character of command literally."""
+        literal = command.replace("<", "<lt>").replace(" ", "<Space>")
+        return self.press(":" + literal + "<CR>")
+
+    async def press_chunks(self, seq: str) -> None:
+        """Press each space-separated chunk of `seq`, rendering after each.
+        Keys inside a chunk get no render between them, unlike `type`."""
+        for chunk in seq.split():
+            self.press(chunk)
+            await self.pilot.pause()
+
+    async def type(self, seq: str) -> None:
+        """Send `seq` as terminal key events, rendering after each key."""
+        await self.settle()
+        for key in keys(seq):
+            await self.pilot.press(_textual_key(key))
+            await self.pilot.pause()
+        await self.settle()
+
+    async def settle(self) -> None:
+        """Let posted messages run, workers finish, and the screen render."""
+        await self.pilot.pause()
+        await self.app.workers.wait_for_complete()
+        await self.pilot.pause()
+
+    async def pick(self, query: str) -> None:
+        """Type `query` into the open card search, wait for its results,
+        and confirm the top one with Enter."""
+        self.press(query)
+        results = self.screen.query_one("#search-results", SearchResults)
+        for _ in range(500):
+            await self.settle()
+            if results.results:
+                break
+            await asyncio.sleep(0.01)
+        assert results.results, f"card search for {query!r} found nothing"
+        self.press("<CR>")
 
     @property
     def lines(self) -> list[str]:
@@ -166,6 +237,10 @@ class Ed:
         return self.screen.query_one("#command-line", CommandLine).error
 
     @property
+    def status(self) -> str:
+        return self.screen.query_one("#status-line", StatusLine).render().plain
+
+    @property
     def modified(self) -> bool:
         return self.screen._state.modified
 
@@ -195,4 +270,4 @@ async def editor(
     app = VimTGApp(deck_path=path)
     async with app.run_test(size=size) as pilot:
         await pilot.pause()
-        yield Ed(app, path)
+        yield Ed(app, path, pilot)

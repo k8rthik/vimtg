@@ -2,8 +2,8 @@
 
 Expected values come from docs/keybindings.md (Modes, Card search) and
 the README's card-search and placement notes. Card search runs on a
-worker thread, so every case that needs results awaits `settle` (the
-app's workers) before reading or confirming them.
+worker thread, so every case that needs results awaits `ed.settle()`
+(the app's workers) before reading or confirming them.
 """
 
 from __future__ import annotations
@@ -23,11 +23,6 @@ DELVER = "Delver of Secrets // Insectile Aberration"
 def typed(text: str) -> str:
     """Key notation for literal text: spaces become <Space>."""
     return text.replace(" ", "<Space>")
-
-
-async def settle(ed: Ed) -> None:
-    """Wait for every card search worker to deliver its results."""
-    await ed.app.workers.wait_for_complete()
 
 
 def results(ed: Ed) -> SearchResults:
@@ -60,7 +55,7 @@ def zone_of(ed: Ed, card: str) -> str:
 async def add_card(ed: Ed, prefix: str, name_query: str) -> None:
     """`prefix` (e.g. '8G o', '4o') opens the search; confirm the top hit."""
     ed.press(prefix + typed(name_query))
-    await settle(ed)
+    await ed.settle()
     ed.press("<CR>")
 
 
@@ -362,7 +357,7 @@ async def test_o_on_a_metadata_row_files_into_the_mainboard(tmp_path: Path) -> N
 async def test_escape_cancels_o_and_restores_the_cursor(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G o del")
-        await settle(ed)
+        await ed.settle()
         ed.press("<Esc>")
         assert ed.mode is Mode.NORMAL
         assert ed.text == DECK
@@ -405,11 +400,11 @@ async def test_one_undo_reverts_an_added_card(
 async def test_typing_shows_results_from_two_characters(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G o l")
-        await settle(ed)
+        await ed.settle()
         assert query(ed) == "l"
         assert not results(ed).display
         ed.press("a")
-        await settle(ed)
+        await ed.settle()
         assert query(ed) == "la"
         assert results(ed).display
         assert [c.name for c in results(ed).results] == ["Lava Spike"]
@@ -420,7 +415,7 @@ async def test_typing_shows_results_from_two_characters(tmp_path: Path) -> None:
 async def test_typing_an_unknown_key_names_it_in_the_overlay(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G o foo:bar")
-        await settle(ed)
+        await ed.settle()
         assert "foo" in results(ed).error
         ed.press("<CR>")
         assert ed.text == DECK
@@ -440,10 +435,10 @@ async def test_ctrl_u_in_the_card_search_clears_the_query(tmp_path: Path) -> Non
 async def test_backspace_edits_the_query(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G o lavx")
-        await settle(ed)
+        await ed.settle()
         assert results(ed).results == []
         ed.press("<BS>")
-        await settle(ed)
+        await ed.settle()
         assert query(ed) == "lav"
         assert [c.name for c in results(ed).results] == ["Lava Spike"]
         ed.press("<CR>")
@@ -456,7 +451,7 @@ async def test_tab_selects_the_next_result(tmp_path: Path) -> None:
     # t:creature, ranked by name: Bonecrusher, Delver, Eidolon, Goblin
     async with editor(tmp_path) as ed:
         ed.press("8G o t:creature")
-        await settle(ed)
+        await ed.settle()
         names = [c.name for c in results(ed).results]
         assert names == [
             "Bonecrusher Giant // Stomp", DELVER,
@@ -472,7 +467,7 @@ async def test_tab_selects_the_next_result(tmp_path: Path) -> None:
 async def test_tab_twice_selects_the_third_result(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G o t:creature")
-        await settle(ed)
+        await ed.settle()
         ed.press("<Tab> <Tab> <CR>")
         assert ed.text == DECK.replace(
             "2 Eidolon of the Great Revel", "3 Eidolon of the Great Revel"
@@ -484,7 +479,7 @@ async def test_tab_twice_selects_the_third_result(tmp_path: Path) -> None:
 async def test_shift_tab_selects_the_previous_result(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G o t:creature")
-        await settle(ed)
+        await ed.settle()
         ed.press("<Tab> <Tab> <S-Tab> <CR>")
         assert f"1 {DELVER}" in ed.cards
         assert "2 Eidolon of the Great Revel" in ed.cards
@@ -495,7 +490,7 @@ async def test_shift_tab_selects_the_previous_result(tmp_path: Path) -> None:
 async def test_enter_with_no_match_adds_nothing(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G o zzzz")
-        await settle(ed)
+        await ed.settle()
         ed.press("<CR>")
         assert ed.mode is Mode.NORMAL
         assert ed.text == DECK

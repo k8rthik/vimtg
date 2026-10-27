@@ -1,15 +1,13 @@
-"""Helpers shared by the files-and-panes primitive cases (no cases here).
+"""Decks and read-back helpers shared by the files-and-panes primitive
+cases (no cases here).
 
-`Ed.press` feeds MainScreen._process_key, which is the editor's key path
-but not the whole terminal path: F1, the g? cheat sheet's close keys,
-Esc hiding the tips, Ctrl-Q, and every key typed into an overlay are
-handled in `on_key` handlers or app bindings above it. Those cases send
-the key through Textual's Pilot instead, as a terminal would.
+F1, the g? cheat sheet's close keys, Esc hiding the tips, and every key
+typed into an overlay are handled above the editor's key path, so those
+cases send keys with `Ed.type`. Ctrl-Q is an app binding with no harness
+key name; those cases press it through `ed.pilot`.
 """
 
 from __future__ import annotations
-
-from textual.pilot import Pilot
 
 from tests.primitives.harness import Ed
 from vimtg.tui.screens.main_screen import MainScreen
@@ -43,28 +41,6 @@ COMMANDER_DECK = (
 )
 
 
-def ex(command: str) -> str:
-    """':' + command + Enter, in Ed.press notation (spaces typed as <Space>)."""
-    return ":" + command.replace(" ", "<Space>") + "<CR>"
-
-
-async def settle(ed: Ed) -> Pilot[object]:
-    """Let pushed screens mount and posted messages run; returns a Pilot."""
-    pilot: Pilot[object] = Pilot(ed.app)
-    await pilot.pause()
-    await pilot.pause()
-    return pilot
-
-
-async def keys(ed: Ed, *names: str) -> None:
-    """Send Textual key names through the app, as a terminal would."""
-    pilot = await settle(ed)
-    for name in names:
-        await pilot.press(name)
-        await pilot.pause()
-    await pilot.pause()
-
-
 def in_editor(ed: Ed) -> bool:
     return isinstance(ed.app.screen, MainScreen)
 
@@ -82,5 +58,5 @@ def shown(ed: Ed, selector: str) -> str:
 
 async def app_ended(ed: Ed) -> bool:
     """True once the app stopped running (it ended the session)."""
-    await settle(ed)
+    await ed.settle()
     return not ed.app.is_running

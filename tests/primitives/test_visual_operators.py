@@ -10,10 +10,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from textual.pilot import Pilot
 
 from tests.conftest import FakeClipboard
-from tests.primitives.harness import DECK, Ed, editor
+from tests.primitives.harness import DECK, editor
 from vimtg.editor.modes import Mode
 
 pytestmark = pytest.mark.asyncio
@@ -21,13 +20,6 @@ pytestmark = pytest.mark.asyncio
 ROWS = DECK.splitlines()
 GOBLIN, EIDOLON = ROWS[7], ROWS[8]
 BOLT, FIRE_ICE = ROWS[12], ROWS[13]
-
-
-async def settle(ed: Ed) -> None:
-    """Let the card search worker deliver its results. Ed.press is
-    synchronous, so a search typed through it has not answered yet."""
-    await ed.app.workers.wait_for_complete()
-    await Pilot(ed.app).pause()
 
 
 def deck_without(*dropped: int) -> str:
@@ -246,7 +238,7 @@ async def test_change_then_escape_undoes_in_one_step(tmp_path: Path, key: str) -
 async def test_change_replaces_the_selection_with_the_searched_card(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G Vj c lava")
-        await settle(ed)
+        await ed.settle()
         ed.press("<CR>")
         assert "1 Lava Spike" in ed.cards
         assert "4 Goblin Guide" not in ed.cards
@@ -257,7 +249,7 @@ async def test_change_replaces_the_selection_with_the_searched_card(tmp_path: Pa
 async def test_change_with_a_card_undoes_in_one_step(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8G Vj c lava")
-        await settle(ed)
+        await ed.settle()
         ed.press("<CR> <Esc> u")
         assert ed.text == DECK
 

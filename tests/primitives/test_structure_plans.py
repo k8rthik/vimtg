@@ -23,7 +23,6 @@ from tests.primitives.structure_support import (
     plan,
     plan_names,
     rendered_rows,
-    status,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -48,7 +47,7 @@ async def test_plan_activates_an_existing_plan_on_its_header(tmp_path: Path) -> 
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press(TRON)
         assert ed.row == TRON_ROW
-        assert "vs Tron -2/+2" in status(ed)
+        assert "vs Tron -2/+2" in ed.status
         assert ed.text == PLAN_DECK
         assert not ed.modified
 
@@ -66,7 +65,7 @@ async def test_active_plan_shows_each_deck_cards_delta(tmp_path: Path) -> None:
 async def test_plan_marks_an_unbalanced_plan_in_the_status_line(tmp_path: Path) -> None:
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press(CONTROL)
-        assert "vs Control -1/+0 !" in status(ed)
+        assert "vs Control -1/+0 !" in ed.status
 
 
 @pytest.mark.primitive(":plan")
@@ -78,7 +77,7 @@ async def test_plan_with_a_new_matchup_appends_its_block_after_the_plans(
         assert plan_names(ed.text) == ["Tron", "Control", "Burn (draw)"]
         assert ed.text.rstrip("\n").endswith("\nVS: Burn (draw)")
         assert ed.line == "VS: Burn (draw)"
-        assert "vs Burn (draw)" in status(ed)
+        assert "vs Burn (draw)" in ed.status
         assert ed.modified
 
 
@@ -101,7 +100,7 @@ async def test_bare_plan_activates_the_next_plan_and_wraps(tmp_path: Path) -> No
             ed.press(":plan<CR>")
             seen.append(ed.row)
         assert seen == [TRON_ROW, CONTROL_ROW, TRON_ROW]
-        assert "vs Tron" in status(ed)
+        assert "vs Tron" in ed.status
 
 
 @pytest.mark.primitive(":plan")
@@ -116,7 +115,7 @@ async def test_bare_plan_without_any_plan_is_an_error(tmp_path: Path) -> None:
 async def test_plan_bang_deactivates(tmp_path: Path) -> None:
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press(f"{TRON} :plan!<CR>")
-        assert "vs Tron" not in status(ed)
+        assert "vs Tron" not in ed.status
         assert "-2" not in _row_of(rendered_rows(ed), "Lightning Bolt")
         ed.press(f"{G_BOLT} zo")  # no plan to board into any more
         assert ed.is_error
@@ -177,7 +176,7 @@ async def test_next_plan_jumps_to_and_activates_the_first_plan(tmp_path: Path) -
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press("]v")
         assert ed.row == TRON_ROW
-        assert "vs Tron -2/+2" in status(ed)
+        assert "vs Tron -2/+2" in ed.status
 
 
 @pytest.mark.primitive("]v")
@@ -185,7 +184,7 @@ async def test_next_plan_twice_reaches_the_second_plan(tmp_path: Path) -> None:
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press("]v ]v")
         assert ed.row == CONTROL_ROW
-        assert "vs Control" in status(ed)
+        assert "vs Control" in ed.status
 
 
 @pytest.mark.primitive("]v")
@@ -193,7 +192,7 @@ async def test_next_plan_after_the_last_stays_put(tmp_path: Path) -> None:
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press("]v ]v ]v")
         assert ed.row == CONTROL_ROW
-        assert "vs Control" in status(ed)
+        assert "vs Control" in ed.status
         assert not ed.modified
 
 
@@ -202,7 +201,7 @@ async def test_next_plan_without_plans_stays_put(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press(f"{G_GOBLIN} ]v")
         assert ed.row == GOBLIN_ROW
-        assert "vs " not in status(ed)
+        assert "vs " not in ed.status
 
 
 @pytest.mark.primitive("[v")
@@ -210,7 +209,7 @@ async def test_previous_plan_jumps_back_and_activates_it(tmp_path: Path) -> None
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press(f"{CONTROL_ROW + 1}G [v")
         assert ed.row == TRON_ROW
-        assert "vs Tron" in status(ed)
+        assert "vs Tron" in ed.status
 
 
 @pytest.mark.primitive("[v")
@@ -218,7 +217,7 @@ async def test_previous_plan_before_the_first_stays_put(tmp_path: Path) -> None:
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press(f"{G_GOBLIN} [v")
         assert ed.row == GOBLIN_ROW
-        assert "vs " not in status(ed)
+        assert "vs " not in ed.status
 
 
 # --- zo -------------------------------------------------------------------
@@ -230,7 +229,7 @@ async def test_zo_boards_every_copy_out_of_the_mainboard(tmp_path: Path) -> None
         ed.press(f"{TRON} {G_BOLT} zo")
         assert plan(ed.text, "Tron") == {"Lightning Bolt": -4, "Rest in Peace": 2}
         assert plan(ed.text, "Control") == {"Fire // Ice": -1}
-        assert "vs Tron -4/+2" in status(ed)
+        assert "vs Tron -4/+2" in ed.status
 
 
 @pytest.mark.primitive("zo")
@@ -273,7 +272,7 @@ async def test_zo_in_a_deck_with_one_plan_uses_it(tmp_path: Path) -> None:
     async with editor(tmp_path, ONE_PLAN_DECK) as ed:
         ed.press(f"{G_BOLT} zo")
         assert plan(ed.text, "Tron") == {"Lightning Bolt": -4, "Rest in Peace": 2}
-        assert "vs Tron" in status(ed)
+        assert "vs Tron" in ed.status
 
 
 @pytest.mark.primitive("zo")
@@ -309,7 +308,7 @@ async def test_zi_boards_every_sideboard_copy_in(tmp_path: Path) -> None:
     async with editor(tmp_path, PLAN_DECK) as ed:
         ed.press(f"{CONTROL} {G_RIP} zi")
         assert plan(ed.text, "Control") == {"Fire // Ice": -1, "Rest in Peace": 2}
-        assert "vs Control -1/+2" in status(ed)
+        assert "vs Control -1/+2" in ed.status
 
 
 @pytest.mark.primitive("zi")

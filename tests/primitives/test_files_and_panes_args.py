@@ -14,9 +14,7 @@ import pytest
 
 from tests.primitives.files_and_panes_helpers import (
     app_ended,
-    ex,
     in_editor,
-    keys,
 )
 from tests.primitives.harness import DECK, Ed, editor
 
@@ -44,14 +42,14 @@ async def _refused_untouched(ed: Ed, before: str) -> None:
 )
 async def test_command_that_takes_no_argument_refuses_one(tmp_path: Path, command: str) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex(f"{command} junk"))
+        ed.ex(f"{command} junk")
         await _refused_untouched(ed, DECK)
 
 
 @pytest.mark.primitive(":analytics")
 async def test_analytics_refuses_an_argument(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("analytics junk"))
+        ed.ex("analytics junk")
         await _refused_untouched(ed, DECK)
         assert not ed.screen.query_one("#analytics-panel").display
 
@@ -59,7 +57,7 @@ async def test_analytics_refuses_an_argument(tmp_path: Path) -> None:
 @pytest.mark.primitive(":close")
 async def test_close_refuses_an_argument(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("analytics") + ex("close junk"))
+        ed.ex("analytics").ex("close junk")
         await _refused_untouched(ed, DECK)
         assert ed.screen.query_one("#analytics-panel").display
 
@@ -68,7 +66,7 @@ async def test_close_refuses_an_argument(tmp_path: Path) -> None:
 async def test_recover_refuses_an_argument(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
         ed.press("8Gdd")
-        await keys(ed, "ctrl+q")  # leaves a recovery copy
+        await ed.pilot.press("ctrl+q")  # leaves a recovery copy
     async with editor(tmp_path) as ed:
-        ed.press(ex("recover junk"))
+        ed.ex("recover junk")
         await _refused_untouched(ed, DECK)

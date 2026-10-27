@@ -13,7 +13,6 @@ import re
 from pathlib import Path
 
 import pytest
-from textual.pilot import Pilot
 
 from tests.primitives.harness import DECK, Ed, editor
 from tests.primitives.test_navigation import (
@@ -51,18 +50,6 @@ def no_auto_expand() -> None:
     (config_dir() / "config.toml").write_text("[editor]\nauto_expand = false\n", encoding="utf-8")
 
 
-async def settle(ed: Ed) -> None:
-    """Let the app render, as it does between two real keypresses."""
-    await Pilot(ed.app).pause()
-
-
-async def press(ed: Ed, keys: str) -> None:
-    """Press each space-separated chunk, rendering after each one."""
-    for chunk in keys.split():
-        ed.press(chunk)
-        await settle(ed)
-
-
 def view_height(ed: Ed) -> int:
     return int(ed.screen.query_one("#deck-view", DeckView).size.height)
 
@@ -86,7 +73,7 @@ def visible_rows(ed: Ed) -> list[int]:
 async def test_zz_puts_the_cursor_line_in_the_middle_of_the_view(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz")
+        await ed.press_chunks("51G zz")
         shown = visible_rows(ed)
         assert len(shown) == view_height(ed)
         assert shown.index(50) in ((len(shown) - 1) // 2, len(shown) // 2)
@@ -98,7 +85,7 @@ async def test_zz_puts_the_cursor_line_in_the_middle_of_the_view(tmp_path: Path)
 async def test_zt_puts_the_cursor_line_at_the_top_inside_scrolloff(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zt")
+        await ed.press_chunks("51G zt")
         assert visible_rows(ed)[0] == 50 - SCROLLOFF
         assert ed.row == 50
         unchanged(ed, TALL)
@@ -108,7 +95,7 @@ async def test_zt_puts_the_cursor_line_at_the_top_inside_scrolloff(tmp_path: Pat
 async def test_zb_puts_the_cursor_line_at_the_bottom_inside_scrolloff(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zt zb")
+        await ed.press_chunks("51G zt zb")
         assert visible_rows(ed)[-1] == 50 + SCROLLOFF
         assert ed.row == 50
         unchanged(ed, TALL)
@@ -118,9 +105,9 @@ async def test_zb_puts_the_cursor_line_at_the_bottom_inside_scrolloff(tmp_path: 
 async def test_the_view_zt_set_stays_while_the_cursor_moves_inside_it(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zt")
+        await ed.press_chunks("51G zt")
         before = visible_rows(ed)
-        await press(ed, "j j")
+        await ed.press_chunks("j j")
         assert ed.row == 52
         assert visible_rows(ed) == before
         unchanged(ed, TALL)
@@ -130,7 +117,7 @@ async def test_the_view_zt_set_stays_while_the_cursor_moves_inside_it(tmp_path: 
 async def test_zt_near_the_top_cannot_scroll_above_the_first_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G 3G zt")
+        await ed.press_chunks("51G 3G zt")
         assert visible_rows(ed)[0] == 0
         assert ed.row == 2
         unchanged(ed, TALL)
@@ -140,7 +127,7 @@ async def test_zt_near_the_top_cannot_scroll_above_the_first_line(tmp_path: Path
 async def test_zb_near_the_top_cannot_scroll_above_the_first_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "6G zb")
+        await ed.press_chunks("6G zb")
         assert visible_rows(ed)[0] == 0
         assert ed.row == 5
         unchanged(ed, TALL)
@@ -151,7 +138,7 @@ async def test_zb_near_the_top_cannot_scroll_above_the_first_line(tmp_path: Path
 async def test_scroll_keys_leave_a_deck_that_fits_unscrolled(tmp_path: Path, key: str) -> None:
     no_auto_expand()
     async with editor(tmp_path) as ed:
-        await press(ed, f"G {key}")
+        await ed.press_chunks(f"G {key}")
         shown = ed.screen.query_one("#deck-view", DeckView).render().plain.splitlines()
         assert "// Deck: Burn" in shown[0]
         assert "Rest in Peace" in shown[LAST]
@@ -165,7 +152,7 @@ async def test_scroll_keys_work_with_card_details_expanded(tmp_path: Path, key: 
     """With auto_expand on (the default) the cursor card shows its
     details; scrolling still never moves the cursor or edits."""
     async with editor(tmp_path, size=SMALL) as ed:
-        await press(ed, f"13G {key}")
+        await ed.press_chunks(f"13G {key}")
         assert ed.row == BOLT
         unchanged(ed)
 
@@ -177,7 +164,7 @@ async def test_scroll_keys_work_with_card_details_expanded(tmp_path: Path, key: 
 async def test_ctrl_d_moves_the_cursor_down_half_the_view(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz <C-d>")
+        await ed.press_chunks("51G zz <C-d>")
         assert ed.row == 50 + view_height(ed) // 2
         unchanged(ed, TALL)
 
@@ -186,9 +173,9 @@ async def test_ctrl_d_moves_the_cursor_down_half_the_view(tmp_path: Path) -> Non
 async def test_ctrl_d_scrolls_the_view_with_the_cursor(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz")
+        await ed.press_chunks("51G zz")
         screen_line = visible_rows(ed).index(ed.row)
-        await press(ed, "<C-d>")
+        await ed.press_chunks("<C-d>")
         assert visible_rows(ed).index(ed.row) == screen_line
         unchanged(ed, TALL)
 
@@ -197,7 +184,7 @@ async def test_ctrl_d_scrolls_the_view_with_the_cursor(tmp_path: Path) -> None:
 async def test_ctrl_d_moves_down_and_keeps_the_cursor_visible(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G <C-d>")
+        await ed.press_chunks("51G <C-d>")
         assert ed.row > 50
         assert ed.row in visible_rows(ed)
         unchanged(ed, TALL)
@@ -207,9 +194,9 @@ async def test_ctrl_d_moves_down_and_keeps_the_cursor_visible(tmp_path: Path) ->
 async def test_ctrl_d_near_the_end_stops_on_the_last_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "97G <C-d>")
+        await ed.press_chunks("97G <C-d>")
         assert ed.row == 99
-        await press(ed, "<C-d>")
+        await ed.press_chunks("<C-d>")
         assert ed.row == 99
         unchanged(ed, TALL)
 
@@ -218,7 +205,7 @@ async def test_ctrl_d_near_the_end_stops_on_the_last_line(tmp_path: Path) -> Non
 async def test_ctrl_u_moves_the_cursor_up_half_the_view(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz <C-u>")
+        await ed.press_chunks("51G zz <C-u>")
         assert ed.row == 50 - view_height(ed) // 2
         unchanged(ed, TALL)
 
@@ -227,7 +214,7 @@ async def test_ctrl_u_moves_the_cursor_up_half_the_view(tmp_path: Path) -> None:
 async def test_ctrl_u_moves_up_and_keeps_the_cursor_visible(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G <C-u>")
+        await ed.press_chunks("51G <C-u>")
         assert ed.row < 50
         assert ed.row in visible_rows(ed)
         unchanged(ed, TALL)
@@ -237,9 +224,9 @@ async def test_ctrl_u_moves_up_and_keeps_the_cursor_visible(tmp_path: Path) -> N
 async def test_ctrl_u_near_the_top_stops_on_the_first_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "4j <C-u>")
+        await ed.press_chunks("4j <C-u>")
         assert ed.row == 0
-        await press(ed, "<C-u>")
+        await ed.press_chunks("<C-u>")
         assert ed.row == 0
         unchanged(ed, TALL)
 
@@ -247,9 +234,9 @@ async def test_ctrl_u_near_the_top_stops_on_the_first_line(tmp_path: Path) -> No
 @pytest.mark.primitive("ctrl_d", "ctrl_u")
 async def test_half_pages_on_the_canonical_deck_reach_both_ends(tmp_path: Path) -> None:
     async with editor(tmp_path, size=SMALL) as ed:
-        await press(ed, "<C-d> <C-d> <C-d> <C-d>")
+        await ed.press_chunks("<C-d> <C-d> <C-d> <C-d>")
         assert ed.row == LAST
-        await press(ed, "<C-u> <C-u> <C-u> <C-u>")
+        await ed.press_chunks("<C-u> <C-u> <C-u> <C-u>")
         assert ed.row == 0
         unchanged(ed)
 
@@ -263,9 +250,9 @@ async def test_half_pages_on_the_canonical_deck_reach_both_ends(tmp_path: Path) 
 async def test_big_h_goes_to_the_top_of_the_view_inside_scrolloff(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz 2j")
+        await ed.press_chunks("51G zz 2j")
         before = visible_rows(ed)
-        await press(ed, "H")
+        await ed.press_chunks("H")
         assert ed.row == before[0] + SCROLLOFF
         assert visible_rows(ed) == before
         unchanged(ed, TALL)
@@ -275,9 +262,9 @@ async def test_big_h_goes_to_the_top_of_the_view_inside_scrolloff(tmp_path: Path
 async def test_big_m_goes_to_the_middle_of_the_view(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz 2j")
+        await ed.press_chunks("51G zz 2j")
         before = visible_rows(ed)
-        await press(ed, "M")
+        await ed.press_chunks("M")
         assert ed.row == before[len(before) // 2]
         assert visible_rows(ed) == before
         unchanged(ed, TALL)
@@ -287,9 +274,9 @@ async def test_big_m_goes_to_the_middle_of_the_view(tmp_path: Path) -> None:
 async def test_big_l_goes_to_the_bottom_of_the_view_inside_scrolloff(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz 2k")
+        await ed.press_chunks("51G zz 2k")
         before = visible_rows(ed)
-        await press(ed, "L")
+        await ed.press_chunks("L")
         assert ed.row == before[-1] - SCROLLOFF
         assert visible_rows(ed) == before
         unchanged(ed, TALL)
@@ -299,9 +286,9 @@ async def test_big_l_goes_to_the_bottom_of_the_view_inside_scrolloff(tmp_path: P
 async def test_big_h_at_the_top_of_the_deck_goes_to_the_first_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "5j")
+        await ed.press_chunks("5j")
         assert ed.row == 6
-        await press(ed, "H")
+        await ed.press_chunks("H")
         assert ed.row == 0
         unchanged(ed, TALL)
 
@@ -310,9 +297,9 @@ async def test_big_h_at_the_top_of_the_deck_goes_to_the_first_line(tmp_path: Pat
 async def test_big_l_at_the_end_of_the_deck_goes_to_the_last_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "G 3k")
+        await ed.press_chunks("G 3k")
         assert ed.row == 96
-        await press(ed, "L")
+        await ed.press_chunks("L")
         assert ed.row == 99
         unchanged(ed, TALL)
 
@@ -321,7 +308,7 @@ async def test_big_l_at_the_end_of_the_deck_goes_to_the_last_line(tmp_path: Path
 async def test_count_big_h_at_the_top_of_the_deck_is_that_visible_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "5j 3H")
+        await ed.press_chunks("5j 3H")
         assert ed.row == 2  # the third visible line, // Tags:
         unchanged(ed, TALL)
 
@@ -330,9 +317,9 @@ async def test_count_big_h_at_the_top_of_the_deck_is_that_visible_line(tmp_path:
 async def test_count_big_h_on_a_scrolled_view_is_that_visible_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz 2j")
+        await ed.press_chunks("51G zz 2j")
         before = visible_rows(ed)
-        await press(ed, "5H")
+        await ed.press_chunks("5H")
         assert ed.row == before[4]
         unchanged(ed, TALL)
 
@@ -341,9 +328,9 @@ async def test_count_big_h_on_a_scrolled_view_is_that_visible_line(tmp_path: Pat
 async def test_count_big_l_on_a_scrolled_view_is_that_line_from_the_bottom(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz 2j")
+        await ed.press_chunks("51G zz 2j")
         before = visible_rows(ed)
-        await press(ed, "5L")
+        await ed.press_chunks("5L")
         assert ed.row == before[-5]
         unchanged(ed, TALL)
 
@@ -352,11 +339,11 @@ async def test_count_big_l_on_a_scrolled_view_is_that_line_from_the_bottom(tmp_p
 async def test_counts_larger_than_the_view_stop_inside_scrolloff(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "51G zz")
+        await ed.press_chunks("51G zz")
         before = visible_rows(ed)
-        await press(ed, "50H")
+        await ed.press_chunks("50H")
         assert ed.row == before[-1] - SCROLLOFF
-        await press(ed, "50L")
+        await ed.press_chunks("50L")
         assert ed.row == before[0] + SCROLLOFF
         assert visible_rows(ed) == before
         unchanged(ed, TALL)
@@ -366,10 +353,10 @@ async def test_counts_larger_than_the_view_stop_inside_scrolloff(tmp_path: Path)
 async def test_big_m_at_the_top_of_the_deck_goes_to_the_middle_visible_line(tmp_path: Path) -> None:
     no_auto_expand()
     async with editor(tmp_path, TALL, size=SMALL) as ed:
-        await press(ed, "5j")
+        await ed.press_chunks("5j")
         shown = visible_rows(ed)
         assert shown[0] == 0
-        await press(ed, "M")
+        await ed.press_chunks("M")
         assert ed.row == shown[len(shown) // 2]
         unchanged(ed, TALL)
 
@@ -377,11 +364,11 @@ async def test_big_m_at_the_top_of_the_deck_goes_to_the_middle_visible_line(tmp_
 @pytest.mark.primitive("H", "M", "L")
 async def test_big_h_big_m_big_l_on_a_deck_that_fits_span_the_whole_deck(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        await press(ed, "13G H")
+        await ed.press_chunks("13G H")
         assert ed.row == 0
-        await press(ed, "L")
+        await ed.press_chunks("L")
         assert ed.row == LAST
-        await press(ed, "M")
+        await ed.press_chunks("M")
         assert 0 < ed.row < LAST
         unchanged(ed)
 
@@ -558,7 +545,7 @@ async def test_marks_too_long_for_one_line_opens_a_pager_with_every_mark(
         for i, letter in enumerate("abcdefghijklmnopqrstuvwxyz"):
             ed.press(f"{10 + i}G m{letter}")
         ed.press(":marks<CR>")
-        await settle(ed)
+        await ed.settle()
         pager = ed.app.screen
         assert not isinstance(pager, MainScreen)
         body = "\n".join(

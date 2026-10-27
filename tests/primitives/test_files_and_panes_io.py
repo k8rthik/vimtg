@@ -18,9 +18,7 @@ import pytest
 from tests.conftest import FakeClipboard
 from tests.primitives.files_and_panes_helpers import (
     LEGAL_MODERN,
-    ex,
     in_editor,
-    settle,
     shown,
 )
 from tests.primitives.harness import DECK, Ed, editor
@@ -68,7 +66,7 @@ def _read(tmp_path: Path, name: str) -> str:
 @pytest.mark.primitive(":export")
 async def test_export_arena_writes_client_names_with_a_sideboard(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export arena out.txt"))
+        ed.ex("export arena out.txt")
         assert ed.is_error is False
     lines = _read(tmp_path, "out.txt").splitlines()
     # the adventure card by its front face, the split card by both halves
@@ -84,7 +82,7 @@ async def test_export_arena_writes_client_names_with_a_sideboard(tmp_path: Path)
 @pytest.mark.primitive(":export")
 async def test_export_mtgo_writes_the_sideboard_after_the_main_deck(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export mtgo out.txt"))
+        ed.ex("export mtgo out.txt")
         assert ed.is_error is False
     main, _, side = _read(tmp_path, "out.txt").partition("\n\n")
     assert "3 Bonecrusher Giant" in main.splitlines()
@@ -96,7 +94,7 @@ async def test_export_mtgo_writes_the_sideboard_after_the_main_deck(tmp_path: Pa
 @pytest.mark.primitive(":export")
 async def test_export_dek_writes_mtgo_xml(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export dek out.dek"))
+        ed.ex("export dek out.dek")
         assert ed.is_error is False
     root = ET.fromstring(_read(tmp_path, "out.dek"))
     cards = {
@@ -112,7 +110,7 @@ async def test_export_dek_writes_mtgo_xml(tmp_path: Path) -> None:
 @pytest.mark.primitive(":export")
 async def test_export_moxfield_writes_csv_with_full_names(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export moxfield out.csv"))
+        ed.ex("export moxfield out.csv")
         assert ed.is_error is False
     counts = {r["name"]: r["count"] for r in _rows(_read(tmp_path, "out.csv"))}
     assert counts["Bonecrusher Giant // Stomp"] == "3"
@@ -123,7 +121,7 @@ async def test_export_moxfield_writes_csv_with_full_names(tmp_path: Path) -> Non
 @pytest.mark.primitive(":export")
 async def test_export_archidekt_keeps_zones_in_categories(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export archidekt out.csv"))
+        ed.ex("export archidekt out.csv")
         assert ed.is_error is False
     rows = {r["name"]: r for r in _rows(_read(tmp_path, "out.csv"))}
     assert rows["Bonecrusher Giant // Stomp"]["quantity"] == "3"
@@ -144,7 +142,7 @@ async def test_export_list_writes_bare_summed_lines_without_the_maybeboard(
     tmp_path: Path,
 ) -> None:
     async with editor(tmp_path, LIST_DECK) as ed:
-        ed.press(ex("export list out.txt"))
+        ed.ex("export list out.txt")
         assert ed.is_error is False
     lines = _read(tmp_path, "out.txt").splitlines()
     assert sorted(lines) == sorted(
@@ -156,7 +154,7 @@ async def test_export_list_writes_bare_summed_lines_without_the_maybeboard(
 @pytest.mark.primitive(":export")
 async def test_export_list_names_a_split_card_by_its_front_half(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export list out.txt"))
+        ed.ex("export list out.txt")
     lines = _read(tmp_path, "out.txt").splitlines()
     assert "1 Fire" in lines
     assert not any("//" in line for line in lines)
@@ -165,7 +163,7 @@ async def test_export_list_names_a_split_card_by_its_front_half(tmp_path: Path) 
 @pytest.mark.primitive(":export", ":w")
 async def test_export_vimtg_is_the_text_w_writes(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(DELETE_GUIDE + ex("export vimtg copy.deck") + ex("w"))
+        ed.press(DELETE_GUIDE).ex("export vimtg copy.deck").ex("w")
         assert _read(tmp_path, "copy.deck") == ed.saved() == EDITED
 
 
@@ -173,7 +171,7 @@ async def test_export_vimtg_is_the_text_w_writes(tmp_path: Path) -> None:
 async def test_export_guide_writes_the_plans_as_markdown(tmp_path: Path) -> None:
     deck = LEGAL_MODERN + "\nVS: Tron\n    -2 Lightning Bolt\n    +2 Rest in Peace\n"
     async with editor(tmp_path, deck) as ed:
-        ed.press(ex("export guide guide.md"))
+        ed.ex("export guide guide.md")
         assert ed.is_error is False
     guide = _read(tmp_path, "guide.md")
     assert any(line.startswith("#") and "Tron" in line for line in guide.splitlines())
@@ -192,7 +190,7 @@ async def test_export_without_a_file_copies_the_same_text_to_the_clipboard(
     tmp_path: Path, clipboard: FakeClipboard, fmt: str
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex(f"export {fmt} out.txt") + ex(f"export {fmt}"))
+        ed.ex(f"export {fmt} out.txt").ex(f"export {fmt}")
         assert ed.is_error is False
         assert ed.text == DECK
     assert clipboard.text == _read(tmp_path, "out.txt")
@@ -202,7 +200,7 @@ async def test_export_without_a_file_copies_the_same_text_to_the_clipboard(
 async def test_export_refuses_an_existing_file_with_e13(tmp_path: Path) -> None:
     (tmp_path / "out.txt").write_text("keep me\n", encoding="utf-8")
     async with editor(tmp_path) as ed:
-        ed.press(ex("export arena out.txt"))
+        ed.ex("export arena out.txt")
         assert ed.is_error is True
         assert "E13" in ed.message
     assert _read(tmp_path, "out.txt") == "keep me\n"
@@ -212,7 +210,7 @@ async def test_export_refuses_an_existing_file_with_e13(tmp_path: Path) -> None:
 async def test_export_bang_overwrites_an_existing_file(tmp_path: Path) -> None:
     (tmp_path / "out.txt").write_text("keep me\n", encoding="utf-8")
     async with editor(tmp_path) as ed:
-        ed.press(ex("export! arena out.txt"))
+        ed.ex("export! arena out.txt")
         assert ed.is_error is False
     assert "4 Lightning Bolt" in _read(tmp_path, "out.txt").splitlines()
 
@@ -220,7 +218,7 @@ async def test_export_bang_overwrites_an_existing_file(tmp_path: Path) -> None:
 @pytest.mark.primitive(":export")
 async def test_export_never_writes_over_the_open_deck_even_with_bang(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export! arena burn.deck"))
+        ed.ex("export! arena burn.deck")
         assert ed.is_error is True
         assert ed.saved() == DECK
 
@@ -229,7 +227,7 @@ async def test_export_never_writes_over_the_open_deck_even_with_bang(tmp_path: P
 @pytest.mark.parametrize("args", ["", "nosuchformat out.txt"])
 async def test_export_without_a_known_format_is_an_error(tmp_path: Path, args: str) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex(f"export {args}".strip()))
+        ed.ex(f"export {args}".strip())
         assert ed.is_error is True
         assert ed.text == DECK
     assert not (tmp_path / "out.txt").exists()
@@ -241,7 +239,7 @@ async def test_export_missing_lists_what_the_collection_lacks(tmp_path: Path) ->
         "Name,Count\nLightning Bolt,4\nMountain,10\n", encoding="utf-8"
     )
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection coll.csv") + ex("export missing need.txt"))
+        ed.ex("collection coll.csv").ex("export missing need.txt")
         assert ed.is_error is False
     main, _, side = _read(tmp_path, "need.txt").partition("\n\n")
     main_lines = main.splitlines()
@@ -255,7 +253,7 @@ async def test_export_missing_lists_what_the_collection_lacks(tmp_path: Path) ->
 @pytest.mark.primitive(":export")
 async def test_export_missing_without_a_collection_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export missing need.txt"))
+        ed.ex("export missing need.txt")
         assert ed.is_error is True
         assert NO_COLLECTION in ed.message
     assert not (tmp_path / "need.txt").exists()
@@ -269,7 +267,7 @@ async def test_clipboard_copies_the_deck_as_arena_by_default(
     tmp_path: Path, clipboard: FakeClipboard
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export arena out.txt") + ex("clipboard"))
+        ed.ex("export arena out.txt").ex("clipboard")
         assert ed.is_error is False
         assert "Copied" in ed.message
         assert ed.text == DECK
@@ -281,7 +279,7 @@ async def test_clipboard_takes_any_export_format(
     tmp_path: Path, clipboard: FakeClipboard
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("export moxfield out.csv") + ex("clipboard moxfield"))
+        ed.ex("export moxfield out.csv").ex("clipboard moxfield")
         assert ed.is_error is False
     assert clipboard.text == _read(tmp_path, "out.csv")
 
@@ -291,7 +289,7 @@ async def test_clipboard_with_an_unknown_format_is_an_error(
     tmp_path: Path, clipboard: FakeClipboard
 ) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("clipboard nosuchformat"))
+        ed.ex("clipboard nosuchformat")
         assert ed.is_error is True
         assert ed.text == DECK
     assert clipboard.text is None
@@ -303,8 +301,8 @@ MTGO_LIST = "4 Lightning Bolt\n2 Fire/Ice\n20 Mountain\n\n2 Rest in Peace\n"
 
 
 async def _imported(ed: Ed, command: str) -> None:
-    ed.press(ex(command))
-    await settle(ed)
+    ed.ex(command)
+    await ed.settle()
     assert in_editor(ed)
 
 
@@ -327,7 +325,7 @@ async def test_import_result_needs_a_write_before_q(tmp_path: Path) -> None:
     (tmp_path / "list.txt").write_text(MTGO_LIST, encoding="utf-8")
     async with editor(tmp_path) as ed:
         await _imported(ed, "import list.txt")
-        ed.press(ex("q"))
+        ed.ex("q")
         assert ed.message.startswith("E37")
 
 
@@ -392,8 +390,8 @@ def _report(ed: Ed) -> str:
 async def test_validate_a_legal_deck_reports_it_ok(tmp_path: Path) -> None:
     async with editor(tmp_path, LEGAL_MODERN) as ed:
         before = ed.text
-        ed.press(ex("validate"))
-        await settle(ed)
+        ed.ex("validate")
+        await ed.settle()
         assert ed.is_error is False
         assert "OK" in ed.message
         assert ed.text == before
@@ -405,8 +403,8 @@ async def test_validate_flags_a_copy_limit_error(tmp_path: Path) -> None:
         "32 Mountain", "31 Mountain"
     )
     async with editor(tmp_path, deck) as ed:
-        ed.press(ex("validate"))
-        await settle(ed)
+        ed.ex("validate")
+        await ed.settle()
         assert ed.is_error is True
         assert "Lightning Bolt" in _report(ed)
 
@@ -414,8 +412,8 @@ async def test_validate_flags_a_copy_limit_error(tmp_path: Path) -> None:
 @pytest.mark.primitive(":validate")
 async def test_validate_reports_a_short_deck_against_the_minimum(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:  # 34 mainboard cards
-        ed.press(ex("validate"))
-        await settle(ed)
+        ed.ex("validate")
+        await ed.settle()
         assert "60" in _report(ed)
         assert ed.text == DECK
 
@@ -423,8 +421,8 @@ async def test_validate_reports_a_short_deck_against_the_minimum(tmp_path: Path)
 @pytest.mark.primitive(":validate")
 async def test_validate_without_card_data_says_legality_was_skipped(tmp_path: Path) -> None:
     async with editor(tmp_path, LEGAL_MODERN, cards=False) as ed:
-        ed.press(ex("validate"))
-        await settle(ed)
+        ed.ex("validate")
+        await ed.settle()
         report = _report(ed)
         assert "skipped" in report
         assert ":sync" in report
@@ -435,8 +433,8 @@ async def test_validate_a_commander_deck_estimates_its_bracket(tmp_path: Path) -
     from tests.primitives.files_and_panes_helpers import COMMANDER_DECK
 
     async with editor(tmp_path, COMMANDER_DECK) as ed:
-        ed.press(ex("validate"))
-        await settle(ed)
+        ed.ex("validate")
+        await ed.settle()
         assert "bracket" in _report(ed).lower()
 
 
@@ -454,7 +452,7 @@ def _collection_csv(tmp_path: Path, body: str = COLLECTION_CSV) -> None:
 async def test_collection_path_loads_and_reports_the_counts(tmp_path: Path) -> None:
     _collection_csv(tmp_path)
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection coll.csv"))
+        ed.ex("collection coll.csv")
         assert ed.is_error is False
         assert ed.message.startswith("Collection: 14 cards (2 unique) from ")
         assert "coll.csv" in ed.message
@@ -465,14 +463,14 @@ async def test_collection_path_loads_and_reports_the_counts(tmp_path: Path) -> N
 async def test_collection_sums_copies_across_printings(tmp_path: Path) -> None:
     _collection_csv(tmp_path, "Name,Count\nLightning Bolt,2\nlightning bolt,3\n")
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection coll.csv"))
+        ed.ex("collection coll.csv")
         assert ed.message.startswith("Collection: 5 cards (1 unique) from ")
 
 
 @pytest.mark.primitive(":collection")
 async def test_collection_alone_reports_none_loaded(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection"))
+        ed.ex("collection")
         assert ed.message == NO_COLLECTION
 
 
@@ -480,7 +478,7 @@ async def test_collection_alone_reports_none_loaded(tmp_path: Path) -> None:
 async def test_collection_alone_reports_the_loaded_collection(tmp_path: Path) -> None:
     _collection_csv(tmp_path)
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection coll.csv") + ex("collection"))
+        ed.ex("collection coll.csv").ex("collection")
         assert ed.message.startswith("Collection: 14 cards (2 unique) from ")
 
 
@@ -488,11 +486,11 @@ async def test_collection_alone_reports_the_loaded_collection(tmp_path: Path) ->
 async def test_collection_path_is_saved_and_reloaded_on_the_next_open(tmp_path: Path) -> None:
     _collection_csv(tmp_path)
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection coll.csv"))
+        ed.ex("collection coll.csv")
     config = tomllib.loads((config_dir() / "config.toml").read_text(encoding="utf-8"))
     assert Path(config["editor"]["collection"]) == (tmp_path / "coll.csv").resolve()
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection"))
+        ed.ex("collection")
         assert ed.message.startswith("Collection: 14 cards (2 unique) from ")
 
 
@@ -500,10 +498,10 @@ async def test_collection_path_is_saved_and_reloaded_on_the_next_open(tmp_path: 
 async def test_collection_bang_forgets_the_collection(tmp_path: Path) -> None:
     _collection_csv(tmp_path)
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection coll.csv") + ex("collection!") + ex("collection"))
+        ed.ex("collection coll.csv").ex("collection!").ex("collection")
         assert ed.message == NO_COLLECTION
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection"))
+        ed.ex("collection")
         assert ed.message == NO_COLLECTION
 
 
@@ -511,18 +509,18 @@ async def test_collection_bang_forgets_the_collection(tmp_path: Path) -> None:
 async def test_collection_without_name_and_count_columns_is_refused(tmp_path: Path) -> None:
     _collection_csv(tmp_path, "foo,bar\n1,2\n")
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection coll.csv"))
+        ed.ex("collection coll.csv")
         assert ed.is_error is True
         assert "foo" in ed.message
         assert "bar" in ed.message
-        ed.press(ex("collection"))
+        ed.ex("collection")
         assert ed.message == NO_COLLECTION
 
 
 @pytest.mark.primitive(":collection")
 async def test_collection_of_a_missing_file_is_an_error(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("collection nosuch.csv"))
+        ed.ex("collection nosuch.csv")
         assert ed.is_error is True
         assert ed.text == DECK
 
@@ -534,10 +532,10 @@ async def test_collection_of_a_missing_file_is_an_error(tmp_path: Path) -> None:
 @pytest.mark.filterwarnings("ignore:A test tried to use socket")
 async def test_sync_reports_that_it_cannot_reach_scryfall(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("sync"))
+        ed.ex("sync")
         assert ed.is_error is False  # started in the background
         await ed.app.workers.wait_for_complete()
-        await settle(ed)
+        await ed.settle()
         assert ed.is_error is True
         assert "sync failed" in ed.message.lower()
         assert ed.text == DECK
@@ -546,8 +544,8 @@ async def test_sync_reports_that_it_cannot_reach_scryfall(tmp_path: Path) -> Non
 @pytest.mark.primitive(":sync")
 async def test_sync_with_an_argument_is_an_error_and_starts_nothing(tmp_path: Path) -> None:
     async with editor(tmp_path) as ed:
-        ed.press(ex("sync now"))
+        ed.ex("sync now")
         assert ed.is_error is True
         await ed.app.workers.wait_for_complete()
-        await settle(ed)
+        await ed.settle()
         assert "sync failed" not in ed.message.lower()
