@@ -19,8 +19,6 @@ Two ways to send keys:
   opens help on F1, closes the tips on Esc, and every key typed into a
   floating overlay or caught by an app binding goes this way too. It
   renders after every key, as a terminal does.
-- `Ed.press_chunks` (async) is `press` with a render after each
-  space-separated chunk, for cases that read the view between keys.
 
 Card search and other workers run off the key path: `await ed.settle()`
 before reading what they deliver, or `await ed.pick(query)` to type a
@@ -162,13 +160,6 @@ class Ed:
         """Type ':' + command + Enter, every character of command literally."""
         literal = command.replace("<", "<lt>").replace(" ", "<Space>")
         return self.press(":" + literal + "<CR>")
-
-    async def press_chunks(self, seq: str) -> None:
-        """Press each space-separated chunk of `seq`, rendering after each.
-        Keys inside a chunk get no render between them, unlike `type`."""
-        for chunk in seq.split():
-            self.press(chunk)
-            await self.pilot.pause()
 
     async def type(self, seq: str) -> None:
         """Send `seq` as terminal key events, rendering after each key."""

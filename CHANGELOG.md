@@ -200,6 +200,10 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- `zz` centers the cursor line and `zt` / `zb` keep scrolloff when typed
+  at a normal pace, and a count before `H` / `L` counts from the view on
+  screen. The key popup no longer shrinks the deck view while a key is
+  pending, so the view no longer jumps when a count or `z` is typed.
 - A command that takes no argument refuses one with vim's `E488:
   Trailing characters: junk` and does nothing. `:q junk` used to quit,
   and `:tutor`, `:home`, `:enew`, `:history`, `:config`, `:validate`,

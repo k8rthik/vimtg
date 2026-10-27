@@ -79,7 +79,7 @@ class VimTGApp(App[None]):
     """Vim-powered MTG deck editor TUI."""
 
     CSS = f"""
-    Screen {{ layout: vertical; }}
+    Screen {{ layout: vertical; layers: default overlay; }}
     #editor-area {{ height: 1fr; layout: horizontal; }}
     #deck-view {{ width: 1fr; height: 1fr; }}
     #edhrec-panel {{ width: 1fr; height: 1fr; }}
@@ -89,7 +89,10 @@ class VimTGApp(App[None]):
     #search-results {{ height: auto; max-height: 50%; dock: bottom; margin-bottom: 1; }}
     #help-panel {{ height: auto; max-height: 60%; dock: bottom; }}
     #tips-panel {{ height: auto; dock: bottom; background: {COLORS['cursor_bg']}; }}
-    #which-key {{ height: auto; max-height: 6; dock: bottom; }}
+    /* On its own layer the popup's dock takes no rows, so a key
+       sequence in progress never resizes the deck view that zz and
+       H / M / L measure. */
+    #which-key {{ height: auto; max-height: 6; dock: bottom; layer: overlay; margin-bottom: 1; }}
     #status-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}
     #command-line {{ height: 1; dock: bottom; background: {COLORS['bg']}; }}
     """
