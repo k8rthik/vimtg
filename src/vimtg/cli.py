@@ -676,8 +676,12 @@ def search(query: tuple[str, ...], limit: int, as_json: bool) -> None:
         "plans as Markdown)"
     ),
 )
-@click.option("--output", "-o", type=click.Path(), help="Output file path")
-@click.option("--force", is_flag=True, help="Overwrite an existing output file")
+@click.option("--output", "-o", type=click.Path(), help="Output file path (- for stdout)")
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite an existing output file, and write despite export check errors",
+)
 def convert(
     source: str,
     from_fmt: str | None,
@@ -688,7 +692,9 @@ def convert(
     """Convert a deck file, or a deck-site URL, between formats.
 
     Card names resolve against the card database when it has been
-    synced, so exports carry each card's official name. -o refuses an
+    synced, so exports carry each card's official name. The target's
+    export checks run first: warnings go to stderr, and an error stops
+    the conversion (exit 1) unless --force is given. -o refuses an
     existing file unless --force is given, and never overwrites the
     input file.
     """
@@ -700,7 +706,7 @@ def convert(
     in_path = None if is_url else Path(source)
     if in_path is not None and not in_path.exists():
         raise click.BadParameter(f"'{source}' does not exist.", param_hint="'SOURCE'")
-    out_path = Path(output).expanduser() if output else None
+    out_path = Path(output).expanduser() if output and output != "-" else None
     if out_path is not None:
         if in_path is not None and out_path.resolve() == in_path.resolve():
             raise click.ClickException(
@@ -711,15 +717,18 @@ def convert(
 
     card_db = _optional_card_db()
     try:
-        result = _convert_text(source, in_path, from_fmt, to_fmt, card_db)
+        result, cards = _convert_text(source, in_path, from_fmt, to_fmt, card_db, force)
     finally:
         if card_db is not None:
             card_db.close()
     if out_path is not None:
         atomic_write_text(out_path, result, newline="")
-        click.echo(f"Converted to {output}")
+        count = f" ({cards} cards)" if cards is not None else ""
+        click.echo(f"Converted to {output}{count}")
     else:
         click.echo(result)
+        if cards is not None:
+            click.echo(f"{to_fmt}: {cards} cards", err=True)
 
 
 def _convert_text(
@@ -728,11 +737,19 @@ def _convert_text(
     from_fmt: str | None,
     to_fmt: str,
     card_db: Database | None,
-) -> str:
-    """The converted deck text (see convert); `in_path` is None when
+    force: bool,
+) -> tuple[str, int | None]:
+    """The converted deck text (see convert) and, for a target that
+    reports it, how many cards it holds; `in_path` is None when
     `source` is a deck URL."""
     from vimtg.services import deck_sources
-    from vimtg.services.export_targets import DeckFormat
+    from vimtg.services.export_targets import (
+        DeckFormat,
+        IssueLevel,
+        check_export,
+        exported_card_count,
+        target_named,
+    )
     from vimtg.services.import_export_service import ImportExportService
 
     service = ImportExportService(
@@ -758,11 +775,22 @@ def _convert_text(
         )
         for skipped in imported.skipped:
             click.echo(f"  line {skipped.line_number}: {skipped.text}", err=True)
-    dst_fmt = FORMAT_NAMES[to_fmt]
-    if dst_fmt is DeckFormat.VIMTG:
-        return imported.text
-    resolved = dict(imported.resolution.resolved)
-    return service.export_deck(imported.deck, dst_fmt, resolved=resolved)
+    target = target_named(to_fmt)
+    assert target is not None  # click.Choice admits only target names
+    resolved = None if card_db is None else dict(imported.resolution.resolved)
+    issues = check_export(imported.deck, resolved, target)
+    for issue in issues:
+        click.echo(f"{issue.level.value}: {issue.text(named=None)}", err=True)
+    errors = sum(issue.level is IssueLevel.ERROR for issue in issues)
+    if errors and not force:
+        raise click.ClickException(
+            f"{to_fmt} export refused ({errors} error{'s' if errors > 1 else ''}); "
+            "--force writes it anyway"
+        )
+    cards = exported_card_count(imported.deck, target) if target.counts_cards else None
+    if target.fmt is DeckFormat.VIMTG:
+        return imported.text, cards
+    return service.export(imported.deck, target, resolved=resolved), cards
 
 
 def _optional_card_db() -> Database | None:

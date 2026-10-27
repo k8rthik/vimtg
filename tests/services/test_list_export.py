@@ -96,7 +96,7 @@ def test_convert_to_list(tmp_path: Path, name: str) -> None:
     )
     result = CliRunner().invoke(main, ["convert", str(deck), "--to", name])
     assert result.exit_code == 0, result.output
-    assert result.output == "4 Lightning Bolt\n2 Smash to Smithereens\n\n"
+    assert result.stdout == "4 Lightning Bolt\n2 Smash to Smithereens\n\n"
 
 
 def test_convert_from_does_not_offer_the_list_format(tmp_path: Path) -> None:

@@ -48,7 +48,7 @@ def test_convert_reads_a_dek_file(tmp_path: Path) -> None:
     )
     result = CliRunner().invoke(main, ["convert", str(dek), "--from", "dek", "--to", "mtgo"])
     assert result.exit_code == 0, result.output
-    assert result.output == "4 Lightning Bolt\n\n"
+    assert result.stdout == "4 Lightning Bolt\n\n"
 
 
 def test_every_export_format_is_a_convert_target() -> None:
