@@ -200,6 +200,11 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- On Windows, `:export` and `vimtg convert -o` wrote Moxfield and Archidekt
+  CSV files with doubled carriage returns (`\r\r\n`), and every export file
+  differed from what `:clipboard` copies. Export files now hold the export's
+  text exactly.
+
 - `zz` centers the cursor line and `zt` / `zb` keep scrolloff when typed
   at a normal pace, and a count before `H` / `L` counts from the view on
   screen. The key popup no longer shrinks the deck view while a key is

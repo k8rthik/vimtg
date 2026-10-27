@@ -716,7 +716,7 @@ def convert(
         if card_db is not None:
             card_db.close()
     if out_path is not None:
-        atomic_write_text(out_path, result)
+        atomic_write_text(out_path, result, newline="")
         click.echo(f"Converted to {output}")
     else:
         click.echo(result)

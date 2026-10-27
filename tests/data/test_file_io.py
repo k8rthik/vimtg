@@ -193,3 +193,9 @@ class TestAtomicWriteErrorsNameTheTarget:
         assert info.value.filename == str(target)
         assert [p.name for p in target.iterdir()] == []
         assert [p.name for p in tmp_path.iterdir()] == ["adir"]  # no temp left
+
+
+def test_atomic_write_text_with_empty_newline_writes_the_text_exactly(tmp_path: Path) -> None:
+    target = tmp_path / "deck.csv"
+    atomic_write_text(target, "Count,Name\r\n4,Lightning Bolt\r\nnote\n", newline="")
+    assert target.read_bytes() == b"Count,Name\r\n4,Lightning Bolt\r\nnote\n"

@@ -198,7 +198,7 @@ async def test_export_without_a_file_copies_the_same_text_to_the_clipboard(
 
 @pytest.mark.primitive(":export")
 async def test_export_refuses_an_existing_file_with_e13(tmp_path: Path) -> None:
-    (tmp_path / "out.txt").write_text("keep me\n", encoding="utf-8")
+    (tmp_path / "out.txt").write_bytes(b"keep me\n")
     async with editor(tmp_path) as ed:
         ed.ex("export arena out.txt")
         assert ed.is_error is True
