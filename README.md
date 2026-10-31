@@ -457,10 +457,13 @@ vimtg new "Deck Name" -f commander     # scaffold a new deck in the cwd (-f shel
 vimtg sync [--force]                   # download or refresh the card database
 vimtg tutor                            # the lesson deck, in an offline sandbox
 vimtg search "t:creature mv<=2" -n 40  # search cards (docs/search.md); prices follow price_source/show_prices
+vimtg search --json t:goblin | jq -r '.cards[].name'  # full card data as JSON
 vimtg search otag:ramp c:g             # Scryfall oracle tags work offline too
-vimtg validate deck.deck [--strict]    # legality report; exit 1 on errors (--strict: warnings too)
-vimtg info deck.deck                   # zones, format, and a stats line
-vimtg missing deck.deck [--collection cards.csv]  # cards your collection lacks, store-pastable; total cost on stderr
+vimtg validate deck.deck [--strict] [--json]  # legality report; exit 1 on errors (--strict: warnings too)
+vimtg info deck.deck [--json]          # zones, format, and a stats line
+vimtg missing deck.deck [--collection cards.csv] [--json]  # cards your collection lacks, store-pastable; total cost on stderr
+vimtg diff old.deck new.deck [--json]  # card-level changes by zone, plus a stats line with card data
+git show HEAD:burn.deck | vimtg diff - burn.deck   # what changed since the last commit ('-' is stdin)
 vimtg guide deck.deck [--markdown]     # sideboard plans
 vimtg hand deck.deck [--seed N] [--draws N] [--plan NAME]  # sample opening hand + land odds
 vimtg convert in.dek --to arena -o out.txt   # --force overwrites an existing out.txt
@@ -468,6 +471,20 @@ vimtg convert https://moxfield.com/decks/ID --to dek   # a deck URL works too; -
 ```
 
 Notes, warnings and errors go to stderr; a command's own output (the deck, the validation report, search rows) goes to stdout, so it pipes cleanly.
+
+`vimtg diff` prints one line per changed card, grouped Mainboard, Sideboard, then any other zone, worded like the history overlay's Diff panel: `+ 2 Eidolon of the Great Revel`, `- 1 Skullcrack`, `~ Lava Spike  3 → 4`, and `⇄ Goblin Guide  main → sideboard` for a card that changed zone. It compares cards only: two files whose cards match exit `0` even when their comments, metadata or sideboard plans differ (a note on stderr says so). In git, `git difftool -y -x 'vimtg diff' HEAD~1 -- burn.deck` runs it on a past revision.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. `validate`: the deck is valid. `diff`: the decks hold the same cards. |
+| `1` | `validate`: the deck has errors (with `--strict`, warnings too). `diff`: the decks differ. Any command: an error it explains on stderr, such as no card database for `search` or an unreadable collection for `missing`. |
+| `2` | A usage error: an unknown option, a missing argument, a file that does not exist. `diff`: a deck that cannot be read. |
+
+The CLI prints no colour, so a pipe, a log file or `NO_COLOR=1` always gets plain text.
+
+`--json` on `validate`, `info`, `search`, `missing` and `diff` prints exactly one JSON document on stdout and nothing else there. Each names its shape in a `schema` key (`vimtg.validation/1`, `vimtg.info/1`, `vimtg.search/1`, `vimtg.missing/1`, `vimtg.diff/1`), so a script can branch on it; keys are snake_case, zones are `commander`, `companion`, `main`, `sideboard` and `maybeboard`, and a missing value (no price, no format, no card data) is `null`. The exit code is the same as without `--json`, and a command that fails prints nothing on stdout.
 
 ## Known gaps
 
