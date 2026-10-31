@@ -81,8 +81,8 @@ class TestSetCategory:
 
 
 class TestSetTagsPreservesCategory:
-    def test_add_tag_keeps_category(self) -> None:
-        buf = Buffer.from_text("4 Cultivate  @ramp\n").add_tag(0, "core")
+    def test_set_tags_keeps_category(self) -> None:
+        buf = Buffer.from_text("4 Cultivate  @ramp\n").set_tags(0, frozenset({"core"}))
         assert buf.get_line(0).text == "4 Cultivate  @ramp  #core"
         assert buf.category_at(0) == "ramp"
 

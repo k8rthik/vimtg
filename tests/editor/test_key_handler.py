@@ -36,7 +36,7 @@ from vimtg.editor.session import (
     handle_motion,
     handle_normal_special,
     handle_operator,
-    handle_tag_input_special,
+    handle_prompt_special,
     resolve_cards,
 )
 from vimtg.services.history_service import HistoryService
@@ -331,89 +331,51 @@ class TestCountedSpecials:
         assert hr.replay_keys == ("+", "+", "+")
 
 
-# ── tag actions via normal special (t<x>) ──────────────────────────
+# ── the filter prompt (Space f) ────────────────────────────────────
 
 
-class TestTagActions:
-    def test_tag_list_empty(self) -> None:
-        st = _state()
-        hr = handle_normal_special(st, _act("tl"))
-        assert "No tags" in hr.command_message
-
-    def test_tag_list_names_deck_tags_when_no_card_has_one(self) -> None:
-        """tl lists card tags; `// Tags:` tags the deck. With only deck
-        tags, say which they are and where they are set."""
-        st = _state("// Deck: Goblins\n// Tags: goblins, tokens\n\n4 Goblin Guide\n")
-        hr = handle_normal_special(st, _act("tl"))
-        assert hr.command_message == "No card tags (deck tags: goblins, tokens; see :dtag)"
-
-    def test_tag_clear_no_tags(self) -> None:
+class TestFilterPrompt:
+    def test_space_f_opens_the_filter_prompt(self) -> None:
         st = _state(row=1)
-        hr = handle_normal_special(st, _act("tc"))
-        assert "No tags to clear" in hr.command_message
-
-    def test_tag_input_enter_prompt(self) -> None:
-        st = _state(row=1)
-        hr = handle_normal_special(st, _act("ta"))
-        assert hr.enter_tag_input is True
-        assert st.insert_submode == InsertSubmode.TAG_INPUT
-
-    def test_jump_to_tagged_no_tags(self) -> None:
-        st = _state(row=1)
-        hr = handle_normal_special(st, _act("tn"))
-        assert "No tags on current card" in hr.command_message
+        hr = handle_normal_special(st, _act("space f"))
+        assert hr.enter_prompt is True
+        assert hr.prompt_label == "filter: "
+        assert st.insert_submode == InsertSubmode.PROMPT
 
 
-# ── handle_tag_input_special / _apply_tag_input ────────────────────
+# ── handle_prompt_special: the filter and category prompts ──────
 
 
-class TestTagInput:
-    def test_add_tag_via_input(self) -> None:
-        st = _state(row=1)
-        st.tag_input_action = "a"
-        hr = handle_tag_input_special(st, _act("enter", text="core"))
+class TestPromptInput:
+    def test_filter_via_the_space_f_prompt(self) -> None:
+        st = _state("4 Goblin Guide  @aggro\n4 Lava Spike  @burn\n", row=0)
+        handle_normal_special(st, _act("space f"))
+        hr = handle_prompt_special(st, _act("enter", text="aggro"))
         assert hr.exit_to_normal is True
-        assert "core" in st.buffer.tags_at(1)
-        assert "Tagged 1" in hr.command_message
-
-    def test_toggle_tag_via_input(self) -> None:
-        st = _state(row=1)
-        st.tag_input_action = "t"
-        handle_tag_input_special(st, _act("enter", text="flex"))
-        assert "flex" in st.buffer.tags_at(1)
-
-    def test_remove_tag_via_input(self) -> None:
-        st = _state("4 Goblin Guide  #core\n", row=0)
-        st.tag_input_action = "r"
-        handle_tag_input_special(st, _act("enter", text="core"))
-        assert "core" not in st.buffer.tags_at(0)
-
-    def test_filter_via_input(self) -> None:
-        st = _state("4 Goblin Guide  #core\n4 Lava Spike\n", row=0)
-        st.tag_input_action = "f"
-        hr = handle_tag_input_special(st, _act("enter", text="core"))
-        assert "Filter: 1/2 cards match" in hr.command_message
-        assert st.tag_filter is not None
+        assert hr.command_message == "Filter: 1/2 cards match (:filter! clears)"
+        assert st.category_filter is not None
+        assert st.insert_submode == InsertSubmode.CARD_SEARCH
 
     def test_empty_filter_clears_it(self) -> None:
-        st = _state("4 Goblin Guide  #core\n4 Lava Spike\n", row=0)
-        st.tag_input_action = "f"
-        handle_tag_input_special(st, _act("enter", text="core"))
-        st.tag_input_action = "f"
-        hr = handle_tag_input_special(st, _act("enter", text=""))
-        assert st.tag_filter is None
+        st = _state("4 Goblin Guide  @aggro\n4 Lava Spike  @burn\n", row=0)
+        handle_normal_special(st, _act("space f"))
+        handle_prompt_special(st, _act("enter", text="aggro"))
+        handle_normal_special(st, _act("space f"))
+        hr = handle_prompt_special(st, _act("enter", text=""))
+        assert st.category_filter is None
         assert hr.command_message == "Filter cleared"
+        assert hr.exit_to_normal is True
 
     def test_empty_enter_exits(self) -> None:
         st = _state(row=1)
-        st.tag_input_action = "a"
-        hr = handle_tag_input_special(st, _act("enter", text=""))
+        st.prompt_action = "category"
+        hr = handle_prompt_special(st, _act("enter", text=""))
         assert hr.exit_to_normal is True
         assert st.insert_submode == InsertSubmode.CARD_SEARCH
 
     def test_char_key_is_noop(self) -> None:
         st = _state(row=1)
-        assert handle_tag_input_special(st, _act("char", text="c")).command_message == ""
+        assert handle_prompt_special(st, _act("char", text="c")).command_message == ""
 
 
 # ── handle_command ─────────────────────────────────────────────────

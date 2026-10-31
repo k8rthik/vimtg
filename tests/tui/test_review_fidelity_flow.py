@@ -28,16 +28,16 @@ class TestLeavingVisualEndsSelection:
             assert len(_cards(scr)) == before - 1
 
     @pytest.mark.asyncio
-    async def test_tag_prompt_from_visual_still_tags_the_selection(
+    async def test_category_prompt_from_visual_still_labels_the_selection(
         self, tmp_path: Path
     ) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, "6G Vj ta burn<CR>")
-            tagged = [c for c in _cards(scr) if "#burn" in c]
-            assert len(tagged) == 2
+            _feed(scr, "6G Vj gc burn<CR>")
+            labelled = [c for c in _cards(scr) if "@burn" in c]
+            assert len(labelled) == 2
 
 
 class TestCountedX:

@@ -113,9 +113,9 @@ LESSONS: dict[int, tuple[Step, ...]] = {
         Step(":validate<CR>", lambda v: "Ponder" in v.shown and "Rift Bolt" in v.shown),
     ),
     10: (
-        Step("/Searing<CR>taburn<CR>", _on("4 Searing Blaze  #burn")),
-        Step("tfburn<CR>", lambda v: v.main._state.tag_filter is not None),
-        Step("tf<CR>", lambda v: v.main._state.tag_filter is None),
+        Step("/Searing<CR>gcburn<CR>", _on("4 Searing Blaze  @burn")),
+        Step("<Space>fburn<CR>", lambda v: v.main._state.category_filter is not None),
+        Step("<Space>f<CR>", lambda v: v.main._state.category_filter is None),
     ),
     11: (
         Step(":plan Tron<CR>/Monastery<CR>zo",

@@ -8,9 +8,8 @@ handled without being documented, or documented without being handled.
 Prefix namespaces (normal mode), each with one meaning:
 
     g   go / global      gg gc gC gl gh g?
-    t   tags             ta tr tt tf tl tc tn tp
     ^W  windows          ^Wv ^Ws  ^Ww ^WW ^Wh ^Wj ^Wk ^Wl  ^Wc ^Wq ^Wo
-    ␣   leader           ␣a ␣r ␣h  (Space; panes toggle)
+    ␣   leader           ␣a ␣r ␣h ␣f  (Space; panes toggle, f filters)
     z   zones & scroll   zs zm zd zc zp  zi zo  zz zt zb
     m   marks (set)      m{a-z}
     '   marks (jump)     '{a-z}
@@ -108,7 +107,6 @@ VISUAL = "VISUAL MODE"
 CATEGORIES = "CATEGORIES"
 CMDLINE = "COMMAND LINE"
 WINDOWS = "WINDOWS, PANES & THE LEADER"
-TAGS = "TAGS"
 VCS = "VERSION CONTROL"
 MODES = "MODES"
 
@@ -189,7 +187,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        EDITING, label="Ctrl-A/X"),
     _b(".", "Repeat the last change", EDITING, quick="Editing", brief="repeat last",
        note="Every edit repeats: operators (c with the card it added), o/O with "
-            "their card, p, +/-, x, zone and plan moves, tags, categories, "
+            "their card, p, +/-, x, zone and plan moves, categories, "
             "comments, i, and :s; a visual change repeats on as many lines"),
     _b(("u", "ctrl_r"), "Undo / redo", EDITING, label="u / Ctrl-R", quick="Commands",
        brief="undo/redo"),
@@ -265,15 +263,8 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
        label="Space r", shorts=("EDHREC recs",)),
     _b("space h", "Sample hand / goldfish overlay (:hand)", WINDOWS,
        label="Space h", shorts=("sample hand",)),
-    # ── Tags (t prefix) ───────────────────────────────────
-    _b("ta", "Add a tag to the card", TAGS, shorts=("add tag",)),
-    _b("tr", "Remove a tag", TAGS, shorts=("remove tag",)),
-    _b("tt", "Toggle a tag", TAGS, shorts=("toggle tag",)),
-    _b("tf", "Filter the view by a tag expression", TAGS, shorts=("filter by tag",)),
-    _b("tl", "List tags with counts", TAGS, shorts=("list tags",)),
-    _b("tc", "Clear the card's tags", TAGS, shorts=("clear tags",)),
-    _b(("tn", "tp"), "Next / previous card sharing a tag", TAGS,
-       shorts=("next tagged", "prev tagged")),
+    _b("space f", "Filter the view by category (:filter; empty clears)", WINDOWS,
+       label="Space f", shorts=("filter view",)),
     # ── Version control ───────────────────────────────────
     _b("gh", "Toggle the history overlay (lazygit-style)", VCS, shorts=("history overlay",)),
     # ── Command line (: and / ? prompts) ─────────────────
@@ -294,7 +285,7 @@ EDITOR_BINDINGS: tuple[KeyBinding, ...] = (
 
 # Prefix → which-key menu title; every prefix the keymap pends on.
 PREFIX_TITLES: dict[str, str] = {
-    "g": "go", "t": "tags", "z": "zones & scroll", "m": "marks",
+    "g": "go", "z": "zones & scroll", "m": "marks",
     "'": "marks", "q": "macros", "@": "macros", '"': "registers",
     "[": "jump back", "]": "jump forward", "Z": "quit",
     "ctrl_w": "window", "space": "leader",

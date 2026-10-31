@@ -68,8 +68,8 @@ class TestCandidates:
     def test_sort(self) -> None:
         assert set(command_argument_candidates(_state(), "sort")) == SORT_FIELDS
 
-    def test_filter_tags_most_used_first(self) -> None:
-        assert command_argument_candidates(_state(), "filter") == ("core", "flex")
+    def test_filter_categories_most_used_first(self) -> None:
+        assert command_argument_candidates(_state(), "filter") == ("ramp", "draw", "wincon")
 
     def test_category_deck_first_then_presets(self) -> None:
         candidates = command_argument_candidates(_state(), "category")
@@ -109,10 +109,10 @@ class TestCompleteArguments:
 
     def test_filter_completes_last_term(self) -> None:
         st = _state()
-        assert _type(st, "filter core+fl") == "filter core+flex"
-        assert _type(st, "filter core|fl") == "filter core|flex"
-        assert _type(st, "filter core -fl") == "filter core -flex"
-        assert _type(st, "filter #co") == "filter #core"
+        assert _type(st, "filter ramp+dr") == "filter ramp+draw"
+        assert _type(st, "filter ramp|dr") == "filter ramp|draw"
+        assert _type(st, "filter ramp -dr") == "filter ramp -draw"
+        assert _type(st, "filter @wi") == "filter @wincon"
 
     def test_complete_word_gives_no_ghost(self) -> None:
         st = _state()

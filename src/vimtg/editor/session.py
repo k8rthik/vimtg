@@ -22,12 +22,13 @@ from vimtg.domain.card import Card
 from vimtg.domain.card_names import CardMap
 from vimtg.domain.categories import (
     CATEGORY_NAME_RE,
+    CategoryFilter,
     complete_category,
     completion_candidates,
+    parse_category_filter,
 )
 from vimtg.domain.deck_lines import parse_zone_header, split_metadata_prefix, zone_context_at
 from vimtg.domain.formats import get_format_rules, known_formats
-from vimtg.domain.tags import TagFilter, tag_lines
 from vimtg.domain.validation import commander_refusal
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.card_insert import (
@@ -41,6 +42,8 @@ from vimtg.editor.card_insert import (
 )
 from vimtg.editor.category_ops import (
     clear_category_in_range,
+    count_filter_matches,
+    filter_status_message,
     set_category_in_range,
 )
 from vimtg.editor.cmdline_history import COMMAND, SEARCH, CommandHistory
@@ -103,12 +106,6 @@ from vimtg.editor.registers import (
 )
 from vimtg.editor.sort_keys import SORT_FIELDS
 from vimtg.editor.splits import AnalyticsOpen, EdhrecOpen, SplitOpen, WindowCommand
-from vimtg.editor.tag_ops import (
-    add_tags_in_range,
-    remove_tags_in_range,
-    tag_summary,
-    toggle_tag_in_range,
-)
 from vimtg.services.history_service import HistoryService
 
 if TYPE_CHECKING:
@@ -120,7 +117,7 @@ if TYPE_CHECKING:
 class InsertSubmode(Enum):
     CARD_SEARCH = "card_search"
     LINE_EDIT = "line_edit"
-    TAG_INPUT = "tag_input"
+    PROMPT = "prompt"
     COMMENT_INPUT = "comment_input"
 
 
@@ -159,8 +156,8 @@ class EditorState:
     line_edit_original: str | None = None
     line_edit_row: int | None = None
     line_edit_prefix: str = ""
-    tag_input_action: str = ""
-    tag_filter: TagFilter | None = None
+    prompt_action: str = ""
+    category_filter: CategoryFilter | None = None
     # Ordered completion pool for category input, built on entry
     category_candidates: tuple[str, ...] = ()
     remapper: Any = None  # KeyRemapper, passed through to :map/:unmap
@@ -249,8 +246,8 @@ class HandlerResult:
     command_ghost: str = ""
     command_accept: str = ""
     enter_line_edit: bool = False
-    enter_tag_input: bool = False
-    tag_prompt: str = ""
+    enter_prompt: bool = False
+    prompt_label: str = ""
     enter_comment_input: bool = False
     comment_prefill: str = ""
     replay_keys: tuple[str, ...] = ()  # macro playback via the key pipeline
@@ -652,8 +649,8 @@ def handle_command(
             state.settings = ctx.settings
         if ctx.resolved_cards is not None and ctx.resolved_cards is not state.resolved_cards:
             state.resolved_cards = CardMap(ctx.resolved_cards)
-        if ctx.tag_filter_set:
-            state.tag_filter = ctx.tag_filter
+        if ctx.category_filter_set:
+            state.category_filter = ctx.category_filter
         return HandlerResult(
             command_message=ctx.message,
             error=ctx.error,
@@ -792,6 +789,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             )
     elif key in WINDOW_KEYS:
         return WINDOW_KEYS[key]
+    elif key == "space f":
+        return _open_filter_prompt(state)
     elif key in LEADER_KEYS:
         return LEADER_KEYS[key]
     elif key in ("gc", "gC", "gl"):
@@ -805,8 +804,6 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     elif key in ("ZZ", "ZQ"):
         # Vim's ZZ / ZQ are exactly :x / :q! (ZZ writes only when modified)
         return HandlerResult(run_ex_command="x" if key == "ZZ" else "q!")
-    elif key.startswith("t") and len(key) == 2:
-        return _handle_tag_action(state, key[1])
     elif key == "A":
         return _handle_comment_action(state)
     elif key == "K":
@@ -1040,7 +1037,8 @@ WINDOW_KEYS: dict[str, HandlerResult] = {
     "ctrl_w o": HandlerResult(window=WindowCommand.ONLY),
 }
 
-# <Space>{key}: the leader. The panes toggle; the hand is an overlay.
+# <Space>{key}: the leader. The panes toggle; the hand is an overlay;
+# Space f (the filter prompt) needs the state, see _open_filter_prompt.
 LEADER_KEYS: dict[str, HandlerResult] = {
     "space a": HandlerResult(toggle_pane="analytics"),
     "space r": HandlerResult(toggle_pane="edhrec"),
@@ -1085,14 +1083,14 @@ def handle_comment_input_special(
 def _handle_category_action(state: EditorState, sub_key: str) -> HandlerResult:
     """Dispatch g sub-key: c (set category), C (clear), l (toggle layout)."""
     if sub_key == "c":
-        state.tag_input_action = "category"
-        state.insert_submode = InsertSubmode.TAG_INPUT
+        state.prompt_action = "category"
+        state.insert_submode = InsertSubmode.PROMPT
         state.category_candidates = completion_candidates(
             state.buffer.category_counts(), load_category_history()
         )
         return HandlerResult(
-            enter_tag_input=True,
-            tag_prompt="category: ",
+            enter_prompt=True,
+            prompt_label="category: ",
         )
     if sub_key == "C":
         row = state.cursor.row
@@ -1166,63 +1164,15 @@ def _toggle_layout(state: EditorState) -> HandlerResult:
     )
 
 
-def _handle_tag_action(state: EditorState, sub_key: str) -> HandlerResult:
-    """Dispatch tag sub-key: a(dd), r(emove), t(oggle), f(ilter), l(ist), c(lear), n/p (jump)."""
-    tag_prompts = {
-        "a": "tag add: ",
-        "r": "tag remove: ",
-        "t": "tag toggle: ",
-        "f": "filter: ",
-    }
-    if sub_key in tag_prompts:
-        state.tag_input_action = sub_key
-        state.insert_submode = InsertSubmode.TAG_INPUT
-        return HandlerResult(
-            enter_tag_input=True,
-            tag_prompt=tag_prompts[sub_key],
-        )
-    if sub_key == "l":
-        counts = state.buffer.tag_counts()
-        return HandlerResult(
-            command_message=tag_summary(state.buffer),
-            listing=Listing("Tags", tuple(tag_lines(counts))) if counts else None,
-        )
-    if sub_key == "c":
-        # Clear all tags from cursor card
-        if state.buffer.is_card_line(state.cursor.row) and state.buffer.tags_at(state.cursor.row):
-            state.buffer = state.buffer.set_tags(state.cursor.row, frozenset())
-            state.modified = True
-            state.history.record(state.buffer, "clear tags")
-            state.dot_repeat.record(RepeatableAction("tag", operator="c"))
-            return HandlerResult(command_message="Tags cleared")
-        return HandlerResult(command_message="No tags to clear")
-    if sub_key == "n":
-        return _jump_to_tagged(state, forward=True)
-    if sub_key == "p":
-        return _jump_to_tagged(state, forward=False)
-    return HandlerResult()
+def _open_filter_prompt(state: EditorState) -> HandlerResult:
+    """Space f: prompt for a view filter expression (Enter on an empty
+    prompt clears the filter, as :filter does)."""
+    state.prompt_action = "filter"
+    state.insert_submode = InsertSubmode.PROMPT
+    return HandlerResult(enter_prompt=True, prompt_label="filter: ")
 
 
-def _jump_to_tagged(state: EditorState, forward: bool) -> HandlerResult:
-    """Jump to next/prev card sharing a tag with the current card."""
-    current_tags = state.buffer.tags_at(state.cursor.row)
-    if not current_tags:
-        return HandlerResult(command_message="No tags on current card")
-
-    line_count = state.buffer.line_count()
-    if forward:
-        rng = range(state.cursor.row + 1, line_count)
-    else:
-        rng = range(state.cursor.row - 1, -1, -1)
-
-    for i in rng:
-        if state.buffer.is_card_line(i) and (state.buffer.tags_at(i) & current_tags):
-            state.cursor = state.cursor.move_to(i, 0)
-            return HandlerResult()
-    return HandlerResult(command_message="No more tagged matches")
-
-
-def handle_tag_input_special(state: EditorState, action: ParsedAction) -> HandlerResult:
+def handle_prompt_special(state: EditorState, action: ParsedAction) -> HandlerResult:
     """Process tag-input mode keys (typing tag name, enter to confirm).
 
     Category input additionally ghosts the best completion (deck
@@ -1230,7 +1180,7 @@ def handle_tag_input_special(state: EditorState, action: ParsedAction) -> Handle
     """
     key = action.action
     text = action.text or ""
-    is_category = state.tag_input_action == "category"
+    is_category = state.prompt_action == "category"
 
     if key in ("char", "backspace", "delete"):
         if is_category:
@@ -1248,8 +1198,8 @@ def handle_tag_input_special(state: EditorState, action: ParsedAction) -> Handle
         return HandlerResult()
 
     if key == "enter" and text.strip():
-        result = _apply_tag_input(state, text.strip())
-        state.tag_input_action = ""
+        result = _apply_prompt(state, text.strip())
+        state.prompt_action = ""
         state.insert_submode = InsertSubmode.CARD_SEARCH
         return HandlerResult(
             exit_to_normal=True,
@@ -1258,23 +1208,21 @@ def handle_tag_input_special(state: EditorState, action: ParsedAction) -> Handle
 
     if key == "enter":
         # An empty filter clears it (as :filter does); other prompts cancel
-        clears_filter = state.tag_input_action == "f"
-        state.tag_input_action = ""
+        clears_filter = state.prompt_action == "filter"
+        state.prompt_action = ""
         state.insert_submode = InsertSubmode.CARD_SEARCH
         if clears_filter:
-            state.tag_filter = None
+            state.category_filter = None
             return HandlerResult(exit_to_normal=True, command_message="Filter cleared")
         return HandlerResult(exit_to_normal=True)
 
     return HandlerResult()
 
 
-def _apply_tag_input(state: EditorState, text: str) -> str:
-    """Apply the tag action from tag-input mode."""
-    action = state.tag_input_action
-    tag = text.lstrip("#").lower()
-
-    if not tag:
+def _apply_prompt(state: EditorState, text: str) -> str:
+    """Apply the prompt's action: set a category or set the view filter."""
+    action = state.prompt_action
+    if not text.lstrip("#@"):
         return ""
 
     row = state.cursor.row
@@ -1286,38 +1234,12 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
         state.end_selection()
     else:
         start = end = row
-    if action in ("a", "r", "t", "category"):
-        # '.' re-applies the same tag/category, over as many lines
+    if action == "category":
+        # '.' re-applies the same category, over as many lines
         state.dot_repeat.record(RepeatableAction(
-            "category" if action == "category" else "tag",
-            operator=action, text=text,
+            "category", operator=action, text=text,
             lines=end - start + 1 if end > start else 0,
         ))
-
-    if action == "a":
-        state.buffer, count = add_tags_in_range(state.buffer, start, end, [tag])
-        if count:
-            state.modified = True
-            state.history.record(state.buffer, f"tag add #{tag}")
-        return f"Tagged {count} card(s) with #{tag}" if count else "No card lines"
-
-    if action == "r":
-        state.buffer, count = remove_tags_in_range(state.buffer, start, end, [tag])
-        if count:
-            state.modified = True
-            state.history.record(state.buffer, f"tag remove #{tag}")
-        return f"Removed #{tag} from {count} card(s)" if count else f"No cards with #{tag}"
-
-    if action == "t":
-        state.buffer, added, removed = toggle_tag_in_range(
-            state.buffer, start, end, tag
-        )
-        if added or removed:
-            state.modified = True
-            state.history.record(state.buffer, f"tag toggle #{tag}")
-        return f"#{tag}: +{added} -{removed}"
-
-    if action == "category":
         name = text.lstrip("@").lower()
         if not CATEGORY_NAME_RE.match(name):
             return (
@@ -1335,16 +1257,9 @@ def _apply_tag_input(state: EditorState, text: str) -> str:
             return f"Categorized {count} card(s) as @{name}"
         return "No card lines"
 
-    if action == "f":
-        from vimtg.domain.tags import parse_tag_filter
-        from vimtg.editor.command_handlers.tag_cmds import (
-            count_filter_matches,
-            filter_status_message,
-        )
-
-        state.tag_filter = parse_tag_filter(text)
-        visible, total = count_filter_matches(state.buffer, state.tag_filter)
-        return filter_status_message(visible, total)
+    if action == "filter":
+        state.category_filter = parse_category_filter(text)
+        return filter_status_message(*count_filter_matches(state.buffer, state.category_filter))
 
     return ""
 
@@ -1640,12 +1555,10 @@ def _replay(
         else:
             discard_pending_insert(state)
         state.dot_repeat.record(replace(last, quantity=quantity))
-    elif kind == "tag" and op == "c":
-        _handle_tag_action(state, "c")
-    elif kind in ("tag", "category") and last.text is not None:
-        state.tag_input_action = op or "category"
-        _apply_tag_input(state, last.text)
-        state.tag_input_action = ""
+    elif kind == "category" and last.text is not None:
+        state.prompt_action = "category"
+        _apply_prompt(state, last.text)
+        state.prompt_action = ""
     elif kind == "category":
         _handle_category_action(state, "C")
     elif kind == "comment":
@@ -1843,15 +1756,15 @@ def handle_line_edit_special(state: EditorState, action: ParsedAction) -> Handle
 
 def command_argument_candidates(state: EditorState, command: str) -> tuple[str, ...]:
     """Tab-completion candidates for `command`'s argument, best first:
-    layout modes, sort fields, the deck's tags (most used first) for
-    :filter, and the category pool gc uses for :category."""
+    layout modes, sort fields, the deck's categories (most used first)
+    for :filter, and the category pool gc uses for :category."""
     if command == "layout":
         return LAYOUT_MODES
     if command == "sort":
         return tuple(sorted(SORT_FIELDS))
     if command == "filter":
-        counts = state.buffer.tag_counts()
-        return tuple(sorted(counts, key=lambda tag: (-counts[tag], tag)))
+        counts = state.buffer.category_counts()
+        return tuple(sorted(counts, key=lambda name: (-counts[name], name)))
     if command == "category":
         return completion_candidates(
             state.buffer.category_counts(), load_category_history(),

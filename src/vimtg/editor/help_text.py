@@ -57,12 +57,8 @@ COMMANDS
   :cat name     Set card category (:cat! clears)
   :categories   List categories with counts
   :layout       Toggle type/category layout
-  :tag name     Add tag (range supported)
-  :untag name   Remove tag (:untag! clears all)
-  :tags         List tags with counts
   :dtag/:duntag Add/remove deck-level tags
-  :filter expr  Filter view by tag (+ AND, | OR, - NOT)
-  :retag /a/b/  Rename tag across deck
+  :filter expr  Filter view by category (| OR, - NOT; Space f)
   :export fmt   Export (arena/mtgo/dek/moxfield/archidekt/vimtg/guide)
   :plan name    Activate a sideboard plan (creates its VS: block)
   :plans        List the plans with their -out +in totals
@@ -99,7 +95,7 @@ def _build_overview() -> str:
             ))
         else:
             parts.append(format_overview_group(title, rows))
-    # COMMANDS sits between TAGS and VERSION CONTROL, as before
+    # COMMANDS sits between the key groups and VERSION CONTROL
     vcs = parts.pop()
     parts.append(_COMMANDS)
     parts.append(vcs)
@@ -303,39 +299,25 @@ COMMAND_HELP: dict[str, str] = {
         "Cached data newer than 7 days is reused; :sync! re-downloads.\n"
         "The status line shows how old the card data is."
     ),
-    "tag": (
-        ":tag name  Add tag to cards in range (default: current line)\n"
-        "\n"
-        ":tag flex          tag current card #flex\n"
-        ":5,10tag budget    tag lines 5-10 #budget\n"
-        ":%tag staple       tag every card #staple"
-    ),
-    "untag": (
-        ":untag name  Remove tag (use :untag! to clear all tags)\n"
-        "\n"
-        ":untag flex        remove #flex from current card\n"
-        ":%untag!           clear all tags from every card"
-    ),
-    "tags": ":tags  List tags with counts",
     "filter": (
-        ":filter expr  Highlight cards matching a tag expression\n"
-        "(non-matching cards are dimmed)\n"
+        ":filter expr  Show the cards whose @category matches expr\n"
+        "(the others are dimmed). Space f opens the same prompt.\n"
         "\n"
-        ":filter core              cards tagged #core\n"
-        ":filter core+staple       AND (both tags)\n"
-        ":filter flex|budget       OR (either tag)\n"
-        ":filter core-removal      AND NOT\n"
-        ":filter / :filter!        clear filter"
+        ":filter ramp              cards in @ramp\n"
+        ":filter ramp|draw         OR (either category)\n"
+        ":filter -removal          NOT (every card but @removal)\n"
+        ":filter ramp -removal     AND NOT\n"
+        ":filter / :filter!        clear filter\n"
+        "\n"
+        "Tab completes a category from the deck, most used first."
     ),
-    "retag": ":retag /old/new/  Rename a tag across the entire deck",
     "dtag": (
         ":dtag name...  Add deck-level tags to the // Tags: metadata line\n"
         "\n"
         ":dtag aggro          tag the deck aggro\n"
         ":dtag burn budget    add two tags at once\n"
         "\n"
-        "The // Tags: line is created when the deck has none. Card tags\n"
-        "(#name on a card line) are :tag and :untag."
+        "The // Tags: line is created when the deck has none."
     ),
     "duntag": (
         ":duntag name...  Remove deck-level tags from the // Tags: line\n"

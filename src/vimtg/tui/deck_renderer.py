@@ -123,7 +123,7 @@ def render_line(
 
     Returns 1 line normally, or 1+expansion lines if the cursor
     is on this card, the card is resolved, and auto_expand is on.
-    `dimmed` renders the line de-emphasized (tag filter mismatch)
+    `dimmed` renders the line de-emphasized (view filter mismatch)
     and suppresses expansion. `line_error` puts a ✗/! sign in the
     gutter. `header_count` appends a card total to header lines
     (see editor.header_counts); it is ignored on other line types.

@@ -20,7 +20,6 @@ REPEATABLE_TYPES: frozenset[str] = frozenset({
     "board",      # zi zo
     "insert",     # o / O + the card confirmed in the search
     "put",        # p / P
-    "tag",        # ta tr tt (text = tag), tc (clear)
     "category",   # gc (text = category), gC (text = None: clear)
     "comment",    # A (text = the comment)
     "line_edit",  # i (text = the edited value after any locked prefix)

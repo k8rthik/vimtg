@@ -265,19 +265,26 @@ class TestSetQuantity:
         assert buf.set_quantity(0, 5).get_line(0).text == "// comment"
 
 
-class TestTagCounts:
-    def test_empty_buffer(self) -> None:
-        assert Buffer.from_text("4 Goblin Guide\n").tag_counts() == {}
+class TestTagTokensRoundTrip:
+    """vimtg no longer edits a card's #tags, but a file that has them must
+    come back byte for byte after an edit somewhere else."""
 
-    def test_counts_across_lines(self) -> None:
-        buf = Buffer.from_text(
-            "4 Goblin Guide  #core\n4 Lightning Bolt  #core #burn\n2 Skullcrack  #burn\n"
-        )
-        assert buf.tag_counts() == {"core": 2, "burn": 2}
+    TEXT = (
+        "// Deck: Shared\n// Format: modern\n\n"
+        "4 Lightning Bolt  @burn  #core #flex  // best card\n"
+        "4 Goblin Guide  #aggro\n"
+        "2 Skullcrack\n"
+        "SB: 2 Rest in Peace  #hate\n"
+    )
 
-    def test_ignores_non_card_lines(self) -> None:
-        buf = Buffer.from_text("// Comment  #core\n4 Goblin Guide  #flex\n")
-        assert buf.tag_counts() == {"flex": 1}
+    def test_an_edit_elsewhere_leaves_the_tags_alone(self) -> None:
+        buf = Buffer.from_text(self.TEXT).set_quantity(5, 3)
+        assert buf.to_text() == self.TEXT.replace("2 Skullcrack", "3 Skullcrack")
+
+    def test_a_category_edit_on_a_tagged_line_keeps_its_tags(self) -> None:
+        buf = Buffer.from_text(self.TEXT).set_category(4, "aggro")
+        assert buf.get_line(4).text == "4 Goblin Guide  @aggro  #aggro"
+        assert buf.to_text().count("#") == self.TEXT.count("#")
 
 
 class TestMetadataClassification:

@@ -14,6 +14,7 @@ TUI-agnostic: no Textual imports.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 # One grammar for category names — same shape as tag names so the two
 # suffix tokens stay visually consistent on a line
@@ -92,6 +93,53 @@ def format_category_summary(counts: dict[str, int]) -> str:
         return "No categories in deck"
     parts = [f"@{c}({n})" for c, n in sorted(counts.items())]
     return f"Categories: {' '.join(parts)}"
+
+
+@dataclass(frozen=True)
+class CategoryFilter:
+    """A compiled :filter expression over card categories.
+
+    include: every name must match (AND); exclude: none may (NOT);
+    any_of: at least one must (OR). A card carries one category, so an
+    `include` of two names matches nothing: use `a|b` for either.
+    """
+
+    include: frozenset[str] = frozenset()
+    exclude: frozenset[str] = frozenset()
+    any_of: frozenset[str] = frozenset()
+
+
+def parse_category_filter(expr: str) -> CategoryFilter:
+    """Parse a filter expression: `ramp`, `ramp+core` (AND), `ramp|draw`
+    (OR), `-removal` (NOT), `ramp -removal` (AND NOT). A leading `@` on a
+    name is allowed; names are case-insensitive."""
+    include: set[str] = set()
+    exclude: set[str] = set()
+    any_of: set[str] = set()
+
+    def names(part: str, sep: str) -> list[str]:
+        return [n.lstrip("@").lower() for n in part.split(sep) if n.lstrip("@")]
+
+    for token in expr.split():
+        if token.startswith("-"):
+            exclude.update(names(token[1:], "|"))
+        elif "|" in token:
+            any_of.update(names(token, "|"))
+        else:
+            include.update(names(token, "+"))
+    return CategoryFilter(
+        include=frozenset(include), exclude=frozenset(exclude), any_of=frozenset(any_of),
+    )
+
+
+def matches_category(category: str, filt: CategoryFilter) -> bool:
+    """Whether a card with `category` ('' for none) passes the filter."""
+    labels = frozenset({category.lower()}) if category else frozenset()
+    if filt.include and not filt.include.issubset(labels):
+        return False
+    if filt.exclude and filt.exclude & labels:
+        return False
+    return not (filt.any_of and not filt.any_of & labels)
 
 
 def completion_candidates(

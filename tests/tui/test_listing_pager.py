@@ -1,5 +1,5 @@
-"""Listing commands (:registers, :marks, :tags, :categories, :plans,
-:validate, :branch, :g//p, tl) show their output on the command line
+"""Listing commands (:registers, :marks, :categories, :plans,
+:validate, :g//p) show their output on the command line
 when it fits on one line, and in the floating pager, one entry per line,
 when it does not: vim's more-prompt, instead of output cut off at the
 terminal edge."""
@@ -21,11 +21,10 @@ _CARDS = [
 ]
 
 
-def _deck(tmp_path: Path, tags: bool = True) -> Path:
+def _deck(tmp_path: Path) -> Path:
     lines = ["// Deck: Burn", "// Format: modern", ""]
     for i, name in enumerate(_CARDS):
-        suffix = f"  #tag{i} #shared" if tags else ""
-        lines.append(f"4 {name}{suffix}")
+        lines.append(f"4 {name}  @cat{i}")
     path = tmp_path / "burn.deck"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
@@ -79,8 +78,7 @@ async def test_output_that_fits_stays_on_the_command_line(tmp_path: Path) -> Non
 @pytest.mark.parametrize(
     ("command", "title", "expected"),
     [
-        ("tags", "Tags", "#shared"),
-        ("tags shared", "#shared", "Skewer the Critics"),
+        ("categories", "Categories", "@cat3"),
         ("g/o/p", "Matches", "Monastery Swiftspear"),
     ],
 )
@@ -120,18 +118,8 @@ async def test_pager_output_is_kept_for_messages(tmp_path: Path) -> None:
     app = VimTGApp(deck_path=_deck(tmp_path))
     async with app.run_test(size=(60, 30)) as pilot:
         await pilot.pause()
-        await _ex(app, pilot, "tags")
+        await _ex(app, pilot, "categories")
         await pilot.press("q")
         await pilot.pause()
         await _ex(app, pilot, "messages")
-        assert "#tag6" in _pager_body(app)
-
-
-@pytest.mark.asyncio
-async def test_tl_overflowing_opens_the_pager(tmp_path: Path) -> None:
-    app = VimTGApp(deck_path=_deck(tmp_path))
-    async with app.run_test(size=(60, 30)) as pilot:
-        await pilot.pause()
-        await pilot.press("t", "l")
-        await pilot.pause()
-        assert "#tag3" in _pager_body(app)
+        assert "@cat6" in _pager_body(app)

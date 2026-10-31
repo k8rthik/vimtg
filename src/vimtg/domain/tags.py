@@ -1,7 +1,10 @@
-"""Tag domain model — parsing, filtering, and formatting for card/deck tags.
+"""Tag token grammar: the `#tag` suffix on card lines and the deck's
+`// Tags:` names.
 
-Tags are lightweight annotations: #burn-package, #core, #flex-slot.
-Stored as frozenset[str] (lowercase, deduplicated, unordered).
+vimtg reads and writes a card line's #tags unchanged (sorted on write)
+so other tools' files round-trip, but no longer edits them; :dtag and
+:duntag edit the deck-level tags. Stored as frozenset[str] (lowercase,
+deduplicated, unordered).
 
 TUI-agnostic: no Textual imports.
 """
@@ -9,76 +12,12 @@ TUI-agnostic: no Textual imports.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
-from dataclasses import dataclass
 
 # One grammar for tag names — the inline token and standalone
 # validation are built from the same body
 _TAG_BODY = r"[a-zA-Z][a-zA-Z0-9-]{0,31}"
 _TAG_TOKEN = re.compile(rf"#({_TAG_BODY})")
 TAG_NAME_RE = re.compile(rf"^{_TAG_BODY}$")
-
-
-@dataclass(frozen=True)
-class TagFilter:
-    """Compiled tag filter expression.
-
-    include: ALL of these must be present (AND)
-    exclude: NONE of these may be present (NOT)
-    any_of:  at least ONE must be present (OR)
-    """
-
-    include: frozenset[str] = frozenset()
-    exclude: frozenset[str] = frozenset()
-    any_of: frozenset[str] = frozenset()
-
-
-def parse_tag_filter(expr: str) -> TagFilter:
-    """Parse a filter expression string into a TagFilter.
-
-    Syntax:
-        core          → include={core}
-        core+flex     → include={core, flex}  (AND)
-        core|flex     → any_of={core, flex}   (OR)
-        -flex         → exclude={flex}
-        core -flex    → include={core}, exclude={flex}
-    """
-    tokens = expr.split()
-    include: set[str] = set()
-    exclude: set[str] = set()
-    any_of: set[str] = set()
-
-    for token in tokens:
-        token = token.lstrip("#")
-        if not token:
-            continue
-        if token.startswith("-"):
-            tag = token[1:].lower()
-            if tag:
-                exclude.add(tag)
-        elif "|" in token:
-            parts = [p.lower() for p in token.split("|") if p]
-            any_of.update(parts)
-        elif "+" in token:
-            parts = [p.lower() for p in token.split("+") if p]
-            include.update(parts)
-        else:
-            include.add(token.lower())
-
-    return TagFilter(
-        include=frozenset(include),
-        exclude=frozenset(exclude),
-        any_of=frozenset(any_of),
-    )
-
-
-def matches_filter(tags: frozenset[str], filt: TagFilter) -> bool:
-    """Check whether a set of tags satisfies a filter."""
-    if filt.include and not filt.include.issubset(tags):
-        return False
-    if filt.exclude and filt.exclude & tags:
-        return False
-    return not (filt.any_of and not filt.any_of & tags)
 
 
 def _tag_suffix_index(text: str) -> int | None:
@@ -126,23 +65,3 @@ def format_inline_tags(tags: frozenset[str]) -> str:
         return ""
     sorted_tags = sorted(tags)
     return "  " + " ".join(f"#{t}" for t in sorted_tags)
-
-
-def tag_lines(counts: dict[str, int]) -> list[str]:
-    """One '#tag  count' line per tag, sorted by tag name."""
-    return [f"#{t:<20} {c}" for t, c in sorted(counts.items())]
-
-
-def format_tag_summary(counts: dict[str, int], deck_tags: Iterable[str] = ()) -> str:
-    """Render a tag-count map as a status message, sorted by tag name.
-
-    Returns ``"Tags: #tag1(2) #tag2(1)"``; with no card tags, names the
-    deck's own ``// Tags:`` (``deck_tags``) when it has any, since
-    those are a different kind of tag, else ``"No tags in deck"``.
-    """
-    if not counts:
-        if deck_tags:
-            return f"No card tags (deck tags: {', '.join(sorted(deck_tags))}; see :dtag)"
-        return "No tags in deck"
-    parts = [f"#{t}({c})" for t, c in sorted(counts.items())]
-    return f"Tags: {' '.join(parts)}"

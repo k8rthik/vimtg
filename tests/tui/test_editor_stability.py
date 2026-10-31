@@ -488,8 +488,8 @@ _FUZZ_EX = [
     "sort", "sort!", "sort name", "sort! name", "sort cmc", "sort qty",
     "%sort", "%sort!", "%sort! name", ".,$sort!", "1,$sort", "'a,'bsort!",
     "'<,'>sort!", "d", "2d", "'a,'bd", "999d", "1,999d", "'z,'zd", "t$",
-    "m0", "dtag aggro", "duntag aggro", "duntag nothing", "tag core",
-    "untag core", "s/Bolt/Shock/", "g/Mountain/d", "recover",
+    "m0", "dtag aggro", "duntag aggro", "duntag nothing",
+    "s/Bolt/Shock/", "g/Mountain/d", "recover",
 ]
 
 

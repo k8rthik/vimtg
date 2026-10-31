@@ -79,7 +79,7 @@ from vimtg.editor.session import (
     handle_motion,
     handle_normal_special,
     handle_operator,
-    handle_tag_input_special,
+    handle_prompt_special,
     note_jump,
     resolve_cards,
 )
@@ -425,7 +425,7 @@ class MainScreen(Screen[None]):
     def on_paste(self, event: Paste) -> None:
         """Terminal paste (bracketed paste arrives as one event).
 
-        In a text prompt — card search, the : line, a tag or comment —
+        In a text prompt — card search, the : line, a category, filter or comment —
         the text is inserted at the cursor (newlines folded to spaces).
         In normal mode it is read as a decklist and added to the deck as
         one undo step. Visual mode ignores it.
@@ -814,10 +814,10 @@ class MainScreen(Screen[None]):
         s = self._state
         if s.mode_mgr.is_insert():
             cl = self.query_one("#command-line", CommandLine)
-            if s.insert_submode == InsertSubmode.TAG_INPUT:
+            if s.insert_submode == InsertSubmode.PROMPT:
                 cl.text = action.text or ""
                 cl.cursor_pos = action.cursor_pos if action.cursor_pos is not None else len(cl.text)
-                hr = handle_tag_input_special(s, action)
+                hr = handle_prompt_special(s, action)
                 # Category input ghosts a completion; Tab accepts it
                 if hr.command_accept:
                     cl.text = hr.command_accept
@@ -876,7 +876,7 @@ class MainScreen(Screen[None]):
         s.line_edit_original = None
         s.line_edit_row = None
         s.line_edit_prefix = ""
-        s.tag_input_action = ""
+        s.prompt_action = ""
         s.insert_submode = InsertSubmode.CARD_SEARCH
         # Cancelling an o/O card search takes its scratch blank with it
         discard_pending_insert(s)
@@ -906,14 +906,14 @@ class MainScreen(Screen[None]):
         cl.cursor_pos = len(editable)
         cl.message = ""
 
-    def _apply_enter_tag_input(self, tag_prompt: str) -> None:
+    def _apply_enter_prompt(self, prompt_label: str) -> None:
         s = self._state
-        s.insert_submode = InsertSubmode.TAG_INPUT
+        s.insert_submode = InsertSubmode.PROMPT
         s.mode_mgr.transition(Mode.INSERT)
         self.keymap.set_mode(Mode.INSERT)
         self.keymap.reset_text()
         cl = self.query_one("#command-line", CommandLine)
-        cl.show(tag_prompt)
+        cl.show(prompt_label)
         cl.message = ""
 
     def _apply_enter_comment_input(self, prefill: str) -> None:
@@ -958,8 +958,8 @@ class MainScreen(Screen[None]):
             self._apply_exit_to_normal()
         if hr.enter_line_edit:
             self._apply_enter_line_edit()
-        if hr.enter_tag_input:
-            self._apply_enter_tag_input(hr.tag_prompt)
+        if hr.enter_prompt:
+            self._apply_enter_prompt(hr.prompt_label)
         if hr.enter_comment_input:
             self._apply_enter_comment_input(hr.comment_prefill)
         if hr.enter_insert:
@@ -1998,7 +1998,7 @@ class MainScreen(Screen[None]):
         if s.details_row != s.cursor.row:
             s.details_row = None  # K's details end when the cursor moves
         dv.auto_expand = s.settings.auto_expand != (s.details_row is not None)
-        dv.tag_filter = s.tag_filter
+        dv.category_filter = s.category_filter
         dv.line_errors = self._lint.line_errors
         dv.plan_deltas = self._plan_deltas()
 

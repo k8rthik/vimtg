@@ -238,17 +238,6 @@ class TestDotRepeat:
             assert _cards(scr)[:3] == ["4 Goblin Guide"] * 3
 
     @pytest.mark.asyncio
-    async def test_tag_add_repeats(self, tmp_path: Path) -> None:
-        app = VimTGApp(deck_path=_deck(tmp_path))
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            scr = _screen(app)
-            _feed(scr, "6G ta core<CR> j .")
-            buf = scr._state.buffer
-            assert buf.tags_at(5) == frozenset({"core"})
-            assert buf.tags_at(6) == frozenset({"core"})
-
-    @pytest.mark.asyncio
     async def test_category_and_comment_repeat(self, tmp_path: Path) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=(100, 30)) as pilot:
@@ -440,36 +429,36 @@ class TestCommandLine:
             await pilot.pause()
             scr = _screen(app)
             cl = scr.query_one("#command-line", CommandLine)
-            _feed(scr, ":stats<CR> :tags<CR> :")
+            _feed(scr, ":stats<CR> :cats<CR> :")
             _feed(scr, "<Up>")
-            assert cl.text == "tags"
+            assert cl.text == "cats"
             _feed(scr, "<Up>")
             assert cl.text == "stats"
             _feed(scr, "<Down> <Down>")
             assert cl.text == ""
             _feed(scr, "st<Up>")
-            assert cl.text == "stats"  # prefix match skips :tags
+            assert cl.text == "stats"  # prefix match skips :cats
             _feed(scr, "<CR>")
             assert scr._state.mode_mgr.current == Mode.NORMAL
             _feed(scr, "<Space>a")  # runs :analytics for you: not history
-            assert scr._state.cmd_history.entries("cmd") == ("tags", "stats")
+            assert scr._state.cmd_history.entries("cmd") == ("cats", "stats")
 
     @pytest.mark.asyncio
     async def test_history_persists_across_sessions(self, tmp_path: Path) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
-            _feed(_screen(app), ":tags<CR> /bolt<CR>")
+            _feed(_screen(app), ":cats<CR> /bolt<CR>")
         assert history_path().exists()
         loaded = CommandHistory.load()
-        assert loaded.entries("cmd")[-1] == "tags"
+        assert loaded.entries("cmd")[-1] == "cats"
         assert loaded.entries("search")[-1] == "bolt"
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             scr = _screen(app)
             _feed(scr, ":<Up>")
-            assert scr.query_one("#command-line", CommandLine).text == "tags"
+            assert scr.query_one("#command-line", CommandLine).text == "cats"
 
     @pytest.mark.asyncio
     async def test_line_editing_keys(self, tmp_path: Path) -> None:
