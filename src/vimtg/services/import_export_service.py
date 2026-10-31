@@ -54,11 +54,13 @@ class DeckFormat(Enum):
     ARENA = "arena"
     MOXFIELD = "moxfield"
     ARCHIDEKT = "archidekt"
+    LIST = "list"  # bare 'N Name' lines for MPC Autofill and stores — export only
     GUIDE = "guide"  # sideboard guide as Markdown — export only
 
 
 # Every format name :export, :clipboard and `vimtg convert --to` accept
-# ('mtga' is Arena under its client's name), in the order help lists them
+# ('mtga' is Arena under its client's name; 'mpc' and 'tcgplayer' name
+# the plain list after the tools it is for), in the order help lists them
 FORMAT_NAMES: Mapping[str, DeckFormat] = MappingProxyType({
     "arena": DeckFormat.ARENA,
     "mtga": DeckFormat.ARENA,
@@ -66,19 +68,25 @@ FORMAT_NAMES: Mapping[str, DeckFormat] = MappingProxyType({
     "dek": DeckFormat.MTGO_DEK,
     "moxfield": DeckFormat.MOXFIELD,
     "archidekt": DeckFormat.ARCHIDEKT,
+    "list": DeckFormat.LIST,
+    "mpc": DeckFormat.LIST,
+    "tcgplayer": DeckFormat.LIST,
     "vimtg": DeckFormat.VIMTG,
     "guide": DeckFormat.GUIDE,
 })
 # The names a deck can be read from (`vimtg convert --from`)
+# (the text importer already reads a plain list as mtgo or arena)
+_EXPORT_ONLY = frozenset({DeckFormat.GUIDE, DeckFormat.LIST})
 IMPORT_FORMAT_NAMES: tuple[str, ...] = tuple(
-    name for name, fmt in FORMAT_NAMES.items() if fmt is not DeckFormat.GUIDE
+    name for name, fmt in FORMAT_NAMES.items() if fmt not in _EXPORT_ONLY
 )
+_ALIASES = frozenset({"mtga", "mpc", "tcgplayer"})
 # One name per format, for messages ("Use arena, mtgo, ... or guide")
-PRIMARY_FORMAT_NAMES: tuple[str, ...] = tuple(n for n in FORMAT_NAMES if n != "mtga")
+PRIMARY_FORMAT_NAMES: tuple[str, ...] = tuple(n for n in FORMAT_NAMES if n not in _ALIASES)
 
 
 def format_list() -> str:
-    """'arena, mtgo, dek, moxfield, archidekt, vimtg, or guide'."""
+    """'arena, mtgo, dek, moxfield, archidekt, list, vimtg, or guide'."""
     return ", ".join(PRIMARY_FORMAT_NAMES[:-1]) + f", or {PRIMARY_FORMAT_NAMES[-1]}"
 
 
@@ -424,8 +432,8 @@ class ImportExportService:
                 report = self._import_moxfield(text)
             case DeckFormat.ARCHIDEKT:
                 report = self._import_archidekt(text)
-            case DeckFormat.GUIDE:
-                raise ValueError("The sideboard guide is an export-only format")
+            case DeckFormat.GUIDE | DeckFormat.LIST:
+                raise ValueError(f"{fmt.value} is an export-only format")
         return replace(report, deck=self._normalized(report.deck))
 
     def to_vimtg(
@@ -513,6 +521,8 @@ class ImportExportService:
                 return self._export_moxfield(deck, lookup)
             case DeckFormat.ARCHIDEKT:
                 return self._export_archidekt(deck, lookup)
+            case DeckFormat.LIST:
+                return _export_list(deck, lookup)
             case DeckFormat.GUIDE:
                 from vimtg.domain.sideboard_plan import format_guide_markdown
 
@@ -782,6 +792,33 @@ _ARCHIDEKT_ZONE_CATEGORY: dict[DeckSection, str] = {
     DeckSection.SIDEBOARD: "Sideboard",
     DeckSection.MAYBEBOARD: "Maybeboard",
 }
+
+
+# The zones a plain list carries, in the order it lists them
+_LIST_ZONES: Mapping[DeckSection, int] = MappingProxyType({
+    DeckSection.COMMANDER: 0,
+    DeckSection.COMPANION: 1,
+    DeckSection.MAIN: 2,
+    DeckSection.SIDEBOARD: 3,
+})
+
+
+def _export_list(deck: Deck, resolved: Mapping[str, Card]) -> str:
+    """One 'N Name' line per card and nothing else: MPC Autofill reads
+    a header line as a card and ' // ' as a front/back separator, so
+    every multi-faced card (split included) goes by its front face. A
+    card in two zones is one line with the summed quantity."""
+    entries = sorted(
+        (e for e in deck.entries if e.section in _LIST_ZONES),
+        key=lambda e: _LIST_ZONES[e.section],
+    )
+    totals: dict[str, tuple[str, int]] = {}
+    for e in entries:
+        name = front_face_name(_official_name(e.card_name, resolved))
+        key = normalize_card_name(name)
+        spelled, quantity = totals.get(key, (name, 0))
+        totals[key] = (spelled, quantity + e.quantity)
+    return "".join(f"{quantity} {name}\n" for name, quantity in totals.values())
 
 
 def _plain_deck(entries: list[DeckEntry]) -> Deck:

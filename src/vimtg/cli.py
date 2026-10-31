@@ -657,7 +657,11 @@ def search(query: tuple[str, ...], limit: int, as_json: bool) -> None:
     "to_fmt",
     type=click.Choice(tuple(FORMAT_NAMES)),
     required=True,
-    help="Target format (mtga = arena; guide = sideboard plans as Markdown)",
+    help=(
+        "Target format (mtga = arena; list = bare card lines for MPC "
+        "Autofill and stores, also mpc or tcgplayer; guide = sideboard "
+        "plans as Markdown)"
+    ),
 )
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
 @click.option("--force", is_flag=True, help="Overwrite an existing output file")

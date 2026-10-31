@@ -93,6 +93,12 @@ from 1.0.0 onward.
 
 ### Added
 
+- `list` export format (`:export list`, `:clipboard list`, `vimtg convert
+  --to list`; aliases `mpc` and `tcgplayer`): one `N Card Name` line per
+  card, commander first and sideboard last, with no headers or blank
+  lines and front-face names only, so it pastes into MPC Autofill for
+  proxies and into TCGplayer, Card Kingdom or Mana Pool mass entry. The
+  maybeboard is left out and a card in two zones is summed.
 - `vimtg diff old.deck new.deck` compares two decks card by card: one
   line per added, removed, re-counted or moved card, grouped Mainboard
   then Sideboard and worded like the history overlay's Diff panel, then

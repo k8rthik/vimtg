@@ -131,8 +131,9 @@ is its `@category`.
 
 | Command | Description |
 |---------|-------------|
-| `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard. `vimtg` is the text `:w` writes, so empty `// Format:`/`// Tags:` lines the file never had are left out |
+| `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `list`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard. `vimtg` is the text `:w` writes, so empty `// Format:`/`// Tags:` lines the file never had are left out |
 | `:export! fmt file` | Same, overwriting an existing `file` (`:export` refuses with E13). The open deck's own file is never an export target |
+| `:export list [file]` | Write bare `N Card Name` lines (commander, companion, mainboard, sideboard; no maybeboard), with no headers or blank lines, front faces only, and a card in two zones summed, so it pastes into MPC Autofill or a store's mass-entry box (TCGplayer, Card Kingdom, Mana Pool). `mpc` and `tcgplayer` are the same format |
 | `:export missing [file]` | Write the cards your [collection](#collection) lacks as `N Card Name` lines, mainboard then a blank line then sideboard, ready for a store's mass-entry box; with no file, copy them to the clipboard. Needs a loaded collection |
 | `:import[!] file` | Open `file` as a new unnamed deck in place of this one, as the greeter's import does (the open deck is left as it is on disk; the first `:w` names the new file after its `// Deck:` line), auto-detecting format. Refuses with unsaved changes (E37); `!` discards them. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
 | `:import` | Same, with the decklist (or deck URL) on the system clipboard |
