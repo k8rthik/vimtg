@@ -1,7 +1,7 @@
 # Analytics methodology
 
-How `:stats`, the `:analytics` pane (`Space a`) and the bracket note in
-`vimtg validate` compute their numbers. Everything here is computed from
+How the `:analytics` pane (`Space a`), the stats line of `vimtg info`
+and the bracket note in `vimtg validate` compute their numbers. Everything here is computed from
 the synced Scryfall data; nothing is fetched live.
 
 ## Which cards count
@@ -11,7 +11,7 @@ the synced Scryfall data; nothing is fetched live.
   totals, the curve, the colour pips and the mana-base requirements.
   Draw odds still use the mainboard only, because the commander is not
   in the library. The sideboard, companion and maybeboard only show up
-  in the zone counts (the sideboard is also in the `:stats` total).
+  in the zone counts (the sideboard is also in the `vimtg info` total).
 - **Lands are classified by front face.** A modal double-faced spell
   with a land back (`Valakut Awakening // Valakut Stoneforge`,
   `Instant // Land`) counts as a spell: it is on the curve and not in
@@ -102,7 +102,7 @@ until there is at least one resolved nonland card.
 
 ## Prices
 
-`:stats` totals the price source set by `:set price_source=...` (`usd`
+`vimtg info` totals the price source set by `:set price_source=...` (`usd`
 by default) and names it, for example `$123.45 (usd)` or
 `€98.10 (eur)`.
 

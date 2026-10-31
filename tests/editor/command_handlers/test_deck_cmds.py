@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from vimtg.domain.card import Card, Color, Rarity
 from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.deck_cmds import cmd_stats, cmd_validate
+from vimtg.editor.command_handlers.deck_cmds import cmd_validate
 from vimtg.editor.commands import EditorContext, ParsedCommand
 from vimtg.editor.cursor import Cursor
 
@@ -47,60 +47,6 @@ def _deck_text() -> str:
         "\n"
         "SB: 1 Mystical Dispute\n"
     )
-
-
-class TestStatsBasic:
-    def test_stats_without_resolved_cards(self) -> None:
-        buffer = Buffer.from_text(_deck_text())
-        cursor = Cursor(row=0)
-        ctx = EditorContext()
-        cmd = ParsedCommand(name="stats")
-
-        cmd_stats(buffer, cursor, cmd, ctx)
-        assert "Cards:" in ctx.message
-        assert "main: 3" in ctx.message
-        assert "sideboard: 1" in ctx.message
-
-    def test_stats_with_resolved_cards(self) -> None:
-        buffer = Buffer.from_text(_deck_text())
-        cursor = Cursor(row=0)
-        resolved = {
-            "Lightning Bolt": _make_card(
-                "Lightning Bolt", cmc=1.0, type_line="Instant", colors=(Color.RED,),
-            ),
-            "Counterspell": _make_card(
-                "Counterspell", cmc=2.0, type_line="Instant", colors=(Color.BLUE,),
-            ),
-            "Abrade": _make_card(
-                "Abrade", cmc=2.0, type_line="Instant", colors=(Color.RED,),
-            ),
-            "Mystical Dispute": _make_card(
-                "Mystical Dispute", cmc=3.0, type_line="Instant", colors=(Color.BLUE,),
-            ),
-        }
-        ctx = EditorContext(resolved_cards=resolved)
-        cmd = ParsedCommand(name="stats")
-
-        cmd_stats(buffer, cursor, cmd, ctx)
-        # Rich stats with analytics
-        assert "cards" in ctx.message
-        assert "Avg CMC" in ctx.message
-
-    def test_stats_with_prices(self) -> None:
-        text = "4 Lightning Bolt\n"
-        buffer = Buffer.from_text(text)
-        cursor = Cursor(row=0)
-        resolved = {
-            "Lightning Bolt": _make_card(
-                "Lightning Bolt", cmc=1.0, type_line="Instant",
-                prices={"usd": 1.50},
-            ),
-        }
-        ctx = EditorContext(resolved_cards=resolved)
-        cmd = ParsedCommand(name="stats")
-
-        cmd_stats(buffer, cursor, cmd, ctx)
-        assert "$6.00" in ctx.message  # 4 copies * $1.50
 
 
 class TestValidateBasic:

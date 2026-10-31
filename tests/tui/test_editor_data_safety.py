@@ -454,29 +454,16 @@ class TestChangeIsOneUndoStep:
 
 class TestRanges:
     @pytest.mark.asyncio
-    async def test_visual_colon_d_deletes_the_selection(self, tmp_path: Path) -> None:
-        app = VimTGApp(deck_path=_deck(tmp_path))
-        async with app.run_test(size=SIZE) as pilot:
-            await pilot.pause()
-            scr = _screen(app)
-            _feed(scr, _keys("10G V j :") + ["d", "enter"])
-            text = _text(scr)
-            assert "Lightning Bolt" not in text and "Searing Blaze" not in text
-            assert "Skullcrack" in text
-            assert scr._state.mode_mgr.current == Mode.NORMAL
-            assert scr._state.visual_anchor is None
-
-    @pytest.mark.asyncio
     async def test_mark_range(self, tmp_path: Path) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=SIZE) as pilot:
             await pilot.pause()
             scr = _screen(app)
             _feed(scr, _keys("6G ma 7G mb gg"))
-            _ex(scr, "'a,'bd")
+            _ex(scr, "'a,'bg/./d")
             assert "Goblin Guide" not in _text(scr)
             assert "Monastery Swiftspear" not in _text(scr)
-            _ex(scr, "'z,'zd")
+            _ex(scr, "'z,'zsort")
             assert "E20" in _message(scr)
 
     @pytest.mark.asyncio

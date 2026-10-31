@@ -15,14 +15,13 @@ from 1.0.0 onward.
   `Tab` completes the deck's categories, most used first. The filter
   prompt moved from `tf` to the leader: `Space f` (an empty `Enter`
   clears). The tutor's lesson 10 teaches `gc` and `Space f`.
-- Window keys moved to vim's `Ctrl-W` prefix, and the `S` prefix is gone:
-  - `Sv` -> `Ctrl-W v` (vertical split, prompts for a deck)
-  - `Sh` -> `Ctrl-W s` (horizontal split)
-  - `Ss` -> `Ctrl-W w` / `Ctrl-W W`, and `Ctrl-W h`/`j`/`k`/`l` focus by
-    direction (the pane is right of a vertical split, below a
-    horizontal one)
-  - `Sc` -> `Ctrl-W c` / `Ctrl-W q`; `Ctrl-W o` closes every window but
-    the editor. Ctrl-W works from the editor and from a focused pane.
+- Session undo is a linear stack: `u` walks back, `Ctrl-R` walks
+  forward, and a new edit after an undo discards the redo entries.
+  Branches that nothing could reach are no longer kept.
+- The `S` window prefix is gone: `Ss` is now `Ctrl-W w`, vim's "other
+  window", and switches focus between the editor and the pane from
+  either side. The pane sits beside the deck when the terminal is wide
+  enough and hides otherwise.
 - Panes moved to a `Space` leader, and they toggle:
   - `Sa` -> `Space a` (analytics pane; `Space a` again closes it)
   - `Sr` -> `Space r` (EDHREC pane; `Space r` again closes it)
@@ -56,6 +55,26 @@ from 1.0.0 onward.
 
 ### Removed
 
+- The `vimtg edit` subcommand, identical to `vimtg <file>`; `vimtg`
+  alone opens the greeter and `vimtg deck.deck` the deck, as before.
+- The `theme` setting (one value, cycling it did nothing). A
+  `config.toml` that still says `theme = "dark"` loads as before; the
+  key is ignored like any other unknown key.
+- The read-only second deck view. `:vsplit`/`:vsp`/`:vs`,
+  `:split`/`:sp`/`:hsplit` and `:only` answer E492, and `Ctrl-W v`/`s`,
+  `W`, `h`/`j`/`k`/`l`, `c`/`q`/`o` are unbound. The one side pane hosts
+  analytics (`Space a`, `:analytics`) or EDHREC (`Space r`, `:edhrec`);
+  `:close`, `q` in the pane or the pane's `Space` key closes it and
+  `Ctrl-W w` moves focus.
+- Ex commands that only mirrored a normal-mode key or a second entry
+  point answer E492: `:d`/`:delete`, `:y`/`:yank`, `:m`/`:move`,
+  `:t`/`:co`/`:copy`, `:undo`/`:u`, `:redo`/`:red` (use `dd`, `yy`, `p`,
+  `u`, `Ctrl-R`; `:g/pat/d` and `:g/pat/y` still work), `:find`/`:f`
+  (use `/`), `:search` (use `o`), `:noh`/`:nohlsearch`, `:qa`/`:qall`/
+  `:quitall`, `:wa`/`:wall`, `:wqa`/`:wqall`/`:xa`/`:xall` (one buffer:
+  `:q`, `:w`, `:wq`, `:x` are enough), and `:stats` (`vimtg info` still
+  prints the same line; `:analytics` has more). `:sort tag` and the
+  `tag` value of `sort_order` are gone with the card tag UI.
 - Card tags are no longer edited in vimtg: the `t` prefix (`ta` `tr` `tt`
   `tf` `tl` `tc` `tn` `tp`) is unbound and `:tag`, `:untag`, `:tags` and
   `:retag` answer E492. A card's one label is its `@category` (`gc`,

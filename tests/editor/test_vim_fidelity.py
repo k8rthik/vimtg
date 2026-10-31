@@ -19,7 +19,6 @@ from vimtg.editor.commands import CommandRegistry, EditorContext, ParsedCommand,
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.line_buffer import LineBuffer
-from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.operators import execute_operator, resolve_line_range
 from vimtg.editor.registers import RegisterStore
@@ -420,37 +419,6 @@ class TestLineCommands:
         _ex(st, "99")
         assert st.cursor.row == st.buffer.line_count() - 1
 
-    def test_delete_and_yank_into_registers(self) -> None:
-        st = _state(row=1)
-        st.marks = MarkStore().set("a", 9)
-        assert _ex(st, "2,3d a") == "2 lines deleted"
-        assert st.registers.get("a").content == ("4 Goblin Guide", "4 Monastery Swiftspear")
-        assert st.marks.get("a").row == 7  # type: ignore[union-attr]
-        _ex(st, "1y b")
-        assert st.registers.get("b").content == ("// Creature",)
-        assert "E488" in _ex(st, "d foo")
-        assert st.history.can_undo
-
-    def test_move(self) -> None:
-        st = _state(row=0)
-        _ex(st, "2m$")
-        assert _texts(st.buffer)[-1] == "4 Goblin Guide"
-        assert st.cursor.row == st.buffer.line_count() - 1
-        _ex(st, "$m0")
-        assert _texts(st.buffer)[0] == "4 Goblin Guide"
-        assert "E134" in _ex(st, "1,3m2")
-        assert "E14" in _ex(st, "m")
-        before = st.buffer
-        _ex(st, "2m1")  # already below line 1: nothing moves
-        assert st.buffer is before
-
-    def test_copy(self) -> None:
-        st = _state(row=0)
-        _ex(st, "2co0")
-        assert _texts(st.buffer)[:2] == ["4 Goblin Guide", "// Creature"]
-        _ex(st, "t.")
-        assert _texts(st.buffer)[:2] == ["4 Goblin Guide", "4 Goblin Guide"]
-
     def test_registers_and_marks_listings(self) -> None:
         st = _state(row=1)
         assert _ex(st, "reg") == "No registers set"
@@ -495,8 +463,8 @@ class TestEdit:
 
 class TestParse:
     def test_new_commands_parse(self) -> None:
-        cmd = parse_command("m0", 0, 10)
-        assert (cmd.name, cmd.args) == ("m", "0")
+        cmd = parse_command("cat burn", 0, 10)
+        assert (cmd.name, cmd.args) == ("cat", "burn")
         cmd = parse_command("e!", 0, 10)
         assert (cmd.name, cmd.bang) == ("e", True)
 
@@ -615,8 +583,7 @@ class TestCommandHistory:
 
 @pytest.mark.parametrize(
     "line",
-    ["e!", "edit!", "d", "delete", "y", "yank", "m0", "move 0", "t0", "co0", "copy 0",
-     "undo", "u", "redo", "red", "reg", "registers", "di", "marks", "12", "$"],
+    ["e!", "edit!", "reg", "registers", "di", "marks", "12", "$"],
 )
 def test_new_ex_commands_are_registered(line: str) -> None:
     """:e was documented but unregistered; every new command must resolve."""

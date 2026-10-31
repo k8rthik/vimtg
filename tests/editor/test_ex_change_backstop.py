@@ -137,7 +137,7 @@ class TestVisualColon:
         lt, gt = st.marks.get("<"), st.marks.get(">")
         assert lt is not None and gt is not None
         assert (lt.row, gt.row) == (3, 5)
-        _ex(st, "'<,'>d")
+        _ex(st, "'<,'>g/./d")
         assert "Skullcrack" not in st.buffer.to_text()
         assert "Searing Blaze" not in st.buffer.to_text()
 

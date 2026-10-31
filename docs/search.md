@@ -1,6 +1,6 @@
 # Card search syntax
 
-The `o`/`O` search overlay, `:search`, and `vimtg search` all use the same
+The `o`/`O` search overlay and `vimtg search` use the same
 Scryfall-style parser. Every search runs against your local card database, so
 it works offline.
 

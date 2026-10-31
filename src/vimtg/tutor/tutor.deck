@@ -140,7 +140,6 @@
 // ------------------------------------------------------------
 // Space a     live analytics: curve, colors, draw odds
 // Space h     sample hand: draw seven, mulligan, goldfish
-// Ctrl-W v    open a second deck side by side
 // Ctrl-W w    move into the pane and back; in it, q closes it
 // Try it: press Space a, look around, then Space a to close it.
 

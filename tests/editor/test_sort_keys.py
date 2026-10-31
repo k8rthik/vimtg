@@ -110,7 +110,7 @@ class TestFieldSets:
         assert CARD_DATA_FIELDS <= SORT_FIELDS
 
     def test_text_fields_do_not_need_card_data(self) -> None:
-        for field in ("name", "qty", "tag", "category"):
+        for field in ("name", "qty", "category"):
             assert field in SORT_FIELDS
             assert field not in CARD_DATA_FIELDS
 

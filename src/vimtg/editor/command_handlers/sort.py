@@ -53,7 +53,7 @@ def cmd_sort(
 ) -> tuple[Buffer, Cursor]:
     """:sort [field] — Sort card lines within range or current section.
 
-    Fields: name, qty, cmc, type, color, tag, category, power,
+    Fields: name, qty, cmc, type, color, category, power,
     toughness, rarity, price. Without a field, the sort_order setting
     decides (default: cmc). :sort! reverses the order.
     Only sorts card entry lines; comments and blanks stay anchored.

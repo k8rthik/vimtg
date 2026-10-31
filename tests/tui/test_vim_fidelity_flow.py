@@ -50,7 +50,7 @@ def _keys(seq: str) -> list[str]:
         "<Up>": "up", "<Down>": "down", "<Left>": "left", "<Right>": "right",
         "<C-w>": "ctrl_w", "<C-u>": "ctrl_u", "<C-b>": "ctrl_b", "<C-e>": "ctrl_e",
         "<Space>": " ", "<C-a>": "ctrl_a", "<C-x>": "ctrl_x", "<C-o>": "ctrl_o",
-        "<Tab>": "tab",
+        "<Tab>": "tab", "<C-r>": "ctrl_r",
     }
     out: list[str] = []
     i = 0
@@ -429,19 +429,19 @@ class TestCommandLine:
             await pilot.pause()
             scr = _screen(app)
             cl = scr.query_one("#command-line", CommandLine)
-            _feed(scr, ":stats<CR> :cats<CR> :")
+            _feed(scr, ":sort<CR> :cats<CR> :")
             _feed(scr, "<Up>")
             assert cl.text == "cats"
             _feed(scr, "<Up>")
-            assert cl.text == "stats"
+            assert cl.text == "sort"
             _feed(scr, "<Down> <Down>")
             assert cl.text == ""
-            _feed(scr, "st<Up>")
-            assert cl.text == "stats"  # prefix match skips :cats
+            _feed(scr, "so<Up>")
+            assert cl.text == "sort"  # prefix match skips :cats
             _feed(scr, "<CR>")
             assert scr._state.mode_mgr.current == Mode.NORMAL
             _feed(scr, "<Space>a")  # runs :analytics for you: not history
-            assert scr._state.cmd_history.entries("cmd") == ("cats", "stats")
+            assert scr._state.cmd_history.entries("cmd") == ("cats", "sort")
 
     @pytest.mark.asyncio
     async def test_history_persists_across_sessions(self, tmp_path: Path) -> None:
@@ -565,30 +565,14 @@ class TestExCommands:
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            _feed(scr, "6G dd :undo<CR>")
+            _feed(scr, "6G dd u")
             assert "4 Goblin Guide" in _cards(scr)
-            _feed(scr, ":redo<CR>")
+            _feed(scr, "<C-r>")
             assert "4 Goblin Guide" not in _cards(scr)
             _feed(scr, "ma :marks<CR>")
             assert "'a 6 4 Monastery Swiftspear" in _message(scr)
             _feed(scr, ":reg<CR>")
             assert '"" 4 Goblin Guide' in _message(scr)
-
-    @pytest.mark.asyncio
-    async def test_move_and_copy_lines(self, tmp_path: Path) -> None:
-        app = VimTGApp(deck_path=_deck(tmp_path))
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            scr = _screen(app)
-            _feed(scr, ":6m8<CR>")
-            assert _cards(scr)[:3] == [
-                "4 Monastery Swiftspear", "2 Eidolon of the Great Revel", "4 Goblin Guide",
-            ]
-            _feed(scr, ":11,12t13<CR>")
-            assert _cards(scr)[3:8] == [
-                "4 Lightning Bolt", "4 Searing Blaze", "4 Skullcrack",
-                "4 Lightning Bolt", "4 Searing Blaze",
-            ]
 
 
 # ── (g) z scroll, zone checks, registers ──────────────────────────
@@ -668,7 +652,7 @@ class TestZAndRegisters:
             assert _cards(scr).count("4 Goblin Guide") == 2
             _feed(scr, "yy")  # other registers never touch the clipboard
             assert len(copied) == 1
-            _feed(scr, ":6,7y<Space>+<CR>")
+            _feed(scr, ":6,7g/./y<Space>+<CR>")
             assert copied[-1] == "4 Goblin Guide\n4 Monastery Swiftspear\n"
             _feed(scr, ":g/swiftspear/y<Space>*<CR>")
             assert copied[-1] == "4 Monastery Swiftspear\n"

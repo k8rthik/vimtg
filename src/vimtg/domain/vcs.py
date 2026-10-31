@@ -1,6 +1,6 @@
 """Persistent version control dataclasses for deck history.
 
-Separate from the in-memory SnapshotTree used for session undo/redo.
+Separate from the in-memory undo stack (services.history_service).
 These types represent SQLite-persisted snapshots that survive across
 editing sessions.
 

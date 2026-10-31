@@ -1,12 +1,9 @@
-"""n / N repeat the last / or :find; H / M / L use the deck view's band."""
+"""n / N repeat the last / or ?; H / M / L use the deck view's band."""
 
 from __future__ import annotations
 
 from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.search_cmds import (
-    find_card_row,
-    register_search_commands,
-)
+from vimtg.editor.command_handlers.search_cmds import find_card_row
 from vimtg.editor.commands import CommandRegistry
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import ParsedAction
@@ -43,15 +40,13 @@ def _state(row: int = 0) -> EditorState:
     )
 
 
-def _registry() -> CommandRegistry:
-    reg = CommandRegistry()
-    register_search_commands(reg)
-    return reg
-
-
-def _submit(st: EditorState, text: str) -> None:
+def _search(st: EditorState, text: str, *, backward: bool = False) -> None:
+    """/text (or ?text) then Enter."""
+    if st.mode_mgr.current != Mode.SEARCH:
+        st.mode_mgr.transition(Mode.SEARCH)
+    st.search_backward = backward
     handle_command(
-        st, ParsedAction("command_submit", "enter", text=text), _registry(), None,
+        st, ParsedAction("command_submit", "enter", text=text), CommandRegistry(), None,
     )
 
 
@@ -77,33 +72,27 @@ class TestFindCardRow:
 
 
 class TestRepeatFind:
-    def test_find_records_pattern(self) -> None:
-        st = _state()
-        _submit(st, "find lightning")
-        assert st.cursor.row == 5
-        assert st.last_find == "lightning"
-
-    def test_alias_records_pattern(self) -> None:
-        st = _state()
-        _submit(st, "f helix")
-        assert st.last_find == "helix"
-
     def test_slash_search_records_pattern(self) -> None:
         st = _state()
-        st.mode_mgr.transition(Mode.SEARCH)
-        _submit(st, "bolt")
+        _search(st, "bolt")
         assert st.cursor.row == 5
         assert st.last_find == "bolt"
 
+    def test_question_mark_searches_backward(self) -> None:
+        st = _state(row=6)
+        _search(st, "lightning", backward=True)
+        assert st.cursor.row == 5
+        assert st.last_find == "lightning"
+
     def test_invalid_pattern_not_recorded(self) -> None:
         st = _state()
-        _submit(st, "find bolt")
-        _submit(st, "find [")
+        _search(st, "bolt")
+        _search(st, "[")
         assert st.last_find == "bolt"
 
     def test_n_moves_forward(self) -> None:
         st = _state()
-        _submit(st, "find lightning")
+        _search(st, "lightning")
         hr = handle_normal_special(st, _key("n"))
         assert st.cursor.row == 6
         assert hr.command_message == "/lightning"

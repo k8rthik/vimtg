@@ -1,8 +1,10 @@
-"""Tests for :vsplit / :split / :close / :edhrec command handlers."""
+"""Tests for the :close / :edhrec / :analytics pane command handlers."""
 
 from __future__ import annotations
 
 from pathlib import Path
+
+import pytest
 
 from vimtg.config.settings import Settings
 from vimtg.editor.buffer import Buffer
@@ -13,7 +15,6 @@ from vimtg.editor.commands import (
     parse_command,
 )
 from vimtg.editor.cursor import Cursor
-from vimtg.editor.splits import SplitDirection, resolve_deck_path
 
 
 def _run(
@@ -40,47 +41,19 @@ _COMMANDER_DECK = (
 )
 
 
-class TestSplitCommands:
-    def test_vsplit_requires_argument(self):
-        ctx = _run("vsplit")
-        assert ctx.error
-        assert "Usage" in ctx.message
-
-    def test_vsplit_missing_file_fails(self, tmp_path: Path):
-        ctx = _run(f"vsplit {tmp_path}/nope.deck")
-        assert ctx.error
-        assert "not found" in ctx.message
-
-    def test_vsplit_opens_vertical(self, tmp_path: Path):
-        other = tmp_path / "other.deck"
-        other.write_text("4 Opt\n")
-        ctx = _run(f"vsplit {other}")
-        assert not ctx.error
-        assert ctx.split_open is not None
-        assert ctx.split_open.direction is SplitDirection.VERTICAL
-        assert ctx.split_open.path == other
-
-    def test_split_opens_horizontal(self, tmp_path: Path):
-        other = tmp_path / "other.deck"
-        other.write_text("4 Opt\n")
-        ctx = _run(f"split {other}")
-        assert ctx.split_open is not None
-        assert ctx.split_open.direction is SplitDirection.HORIZONTAL
-
-    def test_relative_path_resolves_against_deck_dir(self, tmp_path: Path):
-        (tmp_path / "other.deck").write_text("4 Opt\n")
-        current = tmp_path / "mine.deck"
-        ctx = _run("vsplit other.deck", file_path=current)
-        assert ctx.split_open is not None
-        assert ctx.split_open.path == tmp_path / "other.deck"
-
+class TestCloseCommand:
     def test_close_sets_flag(self):
         ctx = _run("close")
         assert ctx.split_close
 
-    def test_only_is_close_alias(self):
-        ctx = _run("only")
-        assert ctx.split_close
+    @pytest.mark.parametrize(
+        "line",
+        ["vsplit other.deck", "vsp x", "vs x", "split other.deck", "sp x", "hsplit x", "only"],
+    )
+    def test_second_deck_commands_are_gone(self, line: str):
+        ctx = _run(line)
+        assert ctx.error
+        assert ctx.message == f"E492: Not an editor command: {line}"
 
 
 class TestEdhrecCommand:
@@ -145,28 +118,12 @@ class TestEdhrecCommand:
         assert ctx.edhrec_open is not None
 
 
-class TestResolveDeckPath:
-    def test_absolute_path(self, tmp_path: Path):
-        deck = tmp_path / "a.deck"
-        deck.write_text("x")
-        assert resolve_deck_path(str(deck), None) == deck
-
-    def test_absolute_missing_returns_none(self, tmp_path: Path):
-        assert resolve_deck_path(str(tmp_path / "no.deck"), None) is None
-
-    def test_relative_falls_back_to_cwd(self, tmp_path: Path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        (tmp_path / "b.deck").write_text("x")
-        assert resolve_deck_path("b.deck", None) == tmp_path / "b.deck"
-
-
 class TestAnalyticsCommand:
     def test_analytics_sets_open_request(self):
         ctx = _run("analytics")
         assert not ctx.error
-        assert ctx.analytics_open is not None
-        assert ctx.analytics_open.direction is SplitDirection.VERTICAL
+        assert ctx.analytics_open is True
 
     def test_ana_alias(self):
         ctx = _run("ana")
-        assert ctx.analytics_open is not None
+        assert ctx.analytics_open is True

@@ -84,7 +84,7 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
     ConfigOption(
         "sort_order", "Sort Order", "Default order for :sort and :layout",
         "choice", (
-            "cmc", "name", "qty", "type", "color", "tag", "category",
+            "cmc", "name", "qty", "type", "color", "category",
             "power", "toughness", "rarity", "price",
         ),
         group="Editor",
@@ -113,10 +113,6 @@ CONFIG_OPTIONS: tuple[ConfigOption, ...] = (
         "auto_sync_cards", "Auto Sync Cards",
         "Download card data in background when missing or stale",
         "bool", group="Editor",
-    ),
-    ConfigOption(
-        "theme", "Theme", "Color theme",
-        "choice", ("dark",), group="Display",
     ),
 )
 

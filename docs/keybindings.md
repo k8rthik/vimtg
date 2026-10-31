@@ -165,15 +165,15 @@ the selection; other keys act on the cursor line.
 
 ### Windows (`Ctrl-W` prefix)
 
-vim's window commands, over the editor and its one pane:
+vim's "other window" command, over the editor and its one pane:
 
 | Key | Action |
 |-----|--------|
-| `Ctrl-W v` / `Ctrl-W s` | Split **v**ertically / horizontally (**s**plit): prompts `:vsplit ` / `:split ` for a deck file |
-| `Ctrl-W w` / `Ctrl-W W` | Switch focus between the editor and the pane |
-| `Ctrl-W h` / `Ctrl-W j` / `Ctrl-W k` / `Ctrl-W l` | Focus the window left / below / above / right: the pane is right of a vertical split and below a horizontal one |
-| `Ctrl-W c` / `Ctrl-W q` | **C**lose the pane / **q**uit the window (the pane). With no pane `Ctrl-W c` says E444 and `Ctrl-W q` is `:q` |
-| `Ctrl-W o` | **O**nly: close every window but the editor (the pane) |
+| `Ctrl-W w` | Switch focus between the editor and the pane. With no pane open it says so |
+
+The pane sits beside the deck when the terminal is at least 60 columns
+wide; a narrower terminal hides it until there is room again. `:close`,
+or the pane's own `Space` key, closes it.
 
 ### The leader (`Space`)
 
@@ -213,7 +213,7 @@ the full help, and `q`/`Esc` close it.
 | Prefix | Namespace | Keys |
 |--------|-----------|------|
 | `g` | go | `gg` `gv` `gc` `gC` `gl` `gh` `g?` |
-| `Ctrl-W` | window | `v` `s` `w` `W` `h` `j` `k` `l` `c` `q` `o` |
+| `Ctrl-W` | window | `w` |
 | `Space` | leader | `a` `r` `h` `f` |
 | `z` | zones & scroll | `zs` `zm` `zd` `zc` `zp` `zo` `zi`, `zz` `zt` `zb` |
 | `m` / `'` | marks | `m{a-z}` `'{a-z}` |
@@ -252,7 +252,7 @@ The same keys edit the `/` and `?` search prompts. `:` and search keep
 separate histories (200 entries each, duplicates collapsed), saved in
 `~/.local/state/vimtg/cmdline_history.json` so they survive restarts.
 
-Completion is fuzzy: `:so` matches `sort`, `:st` matches `sort` and `stats`.
+Completion is fuzzy: `:so` matches `sort`, `:sa` matches `saveas` and `sync`.
 After a space it completes the argument: `:layout ` offers `type` / `category`,
 `:sort c` offers `category`, `cmc`, `color`, `:filter ramp|dr` completes a
 deck category after the last `+`, `|`, or `-`, and `:cat dr` completes a

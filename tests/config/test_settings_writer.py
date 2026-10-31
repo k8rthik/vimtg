@@ -186,8 +186,8 @@ class TestSaveSettingsSafety:
     def test_control_characters_escaped(self) -> None:
         import tomllib
 
-        toml = settings_to_toml(Settings(theme="a\nb\x01c"))
-        assert tomllib.loads(toml)["editor"]["theme"] == "a\nb\x01c"
+        toml = settings_to_toml(Settings(default_format="a\nb\x01c"))
+        assert tomllib.loads(toml)["editor"]["default_format"] == "a\nb\x01c"
 
     def test_unparseable_config_not_overwritten_and_backed_up(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
@@ -266,7 +266,7 @@ class TestInPlaceEdit:
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         out = self._save(
-            tmp_path, monkeypatch, "# dotted\neditor.theme = \"dark\"\n",
+            tmp_path, monkeypatch, "# dotted\neditor.show_line_numbers = true\n",
             Settings(show_prices=False),
         )
         import tomllib

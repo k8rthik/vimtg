@@ -1,60 +1,17 @@
-"""Deck info commands: :stats, :validate — TUI-agnostic, zero Textual imports."""
+"""Deck validation command: :validate — TUI-agnostic, zero Textual imports."""
 
 from __future__ import annotations
 
 from vimtg.data.deck_repository import missing_quantity_lines, parse_deck_text
-from vimtg.domain.analytics import stats_summary
 from vimtg.domain.validation import legality_skipped_note, validation_report
-from vimtg.editor.buffer import Buffer, LineType
+from vimtg.editor.buffer import Buffer
 from vimtg.editor.commands import (
     CommandRegistry,
     EditorContext,
     ParsedCommand,
 )
-from vimtg.editor.config_options import currency_symbol_for
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.lint import effective_format
-
-
-def cmd_stats(
-    buffer: Buffer,
-    cursor: Cursor,
-    cmd: ParsedCommand,
-    ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """Show deck statistics in the message bar."""
-    resolved = ctx.resolved_cards or {}
-    if resolved:
-        deck = parse_deck_text(buffer.to_text())
-        price_source = getattr(ctx.settings, "price_source", "usd") or "usd"
-        ctx.message = stats_summary(
-            deck, resolved, price_source, currency_symbol_for(price_source)
-        )
-    else:
-        lines = buffer.get_lines()
-        card_count = sum(
-            1 for bl in lines if bl.line_type == LineType.CARD_ENTRY
-        )
-        sb_count = sum(
-            1 for bl in lines
-            if bl.line_type == LineType.SIDEBOARD_ENTRY
-        )
-        mb_count = sum(
-            1 for bl in lines
-            if bl.line_type == LineType.MAYBEBOARD_ENTRY
-        )
-        cmd_count = sum(
-            1 for bl in lines
-            if bl.line_type == LineType.COMMANDER_ENTRY
-        )
-        total = card_count + sb_count + cmd_count
-        ctx.message = (
-            f"Cards: {total} (main: {card_count}, "
-            f"sideboard: {sb_count}, commander: {cmd_count}"
-            + (f", maybe: {mb_count}" if mb_count else "")
-            + ")"
-        )
-    return buffer, cursor
 
 
 def cmd_validate(
@@ -106,6 +63,5 @@ def cmd_validate(
 
 
 def register_deck_commands(registry: CommandRegistry) -> None:
-    """Register :stats and :validate commands."""
-    registry.register("stats", cmd_stats)
+    """Register the :validate command."""
     registry.register("validate", cmd_validate, aliases=["val"])

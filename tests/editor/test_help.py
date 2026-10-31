@@ -94,10 +94,7 @@ def test_cmd_help_with_topic_opens_help_screen() -> None:
         ("cat", "category"),
         ("val", "validate"),
         ("goldfish", "hand"),
-        ("d", "delete"),
-        ("delete", "delete"),
         ("e", "edit"),
-        ("co", "copy"),
     ],
 )
 def test_cmd_help_alias_opens_its_commands_topic(typed: str, topic: str) -> None:

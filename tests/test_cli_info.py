@@ -1,4 +1,4 @@
-"""`vimtg info`: every zone, the effective format, and the :stats line."""
+"""`vimtg info`: every zone, the effective format, and the stats line."""
 
 from __future__ import annotations
 
@@ -10,11 +10,6 @@ from click.testing import CliRunner
 from vimtg import cli
 from vimtg.cli import main
 from vimtg.data.card_repository import CardRepository
-from vimtg.editor.buffer import Buffer
-from vimtg.editor.command_handlers.deck_cmds import cmd_stats
-from vimtg.editor.commands import EditorContext, ParsedCommand
-from vimtg.editor.cursor import Cursor
-from vimtg.editor.session import resolve_cards
 
 _DECK = (
     "// Deck: Lurrus Burn\n"
@@ -65,17 +60,40 @@ def test_info_names_the_default_format(
     assert "Format:     modern (default_format)\n" in result.output
 
 
+def _stats_row(output: str) -> str:
+    rows = [line for line in output.splitlines() if line.startswith("Stats:")]
+    assert len(rows) == 1, output
+    return rows[0]
+
+
 def test_info_prints_the_stats_line(
     deck_file: Path, monkeypatch: pytest.MonkeyPatch, real_shape_repo: CardRepository
 ) -> None:
+    """Card count, average CMC, cards per type and the price with its source."""
     monkeypatch.setattr(cli, "_try_card_repo", lambda: real_shape_repo)
-    buffer = Buffer.from_text(_DECK)
-    ctx = EditorContext(resolved_cards=resolve_cards(buffer, real_shape_repo))
-    cmd_stats(buffer, Cursor(row=0), ParsedCommand(name="stats"), ctx)
-
     result = CliRunner().invoke(main, ["info", str(deck_file)])
     assert result.exit_code == 0, result.output
-    assert f"Stats:      {ctx.message}\n" in result.output
+    row = _stats_row(result.output)
+    assert row.startswith("Stats:      ")
+    assert "Avg CMC" in row
+    assert "(usd)" in row
+
+
+def test_info_stats_follow_the_price_source_setting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_shape_repo: CardRepository
+) -> None:
+    from vimtg.config.paths import config_dir
+
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: real_shape_repo)
+    config_dir().mkdir(parents=True, exist_ok=True)
+    (config_dir() / "config.toml").write_text(
+        '[editor]\nprice_source = "eur"\n', encoding="utf-8"
+    )
+    deck = tmp_path / "fable.deck"
+    deck.write_text("// Deck: Fable\n2 Fable of the Mirror-Breaker\n", encoding="utf-8")
+    result = CliRunner().invoke(main, ["info", str(deck)])
+    assert result.exit_code == 0, result.output
+    assert _stats_row(result.output).endswith("€30.00 (eur)")
 
 
 def test_info_warns_about_cards_without_a_quantity(

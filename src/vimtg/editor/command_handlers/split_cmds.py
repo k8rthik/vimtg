@@ -1,7 +1,7 @@
-"""Split-view commands: :vsplit, :split, :close, :edhrec.
+"""Side-pane commands: :analytics, :edhrec, :close.
 
 TUI-agnostic: zero Textual imports. Handlers only describe what should
-open via EditorContext; MainScreen owns the split-pane widgets.
+open via EditorContext; MainScreen owns the pane widgets.
 """
 
 from __future__ import annotations
@@ -15,13 +15,7 @@ from vimtg.editor.commands import (
 )
 from vimtg.editor.cursor import Cursor
 from vimtg.editor.lint import effective_format
-from vimtg.editor.splits import (
-    AnalyticsOpen,
-    EdhrecOpen,
-    SplitDirection,
-    SplitOpen,
-    resolve_deck_path,
-)
+from vimtg.editor.splits import EdhrecOpen
 
 # :edhrec tab argument → tab label prefix in the recommendations panel
 _EDHREC_TAB_ARGS: dict[str, str] = {
@@ -45,50 +39,10 @@ _EDHREC_TAB_ARGS: dict[str, str] = {
 }
 
 
-def _open_split(
-    buf: Buffer,
-    cursor: Cursor,
-    cmd: ParsedCommand,
-    ctx: EditorContext,
-    direction: SplitDirection,
-    usage: str,
-) -> tuple[Buffer, Cursor]:
-    arg = cmd.args.strip()
-    if not arg:
-        ctx.fail(usage)
-        return buf, cursor
-    path = resolve_deck_path(arg, ctx.file_path)
-    if path is None:
-        ctx.fail(f"Cannot open {arg}: file not found")
-        return buf, cursor
-    ctx.split_open = SplitOpen(direction=direction, path=path)
-    return buf, cursor
-
-
-def cmd_vsplit(
-    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:vsplit deck — open another deck beside this one (read-only)."""
-    return _open_split(
-        buf, cursor, cmd, ctx, SplitDirection.VERTICAL,
-        "Usage: :vsplit <deck-file>",
-    )
-
-
-def cmd_split(
-    buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:split deck — open another deck below this one (read-only)."""
-    return _open_split(
-        buf, cursor, cmd, ctx, SplitDirection.HORIZONTAL,
-        "Usage: :split <deck-file>",
-    )
-
-
 def cmd_close(
     buf: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
-    """:close — close the split pane (alias :only)."""
+    """:close — close the side pane."""
     ctx.split_close = True
     return buf, cursor
 
@@ -142,14 +96,12 @@ def cmd_analytics(
     Curve, type/zone/category counts, mana-base check, and draw odds
     that follow the cursor's card; updates as the deck is edited.
     """
-    ctx.analytics_open = AnalyticsOpen()
+    ctx.analytics_open = True
     return buf, cursor
 
 
 def register_split_commands(registry: CommandRegistry) -> None:
-    """Register the split-view, EDHREC, and analytics ex commands."""
-    registry.register("vsplit", cmd_vsplit, aliases=["vsp", "vs"])
-    registry.register("split", cmd_split, aliases=["sp", "hsplit"])
-    registry.register("close", cmd_close, aliases=["only"])
+    """Register the pane ex commands: :close, :edhrec, :analytics."""
+    registry.register("close", cmd_close)
     registry.register("edhrec", cmd_edhrec, aliases=["rec"])
     registry.register("analytics", cmd_analytics, aliases=["ana"])

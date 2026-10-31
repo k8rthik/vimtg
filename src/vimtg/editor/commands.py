@@ -300,14 +300,13 @@ class EditorContext:
     category_filter: Any = None
     category_filter_set: bool = False
     remapper: Any = None  # KeyRemapper — :map/:unmap mutate it
-    # A split pane is open beside the editor: :q / :wq / :x close it
+    # The side pane is open beside the editor: :q / :wq / :x close it
     # (the window) instead of quitting
     pane_open: bool = False
-    # Companion-pane requests (SplitOpen / EdhrecOpen from editor.splits)
-    split_open: Any = None
+    # Side-pane requests (EdhrecOpen from editor.splits)
     split_close: bool = False
     edhrec_open: Any = None
-    analytics_open: Any = None
+    analytics_open: bool = False
     hand_open: Any = None  # HandOpen — sample-hand overlay request
     import_url: str = ""  # deck-site URL to fetch asynchronously
     # System-clipboard copy request: the TUI owns the terminal, so it
@@ -325,8 +324,6 @@ class EditorContext:
     marks: Any = None
     # The last / ? * # pattern — :s// and :g// reuse it
     last_pattern: str = ""
-    # :undo / :redo — the session steps its history once ("undo"/"redo")
-    undo_request: str = ""
     # :e — the deck to open in place of this one
     edit_path: Path | None = None
     # :q! / :e! / :home! threw unsaved changes away on purpose: the
@@ -336,8 +333,6 @@ class EditorContext:
     recovery_id: str | None = None
     # Screen-level view with no buffer change (":messages", ":tips")
     ui_request: str = ""
-    # :search — open the card search overlay with this query (None = no)
-    search_open: str | None = None
     # A listing's lines; `message` holds its one-line form
     listing: Listing | None = None
     # :enew / :import — the unnamed buffer to open in place of this one

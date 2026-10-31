@@ -12,7 +12,6 @@ from vimtg.editor.keymap import KeyMap, KeyResult
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.session import EditorState, HandlerResult, handle_normal_special
-from vimtg.editor.splits import WindowCommand
 from vimtg.services.history_service import HistoryService
 
 
@@ -53,23 +52,14 @@ class TestWindowPrefix:
         km.feed("ctrl_w")
         assert km.feed("z") == (KeyResult.NO_MATCH, None)
 
-    def test_v_and_s_prompt_for_a_deck(self) -> None:
-        assert _press("ctrl_w", "v") == HandlerResult(
-            enter_command=True, command_prefill="vsplit ",
-        )
-        assert _press("ctrl_w", "s") == HandlerResult(
-            enter_command=True, command_prefill="split ",
-        )
+    def test_w_focuses_the_other_window(self) -> None:
+        assert _press("ctrl_w", "w") == HandlerResult(focus_other_window=True)
 
-    @pytest.mark.parametrize(("key", "command"), [
-        ("w", WindowCommand.NEXT), ("W", WindowCommand.NEXT),
-        ("h", WindowCommand.LEFT), ("j", WindowCommand.DOWN),
-        ("k", WindowCommand.UP), ("l", WindowCommand.RIGHT),
-        ("c", WindowCommand.CLOSE), ("q", WindowCommand.QUIT),
-        ("o", WindowCommand.ONLY),
-    ])
-    def test_window_commands(self, key: str, command: WindowCommand) -> None:
-        assert _press("ctrl_w", key).window is command
+    @pytest.mark.parametrize("key", ["v", "s", "W", "h", "j", "k", "l", "c", "q", "o"])
+    def test_second_deck_window_keys_are_gone(self, key: str) -> None:
+        km = KeyMap()
+        km.feed("ctrl_w")
+        assert km.feed(key) == (KeyResult.NO_MATCH, None)
 
     def test_s_is_no_longer_a_window_prefix(self) -> None:
         assert KeyMap().feed("S")[0] != KeyResult.PENDING

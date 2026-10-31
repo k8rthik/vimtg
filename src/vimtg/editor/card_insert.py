@@ -197,7 +197,7 @@ def insert_card(
     card: Card | None,
     copies: int,
     *,
-    fold_into: str | None = None,
+    fold_into: int | None = None,
 ) -> str:
     """Write `copies` of the chosen card where the card search was
     opened and return the status message.

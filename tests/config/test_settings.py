@@ -18,7 +18,6 @@ from vimtg.config.settings import (
 class TestSettingsDefaults:
     def test_default_values(self) -> None:
         s = Settings()
-        assert s.theme == "dark"
         assert s.show_line_numbers is True
         assert s.show_which_key is True
         assert s.auto_expand is True
@@ -81,6 +80,23 @@ class TestLoadSettings:
         s = load_settings()
         assert s.price_source == "usd"
         assert s.show_prices is True
+
+    def test_load_ignores_the_retired_theme_key(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A config.toml written before theme went away still loads clean."""
+        config_dir = tmp_path / "vimtg"
+        config_dir.mkdir()
+        (config_dir / "config.toml").write_text(
+            '[editor]\ntheme = "dark"\nprice_source = "eur"\n'
+        )
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        from vimtg.config.settings import load_settings_checked
+
+        s, warning = load_settings_checked()
+        assert warning is None
+        assert s.price_source == "eur"
+        assert not hasattr(s, "theme")
 
     def test_load_with_partial_config(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch

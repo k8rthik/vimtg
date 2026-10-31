@@ -82,7 +82,6 @@ class VimTGApp(App[None]):
     Screen {{ layout: vertical; }}
     #editor-area {{ height: 1fr; layout: horizontal; }}
     #deck-view {{ width: 1fr; height: 1fr; }}
-    #deck-view-2 {{ width: 1fr; height: 1fr; }}
     #edhrec-panel {{ width: 1fr; height: 1fr; }}
     #analytics-panel {{ width: 1fr; height: 1fr; }}
     #search-results {{ height: auto; max-height: 50%; dock: bottom; }}

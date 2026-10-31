@@ -222,33 +222,6 @@ def cmd_xit(
     return cmd_write_quit(buffer, cursor, cmd, ctx)
 
 
-def cmd_quit_all(
-    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:qa[!] — quit vimtg, pane and all; changes need ! as with :q."""
-    ctx.pane_open = False
-    return cmd_quit(buffer, cursor, cmd, ctx)
-
-
-def cmd_write_all(
-    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:wa — write the deck when it has changes (one buffer to write)."""
-    if not ctx.modified:
-        return buffer, cursor
-    return cmd_write(buffer, cursor, cmd, ctx)
-
-
-def cmd_write_quit_all(
-    buffer: Buffer, cursor: Cursor, cmd: ParsedCommand, ctx: EditorContext,
-) -> tuple[Buffer, Cursor]:
-    """:wqa / :xa — write the deck when changed, then quit vimtg."""
-    buffer, cursor = cmd_write_all(buffer, cursor, cmd, ctx)
-    if not ctx.error:
-        ctx.quit_requested = True
-    return buffer, cursor
-
-
 def cmd_home(
     buffer: Buffer,
     cursor: Cursor,
@@ -290,14 +263,11 @@ def cmd_recover(
 
 
 def register_buffer_commands(registry: CommandRegistry) -> None:
-    """Register :w, :saveas, :q, :wq, :x, :qa, :wa, :wqa/:xa, :home, :recover."""
+    """Register :w, :saveas, :q, :wq, :x, :home, :recover."""
     registry.register("w", cmd_write, aliases=["write"])
     registry.register("saveas", cmd_saveas, aliases=["sav"])
     registry.register("q", cmd_quit, aliases=["quit"])
     registry.register("wq", cmd_write_quit)
     registry.register("x", cmd_xit, aliases=["xit", "exit"])
-    registry.register("qa", cmd_quit_all, aliases=["qall", "quitall"])
-    registry.register("wa", cmd_write_all, aliases=["wall"])
-    registry.register("wqa", cmd_write_quit_all, aliases=["wqall", "xa", "xall"])
     registry.register("home", cmd_home, aliases=["greeter"])
     registry.register("recover", cmd_recover)

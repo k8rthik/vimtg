@@ -135,8 +135,9 @@ def test_version_flag(runner: CliRunner) -> None:
 def test_help_lists_subcommands(runner: CliRunner) -> None:
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
-    for sub in ("sync", "edit", "search", "new", "validate", "convert", "guide"):
+    for sub in ("sync", "search", "new", "validate", "convert", "guide", "tutor", "info"):
         assert sub in result.output
+    assert "  edit" not in result.output
 
 
 def test_make_card_repo_initializes_db() -> None:
@@ -306,7 +307,7 @@ def test_sync_progress_output(
 # --- editor launch paths (app is mocked to avoid a real TUI) ---
 
 
-def test_edit_launches_app(
+def test_deck_path_launches_app(
     runner: CliRunner, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fake_app = MagicMock()
@@ -314,9 +315,24 @@ def test_edit_launches_app(
     import vimtg.tui.app as app_mod
 
     monkeypatch.setattr(app_mod, "VimTGApp", fake_app_cls)
-    result = runner.invoke(main, ["edit", "deck.deck"])
-    assert result.exit_code == 0
+    result = runner.invoke(main, ["deck.deck"])
+    assert result.exit_code == 0, result.output
     fake_app.run.assert_called_once()
+    assert fake_app_cls.call_args.kwargs["deck_path"] == Path("deck.deck")
+
+
+def test_edit_is_not_a_subcommand(
+    runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`vimtg edit deck.deck` was the same as `vimtg deck.deck`."""
+    fake_app_cls = MagicMock()
+    import vimtg.tui.app as app_mod
+
+    monkeypatch.setattr(app_mod, "VimTGApp", fake_app_cls)
+    result = runner.invoke(main, ["edit", "deck.deck"])
+    assert result.exit_code == 2
+    assert "No such command 'edit'" in result.output
+    fake_app_cls.assert_not_called()
 
 
 def test_no_subcommand_launches_app(
