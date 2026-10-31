@@ -200,6 +200,44 @@ from 1.0.0 onward.
 
 ### Fixed
 
+- On Windows, `:export` and `vimtg convert -o` wrote Moxfield and Archidekt
+  CSV files with doubled carriage returns (`\r\r\n`), and every export file
+  differed from what `:clipboard` copies. Export files now hold the export's
+  text exactly.
+
+- `zz` centers the cursor line and `zt` / `zb` keep scrolloff when typed
+  at a normal pace, and a count before `H` / `L` counts from the view on
+  screen. The key popup no longer shrinks the deck view while a key is
+  pending, so the view no longer jumps when a count or `z` is typed.
+- A command that takes no argument refuses one with vim's `E488:
+  Trailing characters: junk` and does nothing. `:q junk` used to quit,
+  and `:tutor`, `:home`, `:enew`, `:history`, `:config`, `:validate`,
+  `:analytics`, `:close`, `:recover`, `:marks` and `:plans` ran as if
+  the argument were not there. `:combos` and `:sync` give the same E488.
+- Jumping to an unset mark (`'q`) is vim's `E20: Mark not set` error, as
+  `''` already was, instead of a plain message.
+- `d`, `y` or `c` with `Ctrl-D` on the last line (`Ctrl-U` on the first)
+  takes nothing, as `dj` / `dk` there already do; it used to take the
+  cursor line.
+- `Ctrl-D` / `Ctrl-U` move half the deck view's height, as vim does,
+  and scroll the view with the cursor so it keeps its place on screen;
+  they used to jump a fixed 15 lines and leave the view behind. A count
+  is lines (`3` `Ctrl-D` moves three) rather than a number of half pages.
+- `H` and `L` with a count go to that line of the screen, counted from
+  the top or bottom of the deck view (`5H` is the fifth visible line),
+  and `M` goes to the middle visible line; they used to count from
+  inside the scrolloff margin.
+- Operators with `w`, `b`, `{`, `}`, `[[` and `]]` no longer cross a
+  zone marker: a counted `d}` or `2dw` at the end of the mainboard used
+  to delete `SB:` and file the sideboard cards into the mainboard. They
+  keep the header of any section they leave cards in (a counted `dw` or
+  `d{` used to refile the rest of that section under the header above),
+  `d[[` keeps the header it lands on, `d{` on a section's first card
+  deletes nothing, and `dw` on a blank line no longer puts the blank in
+  the register.
+- `[[` and `]]` pass over `DCK:` and `SB:` to the next section header,
+  and `}` on a section header moves to the next section instead of the
+  header's own first card.
 - The card search overlay's one-line messages (`No matches`, an unknown
   search key, the offline and oracle-tags notices) were drawn under the
   command line and never reached the screen. The overlay now sits above
@@ -425,6 +463,29 @@ from 1.0.0 onward.
 - CLI notes go to stderr like the errors already did: `vimtg validate`'s
   card-data notes and its `--strict` error, and `vimtg sync`'s progress
   and skipped-card count. The command's own output stays on stdout.
+- A yank into a named register (`"ayy`) no longer overwrites the yank
+  register `"0`. As in vim, `"0` holds the last yank made without a
+  register name.
+- `p` with a count (`3p`) leaves the cursor on the first new line, as
+  vim does, instead of the last. `P` and visual `p` already did.
+- `gc` with an invalid name shows `E: Invalid category` as an error, the
+  way `:category` does.
+- `gl gl` on a category-grouped deck gives the same text back: going from
+  the type layout to the category layout puts the categories in name
+  order instead of the order the type groups happened to list them.
+- `:filter -burn|threats` follows the documented grammar, where `-` binds
+  to one name: it means (NOT burn) OR threats. It used to negate both names.
+- Visual `zc` says why a selected card can't lead the deck ("Goblin Guide
+  is not legendary and can't be your commander"), as `zc` on one card does.
+- `i` on a blank line inside a zone block (`DCK:`, `SB:` …) writes the
+  typed line with the block's indentation, so the card stays in the block
+  instead of closing it.
+- Restoring a snapshot from the history overlay (`gh`, `R`) records the
+  restore as a new snapshot on top of the history, as the docs say. It
+  used to load the snapshot into the editor and record nothing.
+- `:s` matches a card line without its zone-block indentation and writes
+  the result back with it, so the docs' `:g/@ramp/s/^4/3/` works on a
+  `DCK:` block deck. `^4` used to miss every indented card.
 
 ### Security
 

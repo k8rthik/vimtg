@@ -7,6 +7,7 @@ from vimtg.editor.cursor import Cursor
 from vimtg.editor.motions import (
     MOTION_REGISTRY,
     VIEW_MOTIONS,
+    ViewWindow,
     motion_down,
     motion_first_line,
     motion_goto_line,
@@ -175,18 +176,17 @@ class TestSectionMotions:
 
 
 class TestHalfPageMotions:
+    """The count is lines; the session passes half the view when none is typed."""
+
     def test_half_page_down(self) -> None:
         buf = _buf()
-        c = Cursor(row=0)
-        result = motion_half_page_down(c, buf)
-        # Should move 15 but clamp to buffer size
-        assert result.row == min(15, buf.line_count() - 1)
+        assert motion_half_page_down(Cursor(row=0), buf, 5).row == 5
+        assert motion_half_page_down(Cursor(row=10), buf, 5).row == buf.line_count() - 1
 
     def test_half_page_up(self) -> None:
         buf = _buf()
-        c = Cursor(row=10)
-        result = motion_half_page_up(c, buf)
-        assert result.row == 0  # 10 - 15 = clamped to 0
+        assert motion_half_page_up(Cursor(row=10), buf, 4).row == 6
+        assert motion_half_page_up(Cursor(row=3), buf, 5).row == 0
 
 
 class TestMotionRegistry:
@@ -205,48 +205,54 @@ class TestMotionRegistry:
             assert isinstance(result, Cursor), f"Motion '{key}' did not return a Cursor"
 
 
+def _view(top: int, bottom: int) -> ViewWindow:
+    """A window whose cursor band is the whole window, as at the buffer's ends."""
+    return ViewWindow(top, bottom, (top, bottom), bottom - top + 1)
+
+
 class TestViewMotions:
     """H / M / L target the band of rows the deck view shows."""
 
     def test_h_goes_to_band_top(self) -> None:
-        assert motion_view_top(Cursor(row=9), _buf(), (4, 9)).row == 4
+        assert motion_view_top(Cursor(row=9), _buf(), _view(4, 9)).row == 4
 
     def test_h_count_offsets_from_top(self) -> None:
-        assert motion_view_top(Cursor(row=9), _buf(), (4, 9), 2).row == 5
+        assert motion_view_top(Cursor(row=9), _buf(), _view(4, 9), 2).row == 5
 
     def test_h_skips_blank_lines_downward(self) -> None:
         # row 6 is blank; H lands on the next non-blank line
-        assert motion_view_top(Cursor(row=9), _buf(), (6, 12)).row == 7
+        assert motion_view_top(Cursor(row=9), _buf(), _view(6, 12)).row == 7
 
     def test_h_count_clamps_to_band_bottom(self) -> None:
-        assert motion_view_top(Cursor(row=0), _buf(), (3, 5), 99).row == 5
+        assert motion_view_top(Cursor(row=0), _buf(), _view(3, 5), 99).row == 5
 
     def test_l_goes_to_band_bottom(self) -> None:
-        assert motion_view_bottom(Cursor(row=0), _buf(), (0, 9)).row == 9
+        assert motion_view_bottom(Cursor(row=0), _buf(), _view(0, 9)).row == 9
 
     def test_l_count_offsets_from_bottom(self) -> None:
-        assert motion_view_bottom(Cursor(row=0), _buf(), (0, 9), 2).row == 8
+        assert motion_view_bottom(Cursor(row=0), _buf(), _view(0, 9), 2).row == 8
 
     def test_l_skips_blank_lines_upward(self) -> None:
         # row 10 is blank; L lands on the line above it
-        assert motion_view_bottom(Cursor(row=0), _buf(), (0, 10)).row == 9
+        assert motion_view_bottom(Cursor(row=0), _buf(), _view(0, 10)).row == 9
 
     def test_m_goes_to_band_middle(self) -> None:
-        assert motion_view_middle(Cursor(row=0), _buf(), (4, 8)).row == 7  # middle row 6 is blank
+        # middle row 6 is blank
+        assert motion_view_middle(Cursor(row=0), _buf(), _view(4, 8)).row == 7
 
     def test_m_exact_middle(self) -> None:
-        assert motion_view_middle(Cursor(row=0), _buf(), (3, 5)).row == 4
+        assert motion_view_middle(Cursor(row=0), _buf(), _view(3, 5)).row == 4
 
     def test_band_clamped_to_buffer(self) -> None:
         buf = _buf()
         last = buf.line_count() - 1
-        result = motion_view_bottom(Cursor(row=0), buf, (0, last + 50))
+        result = motion_view_bottom(Cursor(row=0), buf, _view(0, last + 50))
         assert result.row <= last
-        assert motion_view_top(Cursor(row=0), buf, (-5, 3)).row == 0
+        assert motion_view_top(Cursor(row=0), buf, _view(-5, 3)).row == 0
 
     def test_all_blank_band_keeps_target(self) -> None:
         buf = Buffer.from_text("\n\n\n")
-        assert motion_view_middle(Cursor(row=0), buf, (0, 2)).row == 1
+        assert motion_view_middle(Cursor(row=0), buf, _view(0, 2)).row == 1
 
     def test_registry(self) -> None:
         assert set(VIEW_MOTIONS) == {"H", "M", "L"}

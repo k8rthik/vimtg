@@ -39,7 +39,7 @@ Everything below is normal mode unless flagged otherwise.
 
 | Key | Action |
 |-----|--------|
-| `i` | Edit the current line in place. On `// Key:` metadata lines only the value is editable; the `// Format:` value Tab-completes known formats. A line inside a zone block (`DCK:`, `CMD:`, `SB:` …) or a `VS:` plan keeps its indentation locked (Backspace and `Ctrl-U` stop at it, and `.` keeps it), so the card stays in the block; a bare zone header (`DCK:`) cannot be edited (E21) |
+| `i` | Edit the current line in place. On `// Key:` metadata lines only the value is editable; the `// Format:` value Tab-completes known formats. A line inside a zone block (`DCK:`, `CMD:`, `SB:` …) or a `VS:` plan keeps its indentation locked (Backspace and `Ctrl-U` stop at it, and `.` keeps it), so the card stays in the block. A blank line inside a block takes the block's indentation; a bare zone header (`DCK:`) cannot be edited (E21) |
 | `A` | Add or edit the card's inline comment (`// …`); confirming empty text removes it |
 | `o` / `O` | Add a card below / above: opens card search. The card joins the zone under the cursor (inside a `CMD:`/`SB:` block it lands there; in the mainboard it auto-files by type). A count sets copies: `4o` adds four. Inside a `VS:` plan block it writes a signed plan line |
 | `v` / `V` | Visual / visual-line selection |
@@ -59,9 +59,9 @@ Everything below is normal mode unless flagged otherwise.
 | `gg` / `G` | First / last line; `{n}G` or `{n}gg` goes to line `n` (`1G` is line 1; `:{n}` too) |
 | `w` / `b` | Next / previous card entry |
 | `{` / `}` | Previous / next section |
-| `[[` / `]]` | Previous / next section or plan header |
+| `[[` / `]]` | Previous / next section or plan header; zone block markers such as `DCK:` and `SB:` are not section headers, so they pass over them |
 | `[v` / `]v` | Previous / next sideboard plan (activates it) |
-| `Ctrl-D` / `Ctrl-U` | Half page down / up |
+| `Ctrl-D` / `Ctrl-U` | Half page down / up: the cursor moves half the deck view's height and the view scrolls with it, so the cursor keeps its place on screen. A count is lines instead (`3` then `Ctrl-D` moves three), for that press only. On the last / first line nothing moves |
 | `H` / `M` / `L` | Top / middle / bottom of the visible deck view (a count offsets `H` and `L`: `3H` is the third visible line). The scrolloff margin is respected, so the view does not move |
 | `Ctrl-O` / `Ctrl-I` | Back / forward through the jumplist (`Ctrl-I` arrives as `Tab`; a count moves that many). Jumps, as in vim: `G`, `gg`, `{n}G`, `:{n}`, `/`, `?`, `n`, `N`, `*`, `#`, `{`, `}`, `[[`, `]]`, `'a`, `H`, `M`, `L`, `''`, and an insert or zone move that files the card more than a line away (`o` auto-filing it into another section, `zs`). The list holds 100 places; rows do not follow later edits |
 | `''` | Back to where the latest jump left; again to come back |
@@ -75,7 +75,12 @@ Any motion takes a count: `10j`, `3w`, `2n`. The deck is line-oriented: there is
 
 As operator targets, `j`/`k`/`G`/`gg`/`Ctrl-D`/`Ctrl-U` are linewise and
 include the line they land on; `w`/`b`/`{`/`}`/`[[`/`]]` are exclusive,
-as in vim, and never eat the next section's blank line or header:
+as in vim, and take card lines. A section's header and blank line go
+only with every card under that header, so `2dw` across two sections
+leaves the second header in place and `d[[` never takes the header it
+lands on. A range stops at the edge of its zone block and never crosses
+`DCK:` or `SB:`. A range with no card in it (`dw` on a blank line)
+changes nothing:
 
 | Keys | Deletes |
 |------|---------|
@@ -85,6 +90,7 @@ as in vim, and never eat the next section's blank line or header:
 | `d{` | The cards above the cursor in its section |
 | `d]]` | Up to, not including, the next header |
 | `dG` / `d8G` | To the end of the deck / through line 8 |
+| `dj` / `d<C-d>` on the last line, `dk` / `d<C-u>` on the first | Nothing: a motion that cannot move takes no lines, writes no register and leaves no undo step |
 
 ### Editing
 
@@ -94,7 +100,7 @@ as in vim, and never eat the next section's blank line or header:
 | `S` / `C` / `D` / `Y` | The linewise capitals: `S` and `C` are `cc`, `D` is `dd`, `Y` is `yy` (decks have no columns). Counts, registers and `.` work as with the doubled operator: `"a3Y` yanks three lines into `a` |
 | `d` `y` `c` + motion | Operators compose with a motion: `dw` deletes this card entry, `d}` to the end of the section, `y5G` through line 5. Counts multiply: `2d3j` |
 | `x` | Delete the card under the cursor (into the register); card lines only. A count deletes that many consecutive card lines as one change (`3x`, then one `u`) |
-| `p` / `P` | Paste below / above; `3p` pastes three copies |
+| `p` / `P` | Paste below / above; `3p` pastes three copies. The cursor lands on the first new line, as in vim |
 | `+` / `-` | Increment / decrement quantity; `-` at 0 deletes the line. Both keep zone prefixes, plan signs, `@category`, `#tags`, and comments |
 | `Ctrl-A` / `Ctrl-X` | vim's names for `+` / `-`: counts, visual mode and `.` work the same |
 | `.` | Repeat the last change (a count overrides the recorded one). Every edit repeats: operators, `c` together with the card it added, `o`/`O` with their card and copies, `p`/`P`, `+`/`-`, `x`, zone and plan moves, categories, comments, `i`, and `:s` (on the cursor line). A change made on a visual selection repeats on as many lines from the cursor |
@@ -117,7 +123,9 @@ is checked: `zc` is refused outside commander formats, which have no
 command zone, and `zs` in a format without a sideboard (commander)
 moves the card but warns. `zc` of a card that cannot lead the deck
 moves it and says why ("Goblin King is not legendary and can't be your
-commander"), as the gutter's ✗ then does. An unknown or missing format
+commander"), as the gutter's ✗ then does. A visual `zc` says it for
+each such card in the selection; past two cards it names the first and
+counts the rest. An unknown or missing format
 checks nothing.
 `zz`/`zt`/`zb` scroll the view, as in vim.
 
@@ -130,7 +138,7 @@ checks nothing.
 | `q{a-z}` / `q` | Start recording a macro / stop recording; `qA` appends to macro `a` |
 | `@{a-z}` / `@@` | Play a macro / replay the last one; `3@a` plays three times |
 | `@:` | Run the last ex command line again (`@@` then repeats it; `3@:` runs it three times) |
-| `"{a-z}` | Use a named register for the next yank, delete, or put. `"A`-`"Z` append, `"0` is the yank register, `"1`-`"9` the delete history |
+| `"{a-z}` | Use a named register for the next yank, delete, or put. `"A`-`"Z` append, `"0` is the yank register (the last yank made without a register name), `"1`-`"9` the delete history |
 | `"_` | The black hole register: `"_dd` deletes without touching any register, so the next `p` still puts what was there |
 | `"+` / `"*` | The clipboard register (one register, two names): a yank or delete also copies to the system clipboard via OSC52. `"+p` puts what was last yanked to it in this session (vimtg cannot read the system clipboard) |
 
@@ -347,8 +355,6 @@ vim, a mapping applies only where a command starts: mapping `s` leaves
 `~/.config/vimtg/config.toml`, per mode (`normal`, `insert`, `visual`,
 `command`). `;`, `,`, and `Ctrl-S` are unbound and free to map.
 
-A mapping rewrites its key everywhere you type it, including as the
-second key of a sequence. Mapping `s`, for example, also changes `zs`
-and the mark, register, and macro names `ms`, `'s`, `"s`, `qs`, and
-`@s`. Every letter is a mark, register, and macro name, so mapping any
-letter has the same effect.
+A mapping never touches the second key of a sequence, so mark,
+register, and macro names keep their meaning: after `:map s j`, `ms`,
+`'s`, `"s`, `qs`, and `@s` still name mark, register, and macro `s`.

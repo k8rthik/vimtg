@@ -119,6 +119,12 @@ def block_header_tag(text: str) -> str | None:
     return None
 
 
+def is_block_marker(text: str) -> bool:
+    """True for a line that opens a block (DCK:, SB:, VS: Tron, ...) or
+    a bare MTGO 'Sideboard' line: deleting one rezones the cards below."""
+    return block_header_tag(text) is not None or is_mtgo_sideboard_header(text)
+
+
 def is_deck_header(text: str) -> bool:
     """True for a 'DCK:' main-deck block header line."""
     return parse_zone_header(text) == "DCK"

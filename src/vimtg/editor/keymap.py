@@ -42,6 +42,9 @@ class _State(Enum):
 MOTIONS = frozenset({"j", "k", "w", "b", "{", "}", "ctrl_d", "ctrl_u"})
 # Viewport motions: plain motions, but never an operator target
 VIEW_MOTIONS = frozenset({"H", "M", "L"})
+# Motions sent with count 0 when none was typed: bare G is the last
+# line, bare Ctrl-D / Ctrl-U half the view (a typed count is lines)
+RAW_COUNT_MOTIONS = frozenset({"G", "ctrl_d", "ctrl_u"})
 OPERATORS = frozenset({"d", "y", "c"})
 MODE_SWITCHES: dict[str, str] = {
     "i": "INSERT",
@@ -391,7 +394,9 @@ class KeyMap:
                 total_count = count * op_count
                 # dG runs to the end; d8G / 8dG stop at line 8. Like a
                 # bare G motion, 0 says "no count was typed".
-                if key == "G" and not (self._count_str or self._operator_count_str):
+                if key in RAW_COUNT_MOTIONS and not (
+                    self._count_str or self._operator_count_str
+                ):
                     total_count = 0
                 action = ParsedAction(
                     "operator", self._operator or "", total_count, self._register, motion=key
@@ -402,6 +407,8 @@ class KeyMap:
             return KeyResult.NO_MATCH, None
 
         if key in MOTIONS or key in VIEW_MOTIONS:
+            if key in RAW_COUNT_MOTIONS and not self._count_str:
+                count = 0
             action = ParsedAction("motion", key, count, self._register)
             self.reset()
             return KeyResult.COMPLETE, action

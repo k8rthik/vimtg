@@ -15,6 +15,9 @@ from vimtg.services.clipboard import (
     read_clipboard,
 )
 
+# These tests inject their own runners and exercise the real tool table.
+pytestmark = pytest.mark.real_clipboard
+
 
 class FakeRunner:
     """Records subprocess.run calls; returncode/stdout per program name."""

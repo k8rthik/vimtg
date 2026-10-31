@@ -96,50 +96,63 @@ def format_category_summary(counts: dict[str, int]) -> str:
 
 
 @dataclass(frozen=True)
+class FilterTerm:
+    """One '+'-joined term of a :filter expression: a card passes with
+    every `want` name and no `avoid` name."""
+
+    want: frozenset[str] = frozenset()
+    avoid: frozenset[str] = frozenset()
+
+    def matches(self, labels: frozenset[str]) -> bool:
+        return self.want <= labels and not self.avoid & labels
+
+
+@dataclass(frozen=True)
 class CategoryFilter:
     """A compiled :filter expression over card categories.
 
-    include: every name must match (AND); exclude: none may (NOT);
-    any_of: at least one must (OR). A card carries one category, so an
-    `include` of two names matches nothing: use `a|b` for either.
+    Every space-separated clause must hold (AND); a clause holds when any
+    of its '|' terms does (OR). A card carries one category, so a term
+    wanting two names matches nothing: use `a|b` for either.
     """
 
-    include: frozenset[str] = frozenset()
-    exclude: frozenset[str] = frozenset()
-    any_of: frozenset[str] = frozenset()
+    clauses: tuple[tuple[FilterTerm, ...], ...] = ()
+
+
+def _parse_term(text: str) -> FilterTerm | None:
+    """`ramp+-removal` -> want ramp, avoid removal; '-' binds to one name."""
+    want: set[str] = set()
+    avoid: set[str] = set()
+    for factor in text.split("+"):
+        negated = factor.startswith("-")
+        name = (factor[1:] if negated else factor).lstrip("@").lower()
+        if name:
+            (avoid if negated else want).add(name)
+    if not want and not avoid:
+        return None
+    return FilterTerm(want=frozenset(want), avoid=frozenset(avoid))
 
 
 def parse_category_filter(expr: str) -> CategoryFilter:
     """Parse a filter expression: `ramp`, `ramp+core` (AND), `ramp|draw`
-    (OR), `-removal` (NOT), `ramp -removal` (AND NOT). A leading `@` on a
+    (OR), `-removal` (NOT), `ramp -removal` (AND NOT). '-' binds to the
+    one name after it, '+' binds tighter than '|', and spaces join whole
+    clauses: `-burn|threats` is (NOT burn) OR threats. A leading `@` on a
     name is allowed; names are case-insensitive."""
-    include: set[str] = set()
-    exclude: set[str] = set()
-    any_of: set[str] = set()
-
-    def names(part: str, sep: str) -> list[str]:
-        return [n.lstrip("@").lower() for n in part.split(sep) if n.lstrip("@")]
-
+    clauses: list[tuple[FilterTerm, ...]] = []
     for token in expr.split():
-        if token.startswith("-"):
-            exclude.update(names(token[1:], "|"))
-        elif "|" in token:
-            any_of.update(names(token, "|"))
-        else:
-            include.update(names(token, "+"))
-    return CategoryFilter(
-        include=frozenset(include), exclude=frozenset(exclude), any_of=frozenset(any_of),
-    )
+        terms = tuple(
+            term for part in token.split("|") if (term := _parse_term(part)) is not None
+        )
+        if terms:
+            clauses.append(terms)
+    return CategoryFilter(clauses=tuple(clauses))
 
 
 def matches_category(category: str, filt: CategoryFilter) -> bool:
     """Whether a card with `category` ('' for none) passes the filter."""
     labels = frozenset({category.lower()}) if category else frozenset()
-    if filt.include and not filt.include.issubset(labels):
-        return False
-    if filt.exclude and filt.exclude & labels:
-        return False
-    return not (filt.any_of and not filt.any_of & labels)
+    return all(any(term.matches(labels) for term in clause) for clause in filt.clauses)
 
 
 def completion_candidates(

@@ -20,7 +20,7 @@ from vimtg.editor.cursor import Cursor
 from vimtg.editor.keymap import KeyMap, KeyResult, ParsedAction
 from vimtg.editor.line_buffer import LineBuffer
 from vimtg.editor.modes import Mode, ModeManager
-from vimtg.editor.operators import execute_operator, resolve_line_range
+from vimtg.editor.operators import execute_operator, resolve_rows
 from vimtg.editor.registers import RegisterStore
 from vimtg.editor.session import (
     EditorState,
@@ -95,11 +95,11 @@ class TestOperatorRanges:
             ("}", 5, 2, (5, 9)),
             ("}", 9, 1, (9, 9)),
             ("{", 6, 1, (5, 5)),        # cards above in the section
-            ("{", 5, 1, (1, 2)),        # at the start: the previous section
+            ("{", 5, 1, (5, 4)),        # first card: none above in its section
             ("{", 1, 1, (1, 0)),
             ("]]", 1, 1, (1, 2)),       # up to the next header, minus the blank
             ("]]", 9, 1, (9, 9)),
-            ("[[", 6, 1, (4, 5)),
+            ("[[", 6, 1, (5, 5)),       # never the header it lands on
             ("[[", 0, 1, (0, -1)),
             ("G", 6, 0, (6, 9)),        # bare G: to the end
             ("G", 6, 3, (2, 6)),        # 3G: through line 3
@@ -110,7 +110,9 @@ class TestOperatorRanges:
     def test_ranges(
         self, motion: str, row: int, count: int, expected: tuple[int, int]
     ) -> None:
-        assert resolve_line_range("d", motion, Cursor(row=row), _buf(), count) == expected
+        first, last = expected
+        rows = resolve_rows("d", motion, Cursor(row=row), _buf(), count)
+        assert rows == tuple(range(first, last + 1))
 
     def test_empty_range_changes_nothing_but_c_still_inserts(self) -> None:
         regs = RegisterStore()

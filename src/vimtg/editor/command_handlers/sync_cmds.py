@@ -18,13 +18,10 @@ def cmd_sync(
     ctx: EditorContext,
 ) -> tuple[Buffer, Cursor]:
     """:sync[!] — download card data (! re-downloads even when cached)."""
-    if cmd.args.strip():
-        ctx.fail("Usage: :sync[!]")
-        return buffer, cursor
     ctx.card_sync = "force" if cmd.bang else "sync"
     return buffer, cursor
 
 
 def register_sync_commands(registry: CommandRegistry) -> None:
     """Register :sync."""
-    registry.register("sync", cmd_sync)
+    registry.register("sync", cmd_sync, takes_args=False)

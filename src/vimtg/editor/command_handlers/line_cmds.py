@@ -132,6 +132,6 @@ def cmd_enew(
 def register_line_commands(registry: CommandRegistry) -> None:
     """Register :reg :marks :e :enew."""
     registry.register("registers", cmd_registers, aliases=["reg", "di", "display"])
-    registry.register("marks", cmd_marks)
+    registry.register("marks", cmd_marks, takes_args=False)
     registry.register("edit", cmd_edit, aliases=["e"])
-    registry.register("enew", cmd_enew, aliases=["ene"])
+    registry.register("enew", cmd_enew, aliases=["ene"], takes_args=False)

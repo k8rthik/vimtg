@@ -6,6 +6,7 @@ from vimtg.domain.categories import (
     PRESET_CATEGORIES,
     UNCATEGORIZED_LABEL,
     CategoryFilter,
+    FilterTerm,
     complete_category,
     completion_candidates,
     format_category_header,
@@ -168,16 +169,21 @@ def test_uncategorized_label_is_stable() -> None:
 
 class TestParseCategoryFilter:
     def test_single_name(self) -> None:
-        assert parse_category_filter("ramp") == CategoryFilter(include=frozenset({"ramp"}))
+        assert parse_category_filter("ramp") == CategoryFilter(
+            clauses=((FilterTerm(want=frozenset({"ramp"})),),)
+        )
 
     def test_or_and_not(self) -> None:
         filt = parse_category_filter("ramp|draw -removal")
-        assert filt.any_of == frozenset({"ramp", "draw"})
-        assert filt.exclude == frozenset({"removal"})
-        assert filt.include == frozenset()
+        assert filt.clauses == (
+            (FilterTerm(want=frozenset({"ramp"})), FilterTerm(want=frozenset({"draw"}))),
+            (FilterTerm(avoid=frozenset({"removal"})),),
+        )
 
     def test_and_joins_names(self) -> None:
-        assert parse_category_filter("ramp+core").include == frozenset({"ramp", "core"})
+        assert parse_category_filter("ramp+core").clauses == (
+            (FilterTerm(want=frozenset({"ramp", "core"})),),
+        )
 
     def test_at_sigil_and_case_are_ignored(self) -> None:
         assert parse_category_filter("@RAMP -@Draw") == parse_category_filter("ramp -draw")

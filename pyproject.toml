@@ -81,6 +81,8 @@ testpaths = ["tests"]
 addopts = ["--strict-markers", "--allow-hosts=127.0.0.1,::1"]
 markers = [
     "perf: timing-sensitive budget assertions; scale with VIMTG_PERF_BUDGET_SCALE",
+    "primitive(*ids): the editor primitives a tests/primitives case exercises",
+    "real_clipboard: use the real clipboard tool table instead of the in-memory clipboard",
 ]
 filterwarnings = [
     # Surface leaked sqlite connections as test failures rather than noise.

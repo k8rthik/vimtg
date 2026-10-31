@@ -27,7 +27,12 @@ from vimtg.domain.categories import (
     completion_candidates,
     parse_category_filter,
 )
-from vimtg.domain.deck_lines import parse_zone_header, split_metadata_prefix, zone_context_at
+from vimtg.domain.deck_lines import (
+    parse_zone_header,
+    split_metadata_prefix,
+    zone_context_at,
+    zone_running_context,
+)
 from vimtg.domain.formats import get_format_rules, known_formats
 from vimtg.domain.validation import commander_refusal
 from vimtg.editor.buffer import Buffer, LineType
@@ -60,6 +65,7 @@ from vimtg.editor.commands import (
     NewBuffer,
     ParsedCommand,
     RangeError,
+    is_error_message,
     parse_command,
 )
 from vimtg.editor.cursor import Cursor
@@ -78,8 +84,10 @@ from vimtg.editor.macros import MacroRecorder
 from vimtg.editor.marks import MarkStore
 from vimtg.editor.modes import Mode, ModeManager
 from vimtg.editor.motions import (
+    HALF_PAGE_MOTIONS,
     MOTION_REGISTRY,
     VIEW_MOTIONS,
+    ViewWindow,
     motion_goto_line,
 )
 from vimtg.editor.operators import (
@@ -89,7 +97,6 @@ from vimtg.editor.operators import (
     increment_quantity,
     move_to_zone,
     put_lines,
-    resolve_line_range,
     store_lines,
 )
 from vimtg.editor.placement import PlacementPolicy, reconcile_category_sections
@@ -104,6 +111,7 @@ from vimtg.editor.registers import (
     RegisterStore,
     is_clipboard_register,
 )
+from vimtg.editor.sections import matched_indent
 from vimtg.editor.sort_keys import SORT_FIELDS
 from vimtg.editor.splits import EdhrecOpen
 from vimtg.services.history_service import HistoryService
@@ -187,10 +195,10 @@ class EditorState:
     # The owned-cards collection the deck view and analytics compare
     # against; None until the configured CSV loads or :collection runs
     collection: Collection | None = None
-    # Inclusive (top, bottom) buffer rows the cursor can occupy without
-    # scrolling the deck view — set by the TUI before H / M / L. None
+    # What the deck view shows — set by the TUI before each motion or
+    # operator, for H / M / L and Ctrl-D / Ctrl-U. None
     # means no view is known and the whole buffer counts as visible.
-    view_band: tuple[int, int] | None = None
+    view: ViewWindow | None = None
     # Text of the buffer as last loaded or written; None when unknown.
     # Undo/redo compare against it so returning to it is unmodified.
     clean_text: str | None = None
@@ -274,6 +282,8 @@ class HandlerResult:
     plan_changed: bool = False  # active plan or its entries changed
     # zz / zt / zb: put the cursor line at the view's "center"/"top"/"bottom"
     scroll_view: str = ""
+    # Ctrl-D / Ctrl-U: scroll the view this many rows along with the cursor
+    scroll_lines: int = 0
     # Replace the command-line text (history recall); None leaves it
     command_replace: str | None = None
     # :e — open this deck in place of the current one
@@ -326,15 +336,34 @@ def _motion(state: EditorState, action: ParsedAction) -> HandlerResult:
     if action.action == "G" and action.count >= 1:
         state.cursor = motion_goto_line(state.cursor, state.buffer, action.count)
         return HandlerResult()
+    if action.action in HALF_PAGE_MOTIONS:
+        return _half_page(state, action)
     view_fn = VIEW_MOTIONS.get(action.action)
     if view_fn:
-        band = state.view_band or (0, state.buffer.line_count() - 1)
-        state.cursor = view_fn(state.cursor, state.buffer, band, count)
+        view = state.view or ViewWindow.whole(state.buffer)
+        state.cursor = view_fn(state.cursor, state.buffer, view, count)
         return HandlerResult()
     motion_fn = MOTION_REGISTRY.get(action.action)
     if motion_fn:
         state.cursor = motion_fn(state.cursor, state.buffer, count)
     return HandlerResult()
+
+
+def _half_page_lines(state: EditorState, count: int) -> int:
+    """How far Ctrl-D / Ctrl-U go: a typed count, else half the view."""
+    return count or (state.view or ViewWindow.whole(state.buffer)).half_page
+
+
+def _half_page(state: EditorState, action: ParsedAction) -> HandlerResult:
+    """Ctrl-D / Ctrl-U: the cursor moves, and the view scrolls the same
+    distance so the cursor keeps its screen line. A cursor that cannot
+    move (Ctrl-D on the last line) scrolls nothing."""
+    lines = _half_page_lines(state, action.count)
+    origin = state.cursor.row
+    state.cursor = MOTION_REGISTRY[action.action](state.cursor, state.buffer, lines)
+    if state.cursor.row == origin:
+        return HandlerResult()
+    return HandlerResult(scroll_lines=lines if state.cursor.row > origin else -lines)
 
 
 def _take_selection(state: EditorState) -> tuple[int, int] | None:
@@ -392,13 +421,14 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
             op + op, None, state.cursor.move_to(start, 0),
             state.buffer, lines, state.registers, action.register,
         )
-        affected = (start, end)
     else:
         # G keeps a raw 0 ("no count": dG to the end, d8G to line 8)
-        count = action.count if action.motion == "G" else (action.count or 1)
-        affected = resolve_line_range(
-            action.action, action.motion, state.cursor, state.buffer, count,
-        )
+        if action.motion == "G":
+            count = action.count
+        elif action.motion in HALF_PAGE_MOTIONS:
+            count = _half_page_lines(state, action.count)
+        else:
+            count = action.count or 1
         repeat = RepeatableAction(
             "operator", operator=action.action,
             motion=action.motion, count=count,
@@ -411,7 +441,7 @@ def _operator(state: EditorState, action: ParsedAction) -> HandlerResult:
     changed = result.buffer is not state.buffer
     stored = result.registers is not state.registers
     if result.buffer.line_count() < state.buffer.line_count():
-        state.marks = state.marks.update_for_delete(*affected)
+        state.marks = state.marks.update_for_delete_rows(result.rows)
     state.buffer = result.buffer
     state.cursor = result.cursor
     state.registers = result.registers
@@ -439,7 +469,8 @@ def _line_edit_prefix(buffer: Buffer, row: int) -> str:
     """The part of a line `i` keeps locked: the whole '// Key: ' prefix
     of a metadata line, the '// ' marker of a comment, the indentation
     of a line inside a zone or plan block (deleting it would silently
-    rezone the line and every line beneath it), else nothing."""
+    rezone the line and every line beneath it; a blank line there takes
+    the block's indentation), else nothing."""
     line_text = buffer.get_line(row).text
     meta = split_metadata_prefix(line_text)
     if meta is not None:
@@ -452,6 +483,8 @@ def _line_edit_prefix(buffer: Buffer, row: int) -> str:
             idx += 1
         return line_text[:idx]
     texts = [bl.text for bl in buffer.get_lines()]
+    if not line_text.strip():
+        return matched_indent(buffer, row) if zone_running_context(texts, row) else ""
     if zone_context_at(texts, row) is not None:
         return line_text[: len(line_text) - len(line_text.lstrip())]
     return ""
@@ -775,12 +808,8 @@ def _normal_special(state: EditorState, action: ParsedAction) -> HandlerResult:
             row = min(mark.row, state.buffer.line_count() - 1)
             state.cursor = state.cursor.move_to(row, 0)
             note_jump(state, origin)
-        elif key == "''":
-            return HandlerResult(command_message="E20: Mark not set", error=True)
         else:
-            return HandlerResult(
-                command_message=f"Mark '{mark_name}' not set",
-            )
+            return HandlerResult(command_message="E20: Mark not set", error=True)
     elif key in WINDOW_KEYS:
         return WINDOW_KEYS[key]
     elif key == "space f":
@@ -859,10 +888,6 @@ def _put(state: EditorState, key: str, count: int, register: str | None) -> bool
     inserted = state.buffer.line_count() - before
     if inserted <= 0:
         return False
-    if key == "p":
-        # p leaves the cursor on the last pasted row; P stays on the
-        # top of the stack it put above the line
-        state.cursor = state.cursor.move_to(first_insert_row + inserted - 1, 0)
     state.marks = state.marks.update_for_insert(first_insert_row, inserted)
     state.modified = True
     state.history.record(state.buffer, "put" if key == "p" else "put above")
@@ -1188,6 +1213,7 @@ def handle_prompt_special(state: EditorState, action: ParsedAction) -> HandlerRe
         return HandlerResult(
             exit_to_normal=True,
             command_message=result,
+            error=is_error_message(result),
         )
 
     if key == "enter":
@@ -1268,19 +1294,23 @@ def _placement_policy(state: EditorState) -> PlacementPolicy:
     )
 
 
-def _commander_warning(state: EditorState, row: int) -> str:
-    """Why the card zc just put at `row` can't be the deck's commander
-    ('' when it can, or its card or format is unknown)."""
-    name = state.buffer.card_name_at(row)
-    card = state.resolved_cards.get(name) if name else None
-    if name is None or card is None:
-        return ""
+def _commander_warning(state: EditorState, names: list[str]) -> str:
+    """Why the cards zc just moved can't lead the deck ('' when they all
+    can, or the cards or the format are unknown). Two refusals are both
+    spelled out; past that the first is, and the rest are counted."""
     deck = parse_deck_text(state.buffer.to_text())
     fmt = (deck.metadata.format or state.settings.default_format).strip().lower()
     rules = get_format_rules(fmt) if fmt else None
     if rules is None:
         return ""
-    return commander_refusal(name, card, rules.name) or ""
+    refusals = [
+        refusal for name in names
+        if (card := state.resolved_cards.get(name)) is not None
+        and (refusal := commander_refusal(name, card, rules.name))
+    ]
+    if len(refusals) <= 2:
+        return "; ".join(refusals)
+    return f"{refusals[0]}; {len(refusals) - 1} more can't be your commander either"
 
 
 def _zone_refusal(state: EditorState, target: LineType) -> tuple[str, bool]:
@@ -1328,11 +1358,13 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
             if state.buffer.is_card_line(r)
         ]
     moved = 0
+    moved_names: list[str] = []
     first_message = ""
     first_error = False
     origin = state.cursor
     for i, row in enumerate(rows):
         state.cursor = state.cursor.move_to(row, 0)
+        name = state.buffer.card_name_at(row)
         result = move_to_zone(
             state.buffer, state.cursor, target, count,
             policy=_placement_policy(state),
@@ -1342,6 +1374,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
         if not result.moved:
             continue
         moved += 1
+        if name:
+            moved_names.append(name)
         if result.deleted_row is not None:
             state.marks = state.marks.update_for_delete(
                 result.deleted_row, result.deleted_row
@@ -1380,8 +1414,8 @@ def _move_card_to_zone(state: EditorState, key: str, count: int) -> HandlerResul
         first_message if selection is None
         else f"Moved {moved} card(s) to {ZONE_LABELS[target]}"
     )
-    if target == LineType.COMMANDER_ENTRY and selection is None:
-        warning = _commander_warning(state, state.cursor.row)
+    if target == LineType.COMMANDER_ENTRY:
+        warning = _commander_warning(state, moved_names)
     if warning:
         message = f"{message} — warning: {warning}"
     return HandlerResult(command_message=message, exit_to_normal=selection is not None)
@@ -1557,14 +1591,13 @@ def _replay(
 def _replay_operator(state: EditorState, last: RepeatableAction, count: int) -> None:
     """'.' after d/c + motion (and c with the card it inserted)."""
     op = last.operator or ""
-    affected = resolve_line_range(op, last.motion, state.cursor, state.buffer, count)
     result = execute_operator(
         op, last.motion, state.cursor, state.buffer,
         count, state.registers, last.register,
     )
     # Deletes must shift marks exactly like the live operator did
     if result.buffer.line_count() < state.buffer.line_count():
-        state.marks = state.marks.update_for_delete(*affected)
+        state.marks = state.marks.update_for_delete_rows(result.rows)
     if result.registers is not state.registers:
         state.registers = result.registers
         _mirror_clipboard(state, last.register)

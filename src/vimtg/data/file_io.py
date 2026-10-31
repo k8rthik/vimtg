@@ -112,8 +112,13 @@ def _fsync_dir(directory: Path) -> None:
         os.close(fd)
 
 
-def atomic_write_text(path: Path, text: str, encoding: str = "utf-8") -> Path:
+def atomic_write_text(
+    path: Path, text: str, encoding: str = "utf-8", newline: str | None = None
+) -> Path:
     """Atomically replace `path` with `text`; return the file written.
+
+    `newline` is open()'s: None writes the platform's line ending, and
+    "" writes `text` exactly as given.
 
     A symlink is resolved first, so the link's target is rewritten and
     the link itself survives. An existing file keeps its permission
@@ -134,7 +139,7 @@ def atomic_write_text(path: Path, text: str, encoding: str = "utf-8") -> Path:
     except OSError as exc:
         raise _naming(exc, path) from exc
     try:
-        with os.fdopen(fd, "w", encoding=encoding) as f:
+        with os.fdopen(fd, "w", encoding=encoding, newline=newline) as f:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())

@@ -366,11 +366,21 @@ CommandHandler = Callable[
 ]
 
 
+@dataclass(frozen=True)
+class _Command:
+    """A registered command: its handler, and whether it takes an
+    argument. One that takes none refuses `:cmd junk` with vim's E488
+    before the handler runs, so no handler ignores a stray argument."""
+
+    handler: CommandHandler
+    takes_args: bool
+
+
 @dataclass
 class CommandRegistry:
     """Registry mapping ex command names to handler functions."""
 
-    _commands: dict[str, CommandHandler] = field(default_factory=dict)
+    _commands: dict[str, _Command] = field(default_factory=dict)
     _aliases: dict[str, str] = field(default_factory=dict)
 
     def register(
@@ -378,15 +388,20 @@ class CommandRegistry:
         name: str,
         handler: CommandHandler,
         aliases: list[str] | None = None,
+        *,
+        takes_args: bool = True,
     ) -> None:
         """Register a command handler with optional aliases.
+
+        `takes_args=False` declares a command that takes no argument:
+        the registry refuses one with E488 and the handler never runs.
 
         Raises ValueError on a duplicate name or alias — silently
         overwriting would let one module shadow another's command.
         """
         if name in self._commands or name in self._aliases:
             raise ValueError(f"Command already registered: {name}")
-        self._commands[name] = handler
+        self._commands[name] = _Command(handler, takes_args)
         for alias in aliases or []:
             if alias in self._commands or alias in self._aliases:
                 raise ValueError(f"Command alias already registered: {alias}")
@@ -405,15 +420,17 @@ class CommandRegistry:
         if cmd.cmd_range is not None and cmd.cmd_range.out_of_range:
             ctx.fail("E16: Invalid range")
             return buffer, cursor
-        resolved = self._aliases.get(cmd.name, cmd.name)
-        handler = self._commands.get(resolved)
-        if handler is None:
+        command = self._commands.get(self.resolve(cmd.name))
+        if command is None:
             # vim's wording, with the command as typed (fail would add "E: ")
             typed = cmd.name + ("!" if cmd.bang else "") + (f" {cmd.args}" if cmd.args else "")
             ctx.message = f"E492: Not an editor command: {typed}"
             ctx.error = True
             return buffer, cursor
-        return handler(buffer, cursor, cmd, ctx)
+        if cmd.args and not command.takes_args:
+            ctx.fail(f"E488: Trailing characters: {cmd.args}")
+            return buffer, cursor
+        return command.handler(buffer, cursor, cmd, ctx)
 
     def subset(self, names: tuple[str, ...]) -> CommandRegistry:
         """A registry of just the commands `names`, with their aliases:
@@ -422,8 +439,13 @@ class CommandRegistry:
         part = CommandRegistry()
         for name in names:
             aliases = [a for a, target in self._aliases.items() if target == name]
-            part.register(name, self._commands[name], aliases=aliases)
+            command = self._commands[name]
+            part.register(name, command.handler, aliases, takes_args=command.takes_args)
         return part
+
+    def takes_args(self, name: str) -> bool:
+        """Whether the command `name` (or alias) takes an argument."""
+        return self._commands[self.resolve(name)].takes_args
 
     def resolve(self, name: str) -> str:
         """The canonical command name for `name` (aliases resolved)."""

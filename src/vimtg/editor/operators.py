@@ -8,6 +8,7 @@ TUI-agnostic: no Textual imports.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -16,16 +17,25 @@ from vimtg.domain.deck_lines import (
     MAX_QUANTITY,
     format_inline_comment,
     is_bare_card_line,
+    is_block_marker,
     parse_zone_header,
     zone_running_context,
 )
 from vimtg.domain.tags import format_inline_tags
-from vimtg.editor.buffer import HEADER_LINE_TYPES, ZONE_TAG_TYPES, Buffer, LineType
+from vimtg.editor.buffer import (
+    HEADER_LINE_TYPES,
+    ZONE_TAG_TYPES,
+    Buffer,
+    LineType,
+    insertion_zone,
+)
 from vimtg.editor.cursor import Cursor
+from vimtg.editor.section_model import parse_sections, section_at
 
 if TYPE_CHECKING:
     from vimtg.editor.placement import PlacementPolicy
 from vimtg.editor.motions import (
+    HALF_PAGE_MOTIONS,
     MOTION_REGISTRY,
     motion_goto_line,
     motion_last_line,
@@ -39,6 +49,7 @@ class OperatorResult:
     cursor: Cursor
     registers: RegisterStore
     enter_insert: bool = False
+    rows: tuple[int, ...] = ()  # the rows operated on, ascending
 
 
 # How each operator target behaves, vim-style. Exclusive motions stop
@@ -58,12 +69,53 @@ def _is_entry(buffer: Buffer, row: int) -> bool:
     )
 
 
-def _trim_end(buffer: Buffer, start: int, end: int) -> int:
-    """Pull `end` back over trailing non-entry lines (blanks, the next
-    section's header) so an exclusive range never eats a boundary."""
-    while end > start and not _is_entry(buffer, end):
-        end -= 1
-    return end
+def _zone_bounds(buffer: Buffer, row: int) -> tuple[int, int]:
+    """First and last row of the zone around `row`. An exclusive range
+    never crosses a block marker (deleting SB: would move every
+    sideboard card into the mainboard) nor reaches a card of another
+    zone ('SB: 3 Rest in Peace' under a '// Sideboard' header)."""
+    zone = buffer.get_line(row).line_type if _is_entry(buffer, row) else insertion_zone(buffer, row)
+
+    def wall(i: int) -> bool:
+        line = buffer.get_line(i)
+        return is_block_marker(line.text) or (_is_entry(buffer, i) and line.line_type != zone)
+
+    lo, hi = 0, buffer.line_count() - 1
+    for i in range(row, -1, -1):
+        if wall(i):
+            lo = i + 1
+            break
+    for i in range(row + 1, hi + 1):
+        if wall(i):
+            hi = i - 1
+            break
+    return lo, hi
+
+
+def _exclusive_rows(
+    buffer: Buffer, cursor_row: int, start: int, end: int
+) -> tuple[int, ...]:
+    """The rows an exclusive motion acts on within [start, end]: its
+    entries, plus the blank and header between two of them only when
+    the range empties the section that header opens. Nothing outside
+    the cursor's zone; no entries, no range."""
+    lo, hi = _zone_bounds(buffer, cursor_row)
+    entries = [r for r in range(max(start, lo), min(end, hi) + 1) if _is_entry(buffer, r)]
+    taken = set(entries)
+    sections = parse_sections(buffer)
+
+    def emptied(header: int) -> bool:
+        section = section_at(sections, header)
+        return section is not None and taken.issuperset(section.card_rows)
+
+    rows: list[int] = []
+    for prev, nxt in zip(entries, entries[1:], strict=False):
+        rows.append(prev)
+        gap = range(prev + 1, nxt)
+        headers = [r for r in gap if buffer.get_line(r).line_type in HEADER_LINE_TYPES]
+        if all(map(emptied, headers)):
+            rows.extend(gap)
+    return (*rows, *entries[-1:])
 
 
 def _range_w(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
@@ -79,7 +131,7 @@ def _range_w(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
         pos = nxt
         moved += 1
     if moved == count:
-        return row, _trim_end(buffer, row, pos - 1)
+        return row, pos - 1
     return row, pos
 
 
@@ -91,9 +143,7 @@ def _range_b(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
         if prev is None:
             break
         pos = prev
-    if pos == row:
-        return row, row - 1  # nothing before the cursor: empty
-    return pos, _trim_end(buffer, pos, row - 1)
+    return pos, row - 1
 
 
 def _range_section_forward(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
@@ -119,9 +169,7 @@ def _range_section_backward(buffer: Buffer, row: int, count: int) -> tuple[int, 
     the cursor line itself is not included, as in vim."""
     pos = row
     for i in range(count):
-        if i == 0 and _is_entry(buffer, pos) and _is_entry(buffer, pos - 1):
-            pass  # mid-section: back to this section's first card
-        else:
+        if i > 0 or not _is_entry(buffer, pos):
             prev = pos - 1
             while prev >= 0 and not _is_entry(buffer, prev):
                 prev -= 1
@@ -130,24 +178,20 @@ def _range_section_backward(buffer: Buffer, row: int, count: int) -> tuple[int, 
             pos = prev
         while _is_entry(buffer, pos - 1):
             pos -= 1
-    if pos >= row:
-        return row, row - 1
-    return pos, _trim_end(buffer, pos, row - 1)
+    return pos, row - 1
 
 
 def _range_header_forward(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
     """d]]: up to, not including, the count-th next header."""
     target = MOTION_REGISTRY["]]"](Cursor(row=row), buffer, count).row
     if target > row and buffer.get_line(target).line_type in HEADER_LINE_TYPES:
-        return row, _trim_end(buffer, row, target - 1)
+        return row, target - 1
     return row, max(row, target)
 
 
 def _range_header_backward(buffer: Buffer, row: int, count: int) -> tuple[int, int]:
     """d[[: from the count-th previous header to the line above the cursor."""
     target = MOTION_REGISTRY["[["](Cursor(row=row), buffer, count).row
-    if target >= row:
-        return row, row - 1
     return target, row - 1
 
 
@@ -161,18 +205,22 @@ _EXCLUSIVE_RANGES = {
 }
 
 
-def resolve_line_range(
+def _span(first: int, last: int) -> tuple[int, ...]:
+    return tuple(range(first, last + 1))
+
+
+def resolve_rows(
     op: str, motion: str | None, cursor: Cursor, buffer: Buffer, count: int
-) -> tuple[int, int]:
-    """Resolve operator+motion to a line range (start, end inclusive).
+) -> tuple[int, ...]:
+    """The rows operator+motion acts on, ascending; () when none.
 
-    dd/yy/cc (motion=None) -> (cursor.row, cursor.row + count - 1)
-    Linewise motions (j k G gg Ctrl-D/U) include the target line;
-    exclusive ones (w b { } [[ ]]) stop short of it — see
-    EXCLUSIVE_MOTIONS. An empty range comes back with end < start
-    (db on the first card): there is nothing to operate on.
+    dd/yy/cc (motion=None) take count lines from the cursor. Linewise
+    motions (j k G gg Ctrl-D/U) include the target line; exclusive ones
+    (w b { } [[ ]]) stop short of it and take entries, never a block
+    marker or the header of a section they leave cards in (see
+    _exclusive_rows), so their rows need not be contiguous.
 
-    `count` 0 means no count was typed — it only matters for G, where
+    `count` 0 means no count was typed: it only matters for G, where
     dG runs to the end but d8G stops at line 8.
     """
     if motion == "G":
@@ -180,34 +228,31 @@ def resolve_line_range(
             target = motion_goto_line(cursor, buffer, count)
         else:
             target = motion_last_line(cursor, buffer)
-        return (min(cursor.row, target.row), max(cursor.row, target.row))
+        return _span(min(cursor.row, target.row), max(cursor.row, target.row))
     count = max(1, count)
+    last = buffer.line_count() - 1
     if motion is None:  # doubled operator: dd, yy, cc
-        end = min(cursor.row + count - 1, buffer.line_count() - 1)
-        return (cursor.row, end)
+        return _span(cursor.row, min(cursor.row + count - 1, last))
     # j/k operate on raw lines (vim: dj = exactly two lines). The
     # cursor motions skip blanks, which would silently widen the range
     # across a blank onto the next section or zone-block header.
-    # A motion that cannot move at all fails, as in vim: dj on the last
-    # line (dk on the first) deletes nothing, not the line itself.
+    # A motion that cannot move at all fails, as in vim: dj or d<C-d>
+    # on the last line (dk or d<C-u> on the first) deletes nothing, not
+    # the line itself.
     if motion == "j":
-        if cursor.row >= buffer.line_count() - 1:
-            return (cursor.row, cursor.row - 1)
-        return (cursor.row, min(cursor.row + count, buffer.line_count() - 1))
+        return _span(cursor.row, min(cursor.row + count, last)) if cursor.row < last else ()
     if motion == "k":
-        if cursor.row <= 0:
-            return (cursor.row, cursor.row - 1)
-        return (max(cursor.row - count, 0), cursor.row)
+        return _span(max(cursor.row - count, 0), cursor.row) if cursor.row > 0 else ()
     exclusive = _EXCLUSIVE_RANGES.get(motion)
     if exclusive is not None:
-        return exclusive(buffer, cursor.row, count)
+        return _exclusive_rows(buffer, cursor.row, *exclusive(buffer, cursor.row, count))
     motion_fn = MOTION_REGISTRY.get(motion)
     if motion_fn is None:
-        return (cursor.row, cursor.row)
+        return (cursor.row,)
     target = motion_fn(cursor, buffer, count)
-    start = min(cursor.row, target.row)
-    end = max(cursor.row, target.row)
-    return (start, end)
+    if motion in HALF_PAGE_MOTIONS and target.row == cursor.row:
+        return ()
+    return _span(min(cursor.row, target.row), max(cursor.row, target.row))
 
 
 def execute_operator(
@@ -221,7 +266,7 @@ def execute_operator(
 ) -> OperatorResult:
     """Execute d/y/c/dd/yy/cc with motion resolution.
 
-    An empty range (db on the first card) changes nothing — except c,
+    An empty range (db on the first card) changes nothing, except c,
     which still opens the card search, as vim's c with an empty motion
     still enters insert mode.
     """
@@ -229,24 +274,48 @@ def execute_operator(
     actual_op = op[0] if len(op) == 2 else op
     actual_motion = None if len(op) == 2 else motion
 
-    start, end = resolve_line_range(actual_op, actual_motion, cursor, buffer, count)
-    start = max(0, start)
-    end = min(end, buffer.line_count() - 1)
-    if end < start:
+    rows = resolve_rows(actual_op, actual_motion, cursor, buffer, count)
+    if not rows:
         return OperatorResult(
             buffer=buffer, cursor=cursor, registers=registers,
             enter_insert=(actual_op == "c"),
         )
 
     if actual_op == "y":
-        return _yank(buffer, cursor, registers, register_name, start, end)
+        yanked = tuple(buffer.get_line(i).text for i in rows)
+        new_regs = store_lines(registers, register_name, yanked, is_delete=False)
+        return OperatorResult(buffer=buffer, cursor=cursor, registers=new_regs, rows=rows)
 
     if actual_op in ("d", "c"):
-        return _delete_or_change(
-            actual_op, buffer, cursor, registers, register_name, start, end
+        new_buf, deleted = delete_rows(buffer, rows)
+        new_regs = store_lines(registers, register_name, deleted, is_delete=True)
+        new_row = max(0, min(rows[0], new_buf.line_count() - 1))
+        return OperatorResult(
+            buffer=new_buf,
+            cursor=cursor.move_to(new_row, 0),
+            registers=new_regs,
+            enter_insert=(actual_op == "c"),
+            rows=rows,
         )
 
     return OperatorResult(buffer=buffer, cursor=cursor, registers=registers)
+
+
+def delete_rows(buffer: Buffer, rows: Sequence[int]) -> tuple[Buffer, tuple[str, ...]]:
+    """Delete `rows` (ascending, not necessarily contiguous), each run
+    of adjacent rows bottom-up so the rows above keep their index.
+    Returns the new buffer and the deleted texts, top to bottom."""
+    runs: list[tuple[int, int]] = []
+    for row in rows:
+        if runs and runs[-1][1] == row - 1:
+            runs[-1] = (runs[-1][0], row)
+        else:
+            runs.append((row, row))
+    texts: tuple[str, ...] = ()
+    for first, last in reversed(runs):
+        buffer, deleted = buffer.delete_lines(first, last)
+        texts = deleted + texts
+    return buffer, texts
 
 
 def store_lines(
@@ -257,48 +326,16 @@ def store_lines(
     is_delete: bool,
 ) -> RegisterStore:
     """File yanked/deleted lines vim-style: into the named register and
-    the unnamed one (plus "0 or the "1-"9 delete history). The black
-    hole register "_ swallows them and leaves every register untouched."""
+    the unnamed one, plus the "1-"9 delete history for a delete. "0 holds
+    only the last yank made without a register name. The black hole
+    register "_ swallows them and leaves every register untouched."""
     if register_name == BLACK_HOLE:
         return registers
     reg_name = register_name or '"'
-    return registers.set(reg_name, lines).set_unnamed(lines, is_delete=is_delete)
-
-
-def _yank(
-    buffer: Buffer,
-    cursor: Cursor,
-    registers: RegisterStore,
-    register_name: str | None,
-    start: int,
-    end: int,
-) -> OperatorResult:
-    """Yank lines into register without modifying buffer."""
-    yanked = tuple(buffer.get_line(i).text for i in range(start, end + 1))
-    new_regs = store_lines(registers, register_name, yanked, is_delete=False)
-    return OperatorResult(buffer=buffer, cursor=cursor, registers=new_regs)
-
-
-def _delete_or_change(
-    op: str,
-    buffer: Buffer,
-    cursor: Cursor,
-    registers: RegisterStore,
-    register_name: str | None,
-    start: int,
-    end: int,
-) -> OperatorResult:
-    """Delete or change lines, storing deleted text in register."""
-    new_buf, deleted = buffer.delete_lines(start, end)
-    new_regs = store_lines(registers, register_name, deleted, is_delete=True)
-    new_row = min(start, new_buf.line_count() - 1)
-    new_cursor = cursor.move_to(max(0, new_row), 0)
-    return OperatorResult(
-        buffer=new_buf,
-        cursor=new_cursor,
-        registers=new_regs,
-        enter_insert=(op == "c"),
-    )
+    stored = registers.set(reg_name, lines)
+    if is_delete or reg_name == '"':
+        return stored.set_unnamed(lines, is_delete=is_delete)
+    return stored.set('"', lines)
 
 
 def put_lines(

@@ -1,6 +1,9 @@
 import json
-from collections.abc import Callable, Iterator
+import subprocess
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -34,6 +37,50 @@ def isolate_xdg_dirs(
     for var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
         monkeypatch.delenv(var, raising=False)
         monkeypatch.delenv(var.lower(), raising=False)
+
+
+@dataclass
+class FakeClipboard:
+    """The system clipboard as the app sees it during a test."""
+
+    text: str | None = None
+    copies: list[str] = field(default_factory=list)
+
+    def run(self, args: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        if args[0] == "fake-copy":
+            self.text = kwargs["input"].decode("utf-8")
+            self.copies.append(self.text)
+            return subprocess.CompletedProcess(list(args), 0)
+        out = (self.text or "").encode("utf-8")
+        return subprocess.CompletedProcess(list(args), 0 if self.text is not None else 1, out, b"")
+
+
+@pytest.fixture(autouse=True)
+def clipboard(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> FakeClipboard:
+    """Keep the real clipboard out of tests: the app's copy and paste go
+    to an in-memory clipboard instead of pbcopy, xclip or wl-copy. Tests
+    of the clipboard service itself opt out with the real_clipboard mark
+    (they inject their own runners)."""
+    fake = FakeClipboard()
+    if request.node.get_closest_marker("real_clipboard") is not None:
+        return fake
+    from vimtg.services import clipboard as service
+
+    tool = service._Tool("fake", ("fake-copy",), ("fake-paste",))
+    monkeypatch.setattr(service, "_tools", lambda env, platform: [tool])
+    monkeypatch.setattr(service, "shutil", SimpleNamespace(which=lambda name: f"/fake/{name}"))
+    monkeypatch.setattr(
+        service,
+        "subprocess",
+        SimpleNamespace(
+            run=fake.run,
+            DEVNULL=subprocess.DEVNULL,
+            SubprocessError=subprocess.SubprocessError,
+        ),
+    )
+    return fake
 
 
 @pytest.fixture

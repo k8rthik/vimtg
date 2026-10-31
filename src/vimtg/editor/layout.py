@@ -120,7 +120,9 @@ def regroup_buffer(
     if mode == LAYOUT_TYPE:
         groups = _group_by_type(zone_lines[LineType.CARD_ENTRY], resolved)
     else:
-        groups = _group_by_category(zone_lines[LineType.CARD_ENTRY])
+        groups = _group_by_category(
+            zone_lines[LineType.CARD_ENTRY], by_name=_has_type_sections(buffer)
+        )
 
     out: list[str] = list(metadata)
     if comments:
@@ -301,13 +303,24 @@ def _group_by_type(
     ]
 
 
-def _group_by_category(
-    cards: list[BufferLine],
-) -> list[tuple[str, list[BufferLine]]]:
-    """Group mainboard lines by category, in first-appearance order.
+def _has_type_sections(buffer: Buffer) -> bool:
+    """Whether any mainboard card sits under a type header ('// Creature',
+    '// Other'), whose order says nothing about the categories."""
+    return any(
+        section.key.kind is SectionKind.TYPE or section.key == _OTHER_KEY
+        for section in parse_sections(buffer)
+    )
 
-    First-appearance order preserves the user's own arrangement across
-    toggles; uncategorized cards form a trailing group.
+
+def _group_by_category(
+    cards: list[BufferLine], *, by_name: bool = False,
+) -> list[tuple[str, list[BufferLine]]]:
+    """Group mainboard lines by category, in first-appearance order, or
+    by name when `by_name` (cards coming from a type layout, so gl gl
+    from the canonical category layout gives the same text back).
+
+    First-appearance order keeps the user's own arrangement of a flat or
+    category-grouped deck; uncategorized cards form a trailing group.
     """
     from vimtg.domain.deck_lines import parse_card_line
 
@@ -327,7 +340,7 @@ def _group_by_category(
 
     groups = [
         (SectionKey(SectionKind.CATEGORY, category).header_text(), buckets[category])
-        for category in order
+        for category in (sorted(order) if by_name else order)
     ]
     if uncategorized:
         groups.append((_UNCATEGORIZED_KEY.header_text(), uncategorized))

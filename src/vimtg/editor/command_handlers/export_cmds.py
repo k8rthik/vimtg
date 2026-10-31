@@ -139,7 +139,9 @@ def _deliver_export(
         ctx.fail(conflict)
         return
     try:
-        atomic_write_text(target, result)
+        # The export's own line endings, so a CSV keeps its \r\n and the
+        # file matches what :clipboard copies, on every platform
+        atomic_write_text(target, result, newline="")
     except OSError as exc:
         ctx.fail(f"Write failed: {exc}")
         return

@@ -12,6 +12,10 @@ key) prints on the command line when its output fits on one line, and
 otherwise opens it in a floating pager, one entry per line, as vim's
 more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
 
+A command that takes no argument (`:q`, `:home`, `:close`, `:validate`,
+`:sync` and the like) refuses one with vim's `E488: Trailing characters`
+and does nothing: `:q junk` does not quit.
+
 ## File
 
 | Command | Description |
@@ -36,7 +40,7 @@ more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
 |---------|-------------|
 | `:sort [field]` | Sort the current section. Fields: `name`, `cmc`, `type`, `color`, `qty`, `category`, `power`, `toughness`, `rarity`, `price`. No field uses the `sort_order` setting (default `cmc`). `:sort!` reverses |
 | `:%sort name` | Sort the entire deck alphabetically |
-| `:s/pat/rep/[flags]` | Substitute. `pat` is a regular expression compiled exactly like `/` and `:g` (case-insensitive); an empty `pat` reuses the last search. In `rep`, `&` (or `\0`) is the whole match, `\1`-`\9` are groups, `\&` is a literal `&`. Flags: `g` (every match on a line), `I` (match case), `i` (ignore case, the default). `\/` puts a literal delimiter in either part. `.` repeats the last `:s` on the cursor line |
+| `:s/pat/rep/[flags]` | Substitute. `pat` is a regular expression compiled exactly like `/` and `:g` (case-insensitive); an empty `pat` reuses the last search. In `rep`, `&` (or `\0`) is the whole match, `\1`-`\9` are groups, `\&` is a literal `&`. Flags: `g` (every match on a line), `I` (match case), `i` (ignore case, the default). `\/` puts a literal delimiter in either part. On a card line `pat` sees the line without its zone-block indentation, so `^4` matches `    4 Lightning Bolt`, and the result keeps the indentation. `.` repeats the last `:s` on the cursor line |
 | `:%s/Bolt/Helix/g` | Substitute across the deck |
 | `:[range]g/pattern/cmd` | Run `cmd` on every card line in the range (the whole deck by default; `'<,'>` from visual mode) matching `pattern`, in any zone (mainboard, sideboard, maybeboard, command zone, companion). Headers, comments, metadata, and plan entries never match. `cmd` is one of `d` (delete), `p` (list the matches), `y [x]` (yank into register `x`; `"A` appends), `s/pat/rep/[flags]` (substitute; an empty `pat` is the `:g` pattern) |
 | `:v/pattern/cmd`, `:g!/pattern/cmd` | Inverse: run on every card line **not** matching |
@@ -73,7 +77,7 @@ keeps its `@category` token, so toggling back and forth is lossless.
 | `:category!` | Clear the category from the line/range; in a category-grouped deck the card moves to `// Uncategorized` |
 | `:categories` (alias `:cats`) | List categories with counts; `:categories name` lists that category's cards |
 | `:layout type` | Regroup mainboard by card type (`// Creatures`, …) |
-| `:layout category` | Regroup by category (`// @ramp`, …); uncategorized cards group last |
+| `:layout category` | Regroup by category (`// @ramp`, …); uncategorized cards group last. From the type layout the categories come in name order, so `gl gl` gives a category deck back unchanged; a flat or category-grouped deck keeps its own category order |
 | `:layout` | Toggle between the two (also the `gl` key) |
 | `:filter expr` | Dim every card whose `@category` fails the expression and suppress its expansion; `:filter!` or a bare `:filter` clears. `Space f` opens the same prompt. `Tab` completes the deck's categories, most used first |
 
@@ -83,13 +87,16 @@ In-group card order follows the `sort_order` setting
 Filter expression grammar:
 
 ```
-expr  := term ('|' term)*
-term  := factor ('+' factor)*
+filter := expr (' ' expr)*
+expr   := term ('|' term)*
+term   := factor ('+' factor)*
 factor := '-'? IDENT
 ```
 
 So `ramp|draw` is `ramp OR draw` and `ramp -removal` is `ramp AND NOT
-removal`. A card has one category, so `ramp+draw` (AND) matches nothing.
+removal`: spaces join whole expressions with AND. `-` binds to the one
+name after it, so `-burn|threats` is `(NOT burn) OR threats`. A card has
+one category, so `ramp+draw` (AND) matches nothing.
 An empty expression clears the filter.
 
 ## The side pane & EDHREC
