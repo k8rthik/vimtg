@@ -53,7 +53,7 @@ Stable handles to wait on and assert against:
 - Command-line messages are literal: `Written: <file>`, `"copy.deck" written`, `Moved 2x <card> to sideboard (2 remain)`, `Added 4x <card>`, `Filter cleared`, `Type :q and press Enter to exit vimtg`, `E37: No write since last change (add ! to override)`, `E492: Not an editor command: <cmd>`, `search hit BOTTOM, continuing at TOP`.
 - Card lines render as `<row>  <qty>   <name>  <cost>  <type>`; the gutter shows `✗` (error) or `!` (warning) before the row number.
 - The cursor card's rules text shows on the next line after `│`.
-- Overlays draw a rounded border with their title (`History — <deck>`, `vimtg Help`, `Messages`, `Sample hand`, `Settings`, `Merge — <deck>`) and their close keys in the bottom border.
+- Overlays draw a rounded border with their title (`History — <deck>`, `vimtg Help`, `Messages`, `Sample hand`, `Settings`) and their close keys in the bottom border.
 - Panes: opening analytics prints `Analytics pane open` on the command line.
 
 Typical step: act, wait for the message, shot, then check the side effect.

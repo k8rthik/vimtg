@@ -246,11 +246,6 @@ class HandlerResult:
     help_topic: str | None = None
     vcs_commit_description: str = ""
     vcs_checkpoint_name: str = ""
-    vcs_list_branches: bool = False
-    vcs_create_branch: str = ""
-    vcs_switch_branch: str = ""
-    vcs_merge_target: str = ""
-    vcs_rebase_target: str = ""
     command_ghost: str = ""
     command_accept: str = ""
     enter_line_edit: bool = False
@@ -672,11 +667,6 @@ def handle_command(
             help_topic=ctx.help_topic,
             vcs_commit_description=ctx.vcs_commit_description,
             vcs_checkpoint_name=ctx.vcs_checkpoint_name,
-            vcs_list_branches=ctx.vcs_list_branches,
-            vcs_create_branch=ctx.vcs_create_branch,
-            vcs_switch_branch=ctx.vcs_switch_branch,
-            vcs_merge_target=ctx.vcs_merge_target,
-            vcs_rebase_target=ctx.vcs_rebase_target,
             split_open=ctx.split_open,
             split_close=ctx.split_close,
             edhrec_open=ctx.edhrec_open,

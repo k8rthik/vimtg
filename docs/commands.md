@@ -7,7 +7,7 @@ an offset alone counts from the cursor line: `.,+3d` deletes four lines,
 `:+2` goes two lines down, `$-1` is the line before the last.
 
 A command that lists things (`:registers`, `:marks`, `:tags`,
-`:categories`, `:plans`, `:validate`, `:branch`, `:g/pat/p`, and the `tl`
+`:categories`, `:plans`, `:validate`, `:g/pat/p`, and the `tl`
 key) prints on the command line when its output fits on one line, and
 otherwise opens it in a floating pager, one entry per line, as vim's
 more-prompt does (`q`/`Esc` close it; `:messages` keeps the output).
@@ -161,13 +161,11 @@ line it inserts the text.
 
 ## Version control
 
-vimtg keeps a git-like commit graph per deck (persistent branches,
-merges, and rebases). Branches and the current branch survive across
+vimtg keeps one linear chain of snapshots per deck, saved across
 sessions. `:history` (or `gh`) opens a floating lazygit-style overlay
-over the editor with Working copy, Branches, Snapshots, Diff, and Stats
-panels; the snapshot log follows merge parents, so commits that arrived
-through a merge are listed with their branch name. See
-[keybindings.md](./keybindings.md#version-control-overlay) for the
+over the editor with Working copy, Snapshots, Diff, and Stats panels,
+where snapshots can be tagged and restored. See
+[keybindings.md](./keybindings.md#history-overlay-gh-history) for the
 overlay keys.
 
 | Command | Description |
@@ -175,25 +173,13 @@ overlay keys.
 | `:history` (alias `:log`) | Open the history overlay (also `gh`) |
 | `:commit "msg"` | Snapshot the current deck state |
 | `:checkpoint name` | Commit the current state and tag it |
-| `:branch` | List branches (`*` marks the current one) |
-| `:branch name` | Create a new branch at the current tip |
-| `:branch! name` | Switch to an existing branch (loads its tip) |
-| `:merge branch` | Merge a branch (3-way; fast-forwards when possible) |
-| `:merge path.deck` | Merge another deck file's cards (empty merge base) |
-| `:rebase branch` | Replay this branch's commits onto another branch tip |
 
 History belongs to the deck file, so a deck that has never been written
-has none: `:commit`, `:checkpoint`, `gh`, and the other history commands
-say `E32: No file name` until the first `:w`.
-
-Merging and rebasing require a committed working state (`:commit` first).
-When both branches changed the same card differently, an interactive
-resolution screen opens: pick ours, theirs, or a custom quantity per
-card. Merge commits record both parents and carry a `⇄ merge` marker in
-the overlay's snapshot log. Rebase replays commits with a
-replayed-change-wins policy and leaves the original snapshots recoverable
-by id. Note that merge and rebase results are normalized on write
-(sections regrouped, free comments dropped), like cherry-pick.
+has none: `:commit`, `:checkpoint` and `gh` say `E32: No file name`
+until the first `:w`. `:w` snapshots the deck as `auto: save`; a
+`:commit` of the same deck right after names that snapshot instead of
+adding a second one. Restoring a snapshot loads it into the editor and
+records the restore as a new snapshot on top of the history.
 
 ## Analytics
 

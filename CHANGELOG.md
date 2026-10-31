@@ -43,11 +43,23 @@ from 1.0.0 onward.
   help window as the editor instead of a third copy of the help text.
 - Which-key menus are titled by their prefix (`window`, `leader`, `go`,
   `delete` ...) instead of "Next".
-- Help, `:messages`, `:config`, `:hand` and the merge resolver open as
-  the same floating window as the history overlay (a bordered box over
+- Help, `:messages`, `:config` and `:hand` open as the same floating
+  window as the history overlay (a bordered box over
   the dimmed editor, titled, with its close keys on the bottom border)
   instead of taking over the screen. `?` inside the history overlay
   opens its help above it.
+
+### Removed
+
+- Deck history is linear. The git-style `:branch`, `:merge` and `:rebase`
+  commands, the overlay's Branches panel with its `b`/`B`/`D`/`m`/`r`
+  keys, cherry-pick (`p`) and the merge conflict screen are gone; the
+  history overlay has four panels (`1`-`4`: Working copy, Snapshots,
+  Diff, Stats). `:w` snapshots, `:commit`, `:checkpoint`, tag/untag and
+  restore work as before. An existing database drops its `branches` and
+  `deck_heads` tables on first open; every snapshot stays and the most
+  recent one is the tip. The editor status line shows the snapshot count
+  (`14 snapshots`) instead of `[main] (14)`.
 
 ### Added
 
@@ -136,7 +148,7 @@ from 1.0.0 onward.
   as `E: E37: ...`.
 - Listing commands no longer cut their output off at the terminal edge:
   `:registers`, `:marks`, `:tags`, `:categories`, `:plans`, `:validate`,
-  `:branch`, `:g/pat/p` and `tl` print on the command line when the
+  `:g/pat/p` and `tl` print on the command line when the
   output fits on one line, and otherwise open it in the floating pager
   `:messages` uses, one entry per line, as vim's more-prompt does.
   `:messages` keeps the output.
@@ -144,16 +156,10 @@ from 1.0.0 onward.
   `:3`, `:$`, or closing the view `:help`, `:history`, `:hand`, `:config`
   or `:messages` opened, the hint bar is back instead of the stale
   `:help` text.
-- Errors in the history overlay and the merge resolver are `E:` errors
-  drawn in red, like the editor's (a database error used to show in the
-  green of a status message). The editor and the overlay word the same
-  refusal the same way: `E: Uncommitted changes — commit them first`
-  (`(:commit)` in the editor, `(c)` in the overlay) and `E: Branch
-  exists: name`. Without a database the history commands say `E: VCS
+- Errors in the history overlay are `E:` errors drawn in red, like the
+  editor's (a database error used to show in the green of a status
+  message). Without a database the history commands say `E: VCS
   unavailable (no database)` as an error.
-- `q` in the merge resolver no longer throws away resolved conflicts at
-  once: with any card resolved it warns first ("press q again to
-  discard"), the guard `:config` has for unsaved settings.
 - The sample hand takes the shared list keys: `gg`/`G`, `Ctrl-D`/`Ctrl-U`
   and `Home`/`End` select a card as `j`/`k` do, `?` opens the `hand` help
   topic and `F1` the full help, and its hint bar names them.
@@ -215,8 +221,6 @@ from 1.0.0 onward.
   `2 Bolt @reach`) correctly in `:hand`, `vimtg hand` and plan
   previews, and plan lines match names the way validation does
   (`Fire/Ice` is `Fire // Ice`) and follow renamed cards on import.
-- Cherry-pick and rebase no longer double a card split over two lines;
-  merging a branch brings in the sideboard plans only that branch has.
 - No false "outside commander color identity" errors while a partner
   commander's name is unknown. The free mulligan applies to `EDH`,
   `cEDH`, `Standard Brawl` and the other format aliases. New decks in

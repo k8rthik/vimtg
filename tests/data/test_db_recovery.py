@@ -38,7 +38,7 @@ def opened() -> Iterator[list[Database]]:
 
 
 def _build(path: Path, real_shape_cards: list[dict[str, object]]) -> None:
-    """A healthy database with cards and three history tables filled."""
+    """A healthy database with cards and a three-snapshot history."""
     db = Database(path)
     db.initialize()
     CardRepository(db).replace_all(
@@ -53,10 +53,6 @@ def _build(path: Path, real_shape_cards: list[dict[str, object]]) -> None:
             (f"s{i}", "/decks/burn.deck", f"s{i - 1}" if i else None,
              f"{i + 1} Lightning Bolt\n", f"2026-10-0{i + 1}T00:00:00", f"edit {i}"),
         )
-    conn.execute(
-        "INSERT INTO branches VALUES ('main', '/decks/burn.deck', 's2', '2026-10-01')"
-    )
-    conn.execute("INSERT INTO deck_heads VALUES ('/decks/burn.deck', 'main')")
     conn.commit()
     db.close()  # last connection: the WAL is checkpointed into the file
 
@@ -141,7 +137,7 @@ class TestRecover:
         report = result.recovered
         assert report is not None
         assert report.complete
-        assert report.salvaged == {"snapshots": 3, "branches": 1, "deck_heads": 1}
+        assert report.salvaged == {"snapshots": 3}
         # The damaged bytes are kept untouched as the backup
         assert report.backup == tmp_path / BACKUP_NAME
         assert report.backup.read_bytes() == damaged
@@ -154,7 +150,6 @@ class TestRecover:
             ("s1", "2 Lightning Bolt\n"),
             ("s2", "3 Lightning Bolt\n"),
         ]
-        assert _rows(path, "SELECT * FROM deck_heads") == [("/decks/burn.deck", "main")]
         assert "Deck history was recovered (3 snapshots)" in result.warning
         assert str(report.backup) in result.warning
         assert ":sync" in result.warning
@@ -173,9 +168,8 @@ class TestRecover:
         report = result.recovered
         assert report is not None
         assert not report.complete
-        # What could be read still made it across
-        assert report.salvaged == {"branches": 1, "deck_heads": 1}
-        assert "only partly recovered" in result.warning
+        assert report.salvaged == {}
+        assert "could not be recovered" in result.warning
         assert (tmp_path / BACKUP_NAME).exists()
 
     def test_unreadable_file_keeps_backup_and_says_so(

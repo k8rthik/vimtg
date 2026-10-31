@@ -2,7 +2,7 @@
 
 Combines fast unit tests for the two embedded Static widgets (command line and
 status line) with pilot-driven integration tests that exercise the real key
-path: commit, branch, tag/untag, restore confirmation, and navigation.
+path: commit, tag/untag, restore confirmation, and navigation.
 """
 
 from __future__ import annotations
@@ -10,7 +10,6 @@ from __future__ import annotations
 import pytest
 
 from tests.tui.history_support import (
-    STATE_V1,
     STATE_V2,
     HistoryHostApp,
     make_history_screen,
@@ -23,7 +22,6 @@ from vimtg.tui.screens.history_screen import (
     InputMode,
     Panel,
 )
-from vimtg.tui.widgets.branches_panel import BranchesPanel
 from vimtg.tui.widgets.diff_panel import DiffPanel
 from vimtg.tui.widgets.snapshots_panel import SnapshotsPanel
 
@@ -37,7 +35,7 @@ class TestHistoryCommandLine:
         cl = HistoryCommandLine()
         text = cl.render().plain
         assert "ommit" in text
-        assert "ranch" in text
+        assert "restore" in text
         assert "back" in text
 
     def test_show_message(self) -> None:
@@ -90,16 +88,14 @@ class TestHistoryCommandLine:
 
 
 class TestHistoryStatusLine:
-    def test_render_shows_deck_and_branch(self) -> None:
+    def test_render_shows_deck_and_count(self) -> None:
         sl = HistoryStatusLine()
         sl.deck_name = "Burn"
-        sl.branch = "main"
         sl.snapshot_count = 3
         sl.active_panel = Panel.SNAPSHOTS
         rendered = sl.render().plain
         assert "HISTORY" in rendered
         assert "Burn" in rendered
-        assert "[main]" in rendered
         assert "3 snapshots" in rendered
         assert "Snapshots" in rendered
 
@@ -120,10 +116,8 @@ async def test_mount_populates_panels(vcs_with_history: VersionControlService) -
     async with app.run_test() as pilot:
         await pilot.pause()
         sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-        bp = screen.query_one("#branches-panel", BranchesPanel)
         sl = screen.query_one("#history-status", HistoryStatusLine)
         assert len(sp.snapshots) == 2
-        assert len(bp.branches) == 1
         assert sl.snapshot_count == 2
 
 
@@ -228,46 +222,11 @@ async def test_backspace_edits_input(
     app = _HostApp(screen)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("b")
+        await pilot.press("c")
         for ch in "abc":
             await pilot.press(ch)
         await pilot.press("backspace")
         assert screen._input_text == "ab"
-
-
-@pytest.mark.asyncio
-async def test_branch_flow_creates_branch(
-    vcs_with_history: VersionControlService,
-) -> None:
-    screen = _make_screen(vcs_with_history)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("b")
-        for ch in "budget":
-            await pilot.press(ch)
-        await pilot.press("enter")
-        await pilot.pause()
-        bp = screen.query_one("#branches-panel", BranchesPanel)
-        names = {b.name for b in bp.branches}
-        assert "budget" in names
-
-
-@pytest.mark.asyncio
-async def test_branch_duplicate_reports_error(
-    vcs_with_history: VersionControlService,
-) -> None:
-    screen = _make_screen(vcs_with_history)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("b")
-        for ch in "main":
-            await pilot.press(ch)
-        await pilot.press("enter")
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert cl.message == "E: Branch exists: main"
 
 
 @pytest.mark.asyncio
@@ -352,21 +311,6 @@ async def test_q_pops_screen(vcs_with_history: VersionControlService) -> None:
 
 
 @pytest.mark.asyncio
-async def test_branch_empty_name_cancelled(
-    vcs_with_history: VersionControlService,
-) -> None:
-    screen = _make_screen(vcs_with_history)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("b")
-        await pilot.press("enter")  # empty
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "Cancelled" in cl.message
-
-
-@pytest.mark.asyncio
 async def test_tag_empty_cancelled(vcs_with_history: VersionControlService) -> None:
     screen = _make_screen(vcs_with_history)
     app = _HostApp(screen)
@@ -398,241 +342,3 @@ async def test_tag_with_no_snapshot_is_noop(vcs: VersionControlService) -> None:
         await pilot.pause()
         await pilot.press("t")
         assert screen._input_mode == InputMode.NORMAL
-
-
-@pytest.mark.asyncio
-async def test_switch_branch_via_shortcut(
-    vcs_with_history: VersionControlService,
-) -> None:
-    vcs_with_history.create_branch("budget")
-    # Switching needs a clean working copy, and a branch other than the
-    # current one (main): budget sorts first.
-    screen = _make_screen(vcs_with_history, current_state=STATE_V2)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        # Move focus to the branches panel; the first branch is selected.
-        await pilot.press("tab")  # SNAPSHOTS -> DIFF
-        while screen._active_panel != Panel.BRANCHES:
-            await pilot.press("tab")
-        bp = screen.query_one("#branches-panel", BranchesPanel)
-        target = bp.branches[0].name
-        assert target != vcs_with_history.current_branch
-        await pilot.press("B")
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert target in cl.message
-
-
-@pytest.mark.asyncio
-async def test_switch_branch_via_enter_on_branches(
-    vcs_with_history: VersionControlService,
-) -> None:
-    vcs_with_history.create_branch("budget")
-    screen = _make_screen(vcs_with_history, current_state=STATE_V2)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        while screen._active_panel != Panel.BRANCHES:
-            await pilot.press("tab")
-        await pilot.press("enter")
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "Switched to" in cl.message
-
-
-@pytest.mark.asyncio
-async def test_branches_panel_navigation(
-    vcs_with_history: VersionControlService,
-) -> None:
-    vcs_with_history.create_branch("budget")
-    screen = _make_screen(vcs_with_history)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        while screen._active_panel != Panel.BRANCHES:
-            await pilot.press("tab")
-        bp = screen.query_one("#branches-panel", BranchesPanel)
-        assert bp.selected == 0
-        await pilot.press("j")
-        assert bp.selected == 1
-        await pilot.press("k")
-        assert bp.selected == 0
-
-
-@pytest.mark.asyncio
-async def test_cherry_pick_on_branch(
-    vcs_with_history: VersionControlService,
-) -> None:
-    # Create a second branch, switch to it, then cherry-pick a snapshot.
-    vcs_with_history.create_branch("budget")
-    screen = _make_screen(vcs_with_history)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("p")
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert cl.message != ""
-
-# ──────────────────────────────────────────────────────────────────
-# Integration tests: merge and rebase from the history screen
-# ──────────────────────────────────────────────────────────────────
-
-STATE_CHANDRA = STATE_V1 + "2 Chandra, Torch of Defiance\n"
-
-
-@pytest.fixture
-def vcs_diverged(vcs: VersionControlService) -> VersionControlService:
-    """main: V1 -> V2; budget (from V1): +Chandra. Current branch: main."""
-    vcs.commit(STATE_V1, "initial build")
-    vcs.create_branch("budget")
-    vcs.switch_branch("budget")
-    vcs.commit(STATE_CHANDRA, "add chandra")
-    vcs.switch_branch("main")
-    vcs.commit(STATE_V2, "add swiftspear")
-    return vcs
-
-
-@pytest.mark.asyncio
-async def test_merge_key_merges_selected_branch(
-    vcs_diverged: VersionControlService,
-) -> None:
-    restored: list[str] = []
-    screen = _make_screen(
-        vcs_diverged, on_restore=restored.append, current_state=STATE_V2
-    )
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        # Branches are sorted: budget first — already selected at index 0
-        await pilot.press("2", "m")
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "Merged budget" in cl.message
-        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-        assert sp.snapshots[0].merge_parent_id is not None
-    assert restored  # editor buffer got the merged state
-    assert "Chandra, Torch of Defiance" in restored[-1]
-    assert "Monastery Swiftspear" in restored[-1]
-
-
-@pytest.mark.asyncio
-async def test_merge_key_refuses_dirty_state(
-    vcs_diverged: VersionControlService,
-) -> None:
-    screen = _make_screen(
-        vcs_diverged, current_state=STATE_V2 + "1 Shock\n"
-    )
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("2", "m")
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "Uncommitted changes" in cl.message
-
-
-@pytest.mark.asyncio
-async def test_merge_key_refuses_current_branch(
-    vcs_with_history: VersionControlService,
-) -> None:
-    screen = _make_screen(vcs_with_history, current_state=STATE_V2)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("2", "m")  # only branch is main == current
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "Already on that branch" in cl.message
-
-
-@pytest.mark.asyncio
-async def test_merge_with_conflicts_pushes_merge_screen(
-    vcs: VersionControlService,
-) -> None:
-    from vimtg.tui.screens.merge_screen import MergeScreen
-
-    vcs.commit(STATE_V1, "initial")
-    vcs.create_branch("budget")
-    vcs.switch_branch("budget")
-    vcs.commit("2 Lightning Bolt\n4 Goblin Guide\n", "trim bolts")
-    vcs.switch_branch("main")
-    vcs.commit("1 Lightning Bolt\n4 Goblin Guide\n", "one bolt")
-    screen = _make_screen(
-        vcs, current_state="1 Lightning Bolt\n4 Goblin Guide\n"
-    )
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        await pilot.press("2", "m")
-        await pilot.pause()
-        assert isinstance(app.screen, MergeScreen)
-
-
-@pytest.mark.asyncio
-async def test_rebase_key_confirms_then_rebases(
-    vcs_diverged: VersionControlService,
-) -> None:
-    restored: list[str] = []
-    vcs_diverged.switch_branch("budget")
-    screen = _make_screen(
-        vcs_diverged, on_restore=restored.append, current_state=STATE_CHANDRA
-    )
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        bp = screen.query_one("#branches-panel", BranchesPanel)
-        bp.select_next()  # budget, main -> select main
-        await pilot.press("2", "r")
-        assert screen._input_mode == InputMode.CONFIRM_REBASE
-        await pilot.press("y")
-        await pilot.press("enter")
-        await pilot.pause()
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "Rebased 1 commit" in cl.message
-        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-        assert sp.snapshots[0].description == "add chandra"
-        assert sp.snapshots[1].description == "add swiftspear"
-    assert restored
-    assert "Monastery Swiftspear" in restored[-1]
-
-
-@pytest.mark.asyncio
-async def test_rebase_cancelled_with_n(
-    vcs_diverged: VersionControlService,
-) -> None:
-    vcs_diverged.switch_branch("budget")
-    screen = _make_screen(vcs_diverged, current_state=STATE_CHANDRA)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        bp = screen.query_one("#branches-panel", BranchesPanel)
-        bp.select_next()
-        await pilot.press("2", "r")
-        await pilot.press("n")
-        await pilot.press("enter")
-        cl = screen.query_one("#history-command", HistoryCommandLine)
-        assert "cancelled" in cl.message.lower()
-        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-        assert sp.snapshots[0].description == "add chandra"
-        assert len(sp.snapshots) == 2
-
-
-@pytest.mark.asyncio
-async def test_hint_bar_lists_merge_and_rebase() -> None:
-    cl = HistoryCommandLine()
-    text = cl.render().plain
-    assert "merge" in text
-    assert "rebase" in text
-
-
-@pytest.mark.asyncio
-async def test_merge_commit_renders_marker(
-    vcs_diverged: VersionControlService,
-) -> None:
-    vcs_diverged.merge_branch("budget")
-    screen = _make_screen(vcs_diverged, current_state=STATE_V2)
-    app = _HostApp(screen)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-        assert "⇄ merge" in sp.render().plain

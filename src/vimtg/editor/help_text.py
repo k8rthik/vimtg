@@ -84,10 +84,7 @@ _VCS_COMMANDS = """
 VERSION CONTROL
   :history      Same, as a command
   :commit "msg" Snapshot current deck state
-  :branch       Branches: list; name creates; ! switches
   :checkpoint n Commit and tag the current state
-  :merge x      Merge branch x (or another .deck file)
-  :rebase x     Replay this branch's commits onto branch x
 """.strip()
 
 
@@ -374,65 +371,27 @@ COMMAND_HELP: dict[str, str] = {
     "history": (
         ":history  Open the lazygit-style history overlay (also gh)\n"
         "\n"
-        "A floating window over the editor with five panels:\n"
-        "  1 Working copy   uncommitted changes vs the branch tip\n"
-        "  2 Branches       3 Snapshots   4 Diff   5 Stats\n"
+        "A floating window over the editor with four panels:\n"
+        "  1 Working copy   uncommitted changes vs the latest snapshot\n"
+        "  2 Snapshots      3 Diff   4 Stats\n"
         "\n"
         "Keybindings in the overlay:\n"
-        "  1-5 / Tab      Jump to / cycle panels\n"
+        "  1-4 / Tab      Jump to / cycle panels\n"
         "  j/k / wheel    Navigate or scroll\n"
         "  gg/G  Ctrl-D/U Top/bottom, half page\n"
-        "  Enter          Open: switch branch, or jump to Diff\n"
+        "  Enter          Open the item in the Diff panel\n"
         "  c              Commit snapshot\n"
-        "  b              Create branch at the tip\n"
-        "  B / D          Switch to / delete branch (Branches panel)\n"
-        "  m / r          Merge / rebase onto branch (Branches panel)\n"
-        "  t/T            Tag/untag snapshot\n"
-        "  R              Restore snapshot\n"
-        "  p              Cherry-pick\n"
+        "  t/T            Tag/untag snapshot (Snapshots panel)\n"
+        "  R              Restore snapshot (Snapshots panel)\n"
         "  d              Toggle unchanged cards in the diff\n"
         "  q / Esc / gh   Return to editor\n"
         "  ? / F1         This topic / full help"
     ),
     "commit": ":commit message  Create a named snapshot of current deck state",
-    "branch": (
-        ":branch  Persistent deck branches (saved across sessions)\n"
-        "\n"
-        ":branch          list branches (* marks current)\n"
-        ":branch name     create branch at current tip\n"
-        ":branch! name    switch to branch (loads its tip)\n"
-        "\n"
-        "Browse branches and snapshots with :history."
-    ),
     "checkpoint": (
         ":checkpoint name  Commit the current state and tag it\n"
         "\n"
         "Shorthand for :commit followed by tagging the new snapshot."
-    ),
-    "merge": (
-        ":merge target  Merge into the current branch\n"
-        "\n"
-        ":merge branch        merge another branch (3-way, fast-forwards\n"
-        "                     when possible)\n"
-        ":merge path.deck     merge another deck file's cards\n"
-        "\n"
-        "Conflicting card quantities open an interactive resolution screen."
-        "\n"
-        "Keys in the conflict screen:\n"
-        "  j/k  gg/G  Ctrl-D/U  Move between conflicts (or the wheel)\n"
-        "  o / t          Take ours / theirs\n"
-        "  c              Custom quantity (0 omits the card)\n"
-        "  u              Unresolve\n"
-        "  Enter          Confirm (every conflict must be resolved)\n"
-        "  q / Esc        Abort — nothing is committed\n"
-        "  ? / F1         This topic / full help"
-    ),
-    "rebase": (
-        ":rebase branch  Replay this branch's commits onto another tip\n"
-        "\n"
-        "Rewrites the current branch as if it had started from the target\n"
-        "branch's tip. Overlapping edits resolve in favor of the replayed\n"
-        "commit. Original snapshots stay recoverable by id."
     ),
     "stats": (
         ":stats  One-line deck summary on the command line\n"

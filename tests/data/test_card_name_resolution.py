@@ -177,10 +177,6 @@ class TestStaleRows:
             "INSERT INTO snapshots (id, deck_path, deck_state, timestamp) "
             "VALUES ('s1', '/d.deck', '4 Lightning Bolt', '2026-01-01')"
         )
-        conn.execute(
-            "INSERT INTO branches (name, deck_path, tip_id, created_at) "
-            "VALUES ('main', '/d.deck', 's1', '2026-01-01')"
-        )
         conn.commit()
         repo = CardRepository(db)
         cards = [Card.from_scryfall(d) for d in real_shape_cards]
@@ -188,7 +184,6 @@ class TestStaleRows:
         repo.replace_all(cards, synced_at="2026-10-11T00:00:00+00:00")
         assert repo.get_last_sync() == "2026-10-11T00:00:00+00:00"
         assert conn.execute("SELECT COUNT(*) FROM snapshots").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM branches").fetchone()[0] == 1
 
 
 def test_round_trip_new_columns(real_shape_repo: CardRepository) -> None:

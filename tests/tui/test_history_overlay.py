@@ -1,9 +1,8 @@
 """The history screen is a floating lazygit-style overlay.
 
 Opens over the editor as a modal, closes on q / Escape / gh, jumps panels
-with 1-5, scrolls the diff, shows the working copy, deletes branches,
-keeps the editor in sync after branch operations, and reports an aborted
-merge.
+with 1-4, scrolls the diff, shows the working copy, and restores a
+snapshot into the editor.
 """
 
 from __future__ import annotations
@@ -30,8 +29,6 @@ from vimtg.tui.screens.history_screen import (
     InputMode,
     Panel,
 )
-from vimtg.tui.screens.merge_screen import MergeScreen
-from vimtg.tui.widgets.branches_panel import BranchesPanel
 from vimtg.tui.widgets.diff_panel import DiffPanel
 from vimtg.tui.widgets.snapshots_panel import SnapshotsPanel
 from vimtg.tui.widgets.stats_panel import StatsPanel
@@ -86,7 +83,7 @@ class TestOverlayShape:
             assert status.region.y != command.region.y
             assert status.region.height == 1 and command.region.height == 1
             # no rendered row wraps: rules, entries, and the working-copy line
-            for panel_id in ("#working-panel", "#branches-panel", "#snapshots-panel",
+            for panel_id in ("#working-panel", "#snapshots-panel",
                              "#diff-panel", "#stats-panel"):
                 panel = screen.query_one(panel_id)
                 for row in panel.render().plain.split("\n"):
@@ -216,7 +213,7 @@ class TestOpenFromEditor:
             assert isinstance(app.screen, HistoryScreen)
 
     @pytest.mark.asyncio
-    async def test_merge_keeps_cursor_row_and_labels_undo(self, tmp_path: Path) -> None:
+    async def test_restore_keeps_cursor_row_and_closes(self, tmp_path: Path) -> None:
         app = VimTGApp(deck_path=_deck(tmp_path))
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
@@ -225,28 +222,15 @@ class TestOpenFromEditor:
             state = editor._state  # type: ignore[attr-defined]
             base = state.buffer.to_text()
             vcs.commit(base, "base")
-            vcs.create_branch("budget")
-            vcs.switch_branch("budget")
-            vcs.commit(base + "    4 Shock\n", "shock on budget")
-            vcs.switch_branch("main")
+            vcs.commit(base + "    4 Shock\n", "add shock")
             await pilot.press("G")
             row_before = state.cursor.row
             assert row_before > 0
-            await pilot.press("g", "h", "2")
-            await pilot.pause()
-            overlay = app.screen
-            names = [b.name for b in overlay.query_one("#branches-panel", BranchesPanel).branches]
-            for _ in range(names.index("budget")):
-                await pilot.press("j")
-            await pilot.press("m")
-            await pilot.pause()
-            assert "Shock" in state.buffer.to_text()
-            assert state.cursor.row == min(row_before, state.buffer.line_count() - 1)
-            wp = overlay.query_one("#working-panel", WorkingCopyPanel)
-            assert wp.dirty is False
-            await pilot.press("q")
+            await pilot.press("g", "h", "j", "R", "y", "enter")
             await pilot.pause()
             assert app.screen is editor
+            assert "Shock" not in state.buffer.to_text()
+            assert state.cursor.row == min(row_before, state.buffer.line_count() - 1)
 
 
 # ── Panel jumps ───────────────────────────────────────────────────
@@ -262,8 +246,8 @@ class TestPanelJumps:
         async with app.run_test() as pilot:
             await pilot.pause()
             for key, panel in (
-                ("1", Panel.WORKING), ("2", Panel.BRANCHES), ("3", Panel.SNAPSHOTS),
-                ("4", Panel.DIFF), ("5", Panel.STATS),
+                ("1", Panel.WORKING), ("2", Panel.SNAPSHOTS),
+                ("3", Panel.DIFF), ("4", Panel.STATS),
             ):
                 await pilot.press(key)
                 assert screen._active_panel is panel
@@ -279,8 +263,8 @@ class TestPanelJumps:
             assert screen._active_panel is Panel.SNAPSHOTS
             await pilot.press("tab")
             assert screen._active_panel is Panel.DIFF
-            await pilot.press("shift+tab", "shift+tab")
-            assert screen._active_panel is Panel.BRANCHES
+            await pilot.press("shift+tab")
+            assert screen._active_panel is Panel.SNAPSHOTS
             await pilot.press("shift+tab")
             assert screen._active_panel is Panel.WORKING
 
@@ -296,17 +280,16 @@ class TestPanelJumps:
             assert screen._active_panel is Panel.DIFF
 
     @pytest.mark.asyncio
-    async def test_branch_actions_only_in_branches_panel(
+    async def test_snapshot_actions_only_in_snapshots_panel(
         self, vcs_with_history: VersionControlService
     ) -> None:
-        vcs_with_history.create_branch("budget")
-        screen = _screen(vcs_with_history, current_state=STATE_V2)
+        screen = _screen(vcs_with_history)
         app = _HostApp(screen)
         async with app.run_test() as pilot:
             await pilot.pause()
-            for key in ("m", "r", "B", "D"):
-                await pilot.press("3", key)
-                assert "Branches panel" in _cl(screen).message, key
+            for key in ("t", "T", "R"):
+                await pilot.press("1", key)
+                assert "Snapshots panel" in _cl(screen).message, key
                 assert screen._input_mode is InputMode.NORMAL
 
 
@@ -327,7 +310,7 @@ class TestWorkingCopy:
             assert wp.diff is not None and wp.diff.added_count == 1
 
     @pytest.mark.asyncio
-    async def test_metadata_change_is_dirty_like_the_merge_gate(
+    async def test_metadata_change_is_dirty(
         self, vcs_with_history: VersionControlService
     ) -> None:
         screen = _screen(vcs_with_history, current_state="// Format: modern\n" + STATE_V2)
@@ -352,7 +335,7 @@ class TestWorkingCopy:
             assert dp.diff is not None
             names = {c.card_name for c in dp.diff.changes if c.new_quantity}
             assert "Shock" in names
-            await pilot.press("3")
+            await pilot.press("2")
             assert dp.diff is not None
             names = {c.card_name for c in dp.diff.changes}
             assert "Shock" not in names
@@ -384,87 +367,10 @@ class TestWorkingCopy:
             assert wp.has_tip is False
 
 
-# ── Editor stays in sync after branch operations ──────────────────
+# ── Restore ──────────────────────────────────────────────────────
 
 
-class TestEditorSync:
-    @pytest.mark.asyncio
-    async def test_switch_refuses_dirty_working_copy(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        vcs_with_history.create_branch("budget")
-        applied: list[tuple[str, str]] = []
-        screen = _screen(vcs_with_history, on_apply_state=lambda s, r: applied.append((s, r)))
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            bp = screen.query_one("#branches-panel", BranchesPanel)
-            await pilot.press("2")
-            names = [b.name for b in bp.branches]
-            for _ in range(names.index("budget")):
-                await pilot.press("j")
-            await pilot.press("B")
-            assert "Uncommitted" in _cl(screen).message
-            assert applied == []
-            assert vcs_with_history.current_branch == "main"
-
-    @pytest.mark.asyncio
-    async def test_switch_pushes_tip_to_editor(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        vcs_with_history.create_branch("budget")
-        vcs_with_history.switch_branch("budget")
-        vcs_with_history.commit(STATE_V1, "budget trims")
-        vcs_with_history.switch_branch("main")
-        applied: list[tuple[str, str]] = []
-        screen = _screen(
-            vcs_with_history, current_state=STATE_V2,
-            on_apply_state=lambda s, r: applied.append((s, r)),
-        )
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            bp = screen.query_one("#branches-panel", BranchesPanel)
-            await pilot.press("2")
-            names = [b.name for b in bp.branches]
-            for _ in range(names.index("budget")):
-                await pilot.press("j")
-            await pilot.press("B")
-            await pilot.pause()
-            assert applied == [(STATE_V1, "switch to budget")]
-            wp = screen.query_one("#working-panel", WorkingCopyPanel)
-            assert wp.dirty is False
-
-    @pytest.mark.asyncio
-    async def test_cherry_pick_adopts_new_tip(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        vcs_with_history.create_branch("budget")
-        vcs_with_history.switch_branch("budget")
-        vcs_with_history.commit(STATE_V2 + "2 Shock\n", "shock")
-        vcs_with_history.switch_branch("main")
-        applied: list[tuple[str, str]] = []
-        screen = _screen(
-            vcs_with_history, current_state=STATE_V2,
-            on_apply_state=lambda s, r: applied.append((s, r)),
-        )
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            # the budget commit is not on main's log; reach it via history
-            sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-            # main's history does not include budget's commit until merged,
-            # so cherry-pick a main snapshot to exercise the adopt path
-            target = next(s for s in sp.snapshots if s.description == "initial build")
-            while sp.get_selected_snapshot() is not target:
-                await pilot.press("j")
-            await pilot.press("p")
-            await pilot.pause()
-            assert applied and applied[-1][1].startswith("cherry-pick")
-            wp = screen.query_one("#working-panel", WorkingCopyPanel)
-            assert wp.dirty is False
-            assert "Cherry-picked" in _cl(screen).message
-
+class TestRestore:
     @pytest.mark.asyncio
     async def test_restore_calls_back_and_closes(
         self, vcs_with_history: VersionControlService
@@ -508,7 +414,7 @@ class TestDiffScroll:
             await pilot.pause()
             dp = screen.query_one("#diff-panel", DiffPanel)
             assert dp.max_scroll > 0
-            await pilot.press("4", "j", "j")
+            await pilot.press("3", "j", "j")
             assert dp.scroll_pos == 2
             await pilot.press("k")
             assert dp.scroll_pos == 1
@@ -532,12 +438,12 @@ class TestDiffScroll:
         async with app.run_test(size=(100, 24)) as pilot:
             await pilot.pause()
             dp = screen.query_one("#diff-panel", DiffPanel)
-            await pilot.press("4", "j", "j", "j")
+            await pilot.press("3", "j", "j", "j")
             assert dp.scroll_pos == 3
-            await pilot.press("5", "4", "tab", "shift+tab")
+            await pilot.press("4", "3", "tab", "shift+tab")
             assert dp.scroll_pos == 3
             # a different snapshot is a new diff: back to the top
-            await pilot.press("3", "j", "4")
+            await pilot.press("2", "j", "3")
             assert dp.scroll_pos == 0
 
     @pytest.mark.asyncio
@@ -617,123 +523,8 @@ class TestDiffScroll:
         app = _HostApp(screen)
         async with app.run_test() as pilot:
             await pilot.pause()
-            await pilot.press("1", "3")
+            await pilot.press("1", "2")
             assert svc.sources and set(svc.sources) == {"eur"}
-
-
-# ── Branch delete ─────────────────────────────────────────────────
-
-
-class TestDeleteBranch:
-    async def _select(self, pilot, screen: HistoryScreen, name: str) -> None:  # type: ignore[no-untyped-def]
-        bp = screen.query_one("#branches-panel", BranchesPanel)
-        await pilot.press("2")
-        names = [b.name for b in bp.branches]
-        for _ in range(names.index(name)):
-            await pilot.press("j")
-
-    @pytest.mark.asyncio
-    async def test_delete_selected_branch_after_confirm(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        vcs_with_history.create_branch("budget")
-        screen = _screen(vcs_with_history)
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            bp = screen.query_one("#branches-panel", BranchesPanel)
-            assert {b.name for b in bp.branches} == {"main", "budget"}
-            await self._select(pilot, screen, "budget")
-            await pilot.press("D")
-            assert "budget" in _cl(screen).prompt
-            await pilot.press("y", "enter")
-            await pilot.pause()
-            assert {b.name for b in bp.branches} == {"main"}
-
-    @pytest.mark.asyncio
-    async def test_cannot_delete_current_branch(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        screen = _screen(vcs_with_history)
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.press("2", "D")
-            assert _cl(screen).prompt == ""
-            assert "current" in _cl(screen).message.lower()
-
-    @pytest.mark.asyncio
-    async def test_no_branches_at_all(self, vcs: VersionControlService) -> None:
-        screen = _screen(vcs)
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.press("2", "D")
-            assert _cl(screen).prompt == ""
-            assert "select a branch" in _cl(screen).message.lower()
-
-    @pytest.mark.asyncio
-    async def test_escape_during_confirm_keeps_branch(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        vcs_with_history.create_branch("budget")
-        screen = _screen(vcs_with_history)
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            bp = screen.query_one("#branches-panel", BranchesPanel)
-            await self._select(pilot, screen, "budget")
-            await pilot.press("D", "escape")
-            assert screen._input_mode is InputMode.NORMAL
-            assert _cl(screen).prompt == ""
-            await pilot.press("y", "enter")  # stray keys do nothing dangerous
-            await pilot.pause()
-            assert {b.name for b in bp.branches} == {"main", "budget"}
-
-    @pytest.mark.asyncio
-    async def test_decline_keeps_branch(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        vcs_with_history.create_branch("budget")
-        screen = _screen(vcs_with_history)
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            bp = screen.query_one("#branches-panel", BranchesPanel)
-            await self._select(pilot, screen, "budget")
-            await pilot.press("D", "n", "enter")
-            await pilot.pause()
-            assert {b.name for b in bp.branches} == {"main", "budget"}
-
-
-# ── Merge abort ───────────────────────────────────────────────────
-
-
-class TestMergeAbort:
-    @pytest.mark.asyncio
-    async def test_aborted_merge_reports(self, vcs: VersionControlService) -> None:
-        vcs.commit("4 Lightning Bolt\n", "base")
-        vcs.create_branch("budget")
-        vcs.commit("2 Lightning Bolt\n", "ours")
-        vcs.switch_branch("budget")
-        vcs.commit("3 Lightning Bolt\n", "theirs")
-        vcs.switch_branch("main")
-        screen = _screen(vcs, current_state="2 Lightning Bolt\n")
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            bp = screen.query_one("#branches-panel", BranchesPanel)
-            await pilot.press("2")
-            names = [b.name for b in bp.branches]
-            for _ in range(names.index("budget")):
-                await pilot.press("j")
-            await pilot.press("m")
-            await pilot.pause()
-            assert isinstance(app.screen, MergeScreen)
-            await pilot.press("q")
-            await pilot.pause()
-            assert app.screen is screen
-            assert "abort" in _cl(screen).message.lower()
 
 
 # ── Hint bar stays in sync with the keys ──────────────────────────
@@ -752,65 +543,3 @@ class TestHintCoverage:
 
         for method in _ACTIONS.values():
             assert callable(getattr(HistoryScreen, method))
-
-
-# ── Merged-in history ─────────────────────────────────────────────
-
-
-class TestGraphLog:
-    @pytest.mark.asyncio
-    async def test_only_merged_in_commits_are_labelled(
-        self, vcs: VersionControlService
-    ) -> None:
-        vcs.commit("4 Lightning Bolt\n", "base")
-        vcs.create_branch("budget")
-        vcs.commit("4 Lightning Bolt\n4 Goblin Guide\n", "ours")
-        vcs.switch_branch("budget")
-        vcs.commit("4 Lightning Bolt\n4 Shock\n", "theirs")
-        vcs.switch_branch("main")
-        vcs.merge_branch("budget")
-        screen = _screen(vcs, current_state=vcs.get_log()[0].deck_state)
-        app = _HostApp(screen)
-        async with app.run_test(size=(120, 40)) as pilot:
-            await pilot.pause()
-            sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-            assert "theirs" in {s.description for s in sp.snapshots}
-            plain = sp.render().plain
-            assert plain.count("[budget]") == 1
-            assert "[main]" not in plain
-
-    @pytest.mark.asyncio
-    async def test_narrow_panel_keeps_marker_and_label(
-        self, vcs: VersionControlService
-    ) -> None:
-        vcs.commit("4 Lightning Bolt\n", "base")
-        vcs.create_branch("budget")
-        vcs.commit("4 Lightning Bolt\n4 Goblin Guide\n", "ours")
-        vcs.switch_branch("budget")
-        vcs.commit("4 Lightning Bolt\n4 Shock\n", "theirs")
-        vcs.switch_branch("main")
-        vcs.merge_branch("budget")
-        screen = _screen(vcs, current_state=vcs.get_log()[0].deck_state)
-        app = _HostApp(screen)
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-            sp.select_first()
-            plain = sp.render().plain
-            assert "⇄ merge" in plain
-            assert all(len(row) <= sp.size.width for row in plain.split("\n"))
-            sp.select_by(1)  # the merged-in commit is next-newest
-            assert "[budget]" in sp.render().plain
-
-    @pytest.mark.asyncio
-    async def test_inherited_history_is_not_labelled_after_branching(
-        self, vcs_with_history: VersionControlService
-    ) -> None:
-        vcs_with_history.create_branch("budget")
-        vcs_with_history.switch_branch("budget")
-        screen = _screen(vcs_with_history, current_state=STATE_V2)
-        app = _HostApp(screen)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            sp = screen.query_one("#snapshots-panel", SnapshotsPanel)
-            assert "[main]" not in sp.render().plain

@@ -5,7 +5,7 @@ Snapshots form a tree: undo/redo navigate linearly, and diverging
 edits after an undo create forks (redo picks the newest child).
 
 This is the in-memory, per-session undo model. Durable version
-control (branches, tags, merges) lives in vimtg.domain.vcs.
+control (snapshots and tags) lives in vimtg.domain.vcs.
 
 All mutations return new SnapshotTree instances -- the original is never modified.
 TUI-agnostic: no Textual imports.

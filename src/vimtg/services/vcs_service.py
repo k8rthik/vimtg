@@ -1,8 +1,7 @@
 """Persistent version control service for deck history.
 
-Manages snapshots, branches, tags, and advanced operations (restore,
-cherry-pick, squash, merge, rebase). Separate from the in-memory
-HistoryService used for session undo/redo.
+One linear chain of snapshots per deck path: commit, tag, restore.
+Separate from the in-memory HistoryService used for session undo/redo.
 
 TUI-agnostic: no Textual imports.
 """
@@ -11,28 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import UTC, datetime
-from enum import Enum
 
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.snapshot_repository import SnapshotRepository
 from vimtg.domain.deck import DeckEntry
-from vimtg.domain.deck_diff import DeckDiff, compute_deck_diff
-from vimtg.domain.deck_merge import (
-    CardKey,
-    MergeConflict,
-    apply_card_changes,
-    merged_map_to_deck_state,
-    three_way_merge,
-)
 from vimtg.domain.sideboard_plan import SideboardPlan
-from vimtg.domain.vcs import VCSBranch, VCSSnapshot, VCSStatus
-
-# Refusals the editor's ex commands and the history overlay share; `key`
-# is how the view commits (":commit" in the editor, "c" in history)
-UNCOMMITTED_CHANGES = "E: Uncommitted changes — commit them first ({key})"
-BRANCH_EXISTS = "E: Branch exists: {name}"
+from vimtg.domain.vcs import VCSSnapshot, VCSStatus
 
 
 def _deck_hash(deck_state: str) -> str:
@@ -76,56 +61,6 @@ def _semantic_plans(
     )
 
 
-class MergeKind(Enum):
-    """Outcome classification for merge and rebase operations."""
-
-    UP_TO_DATE = "up_to_date"
-    FAST_FORWARD = "fast_forward"
-    MERGED = "merged"
-    CONFLICTS = "conflicts"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True)
-class PendingMerge:
-    """A merge paused on conflicts, awaiting per-card resolutions.
-
-    Nothing is committed until complete_merge — aborting a pending merge
-    requires no cleanup. theirs_tip_id is None for external (cross-deck)
-    merges, whose source is file content rather than a snapshot.
-    """
-
-    source_label: str
-    ours_tip_id: str
-    theirs_tip_id: str | None
-    ours_state: str
-    merged: dict[CardKey, int]
-    conflicts: tuple[MergeConflict, ...]
-    added_plans: tuple[SideboardPlan, ...] = ()
-
-
-@dataclass(frozen=True)
-class MergeResult:
-    """Outcome of a merge attempt."""
-
-    kind: MergeKind
-    message: str
-    new_state: str | None = None
-    snapshot: VCSSnapshot | None = None
-    pending: PendingMerge | None = None
-
-
-@dataclass(frozen=True)
-class RebaseResult:
-    """Outcome of a rebase attempt."""
-
-    kind: MergeKind
-    message: str
-    new_state: str | None = None
-    replayed: int = 0
-    skipped: int = 0
-
-
 class VersionControlService:
     """Persistent version control for deck history."""
 
@@ -136,95 +71,45 @@ class VersionControlService:
     ) -> None:
         self._repo = snapshot_repo
         self._deck_path = deck_path
-        self._current_branch = self._restore_head()
-
-    def _restore_head(self) -> str:
-        """Load the persisted current branch, falling back to main.
-
-        A stale head (naming a branch that no longer exists) falls back
-        to main rather than resurrecting the missing branch.
-        """
-        head = self._repo.get_head(self._deck_path)
-        if head is None or head == "main":
-            return "main"
-        if self._repo.get_branch(self._deck_path, head) is None:
-            return "main"
-        return head
-
-    @property
-    def current_branch(self) -> str:
-        return self._current_branch
 
     @property
     def deck_path(self) -> str:
         return self._deck_path
 
+    def _tip(self) -> VCSSnapshot | None:
+        return self._repo.tip(self._deck_path)
+
     # ── Core operations ───────────────────────────────────
 
     def commit(self, deck_state: str, description: str) -> VCSSnapshot:
-        """Create a new snapshot on the current branch."""
-        # Find parent (current branch tip)
-        branch = self._repo.get_branch(self._deck_path, self._current_branch)
-        parent_id = branch.tip_id if branch else None
-
-        # Dedup check: skip if hash matches parent
-        if parent_id:
-            parent = self._repo.get_snapshot(parent_id)
-            if parent and parent.deck_hash == _deck_hash(deck_state):
-                if _is_auto(parent.description) and not _is_auto(description):
-                    # :w snapshots on save; a :commit of that same deck
-                    # names the snapshot instead of losing its message
-                    self._repo.update_snapshot_description(parent.id, description)
-                    return replace(parent, description=description)
-                return parent
+        """Append a snapshot to the deck's history."""
+        tip = self._tip()
+        if tip is not None and tip.deck_hash == _deck_hash(deck_state):
+            if _is_auto(tip.description) and not _is_auto(description):
+                # :w snapshots on save; a :commit of that same deck names
+                # the snapshot instead of losing its message
+                self._repo.update_snapshot_description(tip.id, description)
+                return replace(tip, description=description)
+            return tip
 
         snap = VCSSnapshot(
             id=_new_id(),
             deck_path=self._deck_path,
-            parent_id=parent_id,
+            parent_id=tip.id if tip is not None else None,
             deck_state=deck_state,
             timestamp=_now(),
             description=description,
-            branch=self._current_branch,
             deck_hash=_deck_hash(deck_state),
         )
         self._repo.save_snapshot(snap)
-
-        # Update or create branch tip
-        if branch:
-            self._repo.update_branch_tip(
-                self._deck_path, self._current_branch, snap.id,
-            )
-        else:
-            self._repo.save_branch(VCSBranch(
-                name=self._current_branch,
-                deck_path=self._deck_path,
-                tip_id=snap.id,
-                created_at=_now(),
-            ))
-
         return snap
 
-    def get_log(
-        self, branch: str | None = None, limit: int = 50
-    ) -> list[VCSSnapshot]:
-        """Get snapshot history for current/specified branch."""
-        target = branch or self._current_branch
-        branch_obj = self._repo.get_branch(self._deck_path, target)
-        if branch_obj is None:
+    def get_log(self, limit: int = 50) -> list[VCSSnapshot]:
+        """Snapshot history, newest first."""
+        tip = self._tip()
+        if tip is None:
             return []
-        return self._repo.get_ancestors(branch_obj.tip_id, limit=limit)
-
-    def get_history(self, limit: int = 100) -> list[VCSSnapshot]:
-        """Every snapshot reachable from the current tip, newest first.
-
-        Unlike get_log this follows merge parents too, so commits that
-        arrived through a merge show up in the history overlay.
-        """
-        branch_obj = self._repo.get_branch(self._deck_path, self._current_branch)
-        if branch_obj is None:
-            return []
-        return self._repo.get_history(branch_obj.tip_id, self._deck_path, limit=limit)
+        return self._repo.get_ancestors(tip.id, limit=limit)
 
     def checkout(self, snapshot_id: str) -> str | None:
         """Return deck_state for a snapshot (read-only)."""
@@ -239,385 +124,6 @@ class VersionControlService:
         return self.commit(
             old_snap.deck_state,
             f"restore: {old_snap.description}",
-        )
-
-    # ── Branch operations ─────────────────────────────────
-
-    def create_branch(self, name: str) -> VCSBranch | None:
-        """Create a new branch at the current branch tip."""
-        existing = self._repo.get_branch(self._deck_path, name)
-        if existing is not None:
-            return None  # Branch already exists
-
-        current_branch = self._repo.get_branch(
-            self._deck_path, self._current_branch,
-        )
-        tip_id = current_branch.tip_id if current_branch else None
-        if tip_id is None:
-            return None  # No snapshots yet
-
-        branch = VCSBranch(
-            name=name,
-            deck_path=self._deck_path,
-            tip_id=tip_id,
-            created_at=_now(),
-        )
-        self._repo.save_branch(branch)
-        return branch
-
-    def switch_branch(self, name: str) -> str | None:
-        """Switch to a branch, return its tip deck_state."""
-        branch = self._repo.get_branch(self._deck_path, name)
-        if branch is None:
-            return None
-        self._current_branch = name
-        self._repo.set_head(self._deck_path, name)
-        tip = self._repo.get_snapshot(branch.tip_id)
-        return tip.deck_state if tip else None
-
-    def list_branches(self) -> list[VCSBranch]:
-        """List all branches for this deck."""
-        return self._repo.list_branches(self._deck_path)
-
-    def delete_branch(self, name: str) -> bool:
-        """Delete a branch (cannot delete current branch)."""
-        if name == self._current_branch:
-            return False
-        existing = self._repo.get_branch(self._deck_path, name)
-        if existing is None:
-            return False
-        self._repo.delete_branch(self._deck_path, name)
-        return True
-
-    def merge_branch(self, source_branch: str) -> MergeResult:
-        """Merge source branch tip into the current branch.
-
-        Fast-forwards when possible (moving the ref, no commit); otherwise
-        performs a 3-way card-level merge against the common ancestor.
-        Conflicts return a PendingMerge for interactive resolution —
-        nothing is committed until complete_merge.
-        """
-        source = self._repo.get_branch(self._deck_path, source_branch)
-        if source is None:
-            return MergeResult(
-                MergeKind.FAILED, f"Branch not found: {source_branch}"
-            )
-        source_tip = self._repo.get_snapshot(source.tip_id)
-        if source_tip is None:
-            return MergeResult(
-                MergeKind.FAILED, f"Branch tip missing: {source_branch}"
-            )
-
-        current = self._repo.get_branch(self._deck_path, self._current_branch)
-        if current is None:
-            # Unborn current branch: adopt the source tip wholesale.
-            self._repo.save_branch(VCSBranch(
-                name=self._current_branch,
-                deck_path=self._deck_path,
-                tip_id=source.tip_id,
-                created_at=_now(),
-            ))
-            return MergeResult(
-                MergeKind.FAST_FORWARD,
-                f"Fast-forward: {self._current_branch} → {source_branch}",
-                new_state=source_tip.deck_state,
-            )
-
-        if source_branch == self._current_branch or self._repo.is_ancestor(
-            source.tip_id, current.tip_id, self._deck_path
-        ):
-            return MergeResult(MergeKind.UP_TO_DATE, "Already up to date")
-
-        if self._repo.is_ancestor(
-            current.tip_id, source.tip_id, self._deck_path
-        ):
-            self._repo.update_branch_tip(
-                self._deck_path, self._current_branch, source.tip_id
-            )
-            return MergeResult(
-                MergeKind.FAST_FORWARD,
-                f"Fast-forward: {self._current_branch} → {source_branch}",
-                new_state=source_tip.deck_state,
-            )
-
-        current_tip = self._repo.get_snapshot(current.tip_id)
-        if current_tip is None:
-            return MergeResult(MergeKind.FAILED, "Current branch tip missing")
-
-        base_state = ""
-        base_id = self._repo.find_merge_base(
-            current.tip_id, source.tip_id, self._deck_path
-        )
-        if base_id is not None:
-            base = self._repo.get_snapshot(base_id)
-            base_state = base.deck_state if base else ""
-
-        result = three_way_merge(
-            base_state, current_tip.deck_state, source_tip.deck_state
-        )
-        if result.has_conflicts:
-            return MergeResult(
-                MergeKind.CONFLICTS,
-                f"{len(result.conflicts)} conflict(s) — resolve to merge",
-                pending=PendingMerge(
-                    source_label=source_branch,
-                    ours_tip_id=current.tip_id,
-                    theirs_tip_id=source.tip_id,
-                    ours_state=current_tip.deck_state,
-                    merged=result.merged,
-                    conflicts=result.conflicts,
-                    added_plans=result.added_plans,
-                ),
-            )
-
-        new_state = merged_map_to_deck_state(
-            result.merged, current_tip.deck_state, result.added_plans
-        )
-        snap = self._commit_merge(
-            new_state,
-            f"merge: {source_branch} into {self._current_branch}",
-            source.tip_id,
-        )
-        return MergeResult(
-            MergeKind.MERGED,
-            f"Merged {source_branch} into {self._current_branch}",
-            new_state=new_state,
-            snapshot=snap,
-        )
-
-    def merge_external(self, theirs_state: str, label: str) -> MergeResult:
-        """Merge an external deck state (another deck file) into this one.
-
-        Unrelated histories: the merge base is the empty deck, so their
-        cards are additions and conflicts arise only where both decks hold
-        the same card at different quantities. The resulting commit has no
-        second parent — the source is file content, not a snapshot.
-        """
-        current = self._repo.get_branch(self._deck_path, self._current_branch)
-        ours_tip_id = ""
-        ours_state = ""
-        if current is not None:
-            tip = self._repo.get_snapshot(current.tip_id)
-            if tip is not None:
-                ours_tip_id = tip.id
-                ours_state = tip.deck_state
-
-        if ours_state and _deck_hash(theirs_state) == _deck_hash(ours_state):
-            return MergeResult(
-                MergeKind.UP_TO_DATE, "Already identical — nothing to merge"
-            )
-
-        result = three_way_merge("", ours_state, theirs_state)
-        if result.has_conflicts:
-            return MergeResult(
-                MergeKind.CONFLICTS,
-                f"{len(result.conflicts)} conflict(s) — resolve to merge",
-                pending=PendingMerge(
-                    source_label=label,
-                    ours_tip_id=ours_tip_id,
-                    theirs_tip_id=None,
-                    ours_state=ours_state,
-                    merged=result.merged,
-                    conflicts=result.conflicts,
-                    added_plans=result.added_plans,
-                ),
-            )
-
-        new_state = merged_map_to_deck_state(
-            result.merged, ours_state, result.added_plans
-        )
-        if ours_state and _deck_hash(new_state) == _deck_hash(ours_state):
-            return MergeResult(
-                MergeKind.UP_TO_DATE, "Nothing to merge — no new cards"
-            )
-        snap = self.commit(new_state, f"merge deck: {label}")
-        return MergeResult(
-            MergeKind.MERGED,
-            f"Merged deck {label} into {self._current_branch}",
-            new_state=new_state,
-            snapshot=snap,
-        )
-
-    def complete_merge(
-        self,
-        pending: PendingMerge,
-        resolutions: dict[CardKey, int | None],
-    ) -> MergeResult:
-        """Finish a conflicted merge with per-card resolutions.
-
-        Every conflict key must appear in resolutions; None omits the card
-        from the merged deck.
-        """
-        missing = [
-            c.key for c in pending.conflicts if c.key not in resolutions
-        ]
-        if missing:
-            return MergeResult(
-                MergeKind.FAILED,
-                f"{len(missing)} conflict(s) unresolved",
-                pending=pending,
-            )
-
-        merged = dict(pending.merged)
-        for conflict in pending.conflicts:
-            resolved = resolutions[conflict.key]
-            if resolved is not None:
-                merged[conflict.key] = resolved
-
-        new_state = merged_map_to_deck_state(
-            merged, pending.ours_state, pending.added_plans
-        )
-        snap = self._commit_merge(
-            new_state,
-            f"merge: {pending.source_label} into {self._current_branch}",
-            pending.theirs_tip_id,
-        )
-        return MergeResult(
-            MergeKind.MERGED,
-            f"Merged {pending.source_label} into {self._current_branch}",
-            new_state=new_state,
-            snapshot=snap,
-        )
-
-    def _commit_merge(
-        self,
-        deck_state: str,
-        description: str,
-        merge_parent_id: str | None,
-    ) -> VCSSnapshot:
-        """Create a merge commit on the current branch.
-
-        Unlike commit(), skips hash dedup — a merge whose tree equals the
-        current tip must still be recorded so ancestry is captured (the
-        true no-op case is caught earlier as UP_TO_DATE).
-        """
-        branch = self._repo.get_branch(self._deck_path, self._current_branch)
-        parent_id = branch.tip_id if branch else None
-
-        snap = VCSSnapshot(
-            id=_new_id(),
-            deck_path=self._deck_path,
-            parent_id=parent_id,
-            deck_state=deck_state,
-            timestamp=_now(),
-            description=description,
-            branch=self._current_branch,
-            deck_hash=_deck_hash(deck_state),
-            merge_parent_id=merge_parent_id,
-        )
-        self._repo.save_snapshot(snap)
-
-        if branch:
-            self._repo.update_branch_tip(
-                self._deck_path, self._current_branch, snap.id,
-            )
-        else:
-            self._repo.save_branch(VCSBranch(
-                name=self._current_branch,
-                deck_path=self._deck_path,
-                tip_id=snap.id,
-                created_at=_now(),
-            ))
-        return snap
-
-    def rebase(self, target_branch: str) -> RebaseResult:
-        """Replay the current branch's commits onto the target branch tip.
-
-        Commits between the merge base and the current tip are collected
-        via a first-parent walk (in-range merge commits linearize to their
-        first-parent diff) and replayed oldest-first. Overlapping edits
-        resolve in favor of the replayed change; replays that become
-        no-ops are skipped. Original snapshots are left orphaned in the
-        database, recoverable by id.
-        """
-        target = self._repo.get_branch(self._deck_path, target_branch)
-        if target is None:
-            return RebaseResult(
-                MergeKind.FAILED, f"Branch not found: {target_branch}"
-            )
-        target_tip = self._repo.get_snapshot(target.tip_id)
-        if target_tip is None:
-            return RebaseResult(
-                MergeKind.FAILED, f"Branch tip missing: {target_branch}"
-            )
-        current = self._repo.get_branch(self._deck_path, self._current_branch)
-        if current is None:
-            return RebaseResult(
-                MergeKind.FAILED, "Nothing committed on the current branch"
-            )
-
-        if self._repo.is_ancestor(
-            target.tip_id, current.tip_id, self._deck_path
-        ):
-            return RebaseResult(MergeKind.UP_TO_DATE, "Already up to date")
-
-        if self._repo.is_ancestor(
-            current.tip_id, target.tip_id, self._deck_path
-        ):
-            self._repo.update_branch_tip(
-                self._deck_path, self._current_branch, target.tip_id
-            )
-            return RebaseResult(
-                MergeKind.FAST_FORWARD,
-                f"Fast-forward: {self._current_branch} → {target_branch}",
-                new_state=target_tip.deck_state,
-            )
-
-        base_id = self._repo.find_merge_base(
-            current.tip_id, target.tip_id, self._deck_path
-        )
-
-        # First-parent chain from current tip back to (exclusive of) base
-        chain: list[VCSSnapshot] = []
-        cursor = self._repo.get_snapshot(current.tip_id)
-        while cursor is not None and cursor.id != base_id:
-            chain.append(cursor)
-            if cursor.parent_id is None:
-                break
-            cursor = self._repo.get_snapshot(cursor.parent_id)
-        chain.reverse()
-
-        state = target_tip.deck_state
-        new_tip_id = target.tip_id
-        replayed = 0
-        skipped = 0
-        for commit in chain:
-            parent_state = ""
-            if commit.parent_id:
-                parent = self._repo.get_snapshot(commit.parent_id)
-                parent_state = parent.deck_state if parent else ""
-            diff = compute_deck_diff(parent_state, commit.deck_state)
-            new_state = apply_card_changes(state, diff.changes)
-            if _deck_hash(new_state) == _deck_hash(state):
-                skipped += 1
-                continue
-            snap = VCSSnapshot(
-                id=_new_id(),
-                deck_path=self._deck_path,
-                parent_id=new_tip_id,
-                deck_state=new_state,
-                timestamp=_now(),
-                description=commit.description,
-                branch=self._current_branch,
-                deck_hash=_deck_hash(new_state),
-            )
-            self._repo.save_snapshot(snap)
-            new_tip_id = snap.id
-            state = new_state
-            replayed += 1
-
-        self._repo.update_branch_tip(
-            self._deck_path, self._current_branch, new_tip_id
-        )
-        message = f"Rebased {replayed} commit(s) onto {target_branch}"
-        if skipped:
-            message += f" ({skipped} skipped as empty)"
-        return RebaseResult(
-            MergeKind.MERGED,
-            message,
-            new_state=state,
-            replayed=replayed,
-            skipped=skipped,
         )
 
     # ── Tag operations ────────────────────────────────────
@@ -638,43 +144,7 @@ class VersionControlService:
         self._repo.update_snapshot_tag(snapshot_id, None)
         return True
 
-    # ── Advanced operations ───────────────────────────────
-
-    def cherry_pick(self, snapshot_id: str) -> DeckDiff | None:
-        """Apply the diff from a single snapshot onto current branch.
-
-        Computes what changed in the target snapshot vs its parent,
-        then applies those card changes to the current branch tip.
-        """
-        snap = self._repo.get_snapshot(snapshot_id)
-        if snap is None:
-            return None
-
-        # Get parent state
-        parent_state = ""
-        if snap.parent_id:
-            parent = self._repo.get_snapshot(snap.parent_id)
-            parent_state = parent.deck_state if parent else ""
-
-        # Get current branch tip state
-        current_branch = self._repo.get_branch(
-            self._deck_path, self._current_branch,
-        )
-        if current_branch is None:
-            return None
-        current_tip = self._repo.get_snapshot(current_branch.tip_id)
-        if current_tip is None:
-            return None
-
-        # Compute what the source snapshot changed, replay onto current tip
-        source_diff = compute_deck_diff(parent_state, snap.deck_state)
-        new_state = apply_card_changes(
-            current_tip.deck_state, source_diff.changes
-        )
-
-        diff = compute_deck_diff(current_tip.deck_state, new_state)
-        self.commit(new_state, f"cherry-pick: {snap.description}")
-        return diff
+    # ── Working copy ──────────────────────────────────────
 
     def is_dirty(self, current_deck_state: str) -> bool:
         """True if the working state meaningfully differs from the tip.
@@ -682,13 +152,10 @@ class VersionControlService:
         A deck with no commits yet is considered dirty (nothing recorded).
         When the raw text differs, fall back to comparing parsed cards and
         metadata — opening a deck scaffolds missing metadata lines into
-        the buffer, and that cosmetic drift must not lock the user out of
-        merge/rebase/switch with a spurious "uncommitted changes".
+        the buffer, and that cosmetic drift must not show as uncommitted
+        changes.
         """
-        branch = self._repo.get_branch(self._deck_path, self._current_branch)
-        if branch is None:
-            return True
-        tip = self._repo.get_snapshot(branch.tip_id)
+        tip = self._tip()
         if tip is None:
             return True
         if _deck_hash(current_deck_state) == tip.deck_hash:
@@ -704,23 +171,13 @@ class VersionControlService:
 
     def status(self, current_deck_state: str) -> VCSStatus:
         """Get current VCS status for status line display."""
-        count = self._repo.snapshot_count(self._deck_path)
-
-        branch = self._repo.get_branch(self._deck_path, self._current_branch)
-        last_desc = ""
-        has_changes = True
-
-        if branch:
-            tip = self._repo.get_snapshot(branch.tip_id)
-            if tip:
-                last_desc = tip.description
-                has_changes = _deck_hash(current_deck_state) != tip.deck_hash
-
+        tip = self._tip()
         return VCSStatus(
-            branch=self._current_branch,
-            snapshot_count=count,
-            has_uncommitted_changes=has_changes,
-            last_snapshot_description=last_desc,
+            snapshot_count=self._repo.snapshot_count(self._deck_path),
+            has_uncommitted_changes=(
+                tip is None or _deck_hash(current_deck_state) != tip.deck_hash
+            ),
+            last_snapshot_description=tip.description if tip is not None else "",
         )
 
 

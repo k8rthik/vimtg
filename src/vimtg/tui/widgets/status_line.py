@@ -28,7 +28,6 @@ class StatusLine(Static):
     card_count: reactive[int] = reactive(0)
     cursor_line: reactive[int] = reactive(0)
     total_lines: reactive[int] = reactive(0)
-    vcs_branch: reactive[str] = reactive("")
     vcs_snapshot_count: reactive[int] = reactive(0)
     recording_register: reactive[str] = reactive("")
     pending_keys: reactive[str] = reactive("")
@@ -77,10 +76,8 @@ class StatusLine(Static):
             t.append(f"  {self.plan_status}", style=f"bold {COLORS['sideboard']}")
             if self.plan_unbalanced:
                 t.append(" !", style=f"bold {COLORS['warning']}")
-        if self.vcs_branch:
-            t.append(f"  [{self.vcs_branch}]", style=f"bold {COLORS['mana_green']}")
-            if self.vcs_snapshot_count:
-                t.append(f" ({self.vcs_snapshot_count})", style="dim")
+        if self.vcs_snapshot_count:
+            t.append(f"  {self.vcs_snapshot_count} snapshots", style="dim")
         if self.pending_keys:
             t.append(f"  {self.pending_keys}", style=f"bold {COLORS['quantity']}")
         if self.card_data:

@@ -1,4 +1,4 @@
-"""Working-copy panel — the editor buffer versus the branch tip.
+"""Working-copy panel — the editor buffer versus the latest snapshot.
 
 The lazygit "files" box: what would go into the next commit. Selecting it
 in the overlay shows the same diff in the Diff panel.
@@ -16,11 +16,10 @@ from vimtg.tui.widgets.scroll_panel import fit_line, render_panel_header
 
 
 class WorkingCopyPanel(Static):
-    """Summarises uncommitted changes against the current branch tip.
+    """Summarises uncommitted changes against the latest snapshot.
 
-    `dirty` is the VCS's own verdict (cards, metadata, and sideboard plans),
-    so it agrees with the merge/rebase gate; `diff` only knows about cards
-    and supplies the counts.
+    `dirty` is the VCS's own verdict (cards, metadata, and sideboard plans);
+    `diff` only knows about cards and supplies the counts.
     """
 
     diff: reactive[DeckDiff | None] = reactive(None, recompose=False)

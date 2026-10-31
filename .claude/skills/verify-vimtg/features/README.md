@@ -33,5 +33,5 @@ Each feature file starts with an H1 and one paragraph on the user-visible behavi
 - [Deck editing](./deck-editing.md) covers moving, quantities, delete/undo/repeat, adding cards through search, visual mode, ex commands, and saving.
 - [Zones and sideboard plans](./zones-and-plans.md) covers sideboard/maybeboard moves, split counts, `VS:` plans, and legality signs.
 - [Panes and windows](./panes-and-windows.md) covers the analytics pane, sample hand, EDHREC, splits under `Ctrl-W`, and the Space leader.
-- [Version history](./version-history.md) covers `:w` snapshots, `:commit`, the history overlay, and branches.
+- [Version history](./version-history.md) covers `:w` snapshots, `:commit`, `:checkpoint`, and the history overlay.
 - [Greeter, tutor, and CLI](./greeter-tutor-cli.md) covers the start screen, its `:` line, the tutor, import/export, and the shell subcommands.

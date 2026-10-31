@@ -208,7 +208,7 @@ class TestHistoryRestoreOfTheSavedText:
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             scr = _screen(app)
-            scr._on_vcs_state(scr._state.buffer.to_text(), "restore")
+            scr._on_restore(scr._state.buffer.to_text())
             assert scr._state.modified is False
-            scr._on_vcs_state("// Deck: Burn\n\n4 Opt\n", "restore")
+            scr._on_restore("// Deck: Burn\n\n4 Opt\n")
             assert scr._state.modified is True

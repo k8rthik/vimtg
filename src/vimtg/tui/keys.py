@@ -89,8 +89,8 @@ class VimNav:
 
 class DiscardGuard:
     """q / Esc on a view holding work that closing would lose (unsaved
-    settings, merge resolutions): the first press warns, a second one
-    closes. Any other key disarms it."""
+    settings): the first press warns, a second one closes. Any other key
+    disarms it."""
 
     def __init__(self) -> None:
         self.armed = False
