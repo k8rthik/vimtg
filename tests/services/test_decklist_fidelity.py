@@ -323,7 +323,7 @@ class TestSkippedReport:
     def test_convert_clean_input_has_empty_stderr(self, tmp_path: Path) -> None:
         src = tmp_path / "in.txt"
         src.write_text("4 Lightning Bolt\n", encoding="utf-8")
-        result = CliRunner().invoke(main, ["convert", str(src), "--to", "arena"])
+        result = CliRunner().invoke(main, ["convert", str(src), "--to", "vimtg"])
         assert result.exit_code == 0
         assert result.stderr == ""
 

@@ -449,7 +449,7 @@ async def test_clipboard_native_tool_is_confirmed(
         await pilot.press("enter")
         assert ran == [["wl-copy"]]
         assert sent == []
-        assert _message(app).message == "Copied mtgo (1 lines) to clipboard"
+        assert _message(app).message.startswith("Copied mtgo (1 lines) to clipboard")
 
 
 @pytest.mark.asyncio

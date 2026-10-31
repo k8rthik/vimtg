@@ -138,13 +138,29 @@ is its `@category`.
 
 | Command | Description |
 |---------|-------------|
-| `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `list`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard. `vimtg` is the text `:w` writes, so empty `// Format:`/`// Tags:` lines the file never had are left out |
-| `:export! fmt file` | Same, overwriting an existing `file` (`:export` refuses with E13). The open deck's own file is never an export target |
-| `:export list [file]` | Write bare `N Card Name` lines (commander, companion, mainboard, sideboard; no maybeboard), with no headers or blank lines, front faces only, and a card in two zones summed, so it pastes into MPC Autofill or a store's mass-entry box (TCGplayer, Card Kingdom, Mana Pool). `mpc` and `tcgplayer` are the same format |
+| `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `list`, `mpc`, `tcgplayer`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard. The destination's [export checks](#export-checks) run first. `vimtg` is the text `:w` writes, so empty `// Format:`/`// Tags:` lines the file never had are left out |
+| `:export! fmt [file]` | Same, overwriting an existing `file` (`:export` refuses with E13) and writing despite export check errors. The open deck's own file is never an export target |
+| `:export list [file]` | Write bare `N Card Name` lines (commander, companion, mainboard, sideboard; no maybeboard), with no headers or blank lines, front faces only, and a card in two zones summed, so it pastes into MPC Autofill or a store's mass-entry box (TCGplayer, Card Kingdom, Mana Pool). `mpc` and `tcgplayer` write the same lines, with their own checks |
 | `:export missing [file]` | Write the cards your [collection](#collection) lacks as `N Card Name` lines, mainboard then a blank line then sideboard, ready for a store's mass-entry box; with no file, copy them to the clipboard. Needs a loaded collection |
 | `:import[!] file` | Open `file` as a new unnamed deck in place of this one, as the greeter's import does (the open deck is left as it is on disk; the first `:w` names the new file after its `// Deck:` line), auto-detecting format. Refuses with unsaved changes (E37); `!` discards them. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
 | `:import` | Same, with the decklist (or deck URL) on the system clipboard |
-| `:clipboard [fmt]` | Copy the deck to the system clipboard in any `:export` format (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
+| `:clipboard [fmt]` | Copy the deck to the system clipboard in any `:export` format (default arena), after the same export checks: pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
+
+### Export checks
+
+Before `:export`, `:clipboard`, or `vimtg convert` writes a deck, the destination checks it. An error blocks the write: the editor shows the first error and lists every issue in `:messages`, and `vimtg convert` prints them on stderr and exits 1. `:export!` and `vimtg convert --force` write anyway. A warning never blocks: the editor's message ends with a count such as `; 2 warnings (see :messages)`, and `vimtg convert` prints it on stderr and exits 0. A message names the first two cards of a long list and counts the rest.
+
+Every destination except `vimtg` and `guide` warns about card names the card database cannot resolve, since the destination may not recognise them, and refuses an export with no cards in the zones it writes. With no card database, one warning says the checks were limited.
+
+| Destination | Names written | Checked |
+|-------------|---------------|---------|
+| `arena` (`mtga`) | Front face of a double-faced or adventure card, both halves of a split card | A card not on MTG Arena (its `timeless` legality is `not_legal`) is an error; banned and restricted cards are on Arena. Card data without Timeless legality warns that Arena availability is unknown; run `vimtg sync` |
+| `mtgo`, `dek` | As `arena` | A card with no tix price, other than a basic land, may not be on MTGO (warning) |
+| `moxfield`, `archidekt` | Full official name | Only the checks above |
+| `list`, `tcgplayer` | Front face of every multi-faced card, split cards included | Only the checks above |
+| `mpc` | As `list` | A name with `@` is an error, since MPC Autofill reads `@` as an image-id separator. The success message gives the card count |
+| `guide` | As typed | A deck with no sideboard plans is an error |
+| `vimtg` | As typed | Nothing |
 
 Pasting (your terminal's paste key) in normal mode adds the pasted
 decklist to the deck as one undo step; in card search or on the `:`

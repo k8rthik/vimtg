@@ -5,11 +5,15 @@ Wires to ImportExportService for deck format conversion.
 
 from __future__ import annotations
 
+import sqlite3
+from collections.abc import Mapping
 from pathlib import Path
 
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.file_io import atomic_write_text
+from vimtg.domain.card import Card
 from vimtg.domain.collection import missing_list, ownership
+from vimtg.domain.deck import Deck
 from vimtg.editor.buffer import Buffer
 from vimtg.editor.command_handlers.collection_cmds import NO_COLLECTION
 from vimtg.editor.commands import (
@@ -22,10 +26,17 @@ from vimtg.editor.commands import (
 from vimtg.editor.cursor import Cursor
 from vimtg.services.clipboard import read_clipboard
 from vimtg.services.deck_service import saved_text
-from vimtg.services.import_export_service import (
-    FORMAT_NAMES,
-    PRIMARY_FORMAT_NAMES,
+from vimtg.services.export_targets import (
     DeckFormat,
+    ExportIssue,
+    ExportTarget,
+    IssueLevel,
+    check_export,
+    exported_card_count,
+    target_named,
+)
+from vimtg.services.import_export_service import (
+    PRIMARY_FORMAT_NAMES,
     ImportExportService,
     format_list,
 )
@@ -55,15 +66,55 @@ def _export_conflict(target: Path, ctx: EditorContext, bang: bool) -> str | None
     return None
 
 
-def _render_export(buffer: Buffer, fmt: DeckFormat, ctx: EditorContext) -> str:
-    """The deck in `fmt`, as :export and :clipboard both produce it."""
-    if fmt is DeckFormat.VIMTG:
+def _render_export(buffer: Buffer, deck: Deck, target: ExportTarget, ctx: EditorContext) -> str:
+    """The deck as `target` takes it, as :export and :clipboard both produce it."""
+    if target.fmt is DeckFormat.VIMTG:
         # vimtg -> vimtg is the buffer as :w writes it: re-serializing
         # would drop section headers, block layout and comment positions
         return saved_text(buffer.to_text(), _on_disk(ctx.file_path))
-    deck = parse_deck_text(buffer.to_text())
     service = ImportExportService(card_repo=ctx.card_repo)
-    return service.export_deck(deck, fmt, resolved=ctx.resolved_cards or {})
+    return service.export(deck, target, resolved=ctx.resolved_cards or {})
+
+
+def _card_data(ctx: EditorContext) -> Mapping[str, Card] | None:
+    """The deck's resolved cards for export checks, or None when there
+    is no card database (none, empty, or unreadable)."""
+    if ctx.resolved_cards:
+        return ctx.resolved_cards
+    try:
+        has_cards = ctx.card_repo is not None and ctx.card_repo.count() > 0
+    except sqlite3.Error:
+        has_cards = False
+    return {} if has_cards else None
+
+
+def _checked(
+    buffer: Buffer, target: ExportTarget, bang: bool, ctx: EditorContext
+) -> tuple[str, str] | None:
+    """Run `target`'s checks and render the export: (text, the note its
+    success message ends with), or None when an error blocks it (shown,
+    unless ! overrides). Every issue goes to :messages."""
+    deck = parse_deck_text(buffer.to_text())
+    issues = check_export(deck, _card_data(ctx), target)
+    ctx.logged.extend(
+        (i.level is IssueLevel.ERROR, f"{target.name}: {i.text(named=None)}") for i in issues
+    )
+    errors = [i for i in issues if i.level is IssueLevel.ERROR]
+    if errors and not bang:
+        ctx.fail(f"{errors[0].text()} (:export! {target.name} overrides)")
+        return None
+    count = f" ({exported_card_count(deck, target)} cards)" if target.counts_cards else ""
+    return _render_export(buffer, deck, target, ctx), count + _issue_note(issues)
+
+
+def _issue_note(issues: tuple[ExportIssue, ...]) -> str:
+    """'; 1 error, 2 warnings (see :messages)', or '' with no issues."""
+    counts = [
+        (sum(i.level is level for i in issues), level.value)
+        for level in (IssueLevel.ERROR, IssueLevel.WARNING)
+    ]
+    parts = [f"{n} {word}{'s' if n > 1 else ''}" for n, word in counts if n]
+    return f"; {', '.join(parts)} (see :messages)" if parts else ""
 
 
 def _on_disk(path: Path | None) -> str | None:
@@ -109,13 +160,15 @@ def cmd_export(
         _deliver_export(result, "missing cards", "missing cards", file_arg, cmd.bang, ctx)
         return buffer, cursor
 
-    fmt = FORMAT_NAMES.get(fmt_name)
-    if fmt is None:
+    target = target_named(fmt_name)
+    if target is None:
         ctx.fail(f"Unknown format: {fmt_name}. Use {format_list()}")
         return buffer, cursor
 
-    result = _render_export(buffer, fmt, ctx)
-    _deliver_export(result, fmt_name, f"{fmt_name} export", file_arg, cmd.bang, ctx)
+    checked = _checked(buffer, target, cmd.bang, ctx)
+    if checked is not None:
+        result, note = checked
+        _deliver_export(result, fmt_name, f"{fmt_name} export", file_arg, cmd.bang, ctx, note)
     return buffer, cursor
 
 
@@ -126,12 +179,15 @@ def _deliver_export(
     file_arg: str | None,
     bang: bool,
     ctx: EditorContext,
+    note: str = "",
 ) -> None:
     """Hand `result` to the clipboard (no file, labelled `clipboard_label`)
-    or write it to `file_arg` ('Exported {what} to ...')."""
+    or write it to `file_arg` ('Exported {what} to ...'); `note` ends
+    the success message."""
     if file_arg is None:
         ctx.clipboard_text = result
         ctx.clipboard_label = f"{clipboard_label} ({len(result.splitlines())} lines)"
+        ctx.clipboard_note = note
         return
     target = _export_target(file_arg)
     conflict = _export_conflict(target, ctx, bang)
@@ -145,7 +201,7 @@ def _deliver_export(
     except OSError as exc:
         ctx.fail(f"Write failed: {exc}")
         return
-    ctx.message = f"Exported {what} to {Path(file_arg).expanduser()}"
+    ctx.message = f"Exported {what} to {Path(file_arg).expanduser()}{note}"
 
 
 def cmd_import(
@@ -237,13 +293,16 @@ def cmd_clipboard(
     has to go through it): the handler only renders the text.
     """
     fmt_name = (cmd.args.strip() or "arena").lower()
-    fmt = FORMAT_NAMES.get(fmt_name)
-    if fmt is None:
+    target = target_named(fmt_name)
+    if target is None:
         ctx.message = f"E: Unknown format: {fmt_name}. Use {format_list()}"
         ctx.error = True
         return buffer, cursor
 
-    text = _render_export(buffer, fmt, ctx)
+    checked = _checked(buffer, target, False, ctx)
+    if checked is None:
+        return buffer, cursor
+    text, ctx.clipboard_note = checked
     ctx.clipboard_text = text
     ctx.clipboard_label = f"{fmt_name} ({len(text.splitlines())} lines)"
     return buffer, cursor

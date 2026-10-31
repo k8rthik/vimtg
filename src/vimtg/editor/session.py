@@ -271,6 +271,9 @@ class HandlerResult:
     import_url: str = ""  # deck-site URL to fetch asynchronously
     clipboard_text: str | None = None  # text to put on the system clipboard
     clipboard_label: str = ""  # what clipboard_text is, for the message
+    clipboard_note: str = ""  # appended to the copy's message
+    # (is_error, text) lines for :messages only, logged before the message
+    logged: tuple[tuple[bool, str], ...] = ()
     card_sync: str = ""  # "sync" / "force": start a background card sync
     focus_other_window: bool = False  # Ctrl-W w
     # A pane the Space leader toggles: closes it when it is the one open,
@@ -700,6 +703,8 @@ def handle_command(
             import_url=ctx.import_url,
             clipboard_text=ctx.clipboard_text,
             clipboard_label=ctx.clipboard_label,
+            clipboard_note=ctx.clipboard_note,
+            logged=tuple(ctx.logged),
             card_sync=ctx.card_sync,
             plan_changed=plan_changed,
             edit_file=ctx.edit_path,

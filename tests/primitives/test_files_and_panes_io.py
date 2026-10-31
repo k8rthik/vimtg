@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -21,8 +22,11 @@ from tests.primitives.files_and_panes_helpers import (
     in_editor,
     shown,
 )
-from tests.primitives.harness import DECK, Ed, editor
-from vimtg.config.paths import config_dir
+from tests.primitives.harness import DECK, FIXTURES, Ed, editor
+from vimtg.config.paths import config_dir, db_path
+from vimtg.data.card_repository import CardRepository
+from vimtg.data.database import Database
+from vimtg.domain.card import Card
 
 pytestmark = pytest.mark.asyncio
 
@@ -257,6 +261,111 @@ async def test_export_missing_without_a_collection_is_an_error(tmp_path: Path) -
         assert ed.is_error is True
         assert NO_COLLECTION in ed.message
     assert not (tmp_path / "need.txt").exists()
+
+
+# ── :export, destination checks ─────────────────────────────────────
+
+
+def _seed_timeless(not_on_arena: frozenset[str] = frozenset({"Goblin Guide"})) -> None:
+    """The sample cards with real Timeless legality: on Arena unless named."""
+    raw = json.loads((FIXTURES / "scryfall_sample.json").read_text(encoding="utf-8"))
+    for card in raw:
+        on_arena = card["name"] not in not_on_arena
+        card["legalities"] = card["legalities"] | {
+            "timeless": "legal" if on_arena else "not_legal"
+        }
+    db = Database(db_path())
+    try:
+        db.initialize()
+        CardRepository(db).replace_all([Card.from_scryfall(d) for d in raw])
+    finally:
+        db.close()
+
+
+def _logged(ed: Ed) -> list[str]:
+    """What :messages lists."""
+    return [text for _error, text in ed.app.message_log]
+
+
+@pytest.mark.primitive(":export")
+async def test_export_arena_refuses_a_card_not_on_arena(tmp_path: Path) -> None:
+    _seed_timeless()
+    async with editor(tmp_path, cards=False) as ed:
+        ed.ex("export arena out.txt")
+        assert ed.is_error is True
+        assert "Goblin Guide" in ed.message
+        assert any("Not on MTG Arena" in line and "Goblin Guide" in line for line in _logged(ed))
+    assert not (tmp_path / "out.txt").exists()
+
+
+@pytest.mark.primitive(":export")
+async def test_export_bang_writes_arena_despite_the_error(tmp_path: Path) -> None:
+    _seed_timeless()
+    async with editor(tmp_path, cards=False) as ed:
+        ed.ex("export! arena out.txt")
+        assert ed.is_error is False
+        assert "1 error" in ed.message and ":messages" in ed.message
+    assert "4 Goblin Guide" in _read(tmp_path, "out.txt").splitlines()
+
+
+@pytest.mark.primitive(":clipboard")
+async def test_clipboard_arena_refuses_a_card_not_on_arena(
+    tmp_path: Path, clipboard: FakeClipboard
+) -> None:
+    _seed_timeless()
+    async with editor(tmp_path, cards=False) as ed:
+        ed.ex("clipboard arena")
+        assert ed.is_error is True
+        assert "Goblin Guide" in ed.message
+    assert clipboard.text is None
+
+
+@pytest.mark.primitive(":export")
+async def test_export_arena_on_arena_cards_writes_with_no_note(tmp_path: Path) -> None:
+    _seed_timeless(frozenset())
+    async with editor(tmp_path, cards=False) as ed:
+        ed.ex("export arena out.txt")
+        assert ed.is_error is False
+        assert ed.message == "Exported arena to out.txt"
+
+
+@pytest.mark.primitive(":export")
+async def test_export_warnings_never_block_and_are_counted(tmp_path: Path) -> None:
+    async with editor(tmp_path) as ed:  # sample cards carry no Timeless legality
+        ed.ex("export arena out.txt")
+        assert ed.is_error is False
+        assert ed.message == "Exported arena to out.txt; 1 warning (see :messages)"
+        assert any("Arena availability unknown" in line for line in _logged(ed))
+    assert "4 Goblin Guide" in _read(tmp_path, "out.txt").splitlines()
+
+
+@pytest.mark.primitive(":export")
+async def test_export_mpc_refuses_an_at_sign_in_a_name(tmp_path: Path) -> None:
+    deck = "// Deck: Proxies\n\nDCK:\n    4 Lightning Bolt\n    1 Foo@Bar\n"
+    async with editor(tmp_path, deck) as ed:
+        ed.ex("export mpc out.txt")
+        assert ed.is_error is True
+        assert "Foo@Bar" in ed.message
+    assert not (tmp_path / "out.txt").exists()
+
+
+@pytest.mark.primitive(":export")
+async def test_export_mpc_reports_the_card_count(tmp_path: Path) -> None:
+    async with editor(tmp_path) as ed:
+        ed.ex("export mpc out.txt")
+        assert ed.is_error is False
+        assert ed.message == "Exported mpc to out.txt (36 cards)"
+
+
+@pytest.mark.primitive(":clipboard")
+async def test_clipboard_mpc_reports_the_card_count(
+    tmp_path: Path, clipboard: FakeClipboard
+) -> None:
+    async with editor(tmp_path) as ed:
+        ed.ex("clipboard mpc")
+        assert ed.is_error is False
+        assert ed.message.endswith("(36 cards)")
+    assert clipboard.text is not None
 
 
 # ── :clipboard ──────────────────────────────────────────────────────
