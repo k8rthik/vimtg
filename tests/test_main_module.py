@@ -40,6 +40,7 @@ def test_python_dash_m_vimtg_version() -> None:
         [sys.executable, "-m", "vimtg", "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=60,
         check=False,
     )

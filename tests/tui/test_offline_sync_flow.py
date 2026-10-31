@@ -242,6 +242,25 @@ def test_sync_progress_text() -> None:
     assert sync_progress_text("download", 42, 100) == "downloading 42%"
     assert sync_progress_text("download", 0, 0) == "downloading..."
     assert sync_progress_text("parse", 5000, 10000) == "loading 50%"
+    assert sync_progress_text("download_tags", 42, 100) == "downloading tags 42%"
+    assert sync_progress_text("parse_tags", 0, 0) == "loading tags..."
+
+
+@pytest.mark.asyncio
+async def test_finished_sync_says_when_tags_were_skipped(tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._finish_auto_sync(42, tags_note="Scryfall unreachable")
+        await pilot.pause()
+        assert app.message_log[-1] == (
+            False,
+            "Card sync: Card database updated (42 cards); oracle tags skipped: "
+            "Scryfall unreachable",
+        )
+        app._finish_auto_sync(42)
+        await pilot.pause()
+        assert app.message_log[-1] == (False, "Card sync: Card database updated (42 cards)")
 
 
 # ── Corrupt database at launch ───────────────────────────────────

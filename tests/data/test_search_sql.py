@@ -21,3 +21,13 @@ class TestDoubleNegation:
             assert node is not None
             sql, _ = compile_search(node)
             assert sql.count("NOT") == n % 2
+
+
+class TestOracleTags:
+    def test_tag_compiles_to_one_exists_over_card_tags(self) -> None:
+        node = parse_search("otag:ramp")
+        assert node is not None
+        sql, params = compile_search(node)
+        assert sql.count("EXISTS (SELECT 1 FROM card_tags") == 1
+        assert "tag_aliases" in sql
+        assert params == ["ramp", "ramp"]

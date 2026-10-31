@@ -51,7 +51,7 @@ class TestKeyRemapper:
             '\n'
             '[keybindings.normal]\n'
             '"Q" = ":q!"\n'
-        )
+        , encoding="utf-8")
         r = KeyRemapper()
         count = r.load_from_config(config)
         assert count == 2
@@ -64,7 +64,7 @@ class TestKeyRemapper:
         config = tmp_path / "config.toml"
         config.write_text(
             '[keybindings]\nnormal = "x"\ninsert = ["a"]\nctrl_s = ":w"\n'
-        )
+        , encoding="utf-8")
         r = KeyRemapper()
         assert r.load_from_config(config) == 1
         assert r.resolve("ctrl_s", Mode.NORMAL) == ":w"
@@ -72,7 +72,7 @@ class TestKeyRemapper:
 
     def test_non_string_targets_are_skipped(self, tmp_path: Path) -> None:
         config = tmp_path / "config.toml"
-        config.write_text('[keybindings.normal]\ns = 1\nQ = ":q!"\n')
+        config.write_text('[keybindings.normal]\ns = 1\nQ = ":q!"\n', encoding="utf-8")
         r = KeyRemapper()
         assert r.load_from_config(config) == 1
         assert r.resolve("s", Mode.NORMAL) == "s"

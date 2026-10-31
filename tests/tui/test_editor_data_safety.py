@@ -77,7 +77,7 @@ class TestRecoveryIsPerDeck:
             _ex(scr, "w")
             assert scr._state.modified is False
         assert read_recovery(one) == "// Deck: Other\n\nDCK:\n4 Island\n"
-        assert two.read_text() != CANONICAL
+        assert two.read_text(encoding="utf-8") != CANONICAL
 
     @pytest.mark.asyncio
     async def test_unnamed_buffer_copy_is_listed_and_reopened(self, tmp_path: Path) -> None:
@@ -171,7 +171,7 @@ class TestRecoveryIsPerDeck:
             assert scr.file_path == gone.resolve()
             _ex(scr, "w")
             assert "Written" in _message(scr)
-        assert "4 Island" in gone.read_text()
+        assert "4 Island" in gone.read_text(encoding="utf-8")
         assert list_recoveries() == []
 
     @pytest.mark.asyncio
@@ -205,7 +205,7 @@ class TestExitKeepsUnsavedWork:
             await pilot.pause()
             await pilot.press(key)
             await pilot.pause()
-        assert path.read_text() == CANONICAL  # nothing written to the deck
+        assert path.read_text(encoding="utf-8") == CANONICAL  # nothing written to the deck
         saved = read_recovery(path)
         assert saved is not None and "Goblin Guide" not in saved
 
@@ -241,7 +241,7 @@ class TestExitKeepsUnsavedWork:
             await pilot.pause()
         assert app.return_code == 0
         assert list_recoveries() == []
-        assert path.read_text() == CANONICAL
+        assert path.read_text(encoding="utf-8") == CANONICAL
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("sig", ["SIGHUP", "SIGTERM"])
@@ -528,7 +528,7 @@ class TestSaveAs:
             msg = _message(scr)
             assert "now editing other.deck" in msg and "burn.deck" in msg
             assert scr.file_path == tmp_path / "other.deck"
-        assert path.read_text() == CANONICAL
+        assert path.read_text(encoding="utf-8") == CANONICAL
 
     @pytest.mark.asyncio
     async def test_w_name_writes_a_copy_and_keeps_editing(
@@ -544,12 +544,12 @@ class TestSaveAs:
             _ex(scr, "w copy")
             assert _message(scr) == '"copy.deck" written'
             assert scr.file_path == path and scr._state.modified
-            assert "Goblin Guide" not in (tmp_path / "copy.deck").read_text()
+            assert "Goblin Guide" not in (tmp_path / "copy.deck").read_text(encoding="utf-8")
             _ex(scr, "w copy")
             assert "E13" in _message(scr)
             _ex(scr, "w! copy")
             assert _message(scr) == '"copy.deck" written'
-        assert path.read_text() == CANONICAL
+        assert path.read_text(encoding="utf-8") == CANONICAL
 
     @pytest.mark.asyncio
     async def test_saveas_needs_a_name(self, tmp_path: Path) -> None:
@@ -611,12 +611,12 @@ class TestDiskChanges:
             scr = _screen(app)
             outside = CANONICAL.replace("Skullcrack", "Skullcrapz")
             assert len(outside) == len(CANONICAL)
-            path.write_text(outside)
+            path.write_text(outside, encoding="utf-8")
             os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
             _feed(scr, _keys("6G dd"))
             _ex(scr, "w")
             assert "changed on disk" in _message(scr)
-        assert path.read_text() == outside
+        assert path.read_text(encoding="utf-8") == outside
 
     @pytest.mark.asyncio
     async def test_touch_without_change_is_not_a_conflict(self, tmp_path: Path) -> None:
@@ -669,7 +669,7 @@ class TestValidateMatchesEditor:
         from vimtg.cli import main
 
         path = tmp_path / "q.deck"
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         output = CliRunner().invoke(main, ["validate", str(path)]).output
         match = re.search(r"q\.deck:(\d+): error: Invalid quantity 0 for Bolt"
                           r"(?: \(line (\d+) in the vimtg editor\))?", output)

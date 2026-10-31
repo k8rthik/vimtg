@@ -46,6 +46,33 @@ CARD_NAMES_INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_card_names_id ON card_names(scryfall_id)",
 )
 
+# Scryfall oracle tags (otag:), expanded at load time so a card tagged
+# with a leaf tag has a row for every ancestor tag too. card_tags is
+# all integers: a tags row id and an oracle_ids row id. Only the tag
+# load writes oracle_ids, in the same transaction as card_tags, so a
+# resync of the cards table cannot leave a card_tags row pointing at
+# the wrong card. card_tags is keyed tag first so one tag's rows share
+# a few pages: a search probes it once per candidate card.
+TAG_TABLES = (
+    """CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE
+    )""",
+    """CREATE TABLE IF NOT EXISTS tag_aliases (
+        alias TEXT PRIMARY KEY,
+        tag_id INTEGER NOT NULL
+    ) WITHOUT ROWID""",
+    """CREATE TABLE IF NOT EXISTS oracle_ids (
+        oracle_id TEXT PRIMARY KEY,
+        id INTEGER NOT NULL
+    ) WITHOUT ROWID""",
+    """CREATE TABLE IF NOT EXISTS card_tags (
+        card_oracle INTEGER NOT NULL,
+        tag_id INTEGER NOT NULL,
+        PRIMARY KEY (tag_id, card_oracle)
+    ) WITHOUT ROWID""",
+)
+
 # Bumped whenever a migration needs to run once against an existing DB.
 #   0 -> v0.8 and earlier (no PRAGMA user_version set)
 #   1 -> oracle_id / produced_mana / game_changer, card_names aliases,
@@ -54,7 +81,9 @@ CARD_NAMES_INDEXES = (
 #        face_stats (per-face power/toughness)
 #   3 -> deck history is linear: the branches and deck_heads tables are
 #        dropped
-SCHEMA_VERSION = 3
+#   4 -> card_tags and tag_aliases (Scryfall oracle tags)
+#   5 -> tag tables keyed by integer ids (tags, oracle_ids)
+SCHEMA_VERSION = 5
 
 CARDS_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
@@ -154,6 +183,10 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         _migrate_to_v2(conn)
     if version < 3:
         _migrate_to_v3(conn)
+    if version < 4:
+        _migrate_to_v4(conn)
+    if version < 5:
+        _migrate_to_v5(conn)
 
 
 def _migrate_to_v1(conn: sqlite3.Connection) -> None:
@@ -239,6 +272,38 @@ def _migrate_to_v3(conn: sqlite3.Connection) -> None:
         raise
 
 
+def _migrate_to_v4(conn: sqlite3.Connection) -> None:
+    """Oracle tags arrive in their own tables, empty until the next
+    sync downloads the tags file; cards and history are untouched."""
+    try:
+        for sql in TAG_TABLES:
+            conn.execute(sql)
+        conn.execute("PRAGMA user_version = 4")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+
+def _migrate_to_v5(conn: sqlite3.Connection) -> None:
+    """The v4 tag tables repeated the oracle id and slug text in every
+    row; v5 keys them by integer ids. The old tables are dropped and
+    the empty v5 ones take their place, so an ``otag:`` search says
+    the tags are not synced until the next sync fills them. Cards and
+    history are untouched."""
+    try:
+        conn.execute("DROP TABLE IF EXISTS card_tags")
+        conn.execute("DROP TABLE IF EXISTS tag_aliases")
+        for sql in TAG_TABLES:
+            conn.execute(sql)
+        conn.execute("DELETE FROM sync_metadata WHERE key = 'last_tag_sync'")
+        conn.execute("PRAGMA user_version = 5")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+
+
 def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARDS_TABLE)
     conn.execute(CARDS_FTS)
@@ -247,6 +312,8 @@ def initialize_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CARD_NAMES_TABLE)
     for idx in CARD_NAMES_INDEXES:
         conn.execute(idx)
+    for sql in TAG_TABLES:
+        conn.execute(sql)
     conn.execute(SYNC_TABLE)
     conn.execute(SNAPSHOTS_TABLE)
     for idx in SNAPSHOT_INDEXES:

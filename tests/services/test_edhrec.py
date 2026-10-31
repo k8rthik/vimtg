@@ -174,7 +174,7 @@ class TestEdhrecClient:
     def test_stale_cache_is_refetched(self, tmp_path: Path):
         cache_file = tmp_path / "edhrec" / "atraxa.json"
         cache_file.parent.mkdir(parents=True)
-        cache_file.write_text(json.dumps(_payload(title="Stale")))
+        cache_file.write_text(json.dumps(_payload(title="Stale")), encoding="utf-8")
         old = time.time() - 8 * 86400
         import os
 
@@ -209,7 +209,7 @@ class TestEdhrecClient:
 
         cache_file = tmp_path / "edhrec" / "atraxa.json"
         cache_file.parent.mkdir(parents=True)
-        cache_file.write_text(json.dumps(_payload(title="Stale")))
+        cache_file.write_text(json.dumps(_payload(title="Stale")), encoding="utf-8")
         old = time.time() - days * 86400
         os.utime(cache_file, (old, old))
 

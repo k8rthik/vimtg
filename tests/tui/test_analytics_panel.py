@@ -32,7 +32,7 @@ _DECK = (
 def card_map() -> dict[str, Card]:
     path = Path(__file__).parent.parent / "fixtures" / "scryfall_sample.json"
     return {
-        c["name"]: Card.from_scryfall(c) for c in json.loads(path.read_text())
+        c["name"]: Card.from_scryfall(c) for c in json.loads(path.read_text(encoding="utf-8"))
     }
 
 

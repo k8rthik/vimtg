@@ -11,6 +11,7 @@ o:"draw a card" f:modern usd<1        cheap modern-legal card draw
 !"Lightning Bolt"                     exactly that card
 is:mdfc t:land                        modal DFCs with a land face
 o:/deals \d damage/                   regex on rules text
+otag:ramp c:g mv<=3                   cheap green ramp, by Scryfall's oracle tags
 ```
 
 ## Combining terms
@@ -36,7 +37,7 @@ o:/deals \d damage/                   regex on rules text
 | `kw:` `keyword:` | a whole keyword (`kw:flying`); also its "with" form, so `kw:partner` finds Partner and Partner with |
 | `m:` `mana:` | mana cost contains symbols: `m:rr` or `m:{R}{R}`. Split cards store both halves (`{3}{U} // {4}{W}{W}`), so `m:ww` finds Commit // Memory |
 | `produces:` | mana the card can produce: `produces:g`, `produces:ur` (at least those), `produces=c` (exactly colourless), `produces<=ub`; colour words and guilds work too |
-| `c:` `color:` | colours (see below) |
+| `c:` `color:` `colour:` | colours (see below) |
 | `id:` `ci:` `identity:` | colour identity (see below) |
 | `mv` `cmc` `manavalue` | mana value |
 | `pow` `power`, `tou` `toughness` | power / toughness of **any face** (Delver of Secrets matches `pow>=3` by its back face; cards without one never match; `*` counts as 0). Compare two stats with `pow>tou`, `tou<=mv`, `pow=cmc` |
@@ -46,6 +47,7 @@ o:/deals \d damage/                   regex on rules text
 | `banned:`, `restricted:` | banned / restricted in the format |
 | `usd` `eur` `tix` | price comparisons; cards without that price never match |
 | `is:` / `not:` | `commander`, `dfc`, `mdfc`, `transform` (`tdfc`), `split`, `adventure`, `flip`, `meld`, `gamechanger` (`gc`), `permanent` (front face is an artifact, creature, enchantment, land, planeswalker or battle), `spell` (front face is not a land), `hybrid` (a hybrid symbol in the cost, `{2/W}` included), `phyrexian` (a Phyrexian symbol in the cost) |
+| `otag:` `oracletag:` `function:` | a Scryfall oracle tag (see below): `otag:ramp`, `otag:removal`, `otag:tutor`, `otag:card-advantage`. A card matches the tag or any tag under it; aliases work (`otag:acceleration` is `ramp`); a tag nobody has matches nothing |
 | `order:` `direction:` | sort results instead of ranking by name: `order:` `name`, `cmc` (`mv`), `power`, `toughness`, `rarity`, `usd`, `eur`, `tix`, `set`; `direction:asc` or `desc`. Cards without the value sort last |
 
 Typographic quotes and apostrophes fold to plain ones, so a pasted
@@ -79,6 +81,25 @@ and `predh` work in searches only.
 `is:commander` follows the Commander rules: a legendary creature, Vehicle,
 Spacecraft with P/T or Background, or a card whose text says it can be your
 commander.
+
+## Oracle tags
+
+Scryfall's volunteers tag every card by what it does (the Tagger project,
+`otag:` on scryfall.com). `vimtg sync` downloads the tag list (about 6 MB)
+after the card data, so `otag:` works offline like every other term. Tags
+form a tree: `otag:removal` finds cards tagged `removal-burn`,
+`removal-artifact`, `sweeper` and every other tag under `removal`. Spaces in
+a quoted tag become hyphens, so `otag:"mana rock"` is `otag:mana-rock`.
+
+```
+otag:ramp t:artifact mv<=2            Sol Ring and its friends
+otag:tutor id<=bg f:commander         tutors playable under a Golgari commander
+-otag:removal t:instant c:r           red instants that are not removal
+```
+
+On a database synced before vimtg had oracle tags, an `otag:` search
+matches nothing and says `oracle tags not synced` until the next `vimtg sync`
+(`:sync` in the editor).
 
 ## Colours
 

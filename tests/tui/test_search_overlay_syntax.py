@@ -12,9 +12,10 @@ from vimtg.config.paths import db_path
 from vimtg.data.card_repository import CardRepository
 from vimtg.domain.card import Card
 from vimtg.tui.app import VimTGApp
-from vimtg.tui.screens.main_screen import MainScreen
+from vimtg.tui.screens.main_screen import TAGS_SEARCH_NOTICE, MainScreen
 from vimtg.tui.widgets.command_line import CommandLine
 from vimtg.tui.widgets.search_results import SearchResults
+from vimtg.tui.widgets.status_line import StatusLine
 
 _FIXTURES = Path(__file__).parent.parent / "fixtures" / "scryfall_real_shape.json"
 
@@ -113,3 +114,48 @@ async def test_stale_worker_results_are_dropped(seeded_db, tmp_path: Path) -> No
         screen._show_search_error("bo", "stale")
         assert sr.results == [bolt]
         assert sr.error == ""
+
+
+@pytest.mark.asyncio
+async def test_otag_without_synced_tags_says_so(seeded_db, tmp_path: Path) -> None:
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test() as pilot:
+        screen = await _type_search(pilot, app, "otag:ramp")
+        sr = screen.query_one("#search-results", SearchResults)
+        assert sr.display is True
+        assert sr.results == [] and sr.error == ""
+        assert sr.notice == TAGS_SEARCH_NOTICE
+        assert sr.render().plain.strip() == TAGS_SEARCH_NOTICE
+
+
+@pytest.mark.asyncio
+async def test_otag_finds_cards_by_ancestor_tag(seeded_db, tmp_path: Path) -> None:
+    from tests.tag_support import load_fixture_tags
+
+    load_fixture_tags(seeded_db)
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test() as pilot:
+        screen = await _type_search(pilot, app, "otag:ramp")
+        sr = screen.query_one("#search-results", SearchResults)
+        assert {c.name for c in sr.results} == {"Sol Ring"}
+        assert sr.notice == ""
+
+
+@pytest.mark.asyncio
+async def test_overlay_sits_above_the_command_line(seeded_db, tmp_path: Path) -> None:
+    """The command line and the overlay dock to the same edge: a one-line
+    overlay (an error, "No matches") used to sit under the command line
+    and never reach the screen."""
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test(size=(120, 40)) as pilot:
+        cases = (("sol", "1 match"), ("zzqqxx", "No matches"), ("foo:bar", "Unknown search key"))
+        for query, shown in cases:
+            screen = await _type_search(pilot, app, query)
+            sr = screen.query_one("#search-results", SearchResults)
+            cl = screen.query_one("#command-line", CommandLine)
+            sl = screen.query_one("#status-line", StatusLine)
+            assert sr.render().plain.strip().startswith(shown), query
+            assert sr.region.height == len(sr.render().plain.splitlines()), query
+            assert sr.region.bottom <= min(cl.region.y, sl.region.y), query
+            await pilot.press("escape")
+            await pilot.pause()

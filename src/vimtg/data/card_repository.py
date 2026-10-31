@@ -39,6 +39,12 @@ class CardRepository:
     def __init__(self, db: Database) -> None:
         self._db = db
 
+    @property
+    def database(self) -> Database:
+        """The database this repository reads, for the tag tables that
+        live beside the cards (:class:`~vimtg.data.tag_repository.TagRepository`)."""
+        return self._db
+
     def bulk_insert(self, cards: Iterable[Card]) -> int:
         """Insert or update cards, keeping one row per oracle card.
 

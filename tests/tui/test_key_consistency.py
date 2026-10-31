@@ -23,7 +23,7 @@ from vimtg.tui.widgets.help_panel import HelpPanel
 def _deck(tmp_path: Path, n: int = 40) -> Path:
     path = tmp_path / "big.deck"
     body = "".join(f"    1 Card {i}\n" for i in range(n))
-    path.write_text("// Deck: Big\n// Format: modern\n\nDCK:\n" + body)
+    path.write_text("// Deck: Big\n// Format: modern\n\nDCK:\n" + body, encoding="utf-8")
     return path
 
 
@@ -178,7 +178,7 @@ class TestGreeterKeys:
         files = []
         for i in range(12):
             f = tmp_path / f"d{i:02d}.deck"
-            f.write_text("// Deck: x\n")
+            f.write_text("// Deck: x\n", encoding="utf-8")
             files.append(f)
         app = _GreeterHost(files)
         async with app.run_test(size=(80, 30)) as pilot:

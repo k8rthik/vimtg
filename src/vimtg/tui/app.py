@@ -84,7 +84,9 @@ class VimTGApp(App[None]):
     #deck-view {{ width: 1fr; height: 1fr; }}
     #edhrec-panel {{ width: 1fr; height: 1fr; }}
     #analytics-panel {{ width: 1fr; height: 1fr; }}
-    #search-results {{ height: auto; max-height: 50%; dock: bottom; }}
+    /* Every bottom dock shares the same edge; the margin keeps the
+       overlay above the command line instead of under it. */
+    #search-results {{ height: auto; max-height: 50%; dock: bottom; margin-bottom: 1; }}
     #help-panel {{ height: auto; max-height: 60%; dock: bottom; }}
     #tips-panel {{ height: auto; dock: bottom; background: {COLORS['cursor_bg']}; }}
     #which-key {{ height: auto; max-height: 6; dock: bottom; }}
@@ -406,7 +408,11 @@ class VimTGApp(App[None]):
             return
         finally:
             db.close()
-        self.call_from_thread(self._finish_auto_sync, count)
+        tags_note = (
+            describe_sync_error(syncer.tags_error, retry="run :sync to retry")
+            if syncer.tags_error is not None else ""
+        )
+        self.call_from_thread(self._finish_auto_sync, count, tags_note)
 
     def _set_sync_progress(self, text: str) -> None:
         self._sync_progress = f" {text}" if text else ""
@@ -446,12 +452,16 @@ class VimTGApp(App[None]):
         self._card_badge = self._compute_card_badge()
         self._refresh_card_status()
 
-    def _finish_auto_sync(self, count: int) -> None:
-        """Adopt freshly synced card data on the UI thread."""
+    def _finish_auto_sync(self, count: int, tags_note: str = "") -> None:
+        """Adopt freshly synced card data on the UI thread. ``tags_note``
+        says why the oracle tags were skipped, when they were."""
         self._sync_running = False
         self._sync_progress = ""
         self.adopt_card_data()
-        self.notify(f"Card database updated ({count} cards)", title="Card sync")
+        message = f"Card database updated ({count} cards)"
+        if tags_note:
+            message += f"; oracle tags skipped: {tags_note}"
+        self.notify(message, title="Card sync")
 
     def show_greeter(self) -> None:
         """Public navigation: open the greeter screen."""
@@ -559,7 +569,9 @@ class VimTGApp(App[None]):
 
 def sync_progress_text(phase: str, current: int, total: int) -> str:
     """Short status-line text for a sync progress callback."""
-    label = "downloading" if phase == "download" else "loading"
+    label = "downloading" if phase.startswith("download") else "loading"
+    if phase.endswith("_tags"):
+        label += " tags"
     if total > 0:
         return f"{label} {min(100, current * 100 // total)}%"
     return f"{label}..."

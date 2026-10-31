@@ -14,7 +14,8 @@ def test_version():
 def test_package_version_is_single_sourced():
     # pyproject must not carry its own literal version: hatch reads it from
     # vimtg.__version__, so the two can never drift apart.
-    pyproject = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
+    pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
     assert "version" not in pyproject["project"]
     assert "version" in pyproject["project"]["dynamic"]
     assert pyproject["tool"]["hatch"]["version"]["path"] == "src/vimtg/__init__.py"
@@ -51,11 +52,11 @@ def test_license_file_ships_in_both_dists():
     # PEP 639: license-files puts LICENSE in the wheel's .dist-info; the sdist
     # uses an explicit only-include list, so LICENSE must be listed there too.
     root = Path(__file__).parent.parent
-    pyproject = tomllib.loads((root / "pyproject.toml").read_text())
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["license"] == "MIT"
     assert pyproject["project"]["license-files"] == ["LICENSE"]
     assert "LICENSE" in pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["only-include"]
-    text = (root / "LICENSE").read_text()
+    text = (root / "LICENSE").read_text(encoding="utf-8")
     assert text.startswith("MIT License")
     assert "Copyright (c) 2026 Keerthik Muruganandam" in text
 
@@ -64,8 +65,8 @@ def test_release_metadata_matches_version():
     # A release must have its own dated CHANGELOG section (under an empty
     # Unreleased heading) and a classifier that matches a 1.x stable series.
     root = Path(__file__).parent.parent
-    pyproject = tomllib.loads((root / "pyproject.toml").read_text())
+    pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     assert "Development Status :: 5 - Production/Stable" in pyproject["project"]["classifiers"]
-    changelog = (root / "CHANGELOG.md").read_text()
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
     assert f"\n## [{__version__}] - " in changelog
     assert changelog.index("## [Unreleased]") < changelog.index(f"## [{__version__}]")

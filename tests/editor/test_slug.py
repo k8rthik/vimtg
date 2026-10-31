@@ -35,7 +35,7 @@ class TestGenerateUniquePath:
     def test_avoids_existing_files(self, tmp_path: Path) -> None:
         # Create a file to potentially collide with
         existing = tmp_path / "arcane-bolt-deck.deck"
-        existing.write_text("taken")
+        existing.write_text("taken", encoding="utf-8")
         path = generate_unique_path(tmp_path)
         assert path != existing
 
@@ -48,7 +48,7 @@ class TestGenerateUniquePath:
         monkeypatch.setattr(
             "vimtg.editor.slug.generate_slug", lambda: "always-same-deck"
         )
-        (tmp_path / "always-same-deck.deck").write_text("taken")
+        (tmp_path / "always-same-deck.deck").write_text("taken", encoding="utf-8")
         try:
             generate_unique_path(tmp_path, max_attempts=5)
             assert False, "Expected RuntimeError"  # noqa: B011

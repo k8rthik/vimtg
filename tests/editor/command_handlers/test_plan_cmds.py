@@ -93,7 +93,7 @@ class TestExportGuide:
         out = tmp_path / "guide.md"
         ctx, _, _ = _run(f"export guide {out}")
         assert not ctx.error
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert "## vs Tron" in text and "## vs Burn" in text
 
     def test_export_guide_without_file_copies_to_clipboard(self) -> None:

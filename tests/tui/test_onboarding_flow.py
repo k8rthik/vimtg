@@ -394,7 +394,7 @@ async def test_tips_off_is_remembered(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_error_survives_motion_and_goes_with_next_key(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
-    deck.write_text("4 Lightning Bolt\n4 Goblin Guide\n4 Monastery Swiftspear\n")
+    deck.write_text("4 Lightning Bolt\n4 Goblin Guide\n4 Monastery Swiftspear\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
@@ -413,7 +413,7 @@ async def test_error_survives_motion_and_goes_with_next_key(tmp_path: Path) -> N
 @pytest.mark.asyncio
 async def test_status_message_still_clears_on_next_key(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
-    deck.write_text("4 Lightning Bolt\n4 Goblin Guide\n")
+    deck.write_text("4 Lightning Bolt\n4 Goblin Guide\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
@@ -426,7 +426,7 @@ async def test_status_message_still_clears_on_next_key(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_messages_lists_history(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
-    deck.write_text("4 Lightning Bolt\n")
+    deck.write_text("4 Lightning Bolt\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
@@ -453,7 +453,7 @@ async def test_messages_lists_history(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_recording_shown_up_front_with_how_to_stop(tmp_path: Path) -> None:
     deck = tmp_path / "burn.deck"
-    deck.write_text("4 Lightning Bolt\n")
+    deck.write_text("4 Lightning Bolt\n", encoding="utf-8")
     app = VimTGApp(deck_path=deck)
     async with app.run_test(size=(60, 20)) as pilot:
         await pilot.pause()

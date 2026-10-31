@@ -99,4 +99,4 @@ def real_shape_repo(
 
 @pytest.fixture
 def sample_deck_text(sample_deck_path: Path) -> str:
-    return sample_deck_path.read_text()
+    return sample_deck_path.read_text(encoding="utf-8")

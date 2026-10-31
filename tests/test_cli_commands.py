@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 from click.testing import CliRunner
 
@@ -203,6 +204,31 @@ def test_search_without_card_data_says_to_sync(
     assert "no card database (run 'vimtg sync' first)" in result.output
 
 
+def test_search_otag_without_synced_tags_notes_it(
+    runner: CliRunner, real_shape_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: real_shape_repo)
+    result = runner.invoke(main, ["search", "otag:ramp"])
+    assert result.exit_code == 0, result.output
+    assert "No cards found." in result.output
+    assert "note: oracle tags not synced; run `vimtg sync`" in result.output
+
+
+def test_search_otag_finds_cards_by_tag(
+    runner: CliRunner, real_shape_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.tag_support import load_fixture_tags
+
+    load_fixture_tags(real_shape_repo)
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: real_shape_repo)
+    result = runner.invoke(main, ["search", "otag:ramp"])
+    assert result.exit_code == 0, result.output
+    assert "Sol Ring" in result.output
+    assert "note:" not in result.output
+    result = runner.invoke(main, ["search", "--", "-otag:ramp", "t:artifact"])
+    assert "Aether Vial" in result.output and "Sol Ring" not in result.output
+
+
 def _write_config(text: str) -> None:
     from vimtg.config.paths import config_dir
 
@@ -302,6 +328,48 @@ def test_sync_progress_output(
     assert result.exit_code == 0
     assert "Downloading... 50%" in result.output
     assert "Parsing... 5/10" in result.output
+
+
+def test_sync_reports_oracle_tags(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+
+    def fake_sync(self, force=False, progress=None):  # type: ignore[no-untyped-def]
+        if progress:
+            progress("download_tags", 50, 100)
+            progress("parse_tags", 5, 10)
+        self.tags_loaded = 4587
+        return 42
+
+    monkeypatch.setattr(cli.ScryfallSync, "sync", fake_sync)
+    result = runner.invoke(main, ["sync"])
+    assert result.exit_code == 0
+    assert "Downloading tags... 50%" in result.output
+    assert "Parsing tags... 5/10" in result.output
+    assert "Synced 42 cards, 4587 oracle tags" in result.output
+
+
+def test_sync_says_when_oracle_tags_were_skipped(
+    runner: CliRunner, loaded_repo: CardRepository, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_make_card_repo", lambda: loaded_repo)
+    for var in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(var, raising=False)
+
+    def fake_sync(self, force=False, progress=None):  # type: ignore[no-untyped-def]
+        self.tags_error = httpx.ConnectError(
+            "[Errno 101] Network is unreachable",
+            request=httpx.Request("GET", "https://api.scryfall.com/bulk-data"),
+        )
+        return 42
+
+    monkeypatch.setattr(cli.ScryfallSync, "sync", fake_sync)
+    result = runner.invoke(main, ["sync"])
+    assert result.exit_code == 0, result.output
+    assert "Synced 42 cards\n" in result.output
+    assert "Oracle tags skipped: " in result.output
+    assert "vimtg sync" in result.output
 
 
 # --- editor launch paths (app is mocked to avoid a real TUI) ---
@@ -420,7 +488,7 @@ class TestDeckFileFallback:
         self, runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         deck = tmp_path / "burn.deck"
-        deck.write_text("4 Lightning Bolt\n")
+        deck.write_text("4 Lightning Bolt\n", encoding="utf-8")
         launched = MagicMock()
         monkeypatch.setattr(cli, "_launch_editor", launched)
         result = runner.invoke(main, [str(deck)])
@@ -445,7 +513,7 @@ class TestDeckFileFallback:
         self, runner: CliRunner, tmp_path: Path
     ) -> None:
         deck = tmp_path / "x.deck"
-        deck.write_text("// Deck: X\n4 Bolt\n56 Mountain\n")
+        deck.write_text("// Deck: X\n4 Bolt\n56 Mountain\n", encoding="utf-8")
         result = runner.invoke(main, ["info", str(deck)])
         assert result.exit_code == 0
         assert "Mainboard" in result.output

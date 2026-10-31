@@ -89,7 +89,7 @@ class TestLoadSettings:
         config_dir.mkdir()
         (config_dir / "config.toml").write_text(
             '[editor]\ntheme = "dark"\nprice_source = "eur"\n'
-        )
+        , encoding="utf-8")
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
         from vimtg.config.settings import load_settings_checked
 
@@ -105,7 +105,7 @@ class TestLoadSettings:
         config_dir = tmp_path / "vimtg"
         config_dir.mkdir()
         config_file = config_dir / "config.toml"
-        config_file.write_text('[editor]\nprice_source = "eur"\n')
+        config_file.write_text('[editor]\nprice_source = "eur"\n', encoding="utf-8")
 
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
         from vimtg.config.settings import load_settings

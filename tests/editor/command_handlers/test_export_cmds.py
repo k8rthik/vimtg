@@ -74,7 +74,9 @@ class TestExport:
         buffer = Buffer.from_text(_deck_text())
         cursor = Cursor(row=0)
         ctx = EditorContext()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
             out_path = f.name
         # The temp file exists, so overwriting it takes the bang
         cmd = ParsedCommand(name="export", args=f"mtgo {out_path}", bang=True)
@@ -207,14 +209,14 @@ class TestClipboard:
 
         raw = "// Deck: Burn\n\n4 Lightning Bolt\n"
         deck = tmp_path / "burn.deck"
-        deck.write_text(raw)
+        deck.write_text(raw, encoding="utf-8")
         buffer = Buffer.from_text(scaffold_metadata(raw)[0])
         assert "// Tags:" in buffer.to_text()
         ctx = EditorContext(file_path=deck)
         out = tmp_path / "copy.deck"
         cmd_export(buffer, Cursor(row=0), ParsedCommand(name="export", args=f"vimtg {out}"), ctx)
         assert not ctx.error, ctx.message
-        assert out.read_text() == raw
+        assert out.read_text(encoding="utf-8") == raw
 
     def test_export_vimtg_of_a_new_deck_drops_empty_scaffold(self, tmp_path: Path) -> None:
         buffer = Buffer.from_text(
@@ -227,7 +229,7 @@ class TestClipboard:
     def test_export_vimtg_keeps_empty_metadata_the_file_has(self, tmp_path: Path) -> None:
         raw = "// Deck: Burn\n// Format:\n// Tags:\n\n4 Lightning Bolt\n"
         deck = tmp_path / "burn.deck"
-        deck.write_text(raw)
+        deck.write_text(raw, encoding="utf-8")
         ctx = EditorContext(file_path=deck)
         cmd_clipboard(
             Buffer.from_text(raw), Cursor(row=0),

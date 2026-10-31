@@ -7,7 +7,7 @@ The editor shows a deck as text columns and edits it with vim keys: move with mo
 - `edit-move` moves by line, card, section, and search; the cursor card's rules text opens inline.
 - `edit-qty` changes quantity with `+`/`-` and `Ctrl-A`/`Ctrl-X`, with counts.
 - `edit-undo` deletes with `dd`/`x`, undoes with `u`, redoes with `Ctrl-R`, repeats with `.`.
-- `edit-add` adds a card with `o`/`O` and a count (`4o`), through card search.
+- `edit-add` adds a card with `o`/`O` and a count (`4o`), through card search; the search box takes the full syntax, including `otag:` oracle tags.
 - `edit-visual` applies `d`, `+`, `-`, `zs` to a `V` selection.
 - `edit-ex` runs `:s`, `:%s`, `:g/pat/d`, `:sort`, relative ranges like `:.,+1d`.
 - `edit-save` writes with `:w`, writes a copy with `:w <file>`, quits with `:q`/`ZZ`.
@@ -30,6 +30,7 @@ Preconditions:
 - **Counted change.** `$V find "Skullcrack"; $V type "2+"`. The line reads `4   Skullcrack`.
 - **Delete, undo, redo.** On Skullcrack: `$V type dd`. The line is gone. `$V type u` brings it back with the cursor on it. `$V keys C-r` deletes it again.
 - **Add through search.** `$V find "Lightning Bolt"; $V type 2o; $V type helix; $V wait "Lightning Helix"; $V keys Enter; $V wait "Added 2x Lightning Helix"`. The new line `2   Lightning Helix` sits in the `// Instants` section. `$V keys C-o` returns the cursor to Lightning Bolt.
+- **Search by oracle tag.** On `krenko.deck`: `$V type o; $V type "otag:ramp"; $V wait "matches"; $V shot edit-add-otag`. The overlay lists Sol Ring, Arcane Signet, Mind Stone, Fire Diamond, Thought Vessel, Commander's Sphere, Mana Echoes and Skirk Prospector (the sandbox tags under `ramp`). `$V type " -t:artifact"` leaves Mana Echoes and Skirk Prospector. `$V keys Escape` cancels. In a `VV_TAGS=0` sandbox the same typing shows `Oracle tags not synced, :sync to download them` instead of results.
 - **Visual selection.** `$V find "Lava Spike"; $V type "Vj+"`. Both `5   Lava Spike` and `5   Rift Bolt` show, each with `✗` (over 4 copies).
 - **Ex command.** `$V find "Searing Blaze"; $V type ":s/Searing Blaze/Lightning Bolt/"; $V keys Enter; $V wait "1 substitution"`. Then `$V type u` restores `Searing Blaze`.
 - **Save and prove it.** `$V type ":w"; $V keys Enter; $V wait "Written: burn.deck"; $V shot edit-save`. Then `grep -n "Lightning Helix\|Lava Spike" .verify/current/sandbox/decks/burn.deck` shows `2 Lightning Helix` and `5 Lava Spike`.

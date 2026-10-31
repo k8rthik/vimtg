@@ -127,9 +127,9 @@ class TestMappingsMatchAtCommandStart:
             scr = _screen(app)
             _feed(scr, ":map<Space>s<Space>:w<CR> 6G zs")
             assert _cards(scr)[-1] == "    4 Goblin Guide"
-            assert "SB:" not in deck.read_text()
+            assert "SB:" not in deck.read_text(encoding="utf-8")
             _feed(scr, "s")
-            assert "SB:\n    4 Goblin Guide" in deck.read_text()
+            assert "SB:\n    4 Goblin Guide" in deck.read_text(encoding="utf-8")
 
     @pytest.mark.asyncio
     async def test_mapped_key_is_not_a_register_name(self, tmp_path: Path) -> None:

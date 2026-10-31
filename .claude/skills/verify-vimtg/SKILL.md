@@ -21,7 +21,7 @@ $V tui start burn.deck              # or: $V tui start   (greeter)   /   $V tui 
 $V wait "F1 help" 20                # deck view ready (hint bar drawn)
 ```
 
-- `sandbox` creates `.verify/runs/<id>/` with `sandbox/` (XDG data, config, cache, state, and `decks/`) and `evidence/`, points `.verify/current` at it, and loads 84 cards offline: the README demo set (`docs/demo/cards.json`, Commander goblins) plus the tutor bundle (`src/vimtg/tutor/cards.jsonl.gz`, modern burn with real legalities). It runs `vimtg sync` against that cache, so nothing is downloaded. `00-sync.txt` in evidence is the load log.
+- `sandbox` creates `.verify/runs/<id>/` with `sandbox/` (XDG data, config, cache, state, and `decks/`) and `evidence/`, points `.verify/current` at it, and loads 84 cards offline: the README demo set (`docs/demo/cards.json`, Commander goblins) plus the tutor bundle (`src/vimtg/tutor/cards.jsonl.gz`, modern burn with real legalities). It also loads a small oracle-tag set (`fixtures/oracle_tags.jsonl`: real Scryfall tag records such as `ramp` > `mana-producer` > `mana-rock` and `tutor` > `tutor-creature` > `tutor-creature-goblin`, tagging the demo cards), so `otag:` searches work. It runs `vimtg sync` against that cache, so nothing is downloaded. `00-sync.txt` in evidence is the load log. `VV_TAGS=0 $V sandbox <id>` leaves the tags out: the sync's tag download is sent to a dead loopback proxy, so `00-sync.txt` shows the `Oracle tags skipped:` fallback and `otag:` searches show the `oracle tags not synced` note.
 - Seed decks in `sandbox/decks/` (the TUI's working directory): `burn.deck` (modern, typed sections, sideboard, a `VS: Tron` plan; from `fixtures/burn.deck`) and `krenko.deck` (100-card Commander).
 - Ready signals: the deck view shows the hint bar `F1 help`; the greeter shows `Tutorial` in its menu; the tutor shows `W E L C O M E`.
 - `VIMTG_NO_AUTOSYNC=1` and `VIMTG_NO_EDHREC=1` are set, so the app never touches the network. EDHREC shows a "lookups disabled" status by design.
@@ -33,7 +33,7 @@ $V wait "F1 help" 20                # deck view ready (hint bar drawn)
 $V doctor
 ```
 
-Read-only. Prints the run dir, `vimtg --version`, the checkout's HEAD, the sandbox card count, whether every XDG dir is inside the run, and whether the TUI is running or exited (with its status). Ends `doctor: OK` or `doctor: FAIL` (exit 1). Run it first whenever anything looks off. A card count of 0 means the load failed: read `evidence/00-sync.txt`.
+Read-only. Prints the run dir, `vimtg --version`, the checkout's HEAD, the sandbox card count and `(card, tag)` row count, whether every XDG dir is inside the run, and whether the TUI is running or exited (with its status). Ends `doctor: OK` or `doctor: FAIL` (exit 1). Run it first whenever anything looks off. A card count of 0 means the load failed: read `evidence/00-sync.txt`.
 
 ## Drive
 

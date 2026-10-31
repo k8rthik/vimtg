@@ -136,7 +136,7 @@ class TestHandCommand:
         assert src.free_mulligan
 
     def test_resolved_cards_give_lands_and_costs(self, registry: CommandRegistry) -> None:
-        with open(FIXTURES / "scryfall_sample.json") as f:
+        with open(FIXTURES / "scryfall_sample.json", encoding="utf-8") as f:
             cards = CardMap((c.name, c) for c in map(Card.from_scryfall, json.load(f)))
         ctx = _run(registry, "hand", resolved_cards=cards)
         assert isinstance(ctx.hand_open, HandOpen)

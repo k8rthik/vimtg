@@ -145,9 +145,9 @@ class TestDeckRepository:
 
     def test_list_decks(self, tmp_path: Path) -> None:
         repo = DeckRepository()
-        (tmp_path / "a.deck").write_text("4 Bolt\n")
-        (tmp_path / "b.deck").write_text("4 Guide\n")
-        (tmp_path / "c.txt").write_text("not a deck\n")
+        (tmp_path / "a.deck").write_text("4 Bolt\n", encoding="utf-8")
+        (tmp_path / "b.deck").write_text("4 Guide\n", encoding="utf-8")
+        (tmp_path / "c.txt").write_text("not a deck\n", encoding="utf-8")
         decks = repo.list_decks(tmp_path)
         assert len(decks) == 2
         assert all(p.suffix == ".deck" for p in decks)
@@ -156,7 +156,7 @@ class TestDeckRepository:
         repo = DeckRepository()
         deck_path = tmp_path / "test.deck"
         assert not repo.exists(deck_path)
-        deck_path.write_text("4 Bolt\n")
+        deck_path.write_text("4 Bolt\n", encoding="utf-8")
         assert repo.exists(deck_path)
 
     def test_save_atomic(self, tmp_path: Path) -> None:

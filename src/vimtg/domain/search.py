@@ -31,6 +31,7 @@ from typing import Literal
 
 from vimtg.domain.card import Color
 from vimtg.domain.formats import SCRYFALL_FORMATS, normalize_format
+from vimtg.domain.oracle_tags import normalize_tag
 
 # Limits on a query's size: far above anything typed, well inside
 # SQLite's expression-depth and LIKE-pattern limits
@@ -153,6 +154,16 @@ class IsMatch:
 
 
 @dataclass(frozen=True)
+class TagMatch:
+    """``otag:`` / ``oracletag:`` / ``function:``: a Scryfall oracle tag
+    in slug form. A card matches a tag it carries or any descendant of
+    it (``otag:removal`` finds ``removal-burn`` cards), and an alias
+    (``otag:acceleration``) resolves to its tag."""
+
+    slug: str
+
+
+@dataclass(frozen=True)
 class Not:
     child: Node
 
@@ -169,7 +180,7 @@ class Or:
 
 Node = (
     NameWords | ExactName | TextMatch | ColorMatch | NumberMatch | RarityMatch
-    | SetMatch | LegalityMatch | IsMatch | FieldCompare | ProducesMatch
+    | SetMatch | LegalityMatch | IsMatch | FieldCompare | ProducesMatch | TagMatch
     | Not | And | Or
 )
 
@@ -186,6 +197,18 @@ class SearchOrder:
 
     key: OrderKey = "name"
     descending: bool = False
+
+
+def uses_tags(node: Node) -> bool:
+    """True when any term of the query is an oracle tag (so an empty
+    result may mean the tags were never synced)."""
+    if isinstance(node, TagMatch):
+        return True
+    if isinstance(node, Not):
+        return uses_tags(node.child)
+    if isinstance(node, And | Or):
+        return any(uses_tags(child) for child in node.children)
+    return False
 
 
 def ranking_words(node: Node | None) -> list[str]:
@@ -218,6 +241,7 @@ _KEYS: dict[str, str] = {
     "is": "is", "not": "not",
     "usd": "usd", "eur": "eur", "tix": "tix",
     "produces": "produces",
+    "otag": "tag", "oracletag": "tag", "function": "tag",
 }
 
 # Scryfall keys vimtg knows but cannot answer, and why. Anything else
@@ -534,6 +558,8 @@ def _key_term(tok: _Tok) -> Node | None:
         return TextMatch(key, value)  # type: ignore[arg-type]
     if key == "mana":
         return TextMatch("mana", _mana_pattern(value))
+    if key == "tag":
+        return TagMatch(normalize_tag(value))
     if key in ("colors", "identity"):
         return _color_term(key, op, value)  # type: ignore[arg-type]
     if key == "produces":

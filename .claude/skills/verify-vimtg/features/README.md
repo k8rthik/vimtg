@@ -4,7 +4,7 @@ The maintained source for verifying vimtg's user-facing behavior. Read this inde
 
 ## Baseline preconditions
 
-- A fresh run: `$V sandbox`, then `$V doctor` reports `doctor: OK` and `cards: 84`.
+- A fresh run: `$V sandbox`, then `$V doctor` reports `doctor: OK`, `cards: 84` and `tags: 67 (card, tag) rows`.
 - Seed decks `burn.deck` (modern) and `krenko.deck` (Commander) in the run's `sandbox/decks/`.
 - The TUI started by this run (`$V tui start ...`). Never drive a vimtg you did not start.
 - Offline: autosync and EDHREC are off in the sandbox environment.

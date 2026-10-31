@@ -9,8 +9,9 @@ GETTING STARTED
   Modes         vimtg is modal, like vim: NORMAL mode moves and edits
                 with single keys; o / i open a prompt to type into;
                 Esc (or Ctrl-C) always returns to NORMAL
-  o             Add a card: type part of its name, Tab/Down picks,
-                Enter adds it (+/- change the quantity after)
+  o             Add a card: type part of its name or a search such
+                as t:goblin or otag:ramp; Tab/Down picks, Enter adds
+                it (+/- change the quantity after)
   :w            Save (a new deck is named after its // Deck: line)
   :q            Quit (:q! quits without saving, :wq saves and quits)
   F1, :help     This full help (g? toggles a cheat sheet)
@@ -264,9 +265,11 @@ COMMAND_HELP: dict[str, str] = {
     "sync": (
         ":sync[!]  Download Scryfall card data in the background\n"
         "\n"
-        "Progress shows in the status line; editing continues meanwhile.\n"
-        "Cached data newer than 7 days is reused; :sync! re-downloads.\n"
-        "The status line shows how old the card data is."
+        "Downloads the oracle_cards file (~25 MB), then the oracle tags\n"
+        "(~6 MB) that otag: searches use. Progress shows in the status\n"
+        "line; editing continues meanwhile. Cached data newer than 7 days\n"
+        "is reused; :sync! re-downloads. The status line shows how old\n"
+        "the card data is."
     ),
     "filter": (
         ":filter expr  Show the cards whose @category matches expr\n"
