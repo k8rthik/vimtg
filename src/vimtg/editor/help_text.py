@@ -429,6 +429,23 @@ COMMAND_HELP: dict[str, str] = {
         "editor. ✓ marks cards already in the deck. Results are\n"
         "cached for 7 days."
     ),
+    "combos": (
+        ":combos  Combos in the deck and one card away (alias :combo;\n"
+        "also Space c)\n"
+        "\n"
+        "Looks the deck up on Commander Spellbook\n"
+        "(commanderspellbook.com): sends the card names of the main deck,\n"
+        "companion and commander zone. Lists the combos the deck holds\n"
+        "and those missing exactly one card, most popular first, with\n"
+        "what each produces; the missing card is highlighted. Works for\n"
+        "any format. Results are cached for 7 days per card list, so\n"
+        "any card edit looks up again; offline, an older cached result\n"
+        "is shown with its age. VIMTG_NO_SPELLBOOK=1 disables lookups.\n"
+        "\n"
+        "Keys: j/k (gg/G, Ctrl-D/U) select, Enter on a one-away combo\n"
+        "adds the missing card to the mainboard, ? this help, q/Esc\n"
+        "close. The footer shows the selected combo's page."
+    ),
     "analytics": (
         ":analytics  Live deck-analytics pane (alias :ana; Space a toggles it)\n"
         "\n"

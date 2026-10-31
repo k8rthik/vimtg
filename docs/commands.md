@@ -182,6 +182,7 @@ records the restore as a new snapshot on top of the history.
 | `:validate` | Check format legality: deck size, copy limits, sideboard rules, commander rules (exact deck size, singleton with oracle-text exceptions, no sideboard, eligible commander, ≤2 partners, color identity of the deck and the companion), and sideboard-plan consistency. The same report as `vimtg validate`: without card data it says legality was skipped (run `:sync`), and a Commander deck also gets its Game Changer count and estimated bracket |
 | `:analytics` | Live analytics pane: curve, counts per type/zone/category, mana base with a suggested land count, Commander bracket estimate (Commander decks), draw odds (alias `:ana`, key `Space a`); with a plan active it shows the post-board deck. See [analytics.md](./analytics.md) |
 | `:hand [seed=N]` | Sample-hand / goldfish overlay (alias `:goldfish`, key `Space h`): see below |
+| `:combos` | Combos the deck holds and those one card away, from Commander Spellbook (alias `:combo`, key `Space c`): see below |
 
 ### Sample hand
 
@@ -213,6 +214,33 @@ line contains Land); without one, only basic lands count.
 give the same hands. From the shell, `vimtg hand FILE [--seed N]
 [--draws N] [--plan NAME]` prints a sample hand, any extra draws and
 the same odds.
+
+### Combos
+
+`:combos` sends the card names and counts of the main deck, companion
+and commander zone to [Commander Spellbook](https://commanderspellbook.com)
+(the commander zone as the deck's commanders) and opens an overlay,
+`Combos — <deck>`, with two sections: **In this deck**, the combos the
+deck already holds, and **One card away**, the combos missing exactly
+one card. Combos that need other colours or another commander are left
+out. Both are sorted by popularity. Each row shows the combo's id and
+cards, and below them what it produces; a one-away row highlights the
+missing card. It works for any format, since combos are not
+Commander-only. `Looking up combos…` shows while the request runs.
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Select a combo (`gg` / `G`, `Ctrl-D` / `Ctrl-U`, `Home` / `End` too); the footer shows its page on commanderspellbook.com |
+| `Enter` | On a one-away combo: close the overlay and add the missing card to the mainboard, filed as `o` files it (`u` undoes) |
+| `?` / `F1` | The combos help topic / the full help |
+| `q` / `Esc` | Close |
+
+Results are cached for seven days per card list in `~/.cache/vimtg/spellbook/`,
+so editing any card looks up again. When the service cannot be reached
+or is rate-limiting, an older cached result for the same cards is shown
+with a note saying how old it is. `VIMTG_NO_SPELLBOOK=1` turns lookups
+off. From the shell, `vimtg combos FILE [--json]` prints the same two
+lists and exits 1 when the lookup fails.
 
 ## Sideboard plans
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 from vimtg.editor.command_handlers.buffer_cmds import register_buffer_commands
 from vimtg.editor.command_handlers.category_cmds import register_category_commands
 from vimtg.editor.command_handlers.collection_cmds import register_collection_commands
+from vimtg.editor.command_handlers.combo_cmds import register_combo_commands
 from vimtg.editor.command_handlers.config_cmds import register_config_commands
 from vimtg.editor.command_handlers.deck_cmds import register_deck_commands
 from vimtg.editor.command_handlers.export_cmds import register_export_commands
@@ -43,6 +44,7 @@ _REGISTRARS = (
     register_sync_commands,
     register_line_commands,
     register_collection_commands,
+    register_combo_commands,
 )
 
 

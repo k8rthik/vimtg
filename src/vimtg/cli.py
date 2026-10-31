@@ -470,6 +470,19 @@ def diff_cmd(old: str, new: str, as_json: bool) -> None:
 
 
 @main.command()
+@click.argument("path", type=click.Path(exists=True, dir_okay=False))
+@_json_option("vimtg.combos/1")
+def combos(path: str, as_json: bool) -> None:
+    """Find the deck's combos, and those one card away, on Commander
+    Spellbook (sends the main and commander zones' card names).
+
+    Exits 0 on a lookup, 1 when it fails."""
+    from vimtg.cli_combos import find_combos
+
+    sys.exit(find_combos(path, as_json))
+
+
+@main.command()
 @click.argument("path", type=click.Path(exists=True))
 @click.option("--markdown", is_flag=True, help="Print the guide as Markdown")
 def guide(path: str, markdown: bool) -> None:

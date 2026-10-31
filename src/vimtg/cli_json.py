@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from vimtg.domain.deck import Deck
     from vimtg.domain.deck_diff import CardChange, DeckDiff
     from vimtg.domain.validation import ValidationError, ValidationReport
+    from vimtg.services.spellbook import Combo, ComboReport
 
 # Zone keys are DeckSection values ("main", "sideboard", ...), in
 # deck-list order, the same vocabulary in every document.
@@ -353,4 +354,61 @@ def diff_doc(old: str, new: str, diff: DeckDiff, price_source: str) -> DiffJson:
         "identical": not diff.has_changes,
         "changes": [_change(c) for c in diff.changed_cards()],
         "stats": stats,
+    }
+
+
+class ComboJson(TypedDict):
+    id: str
+    url: str
+    cards: list[str]
+    produces: list[str]
+    missing: list[str]  # cards it uses that the deck lacks; [] when included
+    identity: str  # colour identity, e.g. "UB"
+    mana_needed: str
+    popularity: int
+    description: str
+
+
+class ComboSourceJson(TypedDict):
+    name: str
+    url: str
+
+
+class CombosJson(TypedDict):
+    schema: str
+    file: str
+    included: list[ComboJson]
+    one_away: list[ComboJson]
+    note: str | None  # e.g. "cached 9 days ago (offline)"
+    source: ComboSourceJson
+
+
+def _combo(combo: Combo) -> ComboJson:
+    from vimtg.services.spellbook import combo_url
+
+    return {
+        "id": combo.id,
+        "url": combo_url(combo.id),
+        "cards": list(combo.cards),
+        "produces": list(combo.produces),
+        "missing": list(combo.missing),
+        "identity": combo.identity,
+        "mana_needed": combo.mana_needed,
+        "popularity": combo.popularity,
+        "description": combo.description,
+    }
+
+
+def combos_doc(file: str, report: ComboReport) -> CombosJson:
+    """`vimtg combos --json`: the combos in the deck and those one card
+    away, most popular first, credited to Commander Spellbook."""
+    from vimtg.services.spellbook import SERVICE, SITE_URL
+
+    return {
+        "schema": _schema("combos"),
+        "file": file,
+        "included": [_combo(c) for c in report.included],
+        "one_away": [_combo(c) for c in report.one_away],
+        "note": report.note or None,
+        "source": {"name": SERVICE, "url": SITE_URL},
     }

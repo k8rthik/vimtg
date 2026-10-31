@@ -5,6 +5,7 @@
 #                              VV_TAGS=0 leaves the tags out: the sync then fails to fetch them (dead proxy) and skips them
 #   vv doctor                  read-only health check of the current run
 #   vv tui start [ARGS...]     start `vimtg ARGS` in this run's tmux server (cwd = the run's decks dir)
+#                              VV_SPELLBOOK=krenko replays fixtures/spellbook-krenko.json for :combos (default: lookups off)
 #   vv wait TEXT [SECONDS]     wait until TEXT is on screen (default 10s); exit 1 on timeout
 #   vv find CARD               /CARD Enter, wait for the jump; exit 1 on "Pattern not found"
 #   vv keys KEY...             tmux key names: Escape Enter C-a Space Tab BSpace F1 ...
@@ -40,6 +41,13 @@ export XDG_CACHE_HOME="$sb/cache" XDG_STATE_HOME="$sb/state"
 export VIMTG_NO_AUTOSYNC=1 VIMTG_NO_EDHREC=1
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 EOF
+  # Combo lookups stay off unless VV_SPELLBOOK=krenko asks for the
+  # recorded Commander Spellbook reply for krenko.deck
+  if [ "${VV_SPELLBOOK:-}" = krenko ]; then
+    echo "export VIMTG_SPELLBOOK_FIXTURE=\"$SKILL/fixtures/spellbook-krenko.json\""
+  else
+    echo "export VIMTG_NO_SPELLBOOK=1"
+  fi
 }
 
 with_env() { (eval "$(sandbox_env)"; cd "$(run_dir)/sandbox/decks"; "$@"); }

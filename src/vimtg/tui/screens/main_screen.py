@@ -103,6 +103,7 @@ from vimtg.services.recovery import (
     write_recovery,
 )
 from vimtg.services.search_service import TAGS_NOT_SYNCED
+from vimtg.services.spellbook import Combo, SpellbookClient, SpellbookError
 from vimtg.tui.key_translator import translate
 from vimtg.tui.keys import PENDING, VimNav
 from vimtg.tui.screens.new_deck import NewDeckInfo, NewDeckScreen
@@ -123,8 +124,10 @@ from vimtg.tui.widgets.which_key import WhichKey
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
     from vimtg.data.file_io import FileStamp
+    from vimtg.domain.deck import Deck
     from vimtg.services.search_service import SearchService
     from vimtg.services.vcs_service import VersionControlService
+    from vimtg.tui.screens.combo_screen import ComboScreen
 
 
 _GENERIC_HINT = GENERIC_HINT
@@ -1110,8 +1113,8 @@ class MainScreen(Screen[None]):
         self.app.push_screen(HelpScreen(body=text, title=listing.title))
 
     def _handle_ui_request(self, request: str) -> None:
-        """:messages, :tips and :Tutor — screen-level requests with no
-        buffer change."""
+        """:messages, :tips, :Tutor and :combos — screen-level requests
+        with no buffer change."""
         cl = self.query_one("#command-line", CommandLine)
         if request == "tutor":
             from vimtg.tutor import LAUNCH_TUTOR
@@ -1122,6 +1125,8 @@ class MainScreen(Screen[None]):
             from vimtg.tui.screens.help_screen import HelpScreen
 
             self.app.push_screen(HelpScreen(body=body, title="Messages"))
+        elif request == "combos":
+            self._open_combos()
         elif request == "messages_clear":
             cl.history.clear()
         elif request == "tips_show":
@@ -1515,23 +1520,59 @@ class MainScreen(Screen[None]):
         rec = panel.get_selected()
         if rec is None:
             return
+        self._add_to_mainboard(rec.name, "EDHREC")
+        cl.set_message(f"Added {rec.name}")
+
+    def _add_to_mainboard(self, name: str, source: str) -> None:
+        """One more copy of `name` in the mainboard, as o files a card:
+        the existing line gains a copy, else a new line goes where the
+        placement policy puts it. The cursor follows; one undo step."""
         s = self._state
-        existing = self._find_card_line(rec.name)
+        existing = self._find_card_line(name)
         if existing is not None:
             qty = s.buffer.quantity_at(existing) or 0
             s.buffer = s.buffer.set_quantity(existing, qty + 1)
             row = existing
         else:
-            card = self.card_repo.get_by_name(rec.name) if self.card_repo else None
-            row = self._place_new_card(card, rec.name, 1, None)
+            card = self.card_repo.get_by_name(name) if self.card_repo else None
+            row = self._place_new_card(card, name, 1, None)
             if self.card_repo:
                 s.resolved_cards = resolve_cards(s.buffer, self.card_repo)
         origin = s.cursor.row
         s.cursor = s.cursor.move_to(min(row, s.buffer.line_count() - 1), 0)
         note_jump(s, origin, far_only=True)
         s.modified = True
-        s.history.record(s.buffer, f"added {rec.name} (EDHREC)")
-        cl.set_message(f"Added {rec.name}")
+        s.history.record(s.buffer, f"added {name} ({source})")
+
+    def _open_combos(self) -> None:
+        """:combos / Space c: the overlay opens on its lookup status; the
+        lookup runs off the UI thread, like EDHREC's."""
+        from vimtg.tui.screens.combo_screen import ComboScreen
+
+        screen = ComboScreen(self.file_path.name if self.file_path else "(new)")
+        self.app.push_screen(screen, callback=self._complete_combo)
+        self._run_combo_lookup(parse_deck_text(self._state.buffer.to_text()), screen)
+
+    @work(thread=True)
+    def _run_combo_lookup(self, deck: Deck, screen: ComboScreen) -> None:
+        client = SpellbookClient(cache_dir=cache_dir())
+        try:
+            report = client.find(deck)
+        except SpellbookError as exc:
+            self.app.call_from_thread(screen.show_error, str(exc))
+            return
+        self.app.call_from_thread(screen.show_report, report)
+
+    def _complete_combo(self, combo: Combo | None) -> None:
+        """Enter on a one-away combo: add the card it is missing."""
+        if combo is None or not combo.missing:
+            return
+        name = combo.missing[0]
+        self._add_to_mainboard(name, f"combo {combo.id}")
+        self.query_one("#command-line", CommandLine).set_message(
+            f"Added {name}  (completes combo {combo.id}; u undoes)"
+        )
+        self._sync_widgets()
 
     def _in_plan_zone(self) -> bool:
         """Card search inside a VS: block searches the deck, not the DB."""

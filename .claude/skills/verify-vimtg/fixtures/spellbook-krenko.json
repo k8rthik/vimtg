@@ -1,0 +1,1292 @@
+{
+ "count": null,
+ "next": null,
+ "previous": null,
+ "results": {
+  "identity": "R",
+  "included": [
+   {
+    "id": "38-659-1288",
+    "of": [
+     {
+      "id": 18225
+     }
+    ],
+    "salt": null,
+    "uses": [
+     {
+      "card": {
+       "id": 659,
+       "name": "Krenko, Mob Boss",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "68418069-f615-40ef-ae0d-764192acae00",
+       "typeLine": "Legendary Creature — Goblin Warrior",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": true,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 38,
+       "name": "Skirk Prospector",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "c18013e4-0b99-44e3-a2b2-027ace68723a",
+       "typeLine": "Creature — Goblin",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 1288,
+       "name": "Goblin Warchief",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "39882df0-c20f-469d-94ba-1617224e71a1",
+       "typeLine": "Creature — Goblin Warrior",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "3.60",
+     "cardmarket": "2.04",
+     "cardkingdom": "5.17"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 18225
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 160,
+       "name": "Infinite commander casts",
+       "status": "C",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 39,
+       "name": "Infinite creature tokens with haste",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 7,
+       "name": "Infinite death triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 4,
+       "name": "Infinite creature ETB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 3,
+       "name": "Infinite creature LTB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 20,
+       "name": "Infinite red mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 6,
+       "name": "Infinite creature sacrifice triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": true,
+     "predh": false,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": false,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 35843,
+    "bracketTag": "E",
+    "description": "Activate Krenko by tapping it, creating a number of 1/1 Goblin creature tokens equal to the number of Goblins you control.\nActivate Skirk Prospector by sacrificing Krenko, adding {R}.\nChoose to return Krenko to the command zone from your graveyard.\nActivate Skirk Prospector by sacrificing a Goblin, adding {R}.\nRepeat step 4 until you have enough mana to cast Krenko.\nCast Krenko from the command zone by paying {2}{R}{R} plus commander tax.\nRepeat.",
+    "manaNeeded": "",
+    "variantCount": 1,
+    "saltVoteCount": 4,
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "You control a number of Goblins that is equal to or greater than six plus Krenko's commander tax."
+   },
+   {
+    "id": "38-659-3954",
+    "of": [
+     {
+      "id": 18224
+     }
+    ],
+    "salt": 2.0,
+    "uses": [
+     {
+      "card": {
+       "id": 659,
+       "name": "Krenko, Mob Boss",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "68418069-f615-40ef-ae0d-764192acae00",
+       "typeLine": "Legendary Creature — Goblin Warrior",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": true,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 38,
+       "name": "Skirk Prospector",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "c18013e4-0b99-44e3-a2b2-027ace68723a",
+       "typeLine": "Creature — Goblin",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 3954,
+       "name": "Goblin Chieftain",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "368b4052-174e-4458-a6e6-eaf8093aa0fe",
+       "typeLine": "Creature — Goblin",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "7.19",
+     "cardmarket": "5.06",
+     "cardkingdom": "9.37"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 18224
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 160,
+       "name": "Infinite commander casts",
+       "status": "C",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 39,
+       "name": "Infinite creature tokens with haste",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 7,
+       "name": "Infinite death triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 4,
+       "name": "Infinite creature ETB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 3,
+       "name": "Infinite creature LTB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 20,
+       "name": "Infinite red mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 6,
+       "name": "Infinite creature sacrifice triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": true,
+     "predh": false,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": false,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 31801,
+    "bracketTag": "E",
+    "description": "Activate Krenko by tapping it, creating a number of 1/1 Goblin creature tokens equal to the number of Goblins you control.\nActivate Skirk Prospector by sacrificing Krenko, adding {R}.\nChoose to return Krenko to the command zone from your graveyard.\nActivate Skirk Prospector by sacrificing a Goblin, adding {R}.\nRepeat step 4 until you have enough mana to cast Krenko.\nCast Krenko from the command zone by paying {2}{R}{R} plus commander tax.\nRepeat.",
+    "manaNeeded": "",
+    "variantCount": 1,
+    "saltVoteCount": 5,
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "You control a number of Goblins that is equal to or greater than six plus Krenko's commander tax."
+   }
+  ],
+  "includedByChangingCommanders": [],
+  "almostIncluded": [
+   {
+    "id": "2484-4083",
+    "of": [
+     {
+      "id": 28202
+     }
+    ],
+    "salt": 2.8,
+    "uses": [
+     {
+      "card": {
+       "id": 2484,
+       "name": "Blasphemous Act",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "7a2484a9-04fd-41a0-8224-610c1c07ed10",
+       "typeLine": "Sorcery",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 4083,
+       "name": "Repercussion",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "f6069a4f-744e-43e8-9f8b-7c13b8b0187f",
+       "typeLine": "Enchantment",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "This combo will also deal damage to you equal to 13 times the number of creatures you control. It is recommended that your life total is above this number to ensure you don't lose the game from the damage if your opponents will not take lethal damage from this combo.",
+    "prices": {
+     "tcgplayer": "12.17",
+     "cardmarket": "6.61",
+     "cardkingdom": "16.98"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 28202
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 1227,
+       "name": "Near-infinite damage to all players",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": true,
+     "predh": false,
+     "legacy": true,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 39615,
+    "bracketTag": "C",
+    "description": "Cast Blasphemous Act by paying at most {8}{R}, dealing 13 damage to each creature.\nRepercussion triggers for each creature dealt damage this way.\nResolve the first Repercussion trigger, dealing 13 damage to an opponent.\nRepeat step 3 for each Repercussion trigger, ensuring to resolve all triggers that would damage your opponent(s) first.",
+    "manaNeeded": "{8}{R} at most",
+    "variantCount": 1,
+    "saltVoteCount": 5,
+    "manaValueNeeded": 9,
+    "easyPrerequisites": "",
+    "notablePrerequisites": ""
+   },
+   {
+    "id": "1775-2484",
+    "of": [
+     {
+      "id": 28737
+     }
+    ],
+    "salt": 2.2,
+    "uses": [
+     {
+      "card": {
+       "id": 1775,
+       "name": "Toralf, God of Fury // Toralf's Hammer",
+       "faces": 2,
+       "spoiler": false,
+       "oracleId": "fffcb71f-e802-436e-917d-eaa6607ab74f",
+       "typeLine": "Legendary Creature — God // Legendary Artifact — Equipment",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 2484,
+       "name": "Blasphemous Act",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "7a2484a9-04fd-41a0-8224-610c1c07ed10",
+       "typeLine": "Sorcery",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "5.58",
+     "cardmarket": "3.22",
+     "cardkingdom": "6.48"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 28737
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 1,
+       "name": "Near-infinite damage",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": true,
+     "predh": false,
+     "legacy": true,
+     "modern": true,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 22315,
+    "bracketTag": "P",
+    "description": "Cast Blasphemous Act by paying at most {7}{R}, dealing 13 damage to each creature.\nEach creature an opponent controls who was dealt dealt excess damage this way causes Toralf to trigger.\nResolve the first Toralf trigger, dealing an amount of damage to an opponent.\nRepeat step 3 for each remaining trigger.",
+    "manaNeeded": "{7}{R} at most",
+    "variantCount": 1,
+    "saltVoteCount": 5,
+    "manaValueNeeded": 8,
+    "easyPrerequisites": "",
+    "notablePrerequisites": ""
+   },
+   {
+    "id": "2552-3263",
+    "of": [
+     {
+      "id": 1184
+     }
+    ],
+    "salt": null,
+    "uses": [
+     {
+      "card": {
+       "id": 3263,
+       "name": "Mycosynth Lattice",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "ae1f2ab5-c6a5-4d49-a746-3cb4668bf805",
+       "typeLine": "Artifact",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 2552,
+       "name": "Vandalblast",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "3567c3c8-b3c7-45b7-935b-b1fdbc973720",
+       "typeLine": "Sorcery",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "36.83",
+     "cardmarket": "18.96",
+     "cardkingdom": "41.98"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 1184
+     },
+     {
+      "id": 31912
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 102,
+       "name": "Destroy all permanents opponents control",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 2618,
+       "name": "Mass Land Denial",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": false,
+     "predh": false,
+     "legacy": true,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": false,
+     "pauperCommanderMain": false
+    },
+    "popularity": 21959,
+    "bracketTag": "R",
+    "description": "Cast Vandalblast for its overload cost, paying {5} to destroy all permanents opponents control.",
+    "manaNeeded": "{5}",
+    "variantCount": 1,
+    "saltVoteCount": 4,
+    "manaValueNeeded": 5,
+    "easyPrerequisites": "",
+    "notablePrerequisites": ""
+   },
+   {
+    "id": "38-659-6410",
+    "of": [
+     {
+      "id": 29871
+     }
+    ],
+    "salt": null,
+    "uses": [
+     {
+      "card": {
+       "id": 659,
+       "name": "Krenko, Mob Boss",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "68418069-f615-40ef-ae0d-764192acae00",
+       "typeLine": "Legendary Creature — Goblin Warrior",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": true,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 38,
+       "name": "Skirk Prospector",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "c18013e4-0b99-44e3-a2b2-027ace68723a",
+       "typeLine": "Creature — Goblin",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 6410,
+       "name": "Howlsquad Heavy",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "cd45a29f-73bc-435c-9d50-09a4ecaa77be",
+       "typeLine": "Creature — Goblin Mercenary",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "5.42",
+     "cardmarket": "2.84",
+     "cardkingdom": "8.37"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 29871
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 3,
+       "name": "Infinite creature LTB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 4,
+       "name": "Infinite creature ETB",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 6,
+       "name": "Infinite creature sacrifice triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 7,
+       "name": "Infinite death triggers",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 20,
+       "name": "Infinite red mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 39,
+       "name": "Infinite creature tokens with haste",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 160,
+       "name": "Infinite commander casts",
+       "status": "C",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": true,
+     "predh": false,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": false,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 17431,
+    "bracketTag": "E",
+    "description": "Activate Krenko by tapping it, creating a number of 1/1 Goblin creature tokens equal to the number of Goblins you control.\nActivate Skirk Prospector by sacrificing Krenko, adding {R}.\nChoose to return Krenko to the command zone from your graveyard.\nActivate Skirk Prospector by sacrificing a Goblin, adding {R}.\nRepeat step 4 until you have enough mana to cast Krenko.\nCast Krenko from the command zone by paying {2}{R}{R} plus commander tax.\nRepeat.",
+    "manaNeeded": "",
+    "variantCount": 1,
+    "saltVoteCount": 1,
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "You control a number of Goblins that is equal to or greater than six plus Krenko's commander tax."
+   },
+   {
+    "id": "1228-3500",
+    "of": [
+     {
+      "id": 4432
+     }
+    ],
+    "salt": null,
+    "uses": [
+     {
+      "card": {
+       "id": 1228,
+       "name": "Goblin Sharpshooter",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "d81285b7-a718-411a-8be3-ecc0cfe0bcb0",
+       "typeLine": "Creature — Goblin",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 3500,
+       "name": "Basilisk Collar",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "f5f4dd28-f4ae-4d39-b9b8-6ebfd63c93fe",
+       "typeLine": "Artifact — Equipment",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "26.55",
+     "cardmarket": "22.52",
+     "cardkingdom": "34.48"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 4432
+     },
+     {
+      "id": 32071
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 2617,
+       "name": "Lock",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 543,
+       "name": "Destroy all creatures opponents control",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 544,
+       "name": "From now on, destroy any creatures opponents control at instant speed",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": true,
+     "predh": true,
+     "legacy": true,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 16051,
+    "bracketTag": "S",
+    "description": "Activate Goblin Sharpshooter by tapping it, dealing 1 damage to target creature.\nThat creature dies from lethal damage due to Goblin Sharpshooter's deathtouch ability.\nGoblin Sharpshooter triggers, untapping itself.\nRepeat for each creature opponents control and whenever an opponent controls a creature.",
+    "manaNeeded": "",
+    "variantCount": 1,
+    "saltVoteCount": 3,
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "Basilisk Collar attached to Goblin Sharpshooter.\nGoblin Sharpshooter does not have summoning sickness."
+   },
+   {
+    "id": "1823-2484",
+    "of": [
+     {
+      "id": 17630
+     }
+    ],
+    "salt": null,
+    "uses": [
+     {
+      "card": {
+       "id": 1823,
+       "name": "Fall of Cair Andros",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "33c0a8c0-d1d9-4b03-869d-65dab8ace3df",
+       "typeLine": "Enchantment",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 2484,
+       "name": "Blasphemous Act",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "7a2484a9-04fd-41a0-8224-610c1c07ed10",
+       "typeLine": "Sorcery",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "1.21",
+     "cardmarket": "1.55",
+     "cardkingdom": "2.48"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "R",
+    "includes": [
+     {
+      "id": 17630
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 2244,
+       "name": "Infinite +1/+1 counters on a creature",
+       "status": "C",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 1422,
+       "name": "Near-infinite damage to creatures",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [],
+    "legalities": {
+     "brawl": true,
+     "predh": false,
+     "legacy": true,
+     "modern": true,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": true,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": true,
+     "pauperCommanderMain": false
+    },
+    "popularity": 14262,
+    "bracketTag": "O",
+    "description": "Cast Blasphemous Act by paying at most {7}{R}, dealing 13 damage to each creature.\nFor each creature opponents control that is dealt excess damage, Fall of Cair Andros triggers, creating a 0/0 Army if you dont control one, and putting a number of +1/+1 counters on an Army you control equal to the excess damage.",
+    "manaNeeded": "{7}{R} (at most)",
+    "variantCount": 1,
+    "saltVoteCount": 2,
+    "manaValueNeeded": 8,
+    "easyPrerequisites": "",
+    "notablePrerequisites": "An opponent controls a creature with toughness less than 13."
+   }
+  ],
+  "almostIncludedByAddingColors": [
+   {
+    "id": "513-5034--46",
+    "of": [
+     {
+      "id": 26516
+     }
+    ],
+    "salt": 1.91,
+    "uses": [
+     {
+      "card": {
+       "id": 513,
+       "name": "Hullbreaker Horror",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "d4a84e78-d9b9-4c67-8a4b-4329e65f0f15",
+       "typeLine": "Creature — Kraken Horror",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     },
+     {
+      "card": {
+       "id": 5034,
+       "name": "Sol Ring",
+       "faces": 1,
+       "spoiler": false,
+       "oracleId": "6ad8011d-3471-4369-9d68-b264cc027487",
+       "typeLine": "Artifact",
+       "layoutRotationFront": null
+      },
+      "quantity": 1,
+      "usedFace": null,
+      "zoneLocations": [
+       "B"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "notes": "",
+    "prices": {
+     "tcgplayer": "7.27",
+     "cardmarket": "5.25",
+     "cardkingdom": "12.78"
+    },
+    "status": "OK",
+    "spoiler": false,
+    "identity": "U",
+    "includes": [
+     {
+      "id": 26516
+     }
+    ],
+    "produces": [
+     {
+      "feature": {
+       "id": 11,
+       "name": "Infinite colorless mana",
+       "status": "S",
+       "uncountable": true
+      },
+      "quantity": 1
+     },
+     {
+      "feature": {
+       "id": 17,
+       "name": "Infinite storm count",
+       "status": "H",
+       "uncountable": true
+      },
+      "quantity": 1
+     }
+    ],
+    "requires": [
+     {
+      "quantity": 1,
+      "template": {
+       "id": 46,
+       "name": "Permanent Castable for {C}",
+       "scryfallApi": "https://api.scryfall.com/cards/search?q=%28mv%3C%3D1+%28mana%3D%7B0%7D+or+mana%3D%7B1%7D+or+mana%3D%7BC%7D%29+is%3Apermanent%29+legal%3Acommander",
+       "scryfallQuery": "mv<=1 (mana={0} or mana={1} or mana={C}) is:permanent"
+      },
+      "zoneLocations": [
+       "H"
+      ],
+      "exileCardState": "",
+      "mustBeCommander": false,
+      "libraryCardState": "",
+      "graveyardCardState": "",
+      "battlefieldCardState": ""
+     }
+    ],
+    "legalities": {
+     "brawl": false,
+     "predh": false,
+     "legacy": false,
+     "modern": false,
+     "pauper": false,
+     "alchemy": false,
+     "pioneer": false,
+     "vintage": true,
+     "standard": false,
+     "commander": true,
+     "premodern": false,
+     "oathbreaker": false,
+     "standardBrawl": false,
+     "pauperCommander": false,
+     "competitiveBrawl": false,
+     "pauperCommanderMain": false
+    },
+    "popularity": 362890,
+    "bracketTag": "E",
+    "description": "Activate Sol Ring by tapping it, adding {C} {C}.\nCast the permanent that can be cast using {C} by paying its mana cost.\nHullbreaker Horror triggers, returning Sol Ring from the battlefield to your hand.\nCast Sol Ring by paying {1}. \nHullbreaker Horror triggers, returning the permanent cast in step 2 from the battlefield to your hand.\nRepeat.\nIf the permanent can be cast by paying {0}, this combo nets infinite colorless mana.",
+    "manaNeeded": "",
+    "variantCount": 1,
+    "saltVoteCount": 44,
+    "manaValueNeeded": 0,
+    "easyPrerequisites": "",
+    "notablePrerequisites": ""
+   }
+  ],
+  "almostIncludedByChangingCommanders": [],
+  "almostIncludedByAddingColorsAndChangingCommanders": []
+ }
+}
