@@ -93,6 +93,19 @@ from 1.0.0 onward.
 
 ### Added
 
+- Collection awareness, offline, from a CSV export. `:collection
+  path.csv` loads a ManaBox, Moxfield, Archidekt, or Deckbox export (or
+  any CSV with a name and a count column), sums copies across printings,
+  and saves the path to the new `collection` setting, reloaded on every
+  deck open when the file changed. A card line the collection cannot
+  cover gets a dim `○` in the gutter (lint signs win the cell), the
+  inline card detail ends with `owned 2 of 4`, and the analytics pane
+  gains a `COLLECTION` block (`Owned 54/60`, `Missing 6 (4 unique)`, `To
+  complete $12.30`, with an unpriced count). `:export missing [file]`
+  writes the missing cards as store-pastable `N Card Name` lines, and
+  `vimtg missing deck.deck [--collection file.csv]` does the same from
+  the shell with the total cost on stderr. Deck imports now match CSV
+  headers case-insensitively too.
 - `otag:` (also `oracletag:`, `function:`) searches by Scryfall oracle
   tag, offline: `otag:ramp`, `otag:removal`, `otag:tutor`,
   `otag:card-advantage`. `vimtg sync`, `:sync` and the background

@@ -1,0 +1,9 @@
+Name,Set code,Set name,Collector number,Foil,Rarity,Quantity,ManaBox ID,Scryfall ID,Purchase price,Misprint,Altered,Condition,Language,Purchase price currency
+Lightning Bolt,sta,Strixhaven Mystical Archive,42,normal,rare,2,1,,1.00,false,false,near_mint,en,USD
+Lightning Bolt,m11,Magic 2011,149,foil,common,1,2,,2.00,false,false,near_mint,en,USD
+Goblin Guide,zen,Zendikar,126,normal,rare,4,3,,,false,false,near_mint,en,USD
+Monastery Swiftspear,ktk,Khans of Tarkir,118,normal,uncommon,2,4,,,false,false,near_mint,en,USD
+Lava Spike,chk,Champions of Kamigawa,178,normal,common,4,5,,,false,false,near_mint,en,USD
+Mountain,m21,Core Set 2021,273,normal,common,14,6,,,false,false,near_mint,en,USD
+Arid Mesa,zen,Zendikar,211,normal,rare,4,7,,,false,false,near_mint,en,USD
+Rest in Peace,rtr,Return to Ravnica,17,normal,rare,1,8,,,false,false,near_mint,en,USD

@@ -13,10 +13,12 @@ import textwrap
 from rich.text import Text
 
 from vimtg.domain.card import Card
+from vimtg.domain.collection import Ownership
 from vimtg.domain.validation import ValidationError
 from vimtg.editor.buffer import Buffer, LineType
 from vimtg.editor.config_options import price_text
 from vimtg.editor.header_counts import HeaderCount
+from vimtg.editor.lint import GutterSign, gutter_sign
 from vimtg.tui.theme import COLORS
 
 MANA_COLORS: dict[str, str] = {
@@ -56,17 +58,22 @@ def _delta_style(delta: int) -> str:
     return _OUT_STYLE if delta < 0 else _IN_STYLE
 
 
-def _lint_sign(err: ValidationError | None) -> Text:
-    """Two-char sign column: '✗ ' error, '! ' warning, '  ' clean.
+_SIGN_STYLES: dict[GutterSign, str] = {
+    GutterSign.ERROR: f"bold {COLORS['error']}",
+    GutterSign.WARNING: f"bold {COLORS['warning']}",
+    GutterSign.MISSING: f"dim {COLORS['comment']}",
+}
+
+
+def _sign_cell(sign: GutterSign | None) -> Text:
+    """Two-char sign column: the sign and a space, or '  ' for a clean row.
 
     The column is always reserved so signs appearing and disappearing
     never shift the layout.
     """
-    if err is None:
+    if sign is None:
         return Text("  ")
-    if err.level == "error":
-        return Text("✗ ", style=f"bold {COLORS['error']}")
-    return Text("! ", style=f"bold {COLORS['warning']}")
+    return Text(f"{sign.value} ", style=_SIGN_STYLES[sign])
 
 
 def _line_number_gutter(
@@ -118,6 +125,7 @@ def render_line(
     line_error: ValidationError | None = None,
     header_count: HeaderCount | None = None,
     plan_delta: int | None = None,
+    ownership: Ownership | None = None,
 ) -> list[Text]:
     """Render a buffer line as Rich Text objects.
 
@@ -128,11 +136,13 @@ def render_line(
     gutter. `header_count` appends a card total to header lines
     (see editor.header_counts); it is ignored on other line types.
     `plan_delta` appends the active sideboard plan's -N/+N for this
-    deck card (see editor.plan_ops.row_deltas).
+    deck card (see editor.plan_ops.row_deltas). `ownership` (set when a
+    collection is loaded) puts a ○ in the gutter for copies the user
+    lacks and ends the expansion with 'owned N of M'.
     """
     bl = buf.get_line(line_idx)
     is_cursor = line_idx == cursor_row
-    gutter = _lint_sign(line_error)
+    gutter = _sign_cell(gutter_sign(line_error, ownership))
     if show_line_numbers:
         gutter.append_text(_line_number_gutter(line_idx, cursor_row, buf))
     gutter_pad = Text(" " * len(gutter.plain))
@@ -171,7 +181,7 @@ def render_line(
             line_idx, buf, is_cursor, resolved, gutter, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
             show_prices=show_prices, auto_expand=auto_expand and not dimmed,
-            width=width, plan_delta=plan_delta,
+            width=width, plan_delta=plan_delta, ownership=ownership,
         ))
         if dimmed:
             for line in lines:
@@ -200,6 +210,7 @@ def _render_card_line(
     auto_expand: bool = True,
     width: int | None = None,
     plan_delta: int | None = None,
+    ownership: Ownership | None = None,
 ) -> list[Text]:
     """Build the formatted card line and optional inline expansion."""
     bl = buf.get_line(line_idx)
@@ -284,7 +295,7 @@ def _render_card_line(
         lines.extend(_render_expansion(
             card, gutter_pad,
             price_source=price_source, currency_symbol=currency_symbol,
-            show_prices=show_prices, width=width,
+            show_prices=show_prices, width=width, ownership=ownership,
         ))
 
     return lines
@@ -297,6 +308,7 @@ def _render_expansion(
     currency_symbol: str = "$",
     show_prices: bool = True,
     width: int | None = None,
+    ownership: Ownership | None = None,
 ) -> list[Text]:
     """Render expansion lines with proper word-wrapping to avoid broken indentation.
 
@@ -337,7 +349,17 @@ def _render_expansion(
         meta_parts.append(price)
     lines.append(Text(f"{prefix}{'  '.join(meta_parts)}", style=_EXPANSION_STYLE))
 
+    if ownership is not None:
+        lines.append(Text(f"{prefix}{owned_text(ownership)}", style=_EXPANSION_STYLE))
+
     return lines
+
+
+def owned_text(ownership: Ownership) -> str:
+    """'owned 2 of 4', or 'not owned'."""
+    if ownership.owned == 0:
+        return "not owned"
+    return f"owned {ownership.owned} of {ownership.needed}"
 
 
 _NAME_WIDTH = 26

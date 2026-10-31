@@ -133,6 +133,7 @@ is its `@category`.
 |---------|-------------|
 | `:export fmt [file]` | Write the deck as `arena`, `mtgo`, `dek`, `moxfield`, `archidekt`, `vimtg`, or `guide` to `file` (`~` expands); with no file, copy it to the clipboard. `vimtg` is the text `:w` writes, so empty `// Format:`/`// Tags:` lines the file never had are left out |
 | `:export! fmt file` | Same, overwriting an existing `file` (`:export` refuses with E13). The open deck's own file is never an export target |
+| `:export missing [file]` | Write the cards your [collection](#collection) lacks as `N Card Name` lines, mainboard then a blank line then sideboard, ready for a store's mass-entry box; with no file, copy them to the clipboard. Needs a loaded collection |
 | `:import[!] file` | Open `file` as a new unnamed deck in place of this one, as the greeter's import does (the open deck is left as it is on disk; the first `:w` names the new file after its `// Deck:` line), auto-detecting format. Refuses with unsaved changes (E37); `!` discards them. A vimtg deck comes in as written; other formats get `// Deck:` / `// Format:` lines and `CMD:`/`DCK:`/`SB:` blocks (type sections when card data is synced), with names normalised to each card's official name |
 | `:import` | Same, with the decklist (or deck URL) on the system clipboard |
 | `:clipboard [fmt]` | Copy the deck to the system clipboard in any `:export` format (default arena): pbcopy/wl-copy/xclip/xsel/clip.exe, else OSC 52 |
@@ -140,6 +141,16 @@ is its `@category`.
 Pasting (your terminal's paste key) in normal mode adds the pasted
 decklist to the deck as one undo step; in card search or on the `:`
 line it inserts the text.
+
+## Collection
+
+| Command | Description |
+|---------|-------------|
+| `:collection path` | Load the collection CSV at `path` (alias `:coll`; `~` expands) and save the path to the `collection` setting. Any ManaBox, Moxfield, Archidekt, or Deckbox export works, or any CSV with a name column and a count column (headers matched case-insensitively); copies are summed across printings. Reports `Collection: N cards (M unique) from file`, plus the rows it skipped. A file with no recognisable columns is refused with the headers it found |
+| `:collection` | Report the loaded collection, or `No collection loaded (:collection path.csv)` |
+| `:collection!` | Forget the collection and clear the setting |
+
+With a collection loaded: a card line the collection cannot cover shows a dim `○` in the gutter (a lint `✗` or `!` wins the one cell), the inline card detail ends with `owned 2 of 4` or `not owned`, the analytics pane gains a `COLLECTION` block (`Owned 54/60`, `Missing 6 (4 unique)`, `To complete $12.30`, with an unpriced count when some missing cards have no price), and `:export missing` copies the shopping list. The same card in the mainboard and the sideboard shares one owned pool, allotted to the mainboard first. The configured file is reloaded on every deck open when it changed on disk; a missing or unreadable file shows one warning and leaves the deck usable. `vimtg missing deck.deck [--collection file.csv]` prints the same list from the shell.
 
 ## Version control
 

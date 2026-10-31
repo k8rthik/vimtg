@@ -5,7 +5,7 @@ The maintained source for verifying vimtg's user-facing behavior. Read this inde
 ## Baseline preconditions
 
 - A fresh run: `$V sandbox`, then `$V doctor` reports `doctor: OK`, `cards: 84` and `tags: 67 (card, tag) rows`.
-- Seed decks `burn.deck` (modern) and `krenko.deck` (Commander) in the run's `sandbox/decks/`.
+- Seed decks `burn.deck` (modern) and `krenko.deck` (Commander), and the collection export `collection.csv`, in the run's `sandbox/decks/`.
 - The TUI started by this run (`$V tui start ...`). Never drive a vimtg you did not start.
 - Offline: autosync and EDHREC are off in the sandbox environment.
 
@@ -33,5 +33,6 @@ Each feature file starts with an H1 and one paragraph on the user-visible behavi
 - [Deck editing](./deck-editing.md) covers moving, quantities, delete/undo/repeat, adding cards through search, visual mode, ex commands, and saving.
 - [Zones and sideboard plans](./zones-and-plans.md) covers sideboard/maybeboard moves, split counts, `VS:` plans, and legality signs.
 - [Panes and windows](./panes-and-windows.md) covers the analytics pane, sample hand, EDHREC, `Ctrl-W w` focus, and the Space leader.
+- [Collection](./collection.md) covers `:collection`, the `○` gutter sign, the owned line in the card detail, the analytics `COLLECTION` block, `:export missing`, and `vimtg missing`.
 - [Version history](./version-history.md) covers `:w` snapshots, `:commit`, `:checkpoint`, and the history overlay.
 - [Greeter, tutor, and CLI](./greeter-tutor-cli.md) covers the start screen, its `:` line, the tutor, import/export, and the shell subcommands.

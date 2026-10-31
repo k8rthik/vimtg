@@ -42,6 +42,7 @@ COMMANDS
                 power/toughness/rarity/price (default: sort_order)
   :{n}          Go to line n
   :e[!] [file]  Edit another deck (:e! reloads, dropping changes)
+  :collection f Load your collection CSV (○ marks cards you lack)
   :s/pat/rep/g  Substitute (regex; & and \\1 in rep)
   :g/pat/cmd    Run d, p, y [x], or s/// on matching cards
   :reg :marks   Show registers / marks
@@ -209,14 +210,34 @@ COMMAND_HELP: dict[str, str] = {
     "marks": ":marks  Show marks with their line numbers",
     "export": (
         ":export format [file]  Export deck "
-        "(arena/mtgo/dek/moxfield/archidekt/vimtg/guide)\n"
+        "(arena/mtgo/dek/moxfield/archidekt/vimtg/guide/missing)\n"
         "\n"
         "No file: the export is copied to the clipboard. An existing\n"
         "file needs :export! to overwrite; the open deck's own file is\n"
         "never overwritten.\n"
         "\n"
         "guide writes the sideboard plans (VS: blocks) as a Markdown\n"
-        "guide — one section per matchup with OUT and IN lines."
+        "guide — one section per matchup with OUT and IN lines.\n"
+        "\n"
+        "missing writes the cards your collection lacks (see\n"
+        ":collection) as 'N Card Name' lines, mainboard then sideboard,\n"
+        "ready for a store's mass-entry box."
+    ),
+    "collection": (
+        ":collection [path]  Load your collection CSV; bare, show its status\n"
+        "\n"
+        "Any ManaBox, Moxfield, Archidekt or Deckbox export works, or\n"
+        "any CSV with a name and a count column. Copies are summed\n"
+        "across printings. The path is saved to the collection setting\n"
+        "and reloaded on every deck open (when the file changed).\n"
+        ":collection! forgets it.\n"
+        "\n"
+        "With a collection loaded, a card line you cannot cover gets a\n"
+        "dim ○ in the gutter (a lint ✗ or ! wins the cell), the card\n"
+        "detail ends with 'owned 2 of 4', the analytics pane gains a\n"
+        "COLLECTION block (owned, missing, cost to complete), and\n"
+        ":export missing copies the shopping list. From the shell:\n"
+        "vimtg missing deck.deck [--collection file.csv]."
     ),
     "plan": (
         ":plan <matchup>  Activate a sideboard plan; :plan cycles; :plan! clears\n"

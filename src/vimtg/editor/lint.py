@@ -7,7 +7,9 @@ join and parse_deck_text numbers lines from 1, so row = line_number - 1.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from vimtg.data.deck_repository import missing_quantity_lines, parse_deck_text
@@ -15,8 +17,36 @@ from vimtg.domain.validation import ValidationError, missing_quantity_warnings, 
 
 if TYPE_CHECKING:
     from vimtg.domain.card import Card
+    from vimtg.domain.collection import Ownership
     from vimtg.domain.deck import Deck
     from vimtg.editor.buffer import Buffer
+
+
+class GutterSign(Enum):
+    """What the deck view's one-cell gutter shows for a row, strongest
+    first: a legality error, a warning, then copies the collection lacks."""
+
+    ERROR = "✗"
+    WARNING = "!"
+    MISSING = "○"
+
+
+def gutter_sign(error: ValidationError | None, ownership: Ownership | None) -> GutterSign | None:
+    """The sign a row gets; lint wins the cell over ownership."""
+    if error is not None:
+        return GutterSign.ERROR if error.level == "error" else GutterSign.WARNING
+    if ownership is not None and ownership.missing:
+        return GutterSign.MISSING
+    return None
+
+
+def ownership_rows(owns: Iterable[Ownership]) -> dict[int, Ownership]:
+    """Ownership by 0-based buffer row (entries carry 1-based line numbers)."""
+    return {
+        own.entry.line_number - 1: own
+        for own in owns
+        if own.entry.line_number is not None
+    }
 
 
 @dataclass(frozen=True)

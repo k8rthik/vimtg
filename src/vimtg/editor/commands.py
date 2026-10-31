@@ -339,6 +339,11 @@ class EditorContext:
     new_buffer: NewBuffer | None = None
     # :import! <url> — the fetched deck may replace unsaved changes
     import_force: bool = False
+    # The owned-cards Collection (domain.collection): seeded from the
+    # editor state; collection_set marks that :collection replaced it
+    # (with a Collection, or None to clear)
+    collection: Any = None
+    collection_set: bool = False
 
     def show_listing(
         self, title: str, lines: list[str] | tuple[str, ...], summary: str,

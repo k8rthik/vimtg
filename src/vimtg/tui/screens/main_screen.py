@@ -31,6 +31,7 @@ from vimtg.data.database import Database
 from vimtg.data.deck_repository import parse_deck_text
 from vimtg.data.scryfall_sync import NO_CARD_DATA, card_data_badge
 from vimtg.domain.card import Card
+from vimtg.domain.collection import Collection, Ownership, ownership
 from vimtg.domain.formats import get_format_rules
 from vimtg.domain.search import SearchSyntaxError
 from vimtg.domain.sideboard_plan import apply_plan, find_plan
@@ -52,6 +53,7 @@ from vimtg.editor.lint import (
     LintResult,
     effective_format,
     lint_buffer,
+    ownership_rows,
 )
 from vimtg.editor.macros import paste_key, pasted_text
 from vimtg.editor.modes import Mode, ModeManager
@@ -244,7 +246,12 @@ class MainScreen(Screen[None]):
         self._deck_names: frozenset[str] = frozenset()
         self._deck_names_key: Buffer | None = None
         # Analytics pane recompute cache, keyed like lint (identity)
-        self._analytics_key: tuple[Buffer, dict[str, Card], str | None] | None = None
+        self._analytics_key: (
+            tuple[Buffer, dict[str, Card], str | None, Collection | None] | None
+        ) = None
+        # Deck view ownership rows, keyed by (buffer, collection) identity
+        self._ownership_key: tuple[Buffer, Collection | None] | None = None
+        self._ownership_cache: dict[int, Ownership] = {}
         # Active-plan row deltas for the deck view, keyed by (buffer, plan)
         self._plan_deltas_key: tuple[Buffer, str | None] | None = None
         self._plan_deltas_cache: dict[int, int] = {}
@@ -258,6 +265,9 @@ class MainScreen(Screen[None]):
         self._card_status: tuple[str, bool] = ("", False)
         # Ask for name/format when this opens a deck that is still blank
         self._prompt_new_deck = prompt_new_deck
+        # The `collection` setting value the editor state's collection
+        # came from; a saved setting that differs triggers a reload
+        self._collection_setting = ""
         # The tips panel was closed (Esc) for this session
         self._tips_closed = False
         # Action type of the last completed key ("motion", ...); an
@@ -303,7 +313,10 @@ class MainScreen(Screen[None]):
                 self._state.buffer, self.card_repo,
             )
         self._card_status = self._initial_card_status()
+        collection_warning = self._load_configured_collection()
         self._sync_widgets()
+        if collection_warning:
+            self.query_one("#command-line", CommandLine).set_message(collection_warning)
         if (
             self._offer_recovery
             and self.file_path is not None
@@ -1563,8 +1576,36 @@ class MainScreen(Screen[None]):
             on_save=self._on_settings_saved,
         ))
 
+    def _load_configured_collection(self) -> str:
+        """Load the `collection` setting's CSV into the editor state (cached
+        by path and mtime, so an unchanged file costs a stat). Returns the
+        warning to show when the file cannot be used; the deck stays
+        usable without a collection either way."""
+        from vimtg.domain.collection import CollectionError
+        from vimtg.services.collection_service import collection_path, load_collection
+
+        s = self._state
+        setting = s.settings.collection.strip()
+        self._collection_setting = setting
+        if not setting:
+            s.collection = None
+            return ""
+        try:
+            s.collection = load_collection(collection_path(setting))
+        except CollectionError as exc:
+            s.collection = None
+            return f"Collection not loaded: {exc}"
+        return ""
+
     def _on_settings_saved(self, new_settings: Settings) -> None:
         self._state.settings = new_settings
+        # :collection and :set both land here; a path already loaded is
+        # served from the mtime cache, so reloading is idempotent
+        collection_warning = (
+            self._load_configured_collection()
+            if new_settings.collection.strip() != self._collection_setting
+            else ""
+        )
         from vimtg.config.settings_writer import SettingsWriteError
         from vimtg.tui.app import VimTGApp
         app = self.app
@@ -1579,6 +1620,8 @@ class MainScreen(Screen[None]):
         if error:
             cl.set_message(error, error=True)
             self.notify(error, title="Settings", severity="error", timeout=10)
+        elif collection_warning:
+            cl.set_message(collection_warning)
         else:
             cl.set_message("Settings saved")
 
@@ -1809,6 +1852,7 @@ class MainScreen(Screen[None]):
             or key[0] is not s.buffer
             or key[1] is not s.resolved_cards
             or key[2] != s.active_plan
+            or key[3] is not s.collection
         ):
             deck = parse_deck_text(s.buffer.to_text())
             # With a plan active the pane shows the post-board deck
@@ -1817,9 +1861,11 @@ class MainScreen(Screen[None]):
                 deck = apply_plan(deck, plan)
             panel.plan_name = plan.name if plan is not None else ""
             panel.data = build_analytics_data(
-                deck, s.resolved_cards, s.settings.price_source
+                deck, s.resolved_cards, s.settings.price_source, s.collection
             )
-            self._analytics_key = (s.buffer, s.resolved_cards, s.active_plan)
+            self._analytics_key = (
+                s.buffer, s.resolved_cards, s.active_plan, s.collection
+            )
         # Draw odds follow the cursor — mainboard cards only (the odds
         # population is the mainboard)
         row = s.cursor.row
@@ -1831,6 +1877,20 @@ class MainScreen(Screen[None]):
             panel.cursor_card = (name, s.buffer.quantity_at(row) or 0)
         else:
             panel.cursor_card = None
+
+    def _ownership_rows(self) -> dict[int, Ownership]:
+        """Row -> ownership against the loaded collection, cached per
+        (buffer, collection); empty without a collection."""
+        s = self._state
+        key = (s.buffer, s.collection)
+        if self._ownership_key != key:
+            self._ownership_cache = (
+                ownership_rows(ownership(parse_deck_text(s.buffer.to_text()), s.collection))
+                if s.collection is not None
+                else {}
+            )
+            self._ownership_key = key
+        return self._ownership_cache
 
     def _plan_deltas(self) -> dict[int, int]:
         """Row deltas of the active plan, cached per (buffer, plan)."""
@@ -1905,6 +1965,7 @@ class MainScreen(Screen[None]):
         dv.category_filter = s.category_filter
         dv.line_errors = self._lint.line_errors
         dv.plan_deltas = self._plan_deltas()
+        dv.ownership = self._ownership_rows()
 
         comp = self._split_pane
         if comp is not None:

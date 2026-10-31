@@ -425,3 +425,58 @@ class TestImportRefusesUnsavedChanges:
         assert not ctx.error
         assert "Goblin Guide" in _imported(ctx).text
         assert ctx.discard_requested
+
+
+class TestExportMissing:
+    """:export missing [file] — the shopping list against the collection."""
+
+    def _collection(self, text: str):  # type: ignore[no-untyped-def]
+        from vimtg.domain.collection import parse_collection_csv
+
+        return parse_collection_csv(text, Path("manabox.csv"))
+
+    def _ctx(self, collection_text: str | None) -> EditorContext:
+        return EditorContext(
+            collection=self._collection(collection_text) if collection_text else None
+        )
+
+    def test_copies_the_missing_list_to_the_clipboard(self) -> None:
+        ctx = self._ctx("Count,Name\n3,Lightning Bolt\n1,Mystical Dispute\n")
+        cmd_export(
+            Buffer.from_text(_deck_text()), Cursor(),
+            ParsedCommand(name="export", args="missing"), ctx,
+        )
+        assert ctx.error is False, ctx.message
+        assert ctx.clipboard_text == "1 Lightning Bolt\n2 Counterspell\n"
+        assert ctx.clipboard_label == "missing cards (2 lines)"
+
+    def test_writes_the_list_to_a_file(self, tmp_path: Path) -> None:
+        ctx = self._ctx("Count,Name\n4,Lightning Bolt\n2,Counterspell\n")
+        out = tmp_path / "missing.txt"
+        cmd_export(
+            Buffer.from_text(_deck_text()), Cursor(),
+            ParsedCommand(name="export", args=f"missing {out}"), ctx,
+        )
+        assert ctx.error is False, ctx.message
+        assert out.read_text(encoding="utf-8") == "1 Mystical Dispute\n"
+        assert ctx.message == f"Exported missing cards to {out}"
+
+    def test_fails_without_a_collection(self) -> None:
+        ctx = self._ctx(None)
+        cmd_export(
+            Buffer.from_text(_deck_text()), Cursor(),
+            ParsedCommand(name="export", args="missing"), ctx,
+        )
+        assert ctx.error is True
+        assert ctx.message == "E: No collection loaded (:collection path.csv)"
+        assert ctx.clipboard_text is None
+
+    def test_reports_a_complete_deck_instead_of_copying_nothing(self) -> None:
+        ctx = self._ctx("Count,Name\n4,Lightning Bolt\n2,Counterspell\n1,Mystical Dispute\n")
+        cmd_export(
+            Buffer.from_text(_deck_text()), Cursor(),
+            ParsedCommand(name="export", args="missing"), ctx,
+        )
+        assert ctx.error is False
+        assert ctx.clipboard_text is None
+        assert ctx.message == "Nothing missing: the collection covers this deck"

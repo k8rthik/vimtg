@@ -111,6 +111,7 @@ from vimtg.services.history_service import HistoryService
 if TYPE_CHECKING:
     from vimtg.data.card_repository import CardRepository
     from vimtg.data.file_io import FileStamp
+    from vimtg.domain.collection import Collection
     from vimtg.editor.command_handlers.hand_cmds import HandOpen
 
 
@@ -183,6 +184,9 @@ class EditorState:
     # Text a "+ / "* yank or delete queued for the system clipboard; the
     # handler returns it as HandlerResult.clipboard_text (the TUI copies)
     clipboard_out: str | None = None
+    # The owned-cards collection the deck view and analytics compare
+    # against; None until the configured CSV loads or :collection runs
+    collection: Collection | None = None
     # Inclusive (top, bottom) buffer rows the cursor can occupy without
     # scrolling the deck view — set by the TUI before H / M / L. None
     # means no view is known and the whole buffer counts as visible.
@@ -601,6 +605,7 @@ def handle_command(
             last_pattern=state.last_find,
             recovery_id=state.recovery_id,
             pane_open=pane_open,
+            collection=state.collection,
         )
         before = state.buffer
         before_text = before.to_text()
@@ -640,6 +645,8 @@ def handle_command(
             state.resolved_cards = CardMap(ctx.resolved_cards)
         if ctx.category_filter_set:
             state.category_filter = ctx.category_filter
+        if ctx.collection_set:
+            state.collection = ctx.collection
         return HandlerResult(
             command_message=ctx.message,
             error=ctx.error,
