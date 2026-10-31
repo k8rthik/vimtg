@@ -93,6 +93,29 @@ async def test_missing_configured_file_warns_once_and_keeps_the_deck(
 
 
 @pytest.mark.asyncio
+async def test_unclosed_quote_in_the_collection_warns_and_keeps_the_deck(
+    tmp_path: Path,
+) -> None:
+    broken = tmp_path / "broken.csv"
+    broken.write_text(
+        'Name,Quantity\n"Lightning Bolt,5\n' + "Mountain,1\n" * 20_000, encoding="utf-8"
+    )
+    _configure(str(broken))
+    app = VimTGApp(deck_path=_deck(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = _screen(app)
+        cl = screen.query_one("#command-line", CommandLine)
+        assert cl.message.startswith("Collection not loaded: ")
+        assert "line 2" in cl.message
+        assert screen._state.collection is None
+        start = screen._state.cursor.row
+        await pilot.press("j")
+        await pilot.pause()
+        assert screen._state.cursor.row == start + 1
+
+
+@pytest.mark.asyncio
 async def test_collection_command_loads_and_persists_the_path(tmp_path: Path) -> None:
     csv_path = _csv(tmp_path)
     app = VimTGApp(deck_path=_deck(tmp_path))

@@ -101,6 +101,22 @@ def test_fails_on_an_unusable_csv(
     assert "Card, Amount" in result.stderr
 
 
+def test_fails_on_an_unclosed_quote(
+    deck_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "_try_card_repo", lambda: None)
+    broken = tmp_path / "broken.csv"
+    broken.write_text(
+        'Count,Name\n1,"Lightning Bolt\n' + "1,Mountain\n" * 20_000, encoding="utf-8"
+    )
+    result = CliRunner().invoke(
+        main, ["missing", str(deck_file), "--collection", str(broken)]
+    )
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "broken.csv" in result.stderr and "line 2" in result.stderr
+
+
 def test_complete_deck_prints_nothing_but_says_so(
     deck_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
