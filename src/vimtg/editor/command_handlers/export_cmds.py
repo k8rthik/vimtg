@@ -272,7 +272,11 @@ def _import_text(
     """Open the deck parsed from `text` (see ImportExportService.to_vimtg)
     as a new buffer; `deck_name` (the file's stem) names a deck whose
     text does not."""
-    result = ImportExportService(card_repo=ctx.card_repo).to_vimtg(text, name=deck_name)
+    try:
+        result = ImportExportService(card_repo=ctx.card_repo).to_vimtg(text, name=deck_name)
+    except ValueError as exc:
+        ctx.fail(f"Cannot read {source}: {exc}")
+        return buffer, cursor
     if require_cards and not result.deck.entries:
         ctx.fail(f"No cards found in {source}")
         return buffer, cursor

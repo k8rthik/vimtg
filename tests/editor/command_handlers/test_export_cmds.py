@@ -163,6 +163,20 @@ class TestImport:
         assert ctx.error is True
         assert ":import <file|deck-url>" in ctx.message
 
+    def test_import_csv_with_an_unclosed_quote_fails(self, tmp_path: Path) -> None:
+        path = tmp_path / "broken.csv"
+        path.write_text(
+            'Quantity,Name\n1,"Lightning Bolt\n' + "1,Mountain\n" * 20_000, encoding="utf-8"
+        )
+        buffer = Buffer.from_text("// Empty\n")
+        ctx = EditorContext()
+
+        result_buf, _ = cmd_import(buffer, Cursor(row=0), ParsedCommand("import", str(path)), ctx)
+        assert ctx.error is True
+        assert "line 2" in ctx.message
+        assert ctx.new_buffer is None
+        assert result_buf is buffer
+
 
 class TestClipboard:
     """:clipboard renders the text; the TUI performs the copy (it owns

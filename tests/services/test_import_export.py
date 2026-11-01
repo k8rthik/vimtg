@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import io
 
+import pytest
+
 from vimtg.domain.card import Card, Prices, Rarity
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 from vimtg.services.import_export_service import DeckFormat, ImportExportService
@@ -448,6 +450,22 @@ class TestMalformedCsvRows:
         names = [e.card_name for e in deck.entries]
         assert "Lightning Bolt" in names
         assert "Goblin Guide" in names
+
+
+    @pytest.mark.parametrize(
+        ("header", "fmt"),
+        [
+            ("Count,Name,Section", DeckFormat.MOXFIELD),
+            ("Quantity,Name", DeckFormat.ARCHIDEKT),
+        ],
+    )
+    def test_unclosed_quote_is_a_value_error_naming_its_line(
+        self, header: str, fmt: DeckFormat
+    ) -> None:
+        # the quoted field runs past the csv module's 128 KiB field limit
+        text = f'{header}\n1,"Lightning Bolt\n' + "1,Mountain\n" * 20_000
+        with pytest.raises(ValueError, match="line 2"):
+            _svc().import_deck(text, fmt)
 
 
 class TestMtgoDek:

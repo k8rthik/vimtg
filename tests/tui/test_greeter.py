@@ -606,6 +606,29 @@ async def test_import_file_opens_editor(
 
 
 @pytest.mark.asyncio
+async def test_import_csv_with_an_unclosed_quote_shows_status(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    broken = tmp_path / "broken.csv"
+    broken.write_text(
+        'Quantity,Name\n1,"Lightning Bolt\n' + "1,Mountain\n" * 20_000, encoding="utf-8"
+    )
+    screen = GreeterScreen()
+    app = _HostApp(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        gv = screen.query_one(GreeterView)
+        await pilot.press("i")
+        gv._input = str(broken)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.launched == []
+        assert gv._status.startswith("E: Cannot read broken.csv: ")
+        assert "line 2" in gv._status
+
+
+@pytest.mark.asyncio
 async def test_import_url_failure_shows_status(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

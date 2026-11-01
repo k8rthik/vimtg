@@ -19,9 +19,11 @@ from vimtg.domain.categories import format_inline_category
 from vimtg.domain.csv_rows import (
     COUNT_HEADERS,
     NAME_HEADERS,
+    CsvTable,
     card_name_cell,
     count_cell,
     find_column,
+    read_csv,
 )
 from vimtg.domain.deck import Deck, DeckEntry, DeckMetadata, DeckSection
 from vimtg.domain.deck_lines import (
@@ -79,11 +81,11 @@ def format_list() -> str:
     return ", ".join(PRIMARY_FORMAT_NAMES[:-1]) + f", or {PRIMARY_FORMAT_NAMES[-1]}"
 
 
-def _csv_columns(reader: csv.DictReader[str]) -> tuple[str | None, str | None]:
+def _csv_columns(table: CsvTable) -> tuple[str | None, str | None]:
     """The (count, name) headers of a vendor CSV, matched case-insensitively."""
     return (
-        find_column(reader.fieldnames, COUNT_HEADERS),
-        find_column(reader.fieldnames, NAME_HEADERS),
+        find_column(table.fieldnames, COUNT_HEADERS),
+        find_column(table.fieldnames, NAME_HEADERS),
     )
 
 
@@ -359,7 +361,8 @@ class ImportExportService:
         """Parse text into a Deck and report the lines that were skipped.
 
         A BOM and CRLF line endings are tolerated in every format, and
-        case-insensitive duplicate card names are merged.
+        case-insensitive duplicate card names are merged. Raises
+        ValueError for a CSV the csv module cannot read.
         """
         text = normalize_text(text)
         if fmt is None:
@@ -653,11 +656,11 @@ class ImportExportService:
     # ------------------------------------------------------------------
 
     def _import_moxfield(self, text: str) -> ImportReport:
-        reader = csv.DictReader(io.StringIO(text))
-        count_col, name_col = _csv_columns(reader)
+        table = read_csv(text)
+        count_col, name_col = _csv_columns(table)
         entries: list[DeckEntry] = []
         skipped: list[SkippedLine] = []
-        for row in reader:
+        for line, row in table.rows:
             qty = _row_quantity(row, count_col)
             name = card_name_cell(row, name_col)
             section_str = (row.get("Section") or "mainboard").lower()
@@ -674,7 +677,7 @@ class ImportExportService:
             if name:
                 entries.append(DeckEntry(qty, name, section))
             elif _row_has_content(row):
-                skipped.append(_skipped_row(reader, row))
+                skipped.append(_skipped_row(line, row))
         return ImportReport(_plain_deck(entries), tuple(skipped))
 
     @staticmethod
@@ -713,16 +716,16 @@ class ImportExportService:
         column places each card by its first category, exactly like the
         Archidekt URL import: Commander/Companion/Sideboard/Maybeboard
         pick the zone, a user category becomes the @category."""
-        reader = csv.DictReader(io.StringIO(text))
-        count_col, name_col = _csv_columns(reader)
+        table = read_csv(text)
+        count_col, name_col = _csv_columns(table)
         entries: list[DeckEntry] = []
         skipped: list[SkippedLine] = []
-        for row in reader:
+        for line, row in table.rows:
             qty = _row_quantity(row, count_col)
             name = card_name_cell(row, name_col)
             if not name:
                 if _row_has_content(row):
-                    skipped.append(_skipped_row(reader, row))
+                    skipped.append(_skipped_row(line, row))
                 continue
             categories = row.get("Categories") or row.get("Category") or ""
             section, category = archidekt_placement(primary_archidekt_category(categories))
@@ -793,7 +796,7 @@ def _row_has_content(row: Mapping[str, str | None]) -> bool:
     return any((v or "").strip() for v in row.values() if isinstance(v, str))
 
 
-def _skipped_row(reader: csv.DictReader[str], row: Mapping[str, str | None]) -> SkippedLine:
+def _skipped_row(line: int, row: Mapping[str, str | None]) -> SkippedLine:
     """A CSV row without a card name, reported by its line number."""
     cells = [v for v in row.values() if isinstance(v, str) and v]
-    return SkippedLine(reader.line_num, ",".join(cells))
+    return SkippedLine(line, ",".join(cells))

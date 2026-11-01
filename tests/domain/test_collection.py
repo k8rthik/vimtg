@@ -124,6 +124,14 @@ class TestParseCollectionCsv:
         with pytest.raises(CollectionError):
             parse_collection_csv("", SOURCE)
 
+    def test_unclosed_quote_is_an_error_naming_its_line(self) -> None:
+        # the quoted field runs past the csv module's 128 KiB field limit
+        text = 'Count,Name\n4,Goblin Guide\n1,"Lightning Bolt\n' + "1,Mountain\n" * 20_000
+        with pytest.raises(CollectionError) as exc:
+            parse_collection_csv(text, SOURCE)
+        assert "manabox.csv" in str(exc.value)
+        assert "line 3" in str(exc.value)
+
     def test_status_line(self) -> None:
         collection = parse_collection_csv(
             "Count,Name\n4,Lightning Bolt\n2,Goblin Guide\nx,Mountain\n", SOURCE

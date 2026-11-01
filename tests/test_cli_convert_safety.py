@@ -144,3 +144,14 @@ def test_unreadable_card_database_is_ignored(deck_file: Path) -> None:
     result = CliRunner().invoke(main, ["convert", str(deck_file), "--to", "mtgo"])
     assert result.exit_code == 0, result.output
     assert "4 Stomp" in result.output.splitlines()
+
+
+def test_csv_with_an_unclosed_quote_fails_cleanly(tmp_path: Path) -> None:
+    broken = tmp_path / "broken.csv"
+    broken.write_text(
+        'Quantity,Name\n1,"Lightning Bolt\n' + "1,Mountain\n" * 20_000, encoding="utf-8"
+    )
+    result = CliRunner().invoke(main, ["convert", str(broken), "--to", "arena"])
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "line 2" in result.stderr

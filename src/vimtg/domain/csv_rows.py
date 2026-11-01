@@ -4,13 +4,54 @@ header spelling learnt for one works for the other."""
 
 from __future__ import annotations
 
+import csv
+import io
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 from vimtg.domain.deck_lines import strip_printing_suffix
 
 # Header names seen in the wild, first match wins
 NAME_HEADERS: tuple[str, ...] = ("Name", "Card Name", "Card")
 COUNT_HEADERS: tuple[str, ...] = ("Count", "Quantity", "Qty")
+
+
+class MalformedCsvError(ValueError):
+    """CSV text the csv module cannot split into rows."""
+
+
+@dataclass(frozen=True)
+class CsvTable:
+    """A CSV's header row and its data rows, each paired with the line
+    number it ends on."""
+
+    fieldnames: Sequence[str] | None
+    rows: tuple[tuple[int, Mapping[str, str | None]], ...]
+
+
+def read_csv(text: str) -> CsvTable:
+    """Split `text` into a header and rows.
+
+    Raises :class:`MalformedCsvError` naming the line an unreadable row
+    starts on. In practice that is a quote that never closes: it runs
+    to the end of the file, and the csv module stops it at its field
+    size limit.
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    rows: list[tuple[int, Mapping[str, str | None]]] = []
+    start = 1
+    try:
+        fieldnames = reader.fieldnames
+        start = reader.line_num + 1
+        for row in reader:
+            rows.append((reader.line_num, row))
+            start = reader.line_num + 1
+    except csv.Error as exc:
+        raise MalformedCsvError(
+            f"unreadable row starting on line {start} ({exc}); "
+            "look for an unclosed quote there"
+        ) from exc
+    return CsvTable(fieldnames, tuple(rows))
 
 
 def find_column(fieldnames: Sequence[str] | None, candidates: Sequence[str]) -> str | None:

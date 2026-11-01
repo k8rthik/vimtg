@@ -762,11 +762,13 @@ def _convert_text(
             raise click.ClickException(str(exc)) from exc
         imported = service.to_vimtg(remote, url=source)
     else:
-        imported = service.to_vimtg(
-            in_path.read_text(encoding="utf-8"),
-            fmt=FORMAT_NAMES[from_fmt] if from_fmt else None,
-            name=in_path.stem,
-        )
+        text = in_path.read_text(encoding="utf-8")
+        try:
+            imported = service.to_vimtg(
+                text, fmt=FORMAT_NAMES[from_fmt] if from_fmt else None, name=in_path.stem
+            )
+        except ValueError as exc:
+            raise click.ClickException(f"cannot read {source}: {exc}") from exc
     if imported.skipped:
         # stderr, so `vimtg convert ... > out.txt` stays a clean deck
         click.echo(

@@ -716,11 +716,11 @@ class GreeterScreen(Screen[None]):
             return
         try:
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
+            result = self._importer().to_vimtg(text, name=path.stem)
+        except (OSError, ValueError) as exc:
             gv._status = f"E: Cannot read {path.name}: {exc}"
             gv.refresh()
             return
-        result = self._importer().to_vimtg(text, name=path.stem)
         self._open_editor(None, result.text, result.summary(path.name))
 
     def _import_worker(self, url: str) -> None:

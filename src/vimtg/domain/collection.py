@@ -15,8 +15,6 @@ the cost to complete, and the shopping list.
 
 from __future__ import annotations
 
-import csv
-import io
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -28,9 +26,11 @@ from vimtg.domain.card_names import name_aliases, normalize_card_name
 from vimtg.domain.csv_rows import (
     COUNT_HEADERS,
     NAME_HEADERS,
+    MalformedCsvError,
     card_name_cell,
     count_cell,
     find_column,
+    read_csv,
 )
 from vimtg.domain.deck import Deck, DeckEntry, DeckSection
 from vimtg.domain.deck_lines import MAX_QUANTITY, strip_bom
@@ -82,11 +82,15 @@ def parse_collection_csv(
 
     Header matching is case-insensitive; a file with no recognisable
     name or count column raises :class:`CollectionError` naming the
-    headers it found. A row whose name is empty or whose count is not a
-    positive integer is skipped and counted.
+    headers it found, and so does a file the csv module cannot read. A
+    row whose name is empty or whose count is not a positive integer is
+    skipped and counted.
     """
-    reader = csv.DictReader(io.StringIO(strip_bom(text)))
-    fieldnames = reader.fieldnames
+    try:
+        table = read_csv(strip_bom(text))
+    except MalformedCsvError as exc:
+        raise CollectionError(f"{source.name}: {exc}") from exc
+    fieldnames = table.fieldnames
     name_col = find_column(fieldnames, NAME_HEADERS)
     count_col = find_column(fieldnames, COUNT_HEADERS)
     if name_col is None or count_col is None:
@@ -103,7 +107,7 @@ def parse_collection_csv(
     full_names: set[str] = set()
     total = 0
     skipped = 0
-    for row in reader:
+    for _line, row in table.rows:
         name = card_name_cell(row, name_col)
         count = count_cell(row, count_col)
         if not name or count is None or count <= 0:
